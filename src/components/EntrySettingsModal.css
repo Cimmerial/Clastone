@@ -1,0 +1,85 @@
+.entry-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.entry-modal {
+  width: min(520px, 100% - 2rem);
+  padding: 1.1rem 1.1rem 1.1rem;
+}
+
+.entry-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.entry-modal-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-muted);
+}
+
+.entry-modal-close {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+}
+
+.entry-modal-subtitle {
+  font-size: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.entry-modal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+.entry-modal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.entry-modal-select,
+.entry-modal-input {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text-primary);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.entry-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.entry-modal-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(244, 162, 97, 0.8);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.28), rgba(232, 93, 4, 0.18));
+  color: var(--text-primary);
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+

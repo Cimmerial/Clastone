@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Serif+4:wght@400;500;600&display=swap');
+@import './theme.css';
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(ellipse at top, var(--bg-gradient-top) 0%, var(--bg-gradient-bottom) 60%);
+}
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.app-main {
+  flex: 1;
+  width: 100%;
+  padding: 0.5rem 0.25rem 1.5rem;
+}
+@media (min-width: 768px) {
+  .app-main {
+    padding: 0.75rem 0.5rem 1.75rem;
+  }
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  font-family: inherit;
+}
+.card-surface {
+  background: radial-gradient(circle at top left, #3a1500 0, var(--surface) 45%, #1a0a00 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.chip-accent {
+  border-color: rgba(232, 93, 4, 0.65);
+  background: radial-gradient(circle at top left, rgba(232, 93, 4, 0.35), transparent 60%);
+  color: var(--accent-soft);
+}
+.page-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0 0.5rem;
+}
+.page-title {
+  font-family: var(--font-heading);
+  font-size: 1.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.page-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.page-tagline {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent-muted);
+}
