@@ -36,6 +36,31 @@
   padding: 0.6rem 0.6rem 0.7rem;
 }
 
+.class-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.class-divider::before,
+.class-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(244, 162, 97, 0.25);
+}
+
+.class-section--nonranked {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(244, 162, 97, 0.18);
+}
+
 @media (min-width: 768px) {
   .class-section {
     padding: 0.8rem 0.8rem 0.9rem;
@@ -224,6 +249,12 @@
 .entry-title {
   font-size: 1.15rem;
   font-weight: 600;
+}
+
+.entry-title-year {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .entry-subtitle {

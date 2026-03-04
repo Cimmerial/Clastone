@@ -18,12 +18,14 @@ const WATCH_TYPES: { value: WatchRecordType; label: string }[] = [
   { value: 'DATE', label: 'Watch date' },
   { value: 'RANGE', label: 'Start / end date' },
   { value: 'DNF', label: 'DNF' },
+  { value: 'CURRENT', label: 'Currently watching' },
   { value: 'LONG_AGO', label: 'Long ago' },
   { value: 'UNKNOWN', label: 'Unknown' }
 ];
 
 export function SearchPage() {
   const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,14 @@ export function SearchPage() {
     };
   }, [trimmed]);
 
+  // Autofocus the search input when arriving on this page.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const handleOpenRecord = (r: TmdbMultiResult) => {
     if (r.media_type !== 'movie') return;
     setRecordTarget(r);
@@ -99,8 +109,32 @@ export function SearchPage() {
     setRecordClassKey('');
   };
 
+  const handleAddToUnranked = async (r: TmdbMultiResult) => {
+    if (r.media_type !== 'movie') return;
+    const id = resultId(r);
+    const existing = getMovieById(id);
+    if (existing) return;
+    setIsSaving(true);
+    let cache = null;
+    try {
+      cache = await tmdbMovieDetailsFull(r.id);
+    } catch {
+      /* ignore */
+    }
+    addMovieFromSearch({
+      id,
+      title: r.title,
+      subtitle: 'Saved',
+      classKey: 'UNRANKED',
+      runtimeMinutes: cache?.runtimeMinutes,
+      posterPath: r.poster_path ?? cache?.posterPath,
+      cache: cache ?? undefined
+    });
+    setIsSaving(false);
+  };
+
   const buildWatchRecord = (): WatchRecord | null => {
-    if (recordType === 'DNF') {
+    if (recordType === 'DNF' || recordType === 'CURRENT') {
       const yearNum = Number(recordYear);
       if (!yearNum || Number.isNaN(yearNum)) return null;
       const monthNum = recordMonth ? Number(recordMonth) : undefined;
@@ -109,7 +143,7 @@ export function SearchPage() {
       if (dayNum !== undefined && (dayNum < 1 || dayNum > 31)) return null;
       return {
         id: crypto.randomUUID(),
-        type: 'DNF',
+        type: recordType,
         year: yearNum,
         month: monthNum,
         day: dayNum,
@@ -168,10 +202,10 @@ export function SearchPage() {
         return;
       }
     }
-    if (recordType === 'DNF') {
+    if (recordType === 'DNF' || recordType === 'CURRENT') {
       const yearNum = Number(recordYear);
       if (!yearNum || Number.isNaN(yearNum)) {
-        setRecordError('Please enter a start year for DNF.');
+        setRecordError('Please enter a start year for this type.');
         return;
       }
     }
@@ -232,7 +266,6 @@ export function SearchPage() {
           <h1 className="page-title">Search</h1>
           <p className="page-tagline">TMDB WIRED</p>
         </div>
-        <p className="page-subtitle">Search for movies, shows, and people to add.</p>
       </header>
 
       <div className="search-shell card-surface">
@@ -240,9 +273,11 @@ export function SearchPage() {
           <label className="search-label">
             <span>Search</span>
             <input
+              ref={inputRef}
+              autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Try “Game of Thrones”, “arrival”, “regina”…"
+              placeholder="Try “Arcane”, “La La Land”, “Emma Stone”…"
               className="search-input"
             />
           </label>
@@ -284,13 +319,24 @@ export function SearchPage() {
                   <div className="search-card-subtitle">{r.subtitle}</div>
                 </div>
                 {isMovie ? (
-                  <button
-                    type="button"
-                    className="search-card-action"
-                    onClick={() => handleOpenRecord(r)}
-                  >
-                    Record Watch
-                  </button>
+                  <div className="search-card-actions">
+                    <button
+                      type="button"
+                      className="search-card-action"
+                      disabled={isSaving}
+                      onClick={() => handleOpenRecord(r)}
+                    >
+                      Record Watch
+                    </button>
+                    <button
+                      type="button"
+                      className="search-card-action search-card-action-subtle"
+                      disabled={isSaving}
+                      onClick={() => void handleAddToUnranked(r)}
+                    >
+                      Add to unranked
+                    </button>
+                  </div>
                 ) : isTv ? (
                   <span className="search-card-coming-soon">Shows coming soon</span>
                 ) : (
@@ -407,7 +453,7 @@ export function SearchPage() {
                 </div>
               )}
 
-              {recordType === 'DNF' && (
+              {(recordType === 'DNF' || recordType === 'CURRENT') && (
                 <>
                   <div className="record-modal-field-row">
                     <label>
@@ -444,7 +490,9 @@ export function SearchPage() {
                   </div>
                   <div className="record-modal-field-row">
                     <label className="record-modal-field-slider">
-                      <span>Got through: {recordDnfPercent}%</span>
+                      <span>
+                        {recordType === 'DNF' ? 'Got through' : 'Current progress'}: {recordDnfPercent}%
+                      </span>
                       <input
                         type="range"
                         min={0}

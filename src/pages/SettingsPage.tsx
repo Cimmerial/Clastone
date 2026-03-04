@@ -1,29 +1,28 @@
 import { useMemo, useState } from 'react';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
+import { useMoviesStore } from '../state/moviesStore';
 import './SettingsPage.css';
-
-type ClassItem = {
-  key: string;
-  label: string;
-};
-
-const initialMovieClasses: ClassItem[] = [
-  { key: 'OLYMPUS', label: 'OLYMPUS' },
-  { key: 'DAMN_GOOD', label: 'DAMN_GOOD' },
-  { key: 'GOOD', label: 'GOOD' },
-  { key: 'ALRIGHT', label: 'ALRIGHT' },
-  { key: 'MEH', label: 'MEH' },
-  { key: 'BAD', label: 'BAD' },
-  { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS_GARBAGE' }
-];
 
 export function SettingsPage() {
   const { user, signOut } = useAuth();
-  const [classes, setClasses] = useState<ClassItem[]>(initialMovieClasses);
-  const [newClass, setNewClass] = useState('');
+  const {
+    classes,
+    byClass,
+    addClass,
+    renameClassLabel,
+    moveClass,
+    deleteClass,
+    isRankedClass
+  } = useMoviesStore();
+  const [newRankedLabel, setNewRankedLabel] = useState('');
+  const [newUnrankedLabel, setNewUnrankedLabel] = useState('');
   const signedIn = hasFirebaseConfig && user;
 
-  const canAdd = useMemo(() => newClass.trim().length > 0, [newClass]);
+  const rankedClasses = useMemo(() => classes.filter((c) => c.isRanked), [classes]);
+  const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
+
+  const canAddRanked = useMemo(() => newRankedLabel.trim().length > 0, [newRankedLabel]);
+  const canAddUnranked = useMemo(() => newUnrankedLabel.trim().length > 0, [newUnrankedLabel]);
 
   return (
     <section>
@@ -37,48 +36,153 @@ export function SettingsPage() {
       <div className="settings-grid">
         <div className="settings-card card-surface">
           <h2 className="settings-title">Class Management</h2>
-          <p className="settings-muted">UI only for now (Firebase later).</p>
+          <p className="settings-muted">
+            Classes are per account and saved to Firebase. Ranked classes affect global percentiles;
+            unranked ones (BABY / DELICIOUS GARBAGE / UNRANKED) do not.
+          </p>
+
+          <h3 className="settings-subtitle">Ranked classes</h3>
+          <div className="settings-list">
+            {rankedClasses.map((c) => {
+              const count = (byClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    {c.label}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => moveClass(c.key, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => moveClass(c.key, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renameClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      disabled={count > 0}
+                      onClick={() => deleteClass(c.key)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           <div className="settings-add-row">
             <input
-              value={newClass}
-              onChange={(e) => setNewClass(e.target.value)}
-              placeholder="Add custom class…"
+              value={newRankedLabel}
+              onChange={(e) => setNewRankedLabel(e.target.value)}
+              placeholder="Add ranked class…"
               className="settings-input"
             />
             <button
               type="button"
               className="settings-btn"
-              disabled={!canAdd}
+              disabled={!canAddRanked}
               onClick={() => {
-                const key = newClass.trim().toUpperCase().replace(/\s+/g, '_');
-                setClasses((prev) => [...prev, { key, label: key }]);
-                setNewClass('');
+                addClass(newRankedLabel, { isRanked: true });
+                setNewRankedLabel('');
               }}
             >
               Add
             </button>
           </div>
 
+          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
           <div className="settings-list">
-            {classes.map((c) => (
-              <div key={c.key} className="settings-list-item">
-                <span className="settings-class-name">{c.label}</span>
-                <button
-                  type="button"
-                  className="settings-btn settings-btn-subtle"
-                  onClick={() => {
-                    const next = prompt('Rename class', c.label);
-                    if (!next) return;
-                    setClasses((prev) =>
-                      prev.map((x) => (x.key === c.key ? { key: x.key, label: next } : x))
-                    );
-                  }}
-                >
-                  Rename
-                </button>
-              </div>
-            ))}
+            {nonRankedClasses.map((c) => {
+              const count = (byClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    {c.label}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => moveClass(c.key, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => moveClass(c.key, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renameClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      disabled={count > 0}
+                      onClick={() => deleteClass(c.key)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="settings-add-row">
+            <input
+              value={newUnrankedLabel}
+              onChange={(e) => setNewUnrankedLabel(e.target.value)}
+              placeholder="Add unranked class…"
+              className="settings-input"
+            />
+            <button
+              type="button"
+              className="settings-btn"
+              disabled={!canAddUnranked}
+              onClick={() => {
+                addClass(newUnrankedLabel, { isRanked: false });
+                setNewUnrankedLabel('');
+              }}
+            >
+              Add
+            </button>
           </div>
         </div>
 

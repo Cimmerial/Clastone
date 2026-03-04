@@ -60,6 +60,13 @@
   background: rgba(0, 0, 0, 0.22);
 }
 
+.search-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-end;
+}
+
 .search-card-poster {
   width: 64px;
   height: 96px;
@@ -120,6 +127,17 @@
 
 .search-card-action:hover {
   border-color: rgba(232, 93, 4, 0.85);
+}
+
+.search-card-action-subtle {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-muted);
+}
+
+.search-card-action-subtle:hover {
+  color: var(--text-primary);
+  border-color: rgba(244, 162, 97, 0.5);
 }
 
 .search-card-no-action {

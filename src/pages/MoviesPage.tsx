@@ -11,21 +11,27 @@ import {
 
 export function MoviesPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
-  const { byClass, classOrder, moveWithinClass, moveToOtherClass, updateMovieWatchRecords } =
-    useMoviesStore();
+  const {
+    byClass,
+    classOrder,
+    moveWithinClass,
+    moveToOtherClass,
+    updateMovieWatchRecords,
+    getClassLabel,
+    isRankedClass
+  } = useMoviesStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
-    const all: MovieShowItem[] = [];
+    const rankedItems: MovieShowItem[] = [];
     for (const classKey of classOrder) {
       const list = byClass[classKey] ?? [];
-      for (const item of list) {
-        all.push(item);
-      }
+      if (!isRankedClass(classKey)) continue;
+      for (const item of list) rankedItems.push(item);
     }
 
-    const total = all.length || 1;
+    const total = rankedItems.length || 1;
     const globalRanks = new Map<
       string,
       {
@@ -34,7 +40,7 @@ export function MoviesPage() {
       }
     >();
 
-    all.forEach((item, index) => {
+    rankedItems.forEach((item, index) => {
       const absoluteRank = `${index + 1} / ${total}`;
       const percentile = Math.round(((total - index) / total) * 100);
       const percentileRank = `${percentile}%`;
@@ -46,16 +52,22 @@ export function MoviesPage() {
       const list = byClass[classKey] ?? [];
       next[classKey] = list.map((item, idx) => {
         const ranks = globalRanks.get(item.id);
+        const ranked = isRankedClass(classKey);
+        const isUnranked = classKey === 'UNRANKED';
         return {
           ...item,
-          percentileRank: ranks?.percentileRank ?? item.percentileRank ?? '—',
-          absoluteRank: ranks?.absoluteRank ?? item.absoluteRank ?? '—',
-          rankInClass: `#${idx + 1} in ${classKey}`
+          percentileRank: !ranked && isUnranked
+            ? '—'
+            : !ranked
+              ? 'N/A%'
+              : ranks?.percentileRank ?? item.percentileRank ?? '—',
+          absoluteRank: !ranked ? '—' : ranks?.absoluteRank ?? item.absoluteRank ?? '—',
+          rankInClass: `#${idx + 1} in ${getClassLabel(classKey)}`
         };
       });
     }
     return next;
-  }, [byClass, classOrder]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass]);
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {
@@ -79,6 +91,7 @@ export function MoviesPage() {
       <RankedList<MovieShowItem>
         classOrder={classOrder}
         itemsByClass={computedByClass}
+        getClassLabel={getClassLabel}
         getClassSubtitle={(_, items) => {
           const totalMins = items.reduce(
             (sum, it) =>

@@ -3,7 +3,7 @@ import { EntrySettingsModal, WatchEntry } from './EntrySettingsModal';
 import { tmdbImagePath } from '../lib/tmdb';
 
 /** Watch type for display and validation. */
-export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'LONG_AGO' | 'UNKNOWN';
+export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'UNKNOWN';
 
 /** One recorded watch: type + optional date(s). */
 export type WatchRecord = {
@@ -51,6 +51,9 @@ export type MovieShowItem = RankedItemBase & {
   releaseDate?: string;
   cast?: CachedCastMember[];
   directors?: CachedDirector[];
+  /** For TV (future): helps convert progress % into rough S/E. */
+  totalSeasons?: number;
+  totalEpisodes?: number;
 };
 
 type Props = {
@@ -104,6 +107,8 @@ export function EntryRowMovieShow({
     abs != null ? `Ranked ${abs.rank} out of ${abs.total} ${label}` : null;
   const classTooltip = `${item.rankInClass}`;
   const releaseLabel = formatReleaseDate(item.releaseDate);
+  const isUnranked = item.classKey === 'UNRANKED';
+  const isNonRanked = item.classKey === 'BABY' || item.classKey === 'DELICIOUS_GARBAGE';
 
   return (
     <article className="entry-row">
@@ -116,10 +121,10 @@ export function EntryRowMovieShow({
       </div>
       <div className="entry-content">
         <div className="entry-title-row">
-          <h3 className="entry-title">{item.title}</h3>
-          {releaseLabel && (
-            <div className="entry-release entry-subtitle">{releaseLabel}</div>
-          )}
+          <h3 className="entry-title">
+            {item.title}
+            {releaseLabel ? <span className="entry-title-year"> ({releaseLabel})</span> : null}
+          </h3>
           <div className="entry-controls-column">
             <button
               type="button"
@@ -173,26 +178,21 @@ export function EntryRowMovieShow({
           </div>
         </div>
         <div className="entry-subtitle">{item.viewingDates}</div>
-        <div className="entry-stats-row">
-          <span
-            className="entry-stat-pill"
-            data-tooltip={percentileTooltip ?? undefined}
-          >
-            {item.percentileRank}
-          </span>
-          <span
-            className="entry-stat-pill"
-            data-tooltip={absoluteTooltip ?? undefined}
-          >
-            {item.absoluteRank}
-          </span>
-          <span
-            className="entry-stat-pill"
-            data-tooltip={classTooltip}
-          >
-            {item.rankInClass}
-          </span>
-        </div>
+        {!isUnranked && (
+          <div className="entry-stats-row">
+            <span className="entry-stat-pill" data-tooltip={isNonRanked ? 'Not ranked' : percentileTooltip ?? undefined}>
+              {isNonRanked ? 'N/A%' : item.percentileRank}
+            </span>
+            {!isNonRanked && (
+              <span className="entry-stat-pill" data-tooltip={absoluteTooltip ?? undefined}>
+                {item.absoluteRank}
+              </span>
+            )}
+            <span className="entry-stat-pill" data-tooltip={classTooltip}>
+              {item.rankInClass}
+            </span>
+          </div>
+        )}
       </div>
     </article>
   );

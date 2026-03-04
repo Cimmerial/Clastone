@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import type { ClassKey } from '../components/RankedList';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
-import { movieClasses } from '../mock/movies';
+import { defaultMovieClassDefs, movieClasses, type MovieClassDef } from '../mock/movies';
 
 const MOVIES_COLLECTION = 'users';
 const MOVIES_SUBCOLLECTION = 'data';
@@ -14,10 +14,11 @@ const MOVIES_DOC_ID = 'movies';
 
 export type MoviesData = {
   byClass: Record<ClassKey, MovieShowItem[]>;
+  classes?: MovieClassDef[];
 };
 
-function emptyByClass(): Record<ClassKey, MovieShowItem[]> {
-  return movieClasses.reduce(
+export function emptyByClass(keys: ClassKey[] = movieClasses): Record<ClassKey, MovieShowItem[]> {
+  return keys.reduce(
     (acc, k) => {
       acc[k] = [];
       return acc;
@@ -51,32 +52,36 @@ function stripUndefined<T>(value: T): T {
 export async function loadMovies(
   db: Firestore,
   userId: string
-): Promise<Record<ClassKey, MovieShowItem[]>> {
+): Promise<{ byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }> {
   const ref = doc(db, MOVIES_COLLECTION, userId, MOVIES_SUBCOLLECTION, MOVIES_DOC_ID);
   const snap = await getDoc(ref);
-  const base = emptyByClass();
-  if (!snap.exists()) return base;
+  if (!snap.exists()) return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs };
   const data = snap.data() as MoviesData | undefined;
-  if (!data?.byClass || typeof data.byClass !== 'object') return base;
-  for (const key of movieClasses) {
-    if (Array.isArray(data.byClass[key])) {
-      base[key] = data.byClass[key] as MovieShowItem[];
+  const loadedClasses = Array.isArray(data?.classes) && data?.classes?.length
+    ? data.classes
+    : defaultMovieClassDefs;
+  const keys = loadedClasses.map((c) => c.key);
+  const base = emptyByClass(keys);
+  if (!data?.byClass || typeof data.byClass !== 'object') return { byClass: base, classes: loadedClasses };
+  for (const key of keys) {
+    if (Array.isArray((data.byClass as Record<string, unknown>)[key])) {
+      base[key] = (data.byClass as Record<ClassKey, MovieShowItem[]>)[key] as MovieShowItem[];
     }
   }
-  return base;
+  return { byClass: base, classes: loadedClasses };
 }
 
 export async function saveMovies(
   db: Firestore,
   userId: string,
-  byClass: Record<ClassKey, MovieShowItem[]>
+  payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }
 ): Promise<void> {
   const ref = doc(db, MOVIES_COLLECTION, userId, MOVIES_SUBCOLLECTION, MOVIES_DOC_ID);
-  const payload = stripUndefined({ byClass });
-  const total = Object.values(byClass).reduce((acc, list) => acc + list.length, 0);
+  const sanitized = stripUndefined(payload);
+  const total = Object.values(payload.byClass).reduce((acc, list) => acc + list.length, 0);
   console.info('[Clastone] Saving movies to Firestore', {
     uid: userId,
     totalEntries: total
   });
-  await setDoc(ref, payload);
+  await setDoc(ref, sanitized);
 }

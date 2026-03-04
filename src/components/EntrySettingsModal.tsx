@@ -16,6 +16,7 @@ const WATCH_TYPES: { value: WatchRecordType; label: string }[] = [
   { value: 'DATE', label: 'Watch date' },
   { value: 'RANGE', label: 'Start / end date' },
   { value: 'DNF', label: 'DNF' },
+  { value: 'CURRENT', label: 'Currently watching' },
   { value: 'LONG_AGO', label: 'Long ago' },
   { value: 'UNKNOWN', label: 'Unknown' }
 ];
@@ -58,10 +59,40 @@ export function EntrySettingsModal({ item, onClose, onSave }: Props) {
   const handleSave = () => {
     const valid = records.filter((r) => {
       if (r.type === 'DATE' || r.type === 'RANGE') return (r.year ?? 0) > 0 && !Number.isNaN(r.year ?? 0);
+      if (r.type === 'DNF' || r.type === 'CURRENT') return (r.year ?? 0) > 0 && !Number.isNaN(r.year ?? 0);
       return true;
     });
     onSave(valid.length > 0 ? valid : [newEmptyRecord()]);
     onClose();
+  };
+
+  const formatMinutesIn = (mins: number): string => {
+    const m = Math.max(0, Math.round(mins));
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    if (h <= 0) return `${mm}m in`;
+    if (mm === 0) return `${h}h in`;
+    return `${h}h ${mm}m in`;
+  };
+
+  const progressLabel = (pct: number): string => {
+    const runtime = item.runtimeMinutes;
+    const totalEpisodes = item.totalEpisodes;
+    const totalSeasons = item.totalSeasons;
+    if (totalEpisodes && totalEpisodes > 0) {
+      const ep = Math.max(1, Math.min(totalEpisodes, Math.round((pct / 100) * totalEpisodes)));
+      if (totalSeasons && totalSeasons > 0) {
+        const epsPerSeason = Math.ceil(totalEpisodes / totalSeasons);
+        const season = Math.max(1, Math.min(totalSeasons, Math.ceil(ep / epsPerSeason)));
+        const epInSeason = Math.max(1, ep - (season - 1) * epsPerSeason);
+        return `≈ S${season}E${epInSeason}`;
+      }
+      return `≈ E${ep}`;
+    }
+    if (runtime && runtime > 0) {
+      return formatMinutesIn((pct / 100) * runtime);
+    }
+    return '';
   };
 
   return (
@@ -188,7 +219,7 @@ export function EntrySettingsModal({ item, onClose, onSave }: Props) {
                 </>
               )}
 
-              {row.type === 'DNF' && (
+              {(row.type === 'DNF' || row.type === 'CURRENT') && (
                 <>
                   <label className="entry-modal-field">
                     <span>Started year</span>
@@ -232,7 +263,10 @@ export function EntrySettingsModal({ item, onClose, onSave }: Props) {
                     />
                   </label>
                   <label className="entry-modal-field entry-modal-field-slider">
-                    <span>Got through: {(row.dnfPercent ?? 0)}%</span>
+                    <span>
+                      {row.type === 'DNF' ? 'Got through' : 'Current progress'}: {(row.dnfPercent ?? 0)}%
+                      {progressLabel(row.dnfPercent ?? 0) ? ` · ${progressLabel(row.dnfPercent ?? 0)}` : ''}
+                    </span>
                     <input
                       type="range"
                       min={0}

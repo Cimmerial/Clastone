@@ -4,6 +4,7 @@ import { useAuth, hasFirebaseConfig } from './context/AuthContext';
 import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
 import { MoviesProvider } from './state/moviesStore';
 import { LoginPage } from './pages/LoginPage';
+import { DevTools } from './components/DevTools';
 
 function App() {
   const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ function App() {
         <main className="app-main">
           <AppRoutes />
         </main>
+        <DevTools />
       </FirestoreMoviesGate>
     );
   }
@@ -43,6 +45,7 @@ function App() {
         <main className="app-main">
           <AppRoutes />
         </main>
+        <DevTools />
       </MoviesProvider>
     </>
   );

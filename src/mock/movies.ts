@@ -1,15 +1,26 @@
 import { ClassKey, RankedItemBase } from '../components/RankedList';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
 
-export const movieClasses: ClassKey[] = [
-  'OLYMPUS',
-  'DAMN_GOOD',
-  'GOOD',
-  'ALRIGHT',
-  'MEH',
-  'BAD',
-  'DELICIOUS_GARBAGE'
+export type MovieClassDef = {
+  key: ClassKey;
+  label: string;
+  /** If false, items in this class do not affect global percentile/absolute ranks. */
+  isRanked: boolean;
+};
+
+export const defaultMovieClassDefs: MovieClassDef[] = [
+  { key: 'OLYMPUS', label: 'OLYMPUS', isRanked: true },
+  { key: 'DAMN_GOOD', label: 'DAMN GOOD', isRanked: true },
+  { key: 'GOOD', label: 'GOOD', isRanked: true },
+  { key: 'ALRIGHT', label: 'ALRIGHT', isRanked: true },
+  { key: 'MEH', label: 'MEH', isRanked: true },
+  { key: 'BAD', label: 'BAD', isRanked: true },
+  { key: 'BABY', label: 'BABY', isRanked: false },
+  { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS GARBAGE', isRanked: false },
+  { key: 'UNRANKED', label: 'UNRANKED', isRanked: false }
 ];
+
+export const movieClasses: ClassKey[] = defaultMovieClassDefs.map((c) => c.key);
 
 type MovieItem = MovieShowItem & RankedItemBase;
 
