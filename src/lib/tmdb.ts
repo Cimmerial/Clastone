@@ -140,6 +140,26 @@ export type TmdbMovieCache = {
   directors: Array<{ id: number; name: string }>;
 };
 
+/** Cached TV data we store on each entry so we don't need to re-fetch. */
+export type TmdbTvCache = {
+  tmdbId: number;
+  title: string;
+  posterPath?: string;
+  backdropPath?: string;
+  overview?: string;
+  releaseDate?: string;
+  lastAirDate?: string;
+  totalSeasons?: number;
+  totalEpisodes?: number;
+  /** Approximate episode runtime (minutes) if provided by TMDB. */
+  episodeRuntimeMinutes?: number;
+  /** Approximate total runtime for this instance (episode runtime * total episodes). */
+  runtimeMinutes?: number;
+  cast: Array<{ id: number; name: string; character?: string }>;
+  creators: Array<{ id: number; name: string }>;
+  seasons: Array<{ seasonNumber: number; episodeCount?: number; airDate?: string }>;
+};
+
 type TmdbMovieDetailsResponse = {
   id: number;
   title?: string;
@@ -151,6 +171,27 @@ type TmdbMovieDetailsResponse = {
   credits?: {
     cast?: Array<{ id: number; name?: string; character?: string }>;
     crew?: Array<{ id: number; name?: string; job?: string }>;
+  };
+};
+
+type TmdbTvDetailsResponse = {
+  id: number;
+  name?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  overview?: string | null;
+  first_air_date?: string | null;
+  last_air_date?: string | null;
+  number_of_seasons?: number | null;
+  number_of_episodes?: number | null;
+  episode_run_time?: number[] | null;
+  created_by?: Array<{ id: number; name?: string }>;
+  seasons?: Array<{ season_number: number; episode_count?: number; air_date?: string | null }>;
+  aggregate_credits?: {
+    cast?: Array<{ id: number; name?: string; roles?: Array<{ character?: string }> }>;
+  };
+  credits?: {
+    cast?: Array<{ id: number; name?: string; character?: string }>;
   };
 };
 
@@ -181,6 +222,63 @@ export async function tmdbMovieDetailsFull(
     directors
   };
   console.info('[Clastone] TMDB cache fetched', {
+    tmdbId: cache.tmdbId,
+    title: cache.title
+  });
+  return cache;
+}
+
+/** Fetch full TV details + credits for caching on the entry. One API call. */
+export async function tmdbTvDetailsFull(
+  tvId: number,
+  signal?: AbortSignal
+): Promise<TmdbTvCache | null> {
+  const url = `${TMDB_BASE}/tv/${tvId}?append_to_response=aggregate_credits`;
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return null;
+  const data = (await res.json()) as TmdbTvDetailsResponse;
+  const castFromAggregate = (data.aggregate_credits?.cast ?? []).slice(0, 20).map((c) => ({
+    id: c.id,
+    name: c.name ?? '',
+    character: c.roles?.[0]?.character ?? undefined
+  }));
+  const castFromCredits = (data.credits?.cast ?? []).slice(0, 20).map((c) => ({
+    id: c.id,
+    name: c.name ?? '',
+    character: c.character ?? undefined
+  }));
+  const cast = castFromAggregate.length > 0 ? castFromAggregate : castFromCredits;
+  const creators = (data.created_by ?? []).map((c) => ({ id: c.id, name: c.name ?? '' }));
+  const episodeRuntimeMinutes = data.episode_run_time?.[0] ?? undefined;
+  const totalEpisodes = data.number_of_episodes ?? undefined;
+  const runtimeMinutes =
+    episodeRuntimeMinutes && totalEpisodes ? episodeRuntimeMinutes * totalEpisodes : undefined;
+  const seasons =
+    (data.seasons ?? [])
+      .filter((s) => (s.season_number ?? 0) > 0)
+      .map((s) => ({
+        seasonNumber: s.season_number,
+        episodeCount: s.episode_count ?? undefined,
+        airDate: s.air_date ?? undefined
+      })) ?? [];
+
+  const cache: TmdbTvCache = {
+    tmdbId: data.id,
+    title: data.name ?? '',
+    posterPath: data.poster_path ?? undefined,
+    backdropPath: data.backdrop_path ?? undefined,
+    overview: data.overview ?? undefined,
+    releaseDate: data.first_air_date ?? undefined,
+    lastAirDate: data.last_air_date ?? undefined,
+    totalSeasons: data.number_of_seasons ?? undefined,
+    totalEpisodes,
+    episodeRuntimeMinutes,
+    runtimeMinutes,
+    cast,
+    creators,
+    seasons
+  };
+  console.info('[Clastone] TMDB TV cache fetched', {
     tmdbId: cache.tmdbId,
     title: cache.title
   });

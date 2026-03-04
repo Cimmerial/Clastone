@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   tmdbSearchMulti,
   tmdbMovieDetailsFull,
+  tmdbTvDetailsFull,
   tmdbImagePath,
   type TmdbMultiResult
 } from '../lib/tmdb';
 import type { WatchRecord, WatchRecordType } from '../components/EntryRowMovieShow';
 import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -35,8 +37,21 @@ export function SearchPage() {
     addWatchToMovie,
     getMovieById,
     updateMovieCache,
-    classOrder
+    moveItemToClass,
+    isRankedClass,
+    classOrder,
+    getClassLabel
   } = useMoviesStore();
+  const {
+    addShowFromSearch,
+    addWatchToShow,
+    getShowById,
+    updateShowCache,
+    moveItemToClass: moveShowToClass,
+    isRankedClass: isRankedShowClass,
+    classOrder: tvClassOrder,
+    getClassLabel: getTvClassLabel
+  } = useTvStore();
   const [recordTarget, setRecordTarget] = useState<TmdbMultiResult | null>(null);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordType, setRecordType] = useState<WatchRecordType>('DATE');
@@ -95,7 +110,7 @@ export function SearchPage() {
   }, []);
 
   const handleOpenRecord = (r: TmdbMultiResult) => {
-    if (r.media_type !== 'movie') return;
+    if (r.media_type !== 'movie' && r.media_type !== 'tv') return;
     setRecordTarget(r);
     setRecordError(null);
     setRecordType('DATE');
@@ -132,6 +147,36 @@ export function SearchPage() {
     });
     setIsSaving(false);
   };
+
+  const handleAddTvToUnranked = async (r: TmdbMultiResult) => {
+    if (r.media_type !== 'tv') return;
+    const id = `tmdb-tv-${r.id}`;
+    const existing = getShowById(id);
+    if (existing) return;
+    setIsSaving(true);
+    let cache = null;
+    try {
+      cache = await tmdbTvDetailsFull(r.id);
+    } catch {
+      /* ignore */
+    }
+    addShowFromSearch({
+      id,
+      title: cache?.title ?? r.title,
+      subtitle: 'Saved',
+      classKey: 'UNRANKED',
+      cache: cache ?? undefined
+    });
+    setIsSaving(false);
+  };
+
+  const tvRankedClasses = useMemo(
+    () =>
+      tvClassOrder
+        .filter((k) => isRankedShowClass(k))
+        .map((k) => ({ key: k, label: getTvClassLabel(k) })),
+    [tvClassOrder, isRankedShowClass, getTvClassLabel]
+  );
 
   const buildWatchRecord = (): WatchRecord | null => {
     if (recordType === 'DNF' || recordType === 'CURRENT') {
@@ -190,10 +235,11 @@ export function SearchPage() {
     };
   };
 
-  const handleConfirmRecord = async () => {
-    if (!recordTarget || recordTarget.media_type !== 'movie') return;
-    const id = resultId(recordTarget);
-    const existing = getMovieById(id);
+  const handleSaveRecord = async (options: { goToMovie: boolean }) => {
+    if (!recordTarget) return;
+    const isMovie = recordTarget.media_type === 'movie';
+    const isTv = recordTarget.media_type === 'tv';
+    if (!isMovie && !isTv) return;
 
     if (recordType === 'DATE' || recordType === 'RANGE') {
       const yearNum = Number(recordYear);
@@ -216,47 +262,121 @@ export function SearchPage() {
       return;
     }
 
-    if (existing) {
-      const needsCache = existing.tmdbId == null || existing.overview == null;
-      if (needsCache) {
+    if (isMovie) {
+      const id = resultId(recordTarget);
+      const existing = getMovieById(id);
+      const existingIsUnranked = existing?.classKey === 'UNRANKED';
+
+      if (existingIsUnranked) {
+        if (!recordClassKey || !isRankedClass(recordClassKey)) {
+          setRecordError('Pick a ranked class to place this entry into.');
+          return;
+        }
+      }
+
+      if (existing) {
+        const needsCache = existing.tmdbId == null || existing.overview == null;
+        if (needsCache) {
+          try {
+            const cache = await tmdbMovieDetailsFull(recordTarget.id);
+            if (cache) updateMovieCache(id, cache);
+          } catch {
+            /* ignore */
+          }
+        }
+        addWatchToMovie(id, watch, {
+          posterPath: recordTarget.poster_path ?? existing.posterPath
+        });
+        if (existingIsUnranked && recordClassKey) {
+          moveItemToClass(id, recordClassKey, { toTop: true });
+        }
+      } else {
+        if (!recordClassKey || !isRankedClass(recordClassKey)) {
+          setRecordError('Pick a ranked class for this new entry.');
+          return;
+        }
+        setIsSaving(true);
+        let cache = null;
         try {
-          const cache = await tmdbMovieDetailsFull(recordTarget.id);
-          if (cache) updateMovieCache(id, cache);
+          cache = await tmdbMovieDetailsFull(recordTarget.id);
         } catch {
           /* ignore */
         }
+        addMovieFromSearch({
+          id,
+          title: recordTarget.title,
+          subtitle: recordTarget.subtitle,
+          classKey: recordClassKey,
+          firstWatch: watch,
+          runtimeMinutes: cache?.runtimeMinutes,
+          posterPath: recordTarget.poster_path ?? cache?.posterPath,
+          cache: cache ?? undefined
+        });
+        setIsSaving(false);
       }
-      addWatchToMovie(id, watch, {
-        posterPath: recordTarget.poster_path ?? existing.posterPath
-      });
-    } else {
-      if (!recordClassKey) {
-        setRecordError('Pick a class for this new entry.');
+
+      setRecordTarget(null);
+      setRecordError(null);
+      if (options.goToMovie) {
+        navigate('/movies', { state: { scrollToId: id } });
+      }
+      return;
+    }
+
+    // TV
+    const tvId = recordTarget.id;
+    const id = `tmdb-tv-${tvId}`;
+    const existing = getShowById(id);
+    const existingIsUnranked = existing?.classKey === 'UNRANKED';
+
+    if (existingIsUnranked) {
+      if (!recordClassKey || !isRankedShowClass(recordClassKey)) {
+        setRecordError('Pick a ranked class to place this entry into.');
         return;
       }
-      setIsSaving(true);
-      let cache = null;
-      try {
-        cache = await tmdbMovieDetailsFull(recordTarget.id);
-      } catch {
-        /* ignore */
+    }
+
+    setIsSaving(true);
+    let cache = null;
+    try {
+      cache = await tmdbTvDetailsFull(tvId);
+    } catch {
+      /* ignore */
+    }
+    setIsSaving(false);
+    if (!cache) {
+      setRecordError('Unable to fetch TMDB details for this show.');
+      return;
+    }
+
+    if (existing) {
+      if (existing.tmdbId == null || existing.overview == null) {
+        updateShowCache(id, cache);
       }
-      addMovieFromSearch({
+      addWatchToShow(id, watch, { posterPath: cache.posterPath ?? existing.posterPath });
+      if (existingIsUnranked && recordClassKey) {
+        moveShowToClass(id, recordClassKey, { toTop: true });
+      }
+    } else {
+      if (!recordClassKey || !isRankedShowClass(recordClassKey)) {
+        setRecordError('Pick a ranked class for this new entry.');
+        return;
+      }
+      addShowFromSearch({
         id,
-        title: recordTarget.title,
+        title: cache.title,
         subtitle: recordTarget.subtitle,
         classKey: recordClassKey,
         firstWatch: watch,
-        runtimeMinutes: cache?.runtimeMinutes,
-        posterPath: recordTarget.poster_path ?? cache?.posterPath,
-        cache: cache ?? undefined
+        cache
       });
-      setIsSaving(false);
     }
 
     setRecordTarget(null);
     setRecordError(null);
-    navigate('/movies', { state: { scrollToId: id } });
+    if (options.goToMovie) {
+      navigate('/tv', { state: { scrollToId: id } });
+    }
   };
 
   return (
@@ -295,6 +415,9 @@ export function SearchPage() {
             const isTv = r.media_type === 'tv';
             const imgPath = r.media_type === 'person' ? r.profile_path : r.poster_path;
             const imgUrl = tmdbImagePath(imgPath);
+            const existingMovie = isMovie ? getMovieById(id) : null;
+            const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
+            const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
 
             return (
               <article key={`${r.media_type}-${r.id}`} className="search-card">
@@ -326,19 +449,60 @@ export function SearchPage() {
                       disabled={isSaving}
                       onClick={() => handleOpenRecord(r)}
                     >
-                      Record Watch
+                      {existingMovie && !inUnrankedMovie ? 'Record another watch' : 'Record Watch'}
                     </button>
-                    <button
-                      type="button"
-                      className="search-card-action search-card-action-subtle"
-                      disabled={isSaving}
-                      onClick={() => void handleAddToUnranked(r)}
-                    >
-                      Add to unranked
-                    </button>
+                    {!existingMovie && (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled={isSaving}
+                        onClick={() => void handleAddToUnranked(r)}
+                      >
+                        Add to unranked
+                      </button>
+                    )}
+                    {inUnrankedMovie && (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled
+                      >
+                        IN UNRANKED
+                      </button>
+                    )}
                   </div>
                 ) : isTv ? (
-                  <span className="search-card-coming-soon">Shows coming soon</span>
+                  <div className="search-card-actions">
+                    <button
+                      type="button"
+                      className="search-card-action"
+                      disabled={isSaving}
+                      onClick={() => handleOpenRecord(r)}
+                    >
+                      {existingTv && existingTv.classKey !== 'UNRANKED'
+                        ? 'Record another watch'
+                        : 'Record Watch'}
+                    </button>
+                    {!existingTv && (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled={isSaving}
+                        onClick={() => void handleAddTvToUnranked(r)}
+                      >
+                        Add to unranked
+                      </button>
+                    )}
+                    {existingTv?.classKey === 'UNRANKED' && (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled
+                      >
+                        IN UNRANKED
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <span className="search-card-no-action">—</span>
                 )}
@@ -348,7 +512,7 @@ export function SearchPage() {
         </div>
       </div>
 
-      {recordTarget && recordTarget.media_type === 'movie' && (
+      {recordTarget && (recordTarget.media_type === 'movie' || recordTarget.media_type === 'tv') && (
         <div className="record-modal-backdrop" onClick={() => setRecordTarget(null)}>
           <div className="record-modal" onClick={(e) => e.stopPropagation()}>
             <header className="record-modal-header">
@@ -505,18 +669,26 @@ export function SearchPage() {
                 </>
               )}
 
-              {!getMovieById(resultId(recordTarget)) && (
+              {((recordTarget.media_type === 'movie' &&
+                (!getMovieById(resultId(recordTarget)) ||
+                  getMovieById(resultId(recordTarget))?.classKey === 'UNRANKED')) ||
+                (recordTarget.media_type === 'tv' &&
+                  (!getShowById(`tmdb-tv-${recordTarget.id}`) ||
+                    getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'))) && (
                 <div className="record-modal-field-row">
                   <label className="record-modal-class-label">
-                    <span>Class for new entry*</span>
+                    <span>Ranked class*</span>
                     <select
                       value={recordClassKey}
                       onChange={(e) => setRecordClassKey(e.target.value)}
                     >
                       <option value="">Pick a class…</option>
-                      {classOrder.map((key) => (
-                        <option key={key} value={key}>
-                          {key}
+                      {(recordTarget.media_type === 'movie'
+                        ? classOrder.filter((k) => isRankedClass(k)).map((k) => ({ key: k, label: getClassLabel(k) }))
+                        : tvRankedClasses
+                      ).map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
                         </option>
                       ))}
                     </select>
@@ -530,11 +702,23 @@ export function SearchPage() {
             <footer className="record-modal-footer">
               <button
                 type="button"
-                className="record-modal-btn"
-                onClick={handleConfirmRecord}
+                className="record-modal-btn record-modal-btn-secondary"
+                onClick={() => void handleSaveRecord({ goToMovie: false })}
                 disabled={isSaving}
               >
-                {isSaving ? 'Saving…' : 'Save and go to movie'}
+                {isSaving ? 'Saving…' : 'Save and close'}
+              </button>
+              <button
+                type="button"
+                className="record-modal-btn"
+                onClick={() => void handleSaveRecord({ goToMovie: true })}
+                disabled={isSaving}
+              >
+                {isSaving
+                  ? 'Saving…'
+                  : recordTarget?.media_type === 'tv'
+                    ? 'Save and go to show'
+                    : 'Save and go to movie'}
               </button>
             </footer>
           </div>

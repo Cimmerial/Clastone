@@ -128,8 +128,13 @@ export function formatViewingFromRecords(
   }
   const pct = `${Math.round(pctSum)}%`;
   const watchTime = totalMins > 0 ? formatDuration(totalMins) : '';
+  let watchedLabel = `Watched ${n}×`;
+  const approxWatches = pctSum / 100;
+  if (approxWatches > 1 && approxWatches < 2 && n >= 2) {
+    watchedLabel = 'Watched 1-2×';
+  }
   const viewingDates =
-    `Watched ${n}× · Last: ${lastStr} · ${pct}` + (watchTime ? ` · ${watchTime}` : '');
+    `${watchedLabel} · Last: ${lastStr} · ${pct}` + (watchTime ? ` · ${watchTime}` : '');
   return { viewingDates, percentCompleted: pct, watchTime };
 }
 
@@ -141,6 +146,7 @@ type MoviesStore = {
   byClass: Record<ClassKey, MovieShowItem[]>;
   moveWithinClass: (itemId: string, delta: number) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
+  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
   addClass: (label: string, options?: { isRanked?: boolean }) => void;
   renameClassLabel: (classKey: ClassKey, newLabel: string) => void;
   moveClass: (classKey: ClassKey, delta: number) => void;
@@ -324,6 +330,28 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     });
   }, [classOrder]);
 
+  const moveItemToClass = useCallback((itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => {
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      let item: MovieShowItem | null = null;
+
+      for (const classKey of Object.keys(next)) {
+        const list = next[classKey] ?? [];
+        const idx = list.findIndex((m) => m.id === itemId);
+        if (idx === -1) continue;
+        const copy = [...list];
+        [item] = copy.splice(idx, 1);
+        next[classKey] = copy;
+        break;
+      }
+      if (!item) return prev;
+      const updated = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
+      const targetList = next[toClassKey] ?? [];
+      next[toClassKey] = options?.toTop ? [updated, ...targetList] : [...targetList, updated];
+      return next;
+    });
+  }, []);
+
   const addMovieFromSearch = useCallback(
     (
       incoming: Pick<MovieShowItem, 'id' | 'title'> & {
@@ -418,7 +446,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => {
       setByClass((prev) => {
         const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-        for (const classKey of movieClasses) {
+        for (const classKey of classOrder) {
           const list = next[classKey] ?? [];
           const idx = list.findIndex((m) => m.id === itemId);
           if (idx === -1) continue;
@@ -447,13 +475,13 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         return prev;
       });
     },
-    []
+    [classOrder]
   );
 
   const updateMovieWatchRecords = useCallback((itemId: string, records: WatchRecord[]) => {
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-      for (const classKey of movieClasses) {
+      for (const classKey of classOrder) {
         const list = next[classKey] ?? [];
         const idx = list.findIndex((m) => m.id === itemId);
         if (idx === -1) continue;
@@ -471,12 +499,12 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       }
       return prev;
     });
-  }, []);
+  }, [classOrder]);
 
   const setMovieRuntime = useCallback((itemId: string, runtimeMinutes: number) => {
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-      for (const classKey of movieClasses) {
+      for (const classKey of classOrder) {
         const list = next[classKey] ?? [];
         const idx = list.findIndex((m) => m.id === itemId);
         if (idx === -1) continue;
@@ -495,7 +523,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       }
       return prev;
     });
-  }, []);
+  }, [classOrder]);
 
   const getMovieById = useCallback(
     (id: string): MovieShowItem | null => {
@@ -522,6 +550,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       deleteClass,
       moveWithinClass,
       moveToOtherClass,
+      moveItemToClass,
       addMovieFromSearch,
       addWatchToMovie,
       updateMovieWatchRecords,
@@ -529,7 +558,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       updateMovieCache,
       getMovieById
     }),
-    [classes, classOrder, getClassLabel, isRankedClass, byClass, addClass, renameClassLabel, moveClass, deleteClass, moveToOtherClass, moveWithinClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById]
+    [classes, classOrder, getClassLabel, isRankedClass, byClass, addClass, renameClassLabel, moveClass, deleteClass, moveToOtherClass, moveWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

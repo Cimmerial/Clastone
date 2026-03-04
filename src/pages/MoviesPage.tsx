@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
+import { RecordFirstWatchModal } from '../components/RecordFirstWatchModal';
 import {
   useMoviesStore,
   getTotalMinutesFromRecords,
@@ -11,14 +12,18 @@ import {
 
 export function MoviesPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
+  const [firstWatchFor, setFirstWatchFor] = useState<MovieShowItem | null>(null);
   const {
     byClass,
     classOrder,
     moveWithinClass,
     moveToOtherClass,
     updateMovieWatchRecords,
+    addWatchToMovie,
+    moveItemToClass,
     getClassLabel,
-    isRankedClass
+    isRankedClass,
+    classes
   } = useMoviesStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -110,6 +115,7 @@ export function MoviesPage() {
               item={item}
               listType="movies"
               onOpenSettings={(entry) => setSettingsFor(entry)}
+              onRecordFirstWatch={(entry) => setFirstWatchFor(entry)}
               onMoveUp={() =>
                 isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)
               }
@@ -127,6 +133,17 @@ export function MoviesPage() {
           item={settingsFor}
           onClose={() => setSettingsFor(null)}
           onSave={(records) => updateMovieWatchRecords(settingsFor.id, records)}
+        />
+      )}
+      {firstWatchFor && (
+        <RecordFirstWatchModal
+          item={firstWatchFor}
+          rankedClasses={classes.filter((c) => c.isRanked).map((c) => ({ key: c.key, label: c.label }))}
+          onClose={() => setFirstWatchFor(null)}
+          onConfirm={async (watch, toKey) => {
+            addWatchToMovie(firstWatchFor.id, watch, { posterPath: firstWatchFor.posterPath });
+            moveItemToClass(firstWatchFor.id, toKey, { toTop: true });
+          }}
         />
       )}
     </section>

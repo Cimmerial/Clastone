@@ -274,6 +274,7 @@
   margin-top: 0.8rem;
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .record-modal-btn {
@@ -286,5 +287,11 @@
   font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.record-modal-btn-secondary {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-muted);
 }
 

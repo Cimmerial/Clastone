@@ -54,6 +54,10 @@ export type MovieShowItem = RankedItemBase & {
   /** For TV (future): helps convert progress % into rough S/E. */
   totalSeasons?: number;
   totalEpisodes?: number;
+  /** TV instance info (whole show vs season range entries). */
+  tvInstanceLabel?: string;
+  tvSeasonStart?: number;
+  tvSeasonEnd?: number;
 };
 
 type Props = {
@@ -61,6 +65,7 @@ type Props = {
   /** For tooltips: "movies" | "shows" */
   listType?: 'movies' | 'shows';
   onOpenSettings?: (item: MovieShowItem) => void;
+  onRecordFirstWatch?: (item: MovieShowItem) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onClassUp?: () => void;
@@ -93,6 +98,7 @@ export function EntryRowMovieShow({
   item,
   listType = 'movies',
   onOpenSettings,
+  onRecordFirstWatch,
   onMoveUp,
   onMoveDown,
   onClassUp,
@@ -125,7 +131,17 @@ export function EntryRowMovieShow({
             {item.title}
             {releaseLabel ? <span className="entry-title-year"> ({releaseLabel})</span> : null}
           </h3>
-          <div className="entry-controls-column">
+          {isUnranked ? (
+            <button
+              type="button"
+              className="entry-config-btn entry-record-first"
+              onClick={() => onRecordFirstWatch?.(item)}
+              data-tooltip="Record first watch to rank"
+            >
+              Record First Watch
+            </button>
+          ) : (
+            <div className="entry-controls-column">
             <button
               type="button"
               className="entry-config-btn"
@@ -176,6 +192,7 @@ export function EntryRowMovieShow({
               ⚙
             </button>
           </div>
+          )}
         </div>
         <div className="entry-subtitle">{item.viewingDates}</div>
         {!isUnranked && (

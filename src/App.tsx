@@ -2,9 +2,11 @@ import { AppRoutes } from './router';
 import { NavBar } from './components/NavBar';
 import { useAuth, hasFirebaseConfig } from './context/AuthContext';
 import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
+import { FirestoreTvGate } from './components/FirestoreTvGate';
 import { MoviesProvider } from './state/moviesStore';
 import { LoginPage } from './pages/LoginPage';
 import { DevTools } from './components/DevTools';
+import { TvProvider } from './state/tvStore';
 
 function App() {
   const { user, loading } = useAuth();
@@ -29,11 +31,13 @@ function App() {
   if (useAuthFlow && user) {
     return (
       <FirestoreMoviesGate>
-        <NavBar />
-        <main className="app-main">
-          <AppRoutes />
-        </main>
-        <DevTools />
+        <FirestoreTvGate>
+          <NavBar />
+          <main className="app-main">
+            <AppRoutes />
+          </main>
+          <DevTools />
+        </FirestoreTvGate>
       </FirestoreMoviesGate>
     );
   }
@@ -41,11 +45,13 @@ function App() {
   return (
     <>
       <MoviesProvider>
-        <NavBar />
-        <main className="app-main">
-          <AppRoutes />
-        </main>
-        <DevTools />
+        <TvProvider>
+          <NavBar />
+          <main className="app-main">
+            <AppRoutes />
+          </main>
+          <DevTools />
+        </TvProvider>
       </MoviesProvider>
     </>
   );
