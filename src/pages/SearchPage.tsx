@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   tmdbSearchMulti,
   tmdbMovieDetailsFull,
@@ -10,6 +10,7 @@ import {
 import type { WatchRecord, WatchRecordType } from '../components/EntryRowMovieShow';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -65,6 +66,9 @@ export function SearchPage() {
   const [recordClassKey, setRecordClassKey] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
+  const fromWatchlistIdRef = useRef<string | null>(null);
 
   const trimmed = useMemo(() => query.trim(), [query]);
 
@@ -108,6 +112,54 @@ export function SearchPage() {
     }, 0);
     return () => window.clearTimeout(t);
   }, []);
+
+  // Open record modal when navigating from Watchlist (Record first/another watch).
+  const fromWatchlistState = location.state as { fromWatchlistId?: string; fromWatchlistType?: 'movies' | 'tv' } | null;
+  useEffect(() => {
+    const fromWatchlistId = fromWatchlistState?.fromWatchlistId;
+    const fromWatchlistType = fromWatchlistState?.fromWatchlistType;
+    if (!fromWatchlistId || !fromWatchlistType) return;
+    const match = fromWatchlistId.match(/^tmdb-(movie|tv)-(\d+)$/);
+    if (!match) return;
+    const [, media, idStr] = match;
+    const tmdbId = parseInt(idStr, 10);
+    if (Number.isNaN(tmdbId)) return;
+    fromWatchlistIdRef.current = fromWatchlistId;
+    const isMovie = media === 'movie';
+    (async () => {
+      try {
+        const cache = isMovie
+          ? await tmdbMovieDetailsFull(tmdbId)
+          : await tmdbTvDetailsFull(tmdbId);
+        if (!cache) return;
+        const synthetic: TmdbMultiResult = {
+          media_type: isMovie ? 'movie' : 'tv',
+          id: tmdbId,
+          title: cache.title ?? '',
+          subtitle: cache.releaseDate ?? '',
+          poster_path: cache.posterPath
+        };
+        setRecordTarget(synthetic);
+        setRecordError(null);
+        setRecordType('DATE');
+        setRecordYear('');
+        setRecordMonth('');
+        setRecordDay('');
+        setRecordEndYear('');
+        setRecordEndMonth('');
+        setRecordEndDay('');
+        setRecordDnfPercent(50);
+        setRecordClassKey('');
+      } catch {
+        fromWatchlistIdRef.current = null;
+      }
+    })();
+  }, [fromWatchlistState?.fromWatchlistId, fromWatchlistState?.fromWatchlistType]);
+
+  const handleCloseRecord = () => {
+    fromWatchlistIdRef.current = null;
+    setRecordTarget(null);
+  };
 
   const handleOpenRecord = (r: TmdbMultiResult) => {
     if (r.media_type !== 'movie' && r.media_type !== 'tv') return;
@@ -315,10 +367,17 @@ export function SearchPage() {
         setIsSaving(false);
       }
 
+      const wasFromWatchlist = !!fromWatchlistIdRef.current;
+      if (fromWatchlistIdRef.current) {
+        removeFromWatchlist(fromWatchlistIdRef.current);
+        fromWatchlistIdRef.current = null;
+      }
       setRecordTarget(null);
       setRecordError(null);
       if (options.goToMovie) {
-        navigate('/movies', { state: { scrollToId: id } });
+        navigate('/movies', { replace: true, state: { scrollToId: id } });
+      } else if (wasFromWatchlist) {
+        navigate('/search', { replace: true, state: {} });
       }
       return;
     }
@@ -372,10 +431,17 @@ export function SearchPage() {
       });
     }
 
+    const wasFromWatchlistTv = !!fromWatchlistIdRef.current;
+    if (fromWatchlistIdRef.current) {
+      removeFromWatchlist(fromWatchlistIdRef.current);
+      fromWatchlistIdRef.current = null;
+    }
     setRecordTarget(null);
     setRecordError(null);
     if (options.goToMovie) {
-      navigate('/tv', { state: { scrollToId: id } });
+      navigate('/tv', { replace: true, state: { scrollToId: id } });
+    } else if (wasFromWatchlistTv) {
+      navigate('/search', { replace: true, state: {} });
     }
   };
 
@@ -418,6 +484,21 @@ export function SearchPage() {
             const existingMovie = isMovie ? getMovieById(id) : null;
             const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
             const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+            const inWatchlist = (isMovie || isTv) && isInWatchlist(id);
+
+            const handleAddToWatchlist = () => {
+              if (isMovie) {
+                addToWatchlist(
+                  { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                  'movies'
+                );
+              } else if (isTv) {
+                addToWatchlist(
+                  { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                  'tv'
+                );
+              }
+            };
 
             return (
               <article key={`${r.media_type}-${r.id}`} className="search-card">
@@ -470,6 +551,20 @@ export function SearchPage() {
                         IN UNRANKED
                       </button>
                     )}
+                    {inWatchlist ? (
+                      <button type="button" className="search-card-action search-card-action-subtle" disabled>
+                        In watchlist
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled={isSaving}
+                        onClick={handleAddToWatchlist}
+                      >
+                        Add to watchlist
+                      </button>
+                    )}
                   </div>
                 ) : isTv ? (
                   <div className="search-card-actions">
@@ -502,6 +597,20 @@ export function SearchPage() {
                         IN UNRANKED
                       </button>
                     )}
+                    {inWatchlist ? (
+                      <button type="button" className="search-card-action search-card-action-subtle" disabled>
+                        In watchlist
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="search-card-action search-card-action-subtle"
+                        disabled={isSaving}
+                        onClick={handleAddToWatchlist}
+                      >
+                        Add to watchlist
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <span className="search-card-no-action">—</span>
@@ -513,14 +622,14 @@ export function SearchPage() {
       </div>
 
       {recordTarget && (recordTarget.media_type === 'movie' || recordTarget.media_type === 'tv') && (
-        <div className="record-modal-backdrop" onClick={() => setRecordTarget(null)}>
+        <div className="record-modal-backdrop" onClick={handleCloseRecord}>
           <div className="record-modal" onClick={(e) => e.stopPropagation()}>
             <header className="record-modal-header">
               <h2>Record watch</h2>
               <button
                 type="button"
                 className="record-modal-close"
-                onClick={() => setRecordTarget(null)}
+                onClick={handleCloseRecord}
                 aria-label="Close record watch"
               >
                 ✕

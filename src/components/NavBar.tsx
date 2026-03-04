@@ -6,7 +6,8 @@ const mainLinks = [
   { to: '/movies', label: 'Movies' },
   { to: '/tv', label: 'TV Shows' },
   { to: '/actors', label: 'Actors' },
-  { to: '/directors', label: 'Directors' }
+  { to: '/directors', label: 'Directors' },
+  { to: '/watchlist', label: 'Watchlist' }
 ];
 
 const iconLinks = [
@@ -41,7 +42,7 @@ export function NavBar() {
             {mainLinks.map((link) => (
               <NavItem key={link.to} to={link.to} label={link.label} />
             ))}
-            <span className="nav-sep" aria-hidden>|</span>
+            <span className="nav-sep" aria-hidden role="separator" />
             {iconLinks.map((link) => (
               <NavItem
                 key={link.to}

@@ -10,7 +10,7 @@ import { getTotalMinutesFromRecords, formatDuration } from '../state/moviesStore
 export function TvShowsPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [firstWatchFor, setFirstWatchFor] = useState<MovieShowItem | null>(null);
-  const { byClass, classOrder, moveWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, isRankedClass, classes, addWatchToShow, moveItemToClass } =
+  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry } =
     useTvStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,21 +87,27 @@ export function TvShowsPage() {
           });
           return totalRuntime > 0 ? formatDuration(totalRuntime) : '';
         }}
+        onReorderWithinClass={reorderWithinClass}
         renderRow={(item) => {
           const list = computedByClass[item.classKey] ?? [];
           const idx = list.findIndex((m) => m.id === item.id);
           const isFirst = idx === 0;
           const isLast = idx === list.length - 1;
+          const classIndex = classOrder.indexOf(item.classKey);
+          const canClassUp = classIndex > 0;
+          const canClassDown = classIndex < classOrder.length - 1;
+          const canMoveUp = canClassUp || !isFirst;
+          const canMoveDown = canClassDown || !isLast;
           return (
             <EntryRowMovieShow
               item={item}
               listType="shows"
               onOpenSettings={(entry) => setSettingsFor(entry)}
               onRecordFirstWatch={(entry) => setFirstWatchFor(entry)}
-              onMoveUp={() => (isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1))}
-              onMoveDown={() => (isLast ? moveToOtherClass(item.id, 1) : moveWithinClass(item.id, 1))}
-              onClassUp={() => moveToOtherClass(item.id, -1)}
-              onClassDown={() => moveToOtherClass(item.id, 1)}
+              onMoveUp={canMoveUp ? () => (isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)) : undefined}
+              onMoveDown={canMoveDown ? () => (isLast ? moveToOtherClass(item.id, 1) : moveWithinClass(item.id, 1)) : undefined}
+              onClassUp={canClassUp ? () => moveToOtherClass(item.id, -1) : undefined}
+              onClassDown={canClassDown ? () => moveToOtherClass(item.id, 1) : undefined}
             />
           );
         }}
@@ -111,6 +117,10 @@ export function TvShowsPage() {
           item={settingsFor}
           onClose={() => setSettingsFor(null)}
           onSave={(records) => updateShowWatchRecords(settingsFor.id, records)}
+          onRemoveEntry={(id) => {
+            removeShowEntry(id);
+            setSettingsFor(null);
+          }}
         />
       )}
       {firstWatchFor && (

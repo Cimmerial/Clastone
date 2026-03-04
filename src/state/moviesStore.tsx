@@ -145,6 +145,7 @@ type MoviesStore = {
   isRankedClass: (classKey: ClassKey) => boolean;
   byClass: Record<ClassKey, MovieShowItem[]>;
   moveWithinClass: (itemId: string, delta: number) => void;
+  reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
   moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
   addClass: (label: string, options?: { isRanked?: boolean }) => void;
@@ -168,6 +169,8 @@ type MoviesStore = {
   /** Merge cached TMDB data onto an existing entry (e.g. when adding a watch we fetch details). */
   updateMovieCache: (itemId: string, cache: Partial<TmdbMovieCache>) => void;
   getMovieById: (id: string) => MovieShowItem | null;
+  /** Remove entry entirely from the list (e.g. when user deletes all watches in edit modal). */
+  removeMovieEntry: (itemId: string) => void;
 };
 
 const MoviesContext = createContext<MoviesStore | null>(null);
@@ -287,6 +290,21 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       return prev;
     });
   }, [classOrder]);
+
+  const reorderWithinClass = useCallback((classKey: ClassKey, orderedIds: string[]) => {
+    setByClass((prev) => {
+      const list = prev[classKey] ?? [];
+      if (list.length !== orderedIds.length) return prev;
+      const idToItem = new Map(list.map((m) => [m.id, m]));
+      const reordered: MovieShowItem[] = [];
+      for (const id of orderedIds) {
+        const item = idToItem.get(id);
+        if (!item) return prev;
+        reordered.push(item);
+      }
+      return { ...prev, [classKey]: reordered };
+    });
+  }, []);
 
   const moveToOtherClass = useCallback((itemId: string, deltaClass: number) => {
     setByClass((prev) => {
@@ -537,6 +555,20 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     [byClass, classOrder]
   );
 
+  const removeMovieEntry = useCallback((itemId: string) => {
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        const idx = list.findIndex((m) => m.id === itemId);
+        if (idx === -1) continue;
+        next[classKey] = list.filter((m) => m.id !== itemId);
+        return next;
+      }
+      return prev;
+    });
+  }, [classOrder]);
+
   const value = useMemo<MoviesStore>(
     () => ({
       classes,
@@ -549,6 +581,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       moveClass,
       deleteClass,
       moveWithinClass,
+      reorderWithinClass,
       moveToOtherClass,
       moveItemToClass,
       addMovieFromSearch,
@@ -556,9 +589,10 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       updateMovieWatchRecords,
       setMovieRuntime,
       updateMovieCache,
-      getMovieById
+      getMovieById,
+      removeMovieEntry
     }),
-    [classes, classOrder, getClassLabel, isRankedClass, byClass, addClass, renameClassLabel, moveClass, deleteClass, moveToOtherClass, moveWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById]
+    [classes, classOrder, getClassLabel, isRankedClass, byClass, addClass, renameClassLabel, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById, removeMovieEntry]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

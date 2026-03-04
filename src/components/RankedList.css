@@ -104,9 +104,17 @@
   width: 100%;
 }
 
-/* dragging disabled for now */
 .entry-row-wrapper--dragging {
-  opacity: 1;
+  opacity: 0.85;
+  z-index: 1;
+}
+
+.entry-row-wrapper[style*="transform"] {
+  cursor: grabbing;
+}
+
+.ranked-list--sortable .entry-row-wrapper {
+  cursor: grab;
 }
 
 .entry-row {

@@ -88,7 +88,7 @@ export function DevTools() {
           const m = item.id.match(/^tmdb-movie-(\d+)$/);
           if (!m) {
             done += 1;
-            setProgress({ done, total: refreshable.length });
+            setProgress({ done, total: totalRefresh });
             continue;
           }
           const parsed = Number(m[1]);
@@ -104,13 +104,14 @@ export function DevTools() {
 
       for (const { item } of refreshableTv) {
         const tmdbId = item.tmdbId;
-        let parsed = tmdbId;
+        let parsed: number | null = tmdbId ?? null;
         if (parsed == null) {
           const m = item.id.match(/^tmdb-tv-(\d+)$/);
           parsed = m ? Number(m[1]) : null;
         }
-        if (parsed != null) {
-          const cache = await tmdbTvDetailsFull(parsed);
+        const id = parsed != null && !Number.isNaN(parsed) ? parsed : undefined;
+        if (id !== undefined) {
+          const cache = await tmdbTvDetailsFull(id);
           if (cache) updateShowCache(item.id, cache);
         }
         done += 1;

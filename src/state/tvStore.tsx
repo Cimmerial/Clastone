@@ -19,6 +19,7 @@ type TvStore = {
   deleteClass: (classKey: ClassKey) => void;
 
   moveWithinClass: (itemId: string, delta: number) => void;
+  reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
   moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
 
@@ -34,6 +35,7 @@ type TvStore = {
   updateShowWatchRecords: (itemId: string, records: WatchRecord[]) => void;
   updateShowCache: (itemId: string, cache: Partial<TmdbTvCache>) => void;
   getShowById: (id: string) => MovieShowItem | null;
+  removeShowEntry: (itemId: string) => void;
 };
 
 type TvProviderProps = {
@@ -149,6 +151,21 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     },
     [classOrder]
   );
+
+  const reorderWithinClass = useCallback((classKey: ClassKey, orderedIds: string[]) => {
+    setByClass((prev) => {
+      const list = prev[classKey] ?? [];
+      if (list.length !== orderedIds.length) return prev;
+      const idToItem = new Map(list.map((m) => [m.id, m]));
+      const reordered: MovieShowItem[] = [];
+      for (const id of orderedIds) {
+        const item = idToItem.get(id);
+        if (!item) return prev;
+        reordered.push(item);
+      }
+      return { ...prev, [classKey]: reordered };
+    });
+  }, []);
 
   const moveToOtherClass = useCallback(
     (itemId: string, deltaClass: number) => {
@@ -369,6 +386,20 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     [byClass, classOrder]
   );
 
+  const removeShowEntry = useCallback((itemId: string) => {
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        const idx = list.findIndex((m) => m.id === itemId);
+        if (idx === -1) continue;
+        next[classKey] = list.filter((m) => m.id !== itemId);
+        return next;
+      }
+      return prev;
+    });
+  }, [classOrder]);
+
   const value = useMemo<TvStore>(
     () => ({
       classes,
@@ -381,13 +412,15 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       moveClass,
       deleteClass,
       moveWithinClass,
+      reorderWithinClass,
       moveToOtherClass,
       moveItemToClass,
       addShowFromSearch,
       addWatchToShow,
       updateShowWatchRecords,
       updateShowCache,
-      getShowById
+      getShowById,
+      removeShowEntry
     }),
     [
       classes,
@@ -400,13 +433,15 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       moveClass,
       deleteClass,
       moveWithinClass,
+      reorderWithinClass,
       moveToOtherClass,
       moveItemToClass,
       addShowFromSearch,
       addWatchToShow,
       updateShowWatchRecords,
       updateShowCache,
-      getShowById
+      getShowById,
+      removeShowEntry
     ]
   );
 

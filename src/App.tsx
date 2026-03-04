@@ -3,10 +3,12 @@ import { NavBar } from './components/NavBar';
 import { useAuth, hasFirebaseConfig } from './context/AuthContext';
 import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
 import { FirestoreTvGate } from './components/FirestoreTvGate';
+import { FirestoreWatchlistGate } from './components/FirestoreWatchlistGate';
 import { MoviesProvider } from './state/moviesStore';
 import { LoginPage } from './pages/LoginPage';
 import { DevTools } from './components/DevTools';
 import { TvProvider } from './state/tvStore';
+import { WatchlistProvider } from './state/watchlistStore';
 
 function App() {
   const { user, loading } = useAuth();
@@ -32,11 +34,13 @@ function App() {
     return (
       <FirestoreMoviesGate>
         <FirestoreTvGate>
-          <NavBar />
-          <main className="app-main">
-            <AppRoutes />
-          </main>
-          <DevTools />
+          <FirestoreWatchlistGate>
+            <NavBar />
+            <main className="app-main">
+              <AppRoutes />
+            </main>
+            <DevTools />
+          </FirestoreWatchlistGate>
         </FirestoreTvGate>
       </FirestoreMoviesGate>
     );
@@ -46,11 +50,13 @@ function App() {
     <>
       <MoviesProvider>
         <TvProvider>
-          <NavBar />
-          <main className="app-main">
-            <AppRoutes />
-          </main>
-          <DevTools />
+          <WatchlistProvider initialMovies={[]} initialTv={[]}>
+            <NavBar />
+            <main className="app-main">
+              <AppRoutes />
+            </main>
+            <DevTools />
+          </WatchlistProvider>
         </TvProvider>
       </MoviesProvider>
     </>

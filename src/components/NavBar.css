@@ -133,10 +133,12 @@
 }
 
 .nav-sep {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  padding: 0 0.35rem;
+  width: 1px;
+  min-height: 1.25rem;
+  margin: 0 0.5rem;
+  background: linear-gradient(to bottom, transparent, rgba(244, 162, 97, 0.4), transparent);
   user-select: none;
+  flex-shrink: 0;
 }
 
 .nav-right-inline {

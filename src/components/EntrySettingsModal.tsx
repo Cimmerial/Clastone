@@ -25,6 +25,8 @@ type Props = {
   item: MovieShowItem;
   onClose: () => void;
   onSave: (records: WatchRecord[]) => void;
+  /** When user deletes all watches and saves, call this to remove the entry from the list entirely. */
+  onRemoveEntry?: (itemId: string) => void;
 };
 
 function newEmptyRecord(): WatchRecord {
@@ -41,7 +43,7 @@ function normalizeRecord(r: WatchRecord): WatchRecord {
   return { ...r, type: r.type ?? 'DATE' };
 }
 
-export function EntrySettingsModal({ item, onClose, onSave }: Props) {
+export function EntrySettingsModal({ item, onClose, onSave, onRemoveEntry }: Props) {
   const initial: WatchRecord[] =
     item.watchRecords && item.watchRecords.length > 0
       ? item.watchRecords.map(normalizeRecord)
@@ -62,6 +64,11 @@ export function EntrySettingsModal({ item, onClose, onSave }: Props) {
       if (r.type === 'DNF' || r.type === 'CURRENT') return (r.year ?? 0) > 0 && !Number.isNaN(r.year ?? 0);
       return true;
     });
+    if (valid.length === 0 && onRemoveEntry) {
+      onRemoveEntry(item.id);
+      onClose();
+      return;
+    }
     onSave(valid.length > 0 ? valid : [newEmptyRecord()]);
     onClose();
   };
