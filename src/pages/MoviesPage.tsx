@@ -1,104 +1,107 @@
-import { useState } from 'react';
-import { ClassKey, RankedItemBase, RankedList } from '../components/RankedList';
-import { CompactMovieRow, EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { RankedList } from '../components/RankedList';
+import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
-import { movieClasses, moviesByClass } from '../mock/movies';
+import { useMoviesStore } from '../state/moviesStore';
 
 export function MoviesPage() {
-  const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(moviesByClass);
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
+  const { byClass, classOrder, moveWithinClass, moveToOtherClass, updateMovieWatchRecords } =
+    useMoviesStore();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const moveWithinClass = (itemId: string, delta: number) => {
-    setByClass((prev) => {
-      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-      for (const classKey of movieClasses) {
-        const list = next[classKey];
-        if (!list) continue;
-        const index = list.findIndex((m) => m.id === itemId);
-        if (index === -1) continue;
-        const newIndex = index + delta;
-        if (newIndex < 0 || newIndex >= list.length) {
-          return prev;
-        }
-        const copy = [...list];
-        const [moved] = copy.splice(index, 1);
-        copy.splice(newIndex, 0, moved);
-        next[classKey] = copy;
-        return next;
+  const computedByClass = useMemo(() => {
+    const all: MovieShowItem[] = [];
+    for (const classKey of classOrder) {
+      const list = byClass[classKey] ?? [];
+      for (const item of list) {
+        all.push(item);
       }
-      return prev;
+    }
+
+    const total = all.length || 1;
+    const globalRanks = new Map<
+      string,
+      {
+        absoluteRank: string;
+        percentileRank: string;
+      }
+    >();
+
+    all.forEach((item, index) => {
+      const absoluteRank = `${index + 1} / ${total}`;
+      const percentile = Math.round(((total - index) / total) * 100);
+      const percentileRank = `${percentile}%`;
+      globalRanks.set(item.id, { absoluteRank, percentileRank });
     });
-  };
 
-  const moveToOtherClass = (itemId: string, deltaClass: number) => {
-    setByClass((prev) => {
-      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-      let fromKey: ClassKey | null = null;
-      let item: MovieShowItem | null = null;
+    const next: typeof byClass = {} as typeof byClass;
+    for (const classKey of classOrder) {
+      const list = byClass[classKey] ?? [];
+      next[classKey] = list.map((item, idx) => {
+        const ranks = globalRanks.get(item.id);
+        return {
+          ...item,
+          percentileRank: ranks?.percentileRank ?? item.percentileRank ?? '—',
+          absoluteRank: ranks?.absoluteRank ?? item.absoluteRank ?? '—',
+          rankInClass: `#${idx + 1} in ${classKey}`
+        };
+      });
+    }
+    return next;
+  }, [byClass, classOrder]);
 
-      for (const classKey of movieClasses) {
-        const list = next[classKey];
-        if (!list) continue;
-        const index = list.findIndex((m) => m.id === itemId);
-        if (index !== -1) {
-          fromKey = classKey;
-          const copy = [...list];
-          [item] = copy.splice(index, 1);
-          next[classKey] = copy;
-          break;
-        }
-      }
-
-      if (!fromKey || !item) return prev;
-
-      const fromIndex = movieClasses.indexOf(fromKey);
-      const toIndex = fromIndex + deltaClass;
-      if (toIndex < 0 || toIndex >= movieClasses.length) {
-        return prev;
-      }
-
-      const toKey = movieClasses[toIndex];
-      const targetList = next[toKey] ?? [];
-      const updated = { ...item, classKey: toKey as RankedItemBase['classKey'] };
-
-      // Moving to "lower" class (downwards in the list) -> insert at top.
-      // Moving to "higher" class (upwards) -> append to bottom.
-      if (deltaClass > 0) {
-        next[toKey] = [updated, ...targetList];
-      } else {
-        next[toKey] = [...targetList, updated];
-      }
-      return next;
-    });
-  };
+  const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
+  useEffect(() => {
+    if (!scrollToId) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`entry-${scrollToId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      navigate('/movies', { replace: true, state: {} });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [scrollToId, navigate]);
 
   return (
     <section>
       <header className="page-heading">
         <div>
           <h1 className="page-title">Movies</h1>
-          <p className="page-tagline">OLYMPUS TO DELICIOUS_GARBAGE</p>
+          <p className="page-tagline">OLYMPUS TO DELICIOUS GARBAGE</p>
         </div>
         <p className="page-subtitle">Your ranked film universe, class by class.</p>
       </header>
       <RankedList<MovieShowItem>
-        classOrder={movieClasses}
-        itemsByClass={byClass}
-        renderRow={(item) => (
-          <EntryRowMovieShow
-            item={item}
-            onOpenSettings={(entry) => setSettingsFor(entry)}
-            onMoveUp={() => moveWithinClass(item.id, -1)}
-            onMoveDown={() => moveWithinClass(item.id, 1)}
-            onClassUp={() => moveToOtherClass(item.id, -1)}
-            onClassDown={() => moveToOtherClass(item.id, 1)}
-          />
-        )}
+        classOrder={classOrder}
+        itemsByClass={computedByClass}
+        renderRow={(item) => {
+          const list = computedByClass[item.classKey] ?? [];
+          const idx = list.findIndex((m) => m.id === item.id);
+          const isFirst = idx === 0;
+          const isLast = idx === list.length - 1;
+          return (
+            <EntryRowMovieShow
+              item={item}
+              onOpenSettings={(entry) => setSettingsFor(entry)}
+              onMoveUp={() =>
+                isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)
+              }
+              onMoveDown={() =>
+                isLast ? moveToOtherClass(item.id, 1) : moveWithinClass(item.id, 1)
+              }
+              onClassUp={() => moveToOtherClass(item.id, -1)}
+              onClassDown={() => moveToOtherClass(item.id, 1)}
+            />
+          );
+        }}
       />
       {settingsFor && (
         <EntrySettingsModal
           item={settingsFor}
           onClose={() => setSettingsFor(null)}
+          onSave={(records) => updateMovieWatchRecords(settingsFor.id, records)}
         />
       )}
     </section>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MovieShowItem } from './EntryRowMovieShow';
+import type { MovieShowItem, WatchRecord } from './EntryRowMovieShow';
 import './EntrySettingsModal.css';
 
 export type WatchDateType = 'RANGE' | 'SINGLE' | 'DNF' | 'LONG_AGO' | 'UNKNOWN';
@@ -15,22 +15,33 @@ export type WatchEntry = {
 type Props = {
   item: MovieShowItem;
   onClose: () => void;
+  onSave: (records: WatchRecord[]) => void;
 };
 
-export function EntrySettingsModal({ item, onClose }: Props) {
-  const initial: WatchEntry[] =
-    item.watchHistory && item.watchHistory.length > 0
-      ? item.watchHistory
-      : [
-          {
-            id: 'w1',
-            type: 'RANGE',
-            start: '2024-01-10',
-            end: '2024-01-12'
-          }
-        ];
+function newEmptyRecord(): WatchRecord {
+  return { id: crypto.randomUUID(), year: new Date().getFullYear(), month: undefined, day: undefined };
+}
 
-  const [rows, setRows] = useState<WatchEntry[]>(initial);
+export function EntrySettingsModal({ item, onClose, onSave }: Props) {
+  const initial: WatchRecord[] =
+    item.watchRecords && item.watchRecords.length > 0 ? item.watchRecords : [newEmptyRecord()];
+  const [records, setRecords] = useState<WatchRecord[]>(initial);
+
+  const updateRecord = (id: string, patch: Partial<WatchRecord>) => {
+    setRecords((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+    );
+  };
+
+  const removeRecord = (id: string) => {
+    setRecords((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleSave = () => {
+    const valid = records.filter((r) => r.year > 0 && !Number.isNaN(r.year));
+    onSave(valid.length > 0 ? valid : [newEmptyRecord()]);
+    onClose();
+  };
 
   return (
     <div className="entry-modal-backdrop" onClick={onClose}>
@@ -44,7 +55,7 @@ export function EntrySettingsModal({ item, onClose }: Props) {
             type="button"
             className="entry-modal-close"
             onClick={onClose}
-            aria-label="Close settings"
+            aria-label="Close"
           >
             ✕
           </button>
@@ -53,85 +64,75 @@ export function EntrySettingsModal({ item, onClose }: Props) {
         <p className="entry-modal-subtitle">{item.title}</p>
 
         <div className="entry-modal-rows">
-          {rows.map((row) => (
-            <div key={row.id} className="entry-modal-row">
-              <select
-                className="entry-modal-select"
-                value={row.type}
-                onChange={(e) => {
-                  const nextType = e.target.value as WatchDateType;
-                  setRows((prev) =>
-                    prev.map((r) =>
-                      r.id === row.id ? { ...r, type: nextType } : r
-                    )
-                  );
-                }}
-              >
-                <option value="RANGE">Start + finish</option>
-                <option value="SINGLE">Single date</option>
-                <option value="DNF">DNF</option>
-                <option value="LONG_AGO">Long ago</option>
-                <option value="UNKNOWN">Unknown</option>
-              </select>
-
-              {row.type === 'RANGE' && (
-                <>
-                  <input
-                    className="entry-modal-input"
-                    type="date"
-                    value={row.start ?? ''}
-                    onChange={(e) =>
-                      setRows((prev) =>
-                        prev.map((r) =>
-                          r.id === row.id ? { ...r, start: e.target.value } : r
-                        )
-                      )
-                    }
-                  />
-                  <input
-                    className="entry-modal-input"
-                    type="date"
-                    value={row.end ?? ''}
-                    onChange={(e) =>
-                      setRows((prev) =>
-                        prev.map((r) =>
-                          r.id === row.id ? { ...r, end: e.target.value } : r
-                        )
-                      )
-                    }
-                  />
-                </>
-              )}
-
-              {row.type === 'SINGLE' && (
+          {records.map((row) => (
+            <div key={row.id} className="entry-modal-row entry-modal-row-watch">
+              <label className="entry-modal-field">
+                <span>Year</span>
                 <input
-                  className="entry-modal-input"
-                  type="date"
-                  value={row.date ?? ''}
+                  type="number"
+                  value={row.year || ''}
                   onChange={(e) =>
-                    setRows((prev) =>
-                      prev.map((r) =>
-                        r.id === row.id ? { ...r, date: e.target.value } : r
-                      )
-                    )
+                    updateRecord(row.id, { year: Number(e.target.value) || 0 })
                   }
+                  placeholder="2024"
                 />
-              )}
+              </label>
+              <label className="entry-modal-field">
+                <span>Month</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={row.month ?? ''}
+                  onChange={(e) =>
+                    updateRecord(row.id, {
+                      month: e.target.value ? Number(e.target.value) : undefined
+                    })
+                  }
+                  placeholder="—"
+                />
+              </label>
+              <label className="entry-modal-field">
+                <span>Day</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={row.day ?? ''}
+                  onChange={(e) =>
+                    updateRecord(row.id, {
+                      day: e.target.value ? Number(e.target.value) : undefined
+                    })
+                  }
+                  placeholder="—"
+                />
+              </label>
+              <button
+                type="button"
+                className="entry-modal-remove"
+                onClick={() => removeRecord(row.id)}
+                aria-label="Remove watch"
+              >
+                Remove
+              </button>
             </div>
           ))}
         </div>
 
+        <button
+          type="button"
+          className="entry-modal-add"
+          onClick={() => setRecords((prev) => [...prev, newEmptyRecord()])}
+        >
+          Add watch
+        </button>
+
         <div className="entry-modal-footer">
-          <button
-            type="button"
-            className="entry-modal-btn"
-            onClick={onClose}
-          >
-            Done (mock only)
+          <button type="button" className="entry-modal-btn" onClick={handleSave}>
+            Done
           </button>
         </div>
       </div>
     </div>
   );
 }
-

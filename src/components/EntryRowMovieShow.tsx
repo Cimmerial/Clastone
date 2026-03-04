@@ -1,6 +1,13 @@
-import { useState } from 'react';
 import { RankedItemBase } from './RankedList';
 import { EntrySettingsModal, WatchEntry } from './EntrySettingsModal';
+
+/** One recorded watch: at least year; month/day optional. */
+export type WatchRecord = {
+  id: string;
+  year: number;
+  month?: number;
+  day?: number;
+};
 
 export type MovieShowItem = RankedItemBase & {
   percentileRank: string;
@@ -11,6 +18,10 @@ export type MovieShowItem = RankedItemBase & {
   viewingDates: string;
   watchTime?: string;
   watchHistory?: WatchEntry[];
+  /** Source of truth for "Watched N× · Last: … · N% · Xm total". */
+  watchRecords?: WatchRecord[];
+  /** Minutes; used for "Xm total" when set. */
+  runtimeMinutes?: number;
   topCastNames: string[];
   stickerTags: string[];
   percentCompleted: string;
@@ -45,44 +56,7 @@ export function EntryRowMovieShow({
           <div className="entry-stat-pill">{item.absoluteRank}</div>
           <div className="entry-stat-pill">{item.rankInClass}</div>
         </div>
-      </div>
-
-      <div className="entry-divider" />
-
-      <div className="entry-meta-row">
-        <div className="entry-poster">
-          <span>🎬</span>
-        </div>
-        <div>
-          <div className="entry-title">{item.title}</div>
-          <div className="entry-subtitle">
-            {item.viewingDates}
-            {item.percentCompleted && ` · ${item.percentCompleted}`}
-            {item.watchTime && ` · ${item.watchTime}`}
-          </div>
-        </div>
-        <div className="entry-right-column">
-          <div className="entry-cast-and-tags">
-            <div className="entry-cast-photos">
-              {item.topCastNames.map((name) => (
-                <div
-                  key={name}
-                  className="entry-cast-avatar"
-                  title={name}
-                >
-                  {name[0]}
-                </div>
-              ))}
-            </div>
-            <div className="entry-top-tags">
-              {item.stickerTags.map((tag) => (
-                <span key={tag} className="sticker">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="entry-controls">
+        <div className="entry-controls-column">
           <button
             type="button"
             className="entry-config-btn"
@@ -127,6 +101,20 @@ export function EntryRowMovieShow({
           >
             ⚙
           </button>
+        </div>
+      </div>
+
+      <div className="entry-divider" />
+
+      <div className="entry-meta-row">
+        <div className="entry-poster">
+          <span>🎬</span>
+        </div>
+        <div>
+          <div className="entry-title">{item.title}</div>
+          <div className="entry-subtitle">
+            {item.viewingDates}
+            {item.watchTime != null && item.watchTime !== '' && ` · ${item.watchTime}`}
           </div>
         </div>
       </div>

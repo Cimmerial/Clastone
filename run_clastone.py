@@ -27,8 +27,14 @@ def main() -> int:
   if sys.platform != "darwin":
     print("This launcher currently targets macOS (uses `open -a Arc`).")
 
+  repo_root = os.path.abspath(os.path.dirname(__file__))
   npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
-  proc = subprocess.Popen([npm_cmd, "run", "dev:ui"], stdout=sys.stdout, stderr=sys.stderr)
+  proc = subprocess.Popen(
+    [npm_cmd, "run", "dev:ui"],
+    cwd=repo_root,
+    stdout=sys.stdout,
+    stderr=sys.stderr,
+  )
 
   try:
     ready = wait_for_http(URL, timeout_s=60)

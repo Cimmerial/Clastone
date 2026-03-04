@@ -33,7 +33,11 @@ export function RankedList<T extends RankedItemBase>({
               </header>
               <div className="class-section-rows">
                 {items.map((item) => (
-                  <div key={item.id} className="entry-row-wrapper">
+                  <div
+                    key={item.id}
+                    className="entry-row-wrapper"
+                    id={`entry-${item.id}`}
+                  >
                     {renderRow(item)}
                   </div>
                 ))}
