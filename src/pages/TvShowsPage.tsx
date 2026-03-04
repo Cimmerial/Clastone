@@ -77,6 +77,14 @@ export function TvShowsPage() {
             (sum, it) => sum + (it.runtimeMinutes ?? 0),
             0
           );
+          console.info('[Clastone] TvShowsPage class runtime', {
+            items: items.map((it) => ({
+              id: it.id,
+              title: it.title,
+              runtimeMinutes: it.runtimeMinutes
+            })),
+            totalRuntime
+          });
           return totalRuntime > 0 ? formatDuration(totalRuntime) : '';
         }}
         renderRow={(item) => {

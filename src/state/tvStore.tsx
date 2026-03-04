@@ -260,6 +260,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           totalEpisodes: cache?.totalEpisodes
         };
 
+        console.info('[Clastone] addShowFromSearch', {
+          id: incoming.id,
+          title: base.title,
+          classKey: incoming.classKey,
+          runtimeMinutes: base.runtimeMinutes
+        });
+
         const targetList = prev[incoming.classKey] ?? [];
         return { ...prev, [incoming.classKey]: [base, ...targetList] };
       });

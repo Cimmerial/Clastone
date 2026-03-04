@@ -51,6 +51,15 @@ function authHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}`, Accept: 'application/json' };
 }
 
+async function tmdbGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${TMDB_BASE}${path}`, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
+
 /** Poster or profile image URL (w200 for list thumbnails). */
 export function tmdbImagePath(path: string | null | undefined, size = 'w200'): string | null {
   if (!path) return null;
@@ -195,6 +204,28 @@ type TmdbTvDetailsResponse = {
   };
 };
 
+type TmdbTvSeasonResponse = {
+  id: number;
+  season_number: number;
+  episodes?: Array<{ runtime?: number | null }>;
+};
+
+async function tmdbTvRuntimeFromSeasons(
+  tvId: number,
+  seasonNumbers: number[],
+  signal?: AbortSignal
+): Promise<{ totalRuntimeMinutes?: number; episodeRuntimeMinutes?: number }> {
+  if (seasonNumbers.length === 0) return {};
+  const seasons = await Promise.all(
+    seasonNumbers.map((n) => tmdbGet<TmdbTvSeasonResponse>(`/tv/${tvId}/season/${n}`, signal))
+  );
+  const episodes = seasons.flatMap((s) => s.episodes ?? []);
+  const total = episodes.reduce((sum, ep) => sum + (ep.runtime ?? 0), 0);
+  if (total <= 0 || episodes.length === 0) return {};
+  const avg = Math.round(total / episodes.length);
+  return { totalRuntimeMinutes: total, episodeRuntimeMinutes: avg };
+}
+
 /** Fetch full movie details + credits for caching on the entry. One API call. */
 export async function tmdbMovieDetailsFull(
   movieId: number,
@@ -233,10 +264,10 @@ export async function tmdbTvDetailsFull(
   tvId: number,
   signal?: AbortSignal
 ): Promise<TmdbTvCache | null> {
-  const url = `${TMDB_BASE}/tv/${tvId}?append_to_response=aggregate_credits`;
-  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
-  if (!res.ok) return null;
-  const data = (await res.json()) as TmdbTvDetailsResponse;
+  const data = await tmdbGet<TmdbTvDetailsResponse>(`/tv/${tvId}?append_to_response=aggregate_credits`, signal).catch(
+    () => null
+  );
+  if (!data) return null;
   const castFromAggregate = (data.aggregate_credits?.cast ?? []).slice(0, 20).map((c) => ({
     id: c.id,
     name: c.name ?? '',
@@ -249,10 +280,23 @@ export async function tmdbTvDetailsFull(
   }));
   const cast = castFromAggregate.length > 0 ? castFromAggregate : castFromCredits;
   const creators = (data.created_by ?? []).map((c) => ({ id: c.id, name: c.name ?? '' }));
+  const seasonNumbers = (data.seasons ?? [])
+    .map((s) => s.season_number ?? 0)
+    .filter((n) => n > 0);
   const episodeRuntimeMinutes = data.episode_run_time?.[0] ?? undefined;
   const totalEpisodes = data.number_of_episodes ?? undefined;
-  const runtimeMinutes =
+  let runtimeMinutes =
     episodeRuntimeMinutes && totalEpisodes ? episodeRuntimeMinutes * totalEpisodes : undefined;
+  let effectiveEpisodeRuntime = episodeRuntimeMinutes;
+  if ((runtimeMinutes == null || runtimeMinutes === 0) && seasonNumbers.length > 0) {
+    try {
+      const seasonRuntime = await tmdbTvRuntimeFromSeasons(tvId, seasonNumbers, signal);
+      if (seasonRuntime.totalRuntimeMinutes != null) runtimeMinutes = seasonRuntime.totalRuntimeMinutes;
+      if (seasonRuntime.episodeRuntimeMinutes != null) effectiveEpisodeRuntime = seasonRuntime.episodeRuntimeMinutes;
+    } catch {
+      /* ignore */
+    }
+  }
   const seasons =
     (data.seasons ?? [])
       .filter((s) => (s.season_number ?? 0) > 0)
@@ -272,7 +316,7 @@ export async function tmdbTvDetailsFull(
     lastAirDate: data.last_air_date ?? undefined,
     totalSeasons: data.number_of_seasons ?? undefined,
     totalEpisodes,
-    episodeRuntimeMinutes,
+    episodeRuntimeMinutes: effectiveEpisodeRuntime,
     runtimeMinutes,
     cast,
     creators,
@@ -280,7 +324,10 @@ export async function tmdbTvDetailsFull(
   };
   console.info('[Clastone] TMDB TV cache fetched', {
     tmdbId: cache.tmdbId,
-    title: cache.title
+    title: cache.title,
+    episodeRuntimeMinutes: cache.episodeRuntimeMinutes,
+    totalEpisodes: cache.totalEpisodes,
+    runtimeMinutes: cache.runtimeMinutes
   });
   return cache;
 }

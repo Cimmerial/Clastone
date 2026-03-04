@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { tmdbMovieDetailsFull } from '../lib/tmdb';
+import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { ClassKey } from './RankedList';
 import './DevTools.css';
 
-function needsRefresh(item: MovieShowItem): boolean {
+function needsMovieRefresh(item: MovieShowItem): boolean {
   // Minimal fields we consider "cached enough" for now.
   return (
     item.tmdbId == null ||
@@ -18,32 +19,69 @@ function needsRefresh(item: MovieShowItem): boolean {
   );
 }
 
+function needsTvRefresh(item: MovieShowItem): boolean {
+  // TV runtime is often missing; include it explicitly.
+  return (
+    item.tmdbId == null ||
+    item.releaseDate == null ||
+    item.posterPath == null ||
+    item.overview == null ||
+    item.cast == null ||
+    item.directors == null ||
+    item.totalEpisodes == null ||
+    item.totalSeasons == null ||
+    item.runtimeMinutes == null
+  );
+}
+
 export function DevTools() {
-  const { byClass, classOrder, updateMovieCache } = useMoviesStore();
+  const { byClass: moviesByClass, classOrder: movieClassOrder, updateMovieCache } = useMoviesStore();
+  const { byClass: tvByClass, classOrder: tvClassOrder, updateShowCache } = useTvStore();
   const [open, setOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const allItems = useMemo(() => {
+  const movieItems = useMemo(() => {
     const out: Array<{ classKey: ClassKey; item: MovieShowItem }> = [];
-    for (const classKey of classOrder) {
-      const list = byClass[classKey] ?? [];
+    for (const classKey of movieClassOrder) {
+      const list = moviesByClass[classKey] ?? [];
       for (const item of list) out.push({ classKey, item });
     }
     return out;
-  }, [byClass, classOrder]);
+  }, [moviesByClass, movieClassOrder]);
 
-  const refreshable = useMemo(() => allItems.filter(({ item }) => needsRefresh(item)), [allItems]);
+  const tvItems = useMemo(() => {
+    const out: Array<{ classKey: ClassKey; item: MovieShowItem }> = [];
+    for (const classKey of tvClassOrder) {
+      const list = tvByClass[classKey] ?? [];
+      for (const item of list) out.push({ classKey, item });
+    }
+    return out;
+  }, [tvByClass, tvClassOrder]);
+
+  const refreshableMovies = useMemo(
+    () => movieItems.filter(({ item }) => needsMovieRefresh(item)),
+    [movieItems]
+  );
+  const refreshableTv = useMemo(
+    () => tvItems.filter(({ item }) => needsTvRefresh(item)),
+    [tvItems]
+  );
+  const totalRefresh = refreshableMovies.length + refreshableTv.length;
 
   const handleRefresh = async () => {
     setIsRunning(true);
     setLastError(null);
-    setProgress({ done: 0, total: refreshable.length });
-    console.info('[Clastone] DEV refresh start', { total: refreshable.length });
+    setProgress({ done: 0, total: totalRefresh });
+    console.info('[Clastone] DEV refresh start', {
+      movies: refreshableMovies.length,
+      tv: refreshableTv.length,
+      total: totalRefresh
+    });
     try {
       let done = 0;
-      for (const { item } of refreshable) {
+      for (const { item } of refreshableMovies) {
         const tmdbId = item.tmdbId;
         if (tmdbId == null) {
           // Our item ids are "tmdb-movie-123" – parse when needed.
@@ -61,7 +99,22 @@ export function DevTools() {
           if (cache) updateMovieCache(item.id, cache);
         }
         done += 1;
-        setProgress({ done, total: refreshable.length });
+        setProgress({ done, total: totalRefresh });
+      }
+
+      for (const { item } of refreshableTv) {
+        const tmdbId = item.tmdbId;
+        let parsed = tmdbId;
+        if (parsed == null) {
+          const m = item.id.match(/^tmdb-tv-(\d+)$/);
+          parsed = m ? Number(m[1]) : null;
+        }
+        if (parsed != null) {
+          const cache = await tmdbTvDetailsFull(parsed);
+          if (cache) updateShowCache(item.id, cache);
+        }
+        done += 1;
+        setProgress({ done, total: totalRefresh });
       }
     } catch (e) {
       setLastError(e instanceof Error ? e.message : String(e));
@@ -91,14 +144,19 @@ export function DevTools() {
             <div className="dev-modal-body">
               <div className="dev-row">
                 <span className="dev-label">Entries</span>
-                <span className="dev-value">{allItems.length}</span>
+                <span className="dev-value">{movieItems.length + tvItems.length}</span>
               </div>
               <div className="dev-row">
                 <span className="dev-label">Missing cached fields</span>
-                <span className="dev-value">{refreshable.length}</span>
+                <span className="dev-value">{totalRefresh}</span>
               </div>
 
-              <button type="button" className="dev-primary" disabled={isRunning || refreshable.length === 0} onClick={handleRefresh}>
+              <button
+                type="button"
+                className="dev-primary"
+                disabled={isRunning || totalRefresh === 0}
+                onClick={handleRefresh}
+              >
                 Refresh entry details
               </button>
 
