@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import './SettingsPage.css';
 
 type ClassItem = {
@@ -17,8 +18,10 @@ const initialMovieClasses: ClassItem[] = [
 ];
 
 export function SettingsPage() {
+  const { user, signOut } = useAuth();
   const [classes, setClasses] = useState<ClassItem[]>(initialMovieClasses);
   const [newClass, setNewClass] = useState('');
+  const signedIn = hasFirebaseConfig && user;
 
   const canAdd = useMemo(() => newClass.trim().length > 0, [newClass]);
 
@@ -29,7 +32,6 @@ export function SettingsPage() {
           <h1 className="page-title">Settings</h1>
           <p className="page-tagline">CLASSES + TAGS (UI ONLY)</p>
         </div>
-        <p className="page-subtitle">Rename classes, manage tags, update account later.</p>
       </header>
 
       <div className="settings-grid">
@@ -97,12 +99,21 @@ export function SettingsPage() {
         <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
           <p className="settings-muted">
-            Headshot-grid auth and account creation will be added after Firebase + TMDb are wired.
+            {hasFirebaseConfig
+              ? 'Signed in with Admin (Cimmerial). Headshot-grid auth later.'
+              : 'Headshot-grid auth and account creation will be added after Firebase + TMDb are wired.'}
           </p>
           <div className="settings-account-row">
             <span className="settings-account-label">Status</span>
-            <span className="settings-account-value">Not signed in (mock)</span>
+            <span className="settings-account-value">
+              {signedIn ? `Signed in as ${user?.email ?? 'Cimmerial'}` : 'Not signed in (offline mode)'}
+            </span>
           </div>
+          {signedIn && (
+            <button type="button" className="settings-btn" onClick={() => signOut()}>
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </section>

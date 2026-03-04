@@ -90,10 +90,9 @@
   border: 1px solid rgba(0, 0, 0, 0.6);
   padding: 0.5rem 0.65rem 0.55rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 2.4fr);
-  grid-template-rows: auto auto auto;
-  column-gap: 0.8rem;
-  row-gap: 0.3rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem 0.8rem;
+  align-items: start;
   width: 100%;
 }
 
@@ -103,18 +102,65 @@
   }
 }
 
-.entry-top-row {
-  grid-column: 1 / -1;
+.entry-poster {
+  width: 56px;
+  height: 84px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), transparent 70%);
+  border: 1px solid rgba(244, 162, 97, 0.6);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--accent-soft);
+  flex-shrink: 0;
+}
+
+.entry-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.entry-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.entry-title-row {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.entry-title-row .entry-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.entry-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+.entry-stats-row .entry-stat-pill {
+  cursor: default;
 }
 
 .entry-top-stats {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .entry-stat-pill {
@@ -128,15 +174,23 @@
   color: var(--accent-soft);
 }
 
-.entry-divider {
-  grid-column: 1 / -1;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0),
-    rgba(0, 0, 0, 0.7),
-    rgba(0, 0, 0, 0)
-  );
+.entry-config-btn,
+.entry-move-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.12rem 0.35rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.entry-config-btn:hover:not(:disabled),
+.entry-move-btn:hover:not(:disabled) {
+  color: var(--accent-soft);
+  border-color: rgba(244, 162, 97, 0.5);
+  background: rgba(244, 162, 97, 0.1);
 }
 
 .entry-cell-label {
@@ -167,36 +221,44 @@
   color: var(--text-muted);
 }
 
-.entry-meta-row {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.6rem;
-}
-
-.entry-poster {
-  width: 80px;
-  height: 80px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), transparent 70%);
-  border: 1px solid rgba(244, 162, 97, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  color: var(--accent-soft);
-}
-
 .entry-title {
   font-size: 1.15rem;
   font-weight: 600;
 }
 
 .entry-subtitle {
-  margin-top: 0.1rem;
   font-size: 0.82rem;
   color: var(--text-muted);
+}
+
+/* Themed tooltips for ranking pills + controls */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -0.3rem);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.92);
+  border: 1px solid rgba(244, 162, 97, 0.7);
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+  transition: opacity 0.08s ease-out;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 /* rightmost column now only holds controls */
@@ -222,17 +284,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
-}
-
-.entry-config-btn,
-.entry-move-btn {
-  border-radius: 999px;
-  border: 1px solid rgba(244, 162, 97, 0.7);
-  background: rgba(0, 0, 0, 0.45);
-  color: var(--accent-soft);
-  font-size: 0.8rem;
-  padding: 0.14rem 0.4rem;
-  cursor: pointer;
 }
 
 .entry-details {
@@ -277,9 +328,4 @@
   font-weight: 600;
 }
 
-.entry-config-btn:hover,
-.entry-move-btn:hover {
-  color: var(--accent-soft);
-  border-color: rgba(244, 162, 97, 0.7);
-}
 

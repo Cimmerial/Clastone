@@ -22,7 +22,6 @@ export function ProfilePage() {
           <h1 className="page-title">Profile</h1>
           <p className="page-tagline">YOUR HIGHLIGHTS</p>
         </div>
-        <p className="page-subtitle">Top picks and recent activity (mocked).</p>
       </header>
 
       <div className="profile-grid">

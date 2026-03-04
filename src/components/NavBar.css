@@ -37,9 +37,8 @@
   justify-content: center;
   padding: 0.45rem 1.1rem;
   border-radius: 999px;
-  border: 2px solid rgba(244, 162, 97, 0.9);
   font-family: var(--font-heading);
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--accent-soft);
@@ -126,6 +125,18 @@
 
 .nav-link-label {
   white-space: nowrap;
+}
+
+.nav-link-icon {
+  display: block;
+  color: inherit;
+}
+
+.nav-sep {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0 0.35rem;
+  user-select: none;
 }
 
 .nav-right-inline {

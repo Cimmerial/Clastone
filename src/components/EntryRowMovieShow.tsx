@@ -1,13 +1,30 @@
 import { RankedItemBase } from './RankedList';
 import { EntrySettingsModal, WatchEntry } from './EntrySettingsModal';
+import { tmdbImagePath } from '../lib/tmdb';
 
-/** One recorded watch: at least year; month/day optional. */
+/** Watch type for display and validation. */
+export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'LONG_AGO' | 'UNKNOWN';
+
+/** One recorded watch: type + optional date(s). */
 export type WatchRecord = {
   id: string;
-  year: number;
+  type?: WatchRecordType;
+  /** For DATE: single watch date. For RANGE: start. For DNF: start date (when started). */
+  year?: number;
   month?: number;
   day?: number;
+  /** For RANGE only: end date. */
+  endYear?: number;
+  endMonth?: number;
+  endDay?: number;
+  /** For DNF (movie): 0–100 percentage through before stopping. */
+  dnfPercent?: number;
 };
+
+/** Cached cast member (stored so we don't need to re-fetch from API). */
+export type CachedCastMember = { id: number; name: string; character?: string };
+/** Cached director (stored so we don't need to re-fetch from API). */
+export type CachedDirector = { id: number; name: string };
 
 export type MovieShowItem = RankedItemBase & {
   percentileRank: string;
@@ -18,17 +35,28 @@ export type MovieShowItem = RankedItemBase & {
   viewingDates: string;
   watchTime?: string;
   watchHistory?: WatchEntry[];
-  /** Source of truth for "Watched N× · Last: … · N% · Xm total". */
+  /** Source of truth for "Watched N× · Last: … · N% · Xh Ym total". */
   watchRecords?: WatchRecord[];
-  /** Minutes; used for "Xm total" when set. */
+  /** Minutes; used for total duration when set. */
   runtimeMinutes?: number;
+  /** TMDB poster path (e.g. "/abc.jpg") for entry row image. */
+  posterPath?: string;
   topCastNames: string[];
   stickerTags: string[];
   percentCompleted: string;
+  /** Cached from TMDB so we don't need to API call on load. */
+  tmdbId?: number;
+  backdropPath?: string;
+  overview?: string;
+  releaseDate?: string;
+  cast?: CachedCastMember[];
+  directors?: CachedDirector[];
 };
 
 type Props = {
   item: MovieShowItem;
+  /** For tooltips: "movies" | "shows" */
+  listType?: 'movies' | 'shows';
   onOpenSettings?: (item: MovieShowItem) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -36,86 +64,134 @@ type Props = {
   onClassDown?: () => void;
 };
 
+function parsePercentile(s: string): number | null {
+  const m = s.match(/^(\d+)%$/);
+  return m ? Number(m[1]) : null;
+}
+
+function parseAbsoluteRank(s: string): { rank: number; total: number } | null {
+  const m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  return m ? { rank: Number(m[1]), total: Number(m[2]) } : null;
+}
+
+function formatReleaseDate(releaseDate?: string): string | null {
+  if (!releaseDate) return null;
+  // Prefer year if we have a full date string like "2024-05-10"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(releaseDate)) return releaseDate.slice(0, 4);
+  if (/^\d{4}/.test(releaseDate)) return releaseDate.slice(0, 4);
+  return releaseDate;
+}
+
 type CompactProps = {
   item: MovieShowItem;
 };
 
 export function EntryRowMovieShow({
   item,
+  listType = 'movies',
   onOpenSettings,
   onMoveUp,
   onMoveDown,
   onClassUp,
   onClassDown
 }: Props) {
+  const label = listType === 'movies' ? 'movies' : 'shows';
+  const pct = parsePercentile(item.percentileRank);
+  const abs = parseAbsoluteRank(item.absoluteRank);
+  const percentileTooltip =
+    pct != null ? `Better than ${pct}% of ${label}` : null;
+  const absoluteTooltip =
+    abs != null ? `Ranked ${abs.rank} out of ${abs.total} ${label}` : null;
+  const classTooltip = `${item.rankInClass}`;
+  const releaseLabel = formatReleaseDate(item.releaseDate);
+
   return (
     <article className="entry-row">
-      <div className="entry-top-row">
-        <div className="entry-top-stats">
-          <div className="entry-stat-pill">{item.percentileRank}</div>
-          <div className="entry-stat-pill">{item.absoluteRank}</div>
-          <div className="entry-stat-pill">{item.rankInClass}</div>
-        </div>
-        <div className="entry-controls-column">
-          <button
-            type="button"
-            className="entry-config-btn"
-            aria-label="Move to previous class"
-            disabled={!onClassUp}
-            onClick={onClassUp}
-          >
-            ⇡
-          </button>
-          <button
-            type="button"
-            className="entry-config-btn"
-            aria-label="Move to next class"
-            disabled={!onClassDown}
-            onClick={onClassDown}
-          >
-            ⇣
-          </button>
-          <button
-            type="button"
-            className="entry-config-btn"
-            aria-label="Move up"
-            disabled={!onMoveUp}
-            onClick={onMoveUp}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="entry-config-btn"
-            aria-label="Move down"
-            disabled={!onMoveDown}
-            onClick={onMoveDown}
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            className="entry-config-btn"
-            aria-label="Entry settings"
-            onClick={() => onOpenSettings?.(item)}
-          >
-            ⚙
-          </button>
-        </div>
-      </div>
-
-      <div className="entry-divider" />
-
-      <div className="entry-meta-row">
-        <div className="entry-poster">
+      <div className="entry-poster">
+        {item.posterPath ? (
+          <img src={tmdbImagePath(item.posterPath) ?? ''} alt="" loading="lazy" />
+        ) : (
           <span>🎬</span>
-        </div>
-        <div>
-          <div className="entry-title">{item.title}</div>
-          <div className="entry-subtitle">
-            {item.viewingDates}
-            {item.watchTime != null && item.watchTime !== '' && ` · ${item.watchTime}`}
+        )}
+      </div>
+      <div className="entry-content">
+        <div className="entry-title-row">
+          <h3 className="entry-title">{item.title}</h3>
+          {releaseLabel && (
+            <div className="entry-release entry-subtitle">{releaseLabel}</div>
+          )}
+          <div className="entry-controls-column">
+            <button
+              type="button"
+              className="entry-config-btn"
+              aria-label="Move to previous class"
+              data-tooltip="Move to previous class"
+              disabled={!onClassUp}
+              onClick={onClassUp}
+            >
+              ⇡
+            </button>
+            <button
+              type="button"
+              className="entry-config-btn"
+              aria-label="Move to next class"
+              data-tooltip="Move to next class"
+              disabled={!onClassDown}
+              onClick={onClassDown}
+            >
+              ⇣
+            </button>
+            <button
+              type="button"
+              className="entry-config-btn"
+              aria-label="Move up"
+              data-tooltip="Move up"
+              disabled={!onMoveUp}
+              onClick={onMoveUp}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="entry-config-btn"
+              aria-label="Move down"
+              data-tooltip="Move down"
+              disabled={!onMoveDown}
+              onClick={onMoveDown}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              className="entry-config-btn"
+              aria-label="Entry settings"
+              data-tooltip="Edit watches"
+              onClick={() => onOpenSettings?.(item)}
+            >
+              ⚙
+            </button>
           </div>
+        </div>
+        <div className="entry-subtitle">{item.viewingDates}</div>
+        <div className="entry-stats-row">
+          <span
+            className="entry-stat-pill"
+            data-tooltip={percentileTooltip ?? undefined}
+          >
+            {item.percentileRank}
+          </span>
+          <span
+            className="entry-stat-pill"
+            data-tooltip={absoluteTooltip ?? undefined}
+          >
+            {item.absoluteRank}
+          </span>
+          <span
+            className="entry-stat-pill"
+            data-tooltip={classTooltip}
+          >
+            {item.rankInClass}
+          </span>
         </div>
       </div>
     </article>

@@ -3,7 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
-import { useMoviesStore } from '../state/moviesStore';
+import {
+  useMoviesStore,
+  getTotalMinutesFromRecords,
+  formatDuration
+} from '../state/moviesStore';
 
 export function MoviesPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
@@ -71,11 +75,18 @@ export function MoviesPage() {
           <h1 className="page-title">Movies</h1>
           <p className="page-tagline">OLYMPUS TO DELICIOUS GARBAGE</p>
         </div>
-        <p className="page-subtitle">Your ranked film universe, class by class.</p>
       </header>
       <RankedList<MovieShowItem>
         classOrder={classOrder}
         itemsByClass={computedByClass}
+        getClassSubtitle={(_, items) => {
+          const totalMins = items.reduce(
+            (sum, it) =>
+              sum + getTotalMinutesFromRecords(it.watchRecords ?? [], it.runtimeMinutes),
+            0
+          );
+          return totalMins > 0 ? formatDuration(totalMins) : '';
+        }}
         renderRow={(item) => {
           const list = computedByClass[item.classKey] ?? [];
           const idx = list.findIndex((m) => m.id === item.id);
@@ -84,6 +95,7 @@ export function MoviesPage() {
           return (
             <EntryRowMovieShow
               item={item}
+              listType="movies"
               onOpenSettings={(entry) => setSettingsFor(entry)}
               onMoveUp={() =>
                 isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)

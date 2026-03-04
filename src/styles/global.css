@@ -88,3 +88,29 @@ button {
   letter-spacing: 0.18em;
   color: var(--accent-muted);
 }
+
+.coming-soon-block {
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.coming-soon-text {
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-muted);
+}
+
+.app-loading {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.app-loading p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}

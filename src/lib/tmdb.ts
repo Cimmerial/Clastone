@@ -116,11 +116,74 @@ export async function tmdbSearchMulti(query: string, signal?: AbortSignal): Prom
 }
 
 /** Fetch movie details (e.g. runtime). */
-export async function tmdbMovieDetails(movieId: number, signal?: AbortSignal): Promise<{ runtime?: number }> {
+export async function tmdbMovieDetails(
+  movieId: number,
+  signal?: AbortSignal
+): Promise<{ runtime?: number }> {
   const url = `${TMDB_BASE}/movie/${movieId}`;
   const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
   if (!res.ok) return {};
   const data = (await res.json()) as { runtime?: number };
   return { runtime: data.runtime };
+}
+
+/** Cached movie data we store on each entry so we don't need to re-fetch. */
+export type TmdbMovieCache = {
+  tmdbId: number;
+  title: string;
+  posterPath?: string;
+  backdropPath?: string;
+  overview?: string;
+  releaseDate?: string;
+  runtimeMinutes?: number;
+  cast: Array<{ id: number; name: string; character?: string }>;
+  directors: Array<{ id: number; name: string }>;
+};
+
+type TmdbMovieDetailsResponse = {
+  id: number;
+  title?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  overview?: string | null;
+  release_date?: string | null;
+  runtime?: number | null;
+  credits?: {
+    cast?: Array<{ id: number; name?: string; character?: string }>;
+    crew?: Array<{ id: number; name?: string; job?: string }>;
+  };
+};
+
+/** Fetch full movie details + credits for caching on the entry. One API call. */
+export async function tmdbMovieDetailsFull(
+  movieId: number,
+  signal?: AbortSignal
+): Promise<TmdbMovieCache | null> {
+  const url = `${TMDB_BASE}/movie/${movieId}?append_to_response=credits`;
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return null;
+  const data = (await res.json()) as TmdbMovieDetailsResponse;
+  const cast = (data.credits?.cast ?? [])
+    .slice(0, 20)
+    .map((c) => ({ id: c.id, name: c.name ?? '', character: c.character ?? undefined }));
+  const directors = (data.credits?.crew ?? [])
+    .filter((c) => c.job === 'Director')
+    .map((c) => ({ id: c.id, name: c.name ?? '' }));
+  const cache: TmdbMovieCache = {
+    tmdbId: data.id,
+    title: data.title ?? '',
+    posterPath: data.poster_path ?? undefined,
+    backdropPath: data.backdrop_path ?? undefined,
+    overview: data.overview ?? undefined,
+    releaseDate: data.release_date ?? undefined,
+    runtimeMinutes: data.runtime ?? undefined,
+    cast,
+    directors
+  };
+  console.info('[Clastone] TMDB cache fetched', {
+    tmdbId: cache.tmdbId,
+    title: cache.title
+  });
+  return cache;
 }
 

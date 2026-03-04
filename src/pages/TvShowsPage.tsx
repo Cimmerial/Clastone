@@ -10,7 +10,6 @@ export function TvShowsPage() {
           <h1 className="page-title">TV Shows</h1>
           <p className="page-tagline">SEASONS AS THEIR OWN ENTRIES</p>
         </div>
-        <p className="page-subtitle">Each season ranked on its own merits.</p>
       </header>
       <RankedList<MovieShowItem>
         classOrder={tvClasses}
