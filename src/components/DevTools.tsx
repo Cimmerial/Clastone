@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { tmdbMovieDetailsFull, tmdbTvDetailsFull, type TmdbMovieCache, type TmdbTvCache } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import type { MovieShowItem } from './EntryRowMovieShow';
@@ -35,8 +35,8 @@ function needsTvRefresh(item: MovieShowItem): boolean {
 }
 
 export function DevTools() {
-  const { byClass: moviesByClass, classOrder: movieClassOrder, updateMovieCache } = useMoviesStore();
-  const { byClass: tvByClass, classOrder: tvClassOrder, updateShowCache } = useTvStore();
+  const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache } = useMoviesStore();
+  const { byClass: tvByClass, classOrder: tvClassOrder, updateBatchShowCache } = useTvStore();
   const [open, setOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -70,39 +70,57 @@ export function DevTools() {
   );
   const totalRefresh = refreshableMovies.length + refreshableTv.length;
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (force: boolean = false) => {
     setIsRunning(true);
     setLastError(null);
-    setProgress({ done: 0, total: totalRefresh });
+    const moviesToProcess = force ? movieItems : refreshableMovies;
+    const tvToProcess = force ? tvItems : refreshableTv;
+    const totalCount = moviesToProcess.length + tvToProcess.length;
+    setProgress({ done: 0, total: totalCount });
+
     console.info('[Clastone] DEV refresh start', {
-      movies: refreshableMovies.length,
-      tv: refreshableTv.length,
-      total: totalRefresh
+      movies: moviesToProcess.length,
+      tv: tvToProcess.length,
+      total: totalCount,
+      force
     });
     try {
       let done = 0;
-      for (const { item } of refreshableMovies) {
+      const CHUNK_SIZE = 25;
+
+      // 1. Process Movies
+      let movieBatch: Record<string, Partial<TmdbMovieCache>> = {};
+      for (const { item } of moviesToProcess) {
         const tmdbId = item.tmdbId;
+        let cache: TmdbMovieCache | null = null;
         if (tmdbId == null) {
-          // Our item ids are "tmdb-movie-123" – parse when needed.
           const m = item.id.match(/^tmdb-movie-(\d+)$/);
-          if (!m) {
-            done += 1;
-            setProgress({ done, total: totalRefresh });
-            continue;
+          if (m) {
+            const parsed = Number(m[1]);
+            cache = await tmdbMovieDetailsFull(parsed);
           }
-          const parsed = Number(m[1]);
-          const cache = await tmdbMovieDetailsFull(parsed);
-          if (cache) updateMovieCache(item.id, cache);
         } else {
-          const cache = await tmdbMovieDetailsFull(tmdbId);
-          if (cache) updateMovieCache(item.id, cache);
+          cache = await tmdbMovieDetailsFull(tmdbId);
         }
+
+        if (cache) {
+          movieBatch[item.id] = cache;
+        }
+
         done += 1;
-        setProgress({ done, total: totalRefresh });
+        if (done % CHUNK_SIZE === 0 || done === moviesToProcess.length) {
+          if (Object.keys(movieBatch).length > 0) {
+            updateBatchMovieCache(movieBatch);
+            movieBatch = {};
+          }
+          setProgress({ done, total: totalCount });
+        }
       }
 
-      for (const { item } of refreshableTv) {
+      // 2. Process TV
+      let tvBatch: Record<string, Partial<TmdbTvCache>> = {};
+      const tvStartDone = done;
+      for (const { item } of tvToProcess) {
         const tmdbId = item.tmdbId;
         let parsed: number | null = tmdbId ?? null;
         if (parsed == null) {
@@ -110,12 +128,24 @@ export function DevTools() {
           parsed = m ? Number(m[1]) : null;
         }
         const id = parsed != null && !Number.isNaN(parsed) ? parsed : undefined;
+        let cache: TmdbTvCache | null = null;
         if (id !== undefined) {
-          const cache = await tmdbTvDetailsFull(id);
-          if (cache) updateShowCache(item.id, cache);
+          cache = await tmdbTvDetailsFull(id);
         }
+
+        if (cache) {
+          tvBatch[item.id] = cache;
+        }
+
         done += 1;
-        setProgress({ done, total: totalRefresh });
+        const tvDoneCount = done - tvStartDone;
+        if (tvDoneCount % CHUNK_SIZE === 0 || tvDoneCount === tvToProcess.length) {
+          if (Object.keys(tvBatch).length > 0) {
+            updateBatchShowCache(tvBatch);
+            tvBatch = {};
+          }
+          setProgress({ done, total: totalCount });
+        }
       }
     } catch (e) {
       setLastError(e instanceof Error ? e.message : String(e));
@@ -152,14 +182,24 @@ export function DevTools() {
                 <span className="dev-value">{totalRefresh}</span>
               </div>
 
-              <button
-                type="button"
-                className="dev-primary"
-                disabled={isRunning || totalRefresh === 0}
-                onClick={handleRefresh}
-              >
-                Refresh entry details
-              </button>
+              <div className="dev-actions">
+                <button
+                  type="button"
+                  className="dev-primary"
+                  disabled={isRunning || totalRefresh === 0}
+                  onClick={() => handleRefresh(false)}
+                >
+                  Refresh missing
+                </button>
+                <button
+                  type="button"
+                  className="dev-secondary"
+                  disabled={isRunning}
+                  onClick={() => handleRefresh(true)}
+                >
+                  Force refresh all
+                </button>
+              </div>
 
               {progress && (
                 <p className="dev-progress">

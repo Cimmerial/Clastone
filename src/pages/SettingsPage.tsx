@@ -4,6 +4,14 @@ import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import './SettingsPage.css';
 
+function getTopCastCount(): number {
+  try {
+    const v = localStorage.getItem('clastone-topCastCount');
+    if (v) { const n = Number(v); if (n >= 3 && n <= 10) return n; }
+  } catch { /* ignore */ }
+  return 5;
+}
+
 export function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
@@ -31,6 +39,7 @@ export function SettingsPage() {
   const [newRankedLabelTv, setNewRankedLabelTv] = useState('');
   const [newUnrankedLabelTv, setNewUnrankedLabelTv] = useState('');
   const signedIn = hasFirebaseConfig && user;
+  const [topCastCount, setTopCastCount] = useState(getTopCastCount);
 
   const rankedClasses = useMemo(() => classes.filter((c) => c.isRanked), [classes]);
   const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
@@ -332,6 +341,29 @@ export function SettingsPage() {
             <input value={newUnrankedLabelTv} onChange={(e) => setNewUnrankedLabelTv(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
             <button type="button" className="settings-btn" disabled={!canAddUnrankedTv} onClick={() => { addTvClass(newUnrankedLabelTv, { isRanked: false }); setNewUnrankedLabelTv(''); }}>Add</button>
           </div>
+        </div>
+
+        <div className="settings-card card-surface settings-card-wide">
+          <h2 className="settings-title">Display</h2>
+          <p className="settings-muted">
+            Adjust how entries appear across your lists.
+          </p>
+          <label className="settings-slider-label">
+            <span>Top Cast Portraits: <strong>{topCastCount}</strong></span>
+            <input
+              type="range"
+              min={3}
+              max={10}
+              value={topCastCount}
+              className="settings-slider"
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setTopCastCount(v);
+                try { localStorage.setItem('clastone-topCastCount', String(v)); } catch { /* ignore */ }
+              }}
+            />
+            <span className="settings-slider-range">3 – 10</span>
+          </label>
         </div>
 
         <div className="settings-card card-surface settings-card-wide">

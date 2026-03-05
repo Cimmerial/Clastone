@@ -37,6 +37,8 @@ type TvStore = {
   addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
   updateShowWatchRecords: (itemId: string, records: WatchRecord[]) => void;
   updateShowCache: (itemId: string, cache: Partial<TmdbTvCache>) => void;
+  /** Bulk merge cached TMDB data onto multiple entries. */
+  updateBatchShowCache: (updates: Record<string, Partial<TmdbTvCache>>) => void;
   getShowById: (id: string) => MovieShowItem | null;
   removeShowEntry: (itemId: string) => void;
 };
@@ -58,12 +60,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
 
   useEffect(() => {
     if (!onPersist) return;
+    if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
     persistTimeoutRef.current = setTimeout(() => {
       onPersist({ byClass, classes });
-    }, 400);
+      persistTimeoutRef.current = null;
+    }, 1500); // 1.5s debounce for bulk ops
     return () => {
       if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
-      onPersist({ byClass, classes });
     };
   }, [byClass, classes, onPersist]);
 
@@ -326,13 +329,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         next[classKey] = list.map((m, i) =>
           i === idx
             ? {
-                ...m,
-                watchRecords: records,
-                viewingDates,
-                percentCompleted,
-                watchTime: watchTime || m.watchTime,
-                ...(posterPath != null ? { posterPath } : {})
-              }
+              ...m,
+              watchRecords: records,
+              viewingDates,
+              percentCompleted,
+              watchTime: watchTime || m.watchTime,
+              ...(posterPath != null ? { posterPath } : {})
+            }
             : m
         );
         return next;
@@ -369,27 +372,65 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         next[classKey] = list.map((m, i) =>
           i === idx
             ? {
-                ...m,
-                ...(cache.title != null && { title: cache.title }),
-                ...(cache.posterPath != null && { posterPath: cache.posterPath }),
-                ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
-                ...(cache.overview != null && { overview: cache.overview }),
-                ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
-                ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
-                ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-                ...(cache.cast != null && {
-                  cast: cache.cast,
-                  topCastNames: cache.cast.map((c) => c.name)
-                }),
-                ...(cache.creators != null && { directors: cache.creators }),
-                ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
-                ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes })
-              }
+              ...m,
+              ...(cache.title != null && { title: cache.title }),
+              ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+              ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+              ...(cache.overview != null && { overview: cache.overview }),
+              ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+              ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+              ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+              ...(cache.cast != null && {
+                cast: cache.cast,
+                topCastNames: cache.cast.map((c) => c.name)
+              }),
+              ...(cache.creators != null && { directors: cache.creators }),
+              ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
+              ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes })
+            }
             : m
         );
         return next;
       }
       return prev;
+    });
+  }, [classOrder]);
+
+  const updateBatchShowCache = useCallback((updates: Record<string, Partial<TmdbTvCache>>) => {
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      let changedGlobal = false;
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        let changedClass = false;
+        const newList = list.map((m) => {
+          const cache = updates[m.id];
+          if (!cache) return m;
+          changedClass = true;
+          changedGlobal = true;
+          return {
+            ...m,
+            ...(cache.title != null && { title: cache.title }),
+            ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+            ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+            ...(cache.overview != null && { overview: cache.overview }),
+            ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+            ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+            ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+            ...(cache.cast != null && {
+              cast: cache.cast,
+              topCastNames: cache.cast.map((c) => c.name)
+            }),
+            ...(cache.creators != null && { directors: cache.creators }),
+            ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
+            ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes })
+          };
+        });
+        if (changedClass) {
+          next[classKey] = newList;
+        }
+      }
+      return changedGlobal ? next : prev;
     });
   }, [classOrder]);
 
@@ -440,6 +481,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       addWatchToShow,
       updateShowWatchRecords,
       updateShowCache,
+      updateBatchShowCache,
       getShowById,
       removeShowEntry
     }),
@@ -463,6 +505,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       addWatchToShow,
       updateShowWatchRecords,
       updateShowCache,
+      updateBatchShowCache,
       getShowById,
       removeShowEntry
     ]

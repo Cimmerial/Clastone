@@ -202,6 +202,8 @@ type MoviesStore = {
   setMovieRuntime: (itemId: string, runtimeMinutes: number) => void;
   /** Merge cached TMDB data onto an existing entry (e.g. when adding a watch we fetch details). */
   updateMovieCache: (itemId: string, cache: Partial<TmdbMovieCache>) => void;
+  /** Bulk merge cached TMDB data onto multiple entries. */
+  updateBatchMovieCache: (updates: Record<string, Partial<TmdbMovieCache>>) => void;
   getMovieById: (id: string) => MovieShowItem | null;
   /** Remove entry entirely from the list (e.g. when user deletes all watches in edit modal). */
   removeMovieEntry: (itemId: string) => void;
@@ -228,12 +230,14 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
 
   useEffect(() => {
     if (!onPersist) return;
+    if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
     persistTimeoutRef.current = setTimeout(() => {
       onPersist({ byClass, classes });
-    }, 400);
+      persistTimeoutRef.current = null;
+    }, 1500); // 1.5s debounce for bulk ops
     return () => {
+      // Do NOT call onPersist here immediately; it defeats the debounce during rapid state changes.
       if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
-      onPersist({ byClass, classes });
     };
   }, [byClass, classes, onPersist]);
 
@@ -484,29 +488,64 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         const list = next[classKey] ?? [];
         const idx = list.findIndex((m) => m.id === itemId);
         if (idx === -1) continue;
-        const item = list[idx];
         next[classKey] = list.map((m, i) =>
           i === idx
             ? {
-                ...m,
-                ...(cache.title != null && { title: cache.title }),
-                ...(cache.posterPath != null && { posterPath: cache.posterPath }),
-                ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
-                ...(cache.overview != null && { overview: cache.overview }),
-                ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
-                ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
-                ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-                ...(cache.cast != null && {
-                  cast: cache.cast,
-                  topCastNames: cache.cast.map((c) => c.name)
-                }),
-                ...(cache.directors != null && { directors: cache.directors })
-              }
+              ...m,
+              ...(cache.title != null && { title: cache.title }),
+              ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+              ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+              ...(cache.overview != null && { overview: cache.overview }),
+              ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+              ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+              ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+              ...(cache.cast != null && {
+                cast: cache.cast,
+                topCastNames: cache.cast.map((c) => c.name)
+              }),
+              ...(cache.directors != null && { directors: cache.directors })
+            }
             : m
         );
         return next;
       }
       return prev;
+    });
+  }, [classOrder]);
+
+  const updateBatchMovieCache = useCallback((updates: Record<string, Partial<TmdbMovieCache>>) => {
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      let changedGlobal = false;
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        let changedClass = false;
+        const newList = list.map((m) => {
+          const cache = updates[m.id];
+          if (!cache) return m;
+          changedClass = true;
+          changedGlobal = true;
+          return {
+            ...m,
+            ...(cache.title != null && { title: cache.title }),
+            ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+            ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+            ...(cache.overview != null && { overview: cache.overview }),
+            ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+            ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+            ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+            ...(cache.cast != null && {
+              cast: cache.cast,
+              topCastNames: cache.cast.map((c) => c.name)
+            }),
+            ...(cache.directors != null && { directors: cache.directors })
+          };
+        });
+        if (changedClass) {
+          next[classKey] = newList;
+        }
+      }
+      return changedGlobal ? next : prev;
     });
   }, [classOrder]);
 
@@ -529,13 +568,13 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
           next[classKey] = list.map((m, i) =>
             i === idx
               ? {
-                  ...m,
-                  watchRecords: records,
-                  viewingDates,
-                  percentCompleted,
-                  watchTime: watchTime || m.watchTime,
-                  ...(posterPath != null ? { posterPath } : {})
-                }
+                ...m,
+                watchRecords: records,
+                viewingDates,
+                percentCompleted,
+                watchTime: watchTime || m.watchTime,
+                ...(posterPath != null ? { posterPath } : {})
+              }
               : m
           );
           return next;
@@ -641,10 +680,11 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       updateMovieWatchRecords,
       setMovieRuntime,
       updateMovieCache,
+      updateBatchMovieCache,
       getMovieById,
       removeMovieEntry
     }),
-    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById, removeMovieEntry]
+    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

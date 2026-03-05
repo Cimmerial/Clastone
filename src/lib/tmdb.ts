@@ -145,7 +145,7 @@ export type TmdbMovieCache = {
   overview?: string;
   releaseDate?: string;
   runtimeMinutes?: number;
-  cast: Array<{ id: number; name: string; character?: string }>;
+  cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
   directors: Array<{ id: number; name: string }>;
 };
 
@@ -164,7 +164,7 @@ export type TmdbTvCache = {
   episodeRuntimeMinutes?: number;
   /** Approximate total runtime for this instance (episode runtime * total episodes). */
   runtimeMinutes?: number;
-  cast: Array<{ id: number; name: string; character?: string }>;
+  cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
   creators: Array<{ id: number; name: string }>;
   seasons: Array<{ seasonNumber: number; episodeCount?: number; airDate?: string }>;
 };
@@ -178,7 +178,7 @@ type TmdbMovieDetailsResponse = {
   release_date?: string | null;
   runtime?: number | null;
   credits?: {
-    cast?: Array<{ id: number; name?: string; character?: string }>;
+    cast?: Array<{ id: number; name?: string; character?: string; profile_path?: string | null }>;
     crew?: Array<{ id: number; name?: string; job?: string }>;
   };
 };
@@ -197,10 +197,10 @@ type TmdbTvDetailsResponse = {
   created_by?: Array<{ id: number; name?: string }>;
   seasons?: Array<{ season_number: number; episode_count?: number; air_date?: string | null }>;
   aggregate_credits?: {
-    cast?: Array<{ id: number; name?: string; roles?: Array<{ character?: string }> }>;
+    cast?: Array<{ id: number; name?: string; profile_path?: string | null; roles?: Array<{ character?: string }> }>;
   };
   credits?: {
-    cast?: Array<{ id: number; name?: string; character?: string }>;
+    cast?: Array<{ id: number; name?: string; character?: string; profile_path?: string | null }>;
   };
 };
 
@@ -237,7 +237,7 @@ export async function tmdbMovieDetailsFull(
   const data = (await res.json()) as TmdbMovieDetailsResponse;
   const cast = (data.credits?.cast ?? [])
     .slice(0, 20)
-    .map((c) => ({ id: c.id, name: c.name ?? '', character: c.character ?? undefined }));
+    .map((c) => ({ id: c.id, name: c.name ?? '', character: c.character ?? undefined, profilePath: c.profile_path ?? undefined }));
   const directors = (data.credits?.crew ?? [])
     .filter((c) => c.job === 'Director')
     .map((c) => ({ id: c.id, name: c.name ?? '' }));
@@ -271,12 +271,14 @@ export async function tmdbTvDetailsFull(
   const castFromAggregate = (data.aggregate_credits?.cast ?? []).slice(0, 20).map((c) => ({
     id: c.id,
     name: c.name ?? '',
-    character: c.roles?.[0]?.character ?? undefined
+    character: c.roles?.[0]?.character ?? undefined,
+    profilePath: c.profile_path ?? undefined
   }));
   const castFromCredits = (data.credits?.cast ?? []).slice(0, 20).map((c) => ({
     id: c.id,
     name: c.name ?? '',
-    character: c.character ?? undefined
+    character: c.character ?? undefined,
+    profilePath: c.profile_path ?? undefined
   }));
   const cast = castFromAggregate.length > 0 ? castFromAggregate : castFromCredits;
   const creators = (data.created_by ?? []).map((c) => ({ id: c.id, name: c.name ?? '' }));
