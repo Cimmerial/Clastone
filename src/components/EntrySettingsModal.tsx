@@ -1,5 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { MovieShowItem, WatchRecord, WatchRecordType } from './EntryRowMovieShow';
+import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
+import {
+  getYearOptions,
+  MONTH_OPTIONS,
+  DAY_OPTIONS,
+  applyDatePreset,
+  DATE_PRESET_OPTIONS
+} from '../lib/dateDropdowns';
 import './EntrySettingsModal.css';
 
 export type WatchDateType = 'RANGE' | 'SINGLE' | 'DNF' | 'LONG_AGO' | 'UNKNOWN';
@@ -12,7 +20,7 @@ export type WatchEntry = {
   date?: string;
 };
 
-const WATCH_TYPES: { value: WatchRecordType; label: string }[] = [
+const WATCH_TYPES: ThemedDropdownOption<WatchRecordType>[] = [
   { value: 'DATE', label: 'Watch date' },
   { value: 'RANGE', label: 'Start / end date' },
   { value: 'DNF', label: 'DNF' },
@@ -44,6 +52,14 @@ function normalizeRecord(r: WatchRecord): WatchRecord {
 }
 
 export function EntrySettingsModal({ item, onClose, onSave, onRemoveEntry }: Props) {
+  const releaseYear = useMemo(() => {
+    const s = item.releaseDate?.trim().slice(0, 4);
+    if (s && /^\d{4}$/.test(s)) return parseInt(s, 10);
+    return undefined;
+  }, [item.releaseDate]);
+
+  const yearOptions = useMemo(() => getYearOptions(releaseYear), [releaseYear]);
+
   const initial: WatchRecord[] =
     item.watchRecords && item.watchRecords.length > 0
       ? item.watchRecords.map(normalizeRecord)
@@ -119,61 +135,61 @@ export function EntrySettingsModal({ item, onClose, onSave, onRemoveEntry }: Pro
             <div key={row.id} className="entry-modal-row entry-modal-row-watch">
               <label className="entry-modal-field entry-modal-field-type">
                 <span>Type</span>
-                <select
+                <ThemedDropdown<WatchRecordType>
                   value={row.type ?? 'DATE'}
-                  onChange={(e) => updateRecord(row.id, { type: e.target.value as WatchRecordType })}
-                >
-                  {WATCH_TYPES.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={WATCH_TYPES}
+                  onChange={(v) => updateRecord(row.id, { type: v })}
+                />
               </label>
 
               {(row.type === 'DATE' || row.type === 'RANGE') && (
                 <>
                   <label className="entry-modal-field">
                     <span>{row.type === 'RANGE' ? 'Start year' : 'Year'}</span>
-                    <input
-                      type="number"
-                      value={row.year ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, { year: Number(e.target.value) || 0 })
-                      }
-                      placeholder="2024"
+                    <ThemedDropdown
+                      value={row.year != null ? String(row.year) : ''}
+                      options={yearOptions}
+                      onChange={(v) => updateRecord(row.id, { year: v ? Number(v) : undefined })}
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Month</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={row.month ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          month: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.month != null ? String(row.month) : ''}
+                      options={MONTH_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { month: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Day</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={row.day ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          day: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.day != null ? String(row.day) : ''}
+                      options={DAY_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { day: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
+                  <div className="entry-modal-preset-wrap">
+                    <ThemedDropdown
+                      value=""
+                      options={DATE_PRESET_OPTIONS as ThemedDropdownOption<string>[]}
+                      triggerLabel="≡"
+                      placeholder="Preset"
+                      onChange={(preset) => {
+                        if (preset !== 'today' && preset !== 'yesterday' && preset !== 'this_year') return;
+                        const { year, month, day } = applyDatePreset(preset);
+                        updateRecord(row.id, {
+                          year: year ? Number(year) : undefined,
+                          month: month ? Number(month) : undefined,
+                          day: day ? Number(day) : undefined
+                        });
+                      }}
+                      aria-label="Date preset"
+                    />
+                  </div>
                 </>
               )}
 
@@ -182,45 +198,32 @@ export function EntrySettingsModal({ item, onClose, onSave, onRemoveEntry }: Pro
                   <span className="entry-modal-field-sep">→</span>
                   <label className="entry-modal-field">
                     <span>End year</span>
-                    <input
-                      type="number"
-                      value={row.endYear ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          endYear: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.endYear != null ? String(row.endYear) : ''}
+                      options={yearOptions}
+                      onChange={(v) =>
+                        updateRecord(row.id, { endYear: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Month</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={row.endMonth ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          endMonth: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.endMonth != null ? String(row.endMonth) : ''}
+                      options={MONTH_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { endMonth: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Day</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={row.endDay ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          endDay: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.endDay != null ? String(row.endDay) : ''}
+                      options={DAY_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { endDay: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
                 </>
@@ -230,45 +233,52 @@ export function EntrySettingsModal({ item, onClose, onSave, onRemoveEntry }: Pro
                 <>
                   <label className="entry-modal-field">
                     <span>Started year</span>
-                    <input
-                      type="number"
-                      value={row.year ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, { year: e.target.value ? Number(e.target.value) : undefined })
+                    <ThemedDropdown
+                      value={row.year != null ? String(row.year) : ''}
+                      options={yearOptions}
+                      onChange={(v) =>
+                        updateRecord(row.id, { year: v ? Number(v) : undefined })
                       }
-                      placeholder="2024"
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Month</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={row.month ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          month: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.month != null ? String(row.month) : ''}
+                      options={MONTH_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { month: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
                   <label className="entry-modal-field">
                     <span>Day</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={row.day ?? ''}
-                      onChange={(e) =>
-                        updateRecord(row.id, {
-                          day: e.target.value ? Number(e.target.value) : undefined
-                        })
+                    <ThemedDropdown
+                      value={row.day != null ? String(row.day) : ''}
+                      options={DAY_OPTIONS}
+                      onChange={(v) =>
+                        updateRecord(row.id, { day: v ? Number(v) : undefined })
                       }
-                      placeholder="—"
                     />
                   </label>
+                  <div className="entry-modal-preset-wrap">
+                    <ThemedDropdown
+                      value=""
+                      options={DATE_PRESET_OPTIONS as ThemedDropdownOption<string>[]}
+                      triggerLabel="≡"
+                      placeholder="Preset"
+                      onChange={(preset) => {
+                        if (preset !== 'today' && preset !== 'yesterday' && preset !== 'this_year') return;
+                        const { year, month, day } = applyDatePreset(preset);
+                        updateRecord(row.id, {
+                          year: year ? Number(year) : undefined,
+                          month: month ? Number(month) : undefined,
+                          day: day ? Number(day) : undefined
+                        });
+                      }}
+                      aria-label="Date preset"
+                    />
+                  </div>
                   <label className="entry-modal-field entry-modal-field-slider">
                     <span>
                       {row.type === 'DNF' ? 'Got through' : 'Current progress'}: {(row.dnfPercent ?? 0)}%

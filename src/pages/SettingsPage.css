@@ -112,6 +112,18 @@
   text-transform: uppercase;
 }
 
+.settings-class-name-main {
+  color: var(--text);
+}
+
+.settings-class-tagline {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
 .settings-class-count {
   font-size: 0.75rem;
   color: var(--text-muted);

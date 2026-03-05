@@ -1,0 +1,82 @@
+.themed-dropdown {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.themed-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.themed-dropdown-trigger:hover {
+  border-color: rgba(244, 162, 97, 0.4);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.themed-dropdown-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themed-dropdown-chevron {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.themed-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 5, 15, 0.98);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  max-height: 12rem;
+  overflow-y: auto;
+  z-index: 9999;
+}
+
+/* Portal-rendered list: positioned fixed, above all modals, never clipped */
+.themed-dropdown-list--portal {
+  position: fixed;
+  right: auto;
+  z-index: 10000;
+}
+
+.themed-dropdown-option {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.themed-dropdown-option:hover {
+  background: rgba(244, 162, 97, 0.15);
+}
+
+.themed-dropdown-option--selected {
+  background: rgba(244, 162, 97, 0.2);
+  color: var(--accent-soft);
+}

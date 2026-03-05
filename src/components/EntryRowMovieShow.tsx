@@ -136,7 +136,7 @@ export function EntryRowMovieShow({
               type="button"
               className="entry-config-btn entry-record-first"
               onClick={() => onRecordFirstWatch?.(item)}
-              data-tooltip="Record first watch to rank"
+              data-tooltip="Record watch to rank"
             >
               Record First Watch
             </button>

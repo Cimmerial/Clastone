@@ -26,6 +26,8 @@ type RankedListProps<T extends RankedItemBase> = {
   getClassSubtitle?: (classKey: ClassKey, items: T[]) => string;
   /** Optional: map a class key to a human-friendly label. Defaults to classKey. */
   getClassLabel?: (classKey: ClassKey) => string;
+  /** Optional: tagline for section title only (shown after label, muted). */
+  getClassTagline?: (classKey: ClassKey) => string | undefined;
   /** When provided, entries can be dragged to reorder within each class. */
   onReorderWithinClass?: (classKey: ClassKey, orderedIds: string[]) => void;
 };
@@ -66,6 +68,7 @@ export function RankedList<T extends RankedItemBase>({
   renderRow,
   getClassSubtitle,
   getClassLabel,
+  getClassTagline,
   onReorderWithinClass
 }: RankedListProps<T>) {
   const sensors = useSensors(
@@ -93,6 +96,7 @@ export function RankedList<T extends RankedItemBase>({
         const subtitle = getClassSubtitle?.(classKey, items) ?? '';
         const isNonRankedDivider = classKey === 'BABY';
         const label = getClassLabel ? getClassLabel(classKey) : classKey;
+        const tagline = getClassTagline?.(classKey);
         const isNonRankedClass =
           classKey === 'BABY' || classKey === 'DELICIOUS_GARBAGE' || classKey === 'UNRANKED';
         const sortableIds = items.map((i) => i.id);
@@ -108,7 +112,10 @@ export function RankedList<T extends RankedItemBase>({
             >
               <header className="class-section-header">
                 <div>
-                  <h3 className="class-section-title">{label}</h3>
+                  <h3 className="class-section-title">
+                    {label}
+                    {tagline ? <span className="class-section-tagline"> | {tagline}</span> : null}
+                  </h3>
                   <p className="class-section-count">
                     {items.length} entries{subtitle ? ` | ${subtitle}` : ''}
                   </p>

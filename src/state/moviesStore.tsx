@@ -11,17 +11,28 @@ function dateParts(r: WatchRecord, useEnd = false): { y: number; m: number; d: n
   return { y, m, d };
 }
 
-function formatWatchLabel(r: WatchRecord): string {
+/** Format y, m, d as "Jan 21, 2026" (month name, day, year). */
+function formatDateParts(y: number, m: number, d: number): string {
+  if (y === 0) return 'Date';
+  if (!m && !d) return String(y);
+  const monthName = m
+    ? new Date(2000, m - 1, 1).toLocaleString('default', { month: 'short' })
+    : '';
+  if (!d) return monthName ? `${monthName} ${y}` : String(y);
+  return monthName ? `${monthName} ${d}, ${y}` : `${d}, ${y}`;
+}
+
+export function formatWatchLabel(r: WatchRecord): string {
   const t = r.type ?? 'DATE';
   switch (t) {
     case 'DNF': {
       const { y, m, d } = dateParts(r, false);
-      if (y > 0) return `DNF (started ${[y, m || null, d || null].filter(Boolean).join('-')})`;
+      if (y > 0) return `DNF (started ${formatDateParts(y, m, d)})`;
       return 'DNF';
     }
     case 'CURRENT': {
       const { y, m, d } = dateParts(r, false);
-      if (y > 0) return `Currently watching (started ${[y, m || null, d || null].filter(Boolean).join('-')})`;
+      if (y > 0) return `Currently watching (started ${formatDateParts(y, m, d)})`;
       return 'Currently watching';
     }
     case 'LONG_AGO':
@@ -32,25 +43,21 @@ function formatWatchLabel(r: WatchRecord): string {
       const start = dateParts(r, false);
       const end = dateParts(r, true);
       if (start.y === 0 && end.y === 0) return 'Range';
-      const endStr = [end.y, end.m || null, end.d || null].filter(Boolean).join('-');
+      const endStr = formatDateParts(end.y, end.m, end.d);
       if (start.y === end.y && start.m === end.m && start.d === end.d) return endStr;
-      const startStr = [start.y, start.m || null, start.d || null].filter(Boolean).join('-');
+      const startStr = formatDateParts(start.y, start.m, start.d);
       return `${startStr} – ${endStr}`;
     }
     case 'DATE':
     default: {
       const { y, m, d } = dateParts(r, false);
-      if (y === 0) return 'Date';
-      const parts = [String(y)];
-      if (m) parts.unshift(String(m).padStart(2, '0'));
-      if (d) parts.unshift(String(d).padStart(2, '0'));
-      return parts.join('-');
+      return formatDateParts(y, m, d);
     }
   }
 }
 
-/** Sort key for "most recent first": dated/DNF (by start) first, LONG_AGO/UNKNOWN last. */
-function recordSortKey(r: WatchRecord): string {
+/** Sort key for a watch record (YYYY-MM-DD style; "0000-00-00" for LONG_AGO/UNKNOWN). Export for profile/recent lists. */
+export function getWatchRecordSortKey(r: WatchRecord): string {
   const t = r.type ?? 'DATE';
   if (t === 'DATE') {
     const { y, m, d } = dateParts(r, false);
@@ -65,6 +72,10 @@ function recordSortKey(r: WatchRecord): string {
     return `${y}-${String(m || 0).padStart(2, '0')}-${String(d || 0).padStart(2, '0')}`;
   }
   return '0000-00-00';
+}
+
+function recordSortKey(r: WatchRecord): string {
+  return getWatchRecordSortKey(r);
 }
 
 function sortRecordsByRecency(records: WatchRecord[]): WatchRecord[] {
@@ -97,6 +108,25 @@ export function getTotalMinutesFromRecords(
     }
   }
   return total;
+}
+
+/** Total episodes watched from TV watch records (full watch = totalEpisodes, DNF/CURRENT = fraction). */
+export function getTotalEpisodesFromRecords(
+  records: WatchRecord[],
+  totalEpisodes?: number
+): number {
+  const eps = totalEpisodes ?? 0;
+  let total = 0;
+  for (const r of records) {
+    const t = r.type ?? 'DATE';
+    if (t === 'DATE' || t === 'RANGE' || t === 'LONG_AGO' || t === 'UNKNOWN') {
+      total += eps;
+    } else if (t === 'DNF' || t === 'CURRENT') {
+      const pct = Math.min(100, Math.max(0, r.dnfPercent ?? 0));
+      total += (pct / 100) * eps;
+    }
+  }
+  return Math.round(total);
 }
 
 export function formatViewingFromRecords(
@@ -142,6 +172,7 @@ type MoviesStore = {
   classes: MovieClassDef[];
   classOrder: ClassKey[];
   getClassLabel: (classKey: ClassKey) => string;
+  getClassTagline: (classKey: ClassKey) => string | undefined;
   isRankedClass: (classKey: ClassKey) => boolean;
   byClass: Record<ClassKey, MovieShowItem[]>;
   moveWithinClass: (itemId: string, delta: number) => void;
@@ -150,6 +181,7 @@ type MoviesStore = {
   moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
   addClass: (label: string, options?: { isRanked?: boolean }) => void;
   renameClassLabel: (classKey: ClassKey, newLabel: string) => void;
+  renameClassTagline: (classKey: ClassKey, tagline: string) => void;
   moveClass: (classKey: ClassKey, delta: number) => void;
   deleteClass: (classKey: ClassKey) => void;
   addMovieFromSearch: (
@@ -161,6 +193,8 @@ type MoviesStore = {
       posterPath?: string;
       /** Full cache from TMDB so we don't need to re-fetch on load. */
       cache?: TmdbMovieCache;
+      /** If false, insert at bottom of class (default true = top). */
+      toTop?: boolean;
     }
   ) => void;
   addWatchToMovie: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
@@ -224,6 +258,11 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     [classes]
   );
 
+  const getClassTagline = useCallback(
+    (classKey: ClassKey) => classes.find((c) => c.key === classKey)?.tagline?.trim() || undefined,
+    [classes]
+  );
+
   const isRankedClass = useCallback(
     (classKey: ClassKey) => classes.find((c) => c.key === classKey)?.isRanked ?? true,
     [classes]
@@ -235,7 +274,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     const key = trimmed.toUpperCase().replace(/\s+/g, '_');
     setClasses((prev) => {
       if (prev.some((c) => c.key === key)) return prev;
-      return [...prev, { key, label: trimmed.toUpperCase(), isRanked: options?.isRanked ?? true }];
+      return [...prev, { key, label: trimmed.toUpperCase(), tagline: undefined, isRanked: options?.isRanked ?? true }];
     });
   }, []);
 
@@ -243,6 +282,12 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     const trimmed = newLabel.trim();
     if (!trimmed) return;
     setClasses((prev) => prev.map((c) => (c.key === classKey ? { ...c, label: trimmed } : c)));
+  }, []);
+
+  const renameClassTagline = useCallback((classKey: ClassKey, tagline: string) => {
+    setClasses((prev) =>
+      prev.map((c) => (c.key === classKey ? { ...c, tagline: tagline.trim() || undefined } : c))
+    );
   }, []);
 
   const moveClass = useCallback((classKey: ClassKey, delta: number) => {
@@ -379,6 +424,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         runtimeMinutes?: number;
         posterPath?: string;
         cache?: TmdbMovieCache;
+        toTop?: boolean;
       }
     ) => {
       setByClass((prev) => {
@@ -421,7 +467,11 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         };
 
         const targetList = prev[toKey] ?? [];
-        return { ...prev, [toKey]: [base, ...targetList] };
+        const toTop = incoming.toTop !== false;
+        return {
+          ...prev,
+          [toKey]: toTop ? [base, ...targetList] : [...targetList, base]
+        };
       });
     },
     []
@@ -574,10 +624,12 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       classes,
       classOrder,
       getClassLabel,
+      getClassTagline,
       isRankedClass,
       byClass,
       addClass,
       renameClassLabel,
+      renameClassTagline,
       moveClass,
       deleteClass,
       moveWithinClass,
@@ -592,7 +644,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       getMovieById,
       removeMovieEntry
     }),
-    [classes, classOrder, getClassLabel, isRankedClass, byClass, addClass, renameClassLabel, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById, removeMovieEntry]
+    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, getMovieById, removeMovieEntry]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

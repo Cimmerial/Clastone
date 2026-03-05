@@ -92,6 +92,17 @@
   width: 100%;
 }
 
+.entry-modal-preset-wrap {
+  align-self: flex-end;
+  width: 6rem;
+  min-width: 6rem;
+}
+
+.entry-modal-preset-wrap .themed-dropdown-trigger {
+  padding: 0.4rem 0.65rem;
+  justify-content: center;
+}
+
 .entry-modal-field-sep {
   align-self: center;
   color: var(--text-muted);

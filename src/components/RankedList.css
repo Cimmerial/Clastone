@@ -83,6 +83,13 @@
   text-transform: uppercase;
 }
 
+.class-section-tagline {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
 .class-section-count {
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -217,6 +224,12 @@
   padding: 0.12rem 0.35rem;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.entry-config-btn:disabled,
+.entry-move-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .entry-record-first {

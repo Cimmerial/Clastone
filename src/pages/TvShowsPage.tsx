@@ -3,14 +3,26 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
-import { RecordFirstWatchModal } from '../components/RecordFirstWatchModal';
+import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
 import { useTvStore } from '../state/tvStore';
 import { getTotalMinutesFromRecords, formatDuration } from '../state/moviesStore';
 
+function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
+  const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
+  return {
+    id,
+    title: item.title,
+    poster_path: item.posterPath,
+    media_type: 'tv',
+    subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined
+  };
+}
+
 export function TvShowsPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
-  const [firstWatchFor, setFirstWatchFor] = useState<MovieShowItem | null>(null);
-  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry } =
+  const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry } =
     useTvStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -65,27 +77,20 @@ export function TvShowsPage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">TV Shows</h1>
-          <p className="page-tagline">SEASONS AS THEIR OWN ENTRIES</p>
+          <p className="page-tagline">"I WAS FEELING EPIC" - Damon Salvatore</p>
         </div>
       </header>
       <RankedList<MovieShowItem>
         classOrder={classOrder}
         itemsByClass={computedByClass}
         getClassLabel={getClassLabel}
+        getClassTagline={getClassTagline}
         getClassSubtitle={(_, items) => {
-          const totalRuntime = items.reduce(
-            (sum, it) => sum + (it.runtimeMinutes ?? 0),
+          const totalMins = items.reduce(
+            (sum, it) => sum + getTotalMinutesFromRecords(it.watchRecords ?? [], it.runtimeMinutes),
             0
           );
-          console.info('[Clastone] TvShowsPage class runtime', {
-            items: items.map((it) => ({
-              id: it.id,
-              title: it.title,
-              runtimeMinutes: it.runtimeMinutes
-            })),
-            totalRuntime
-          });
-          return totalRuntime > 0 ? formatDuration(totalRuntime) : '';
+          return totalMins > 0 ? formatDuration(totalMins) : '';
         }}
         onReorderWithinClass={reorderWithinClass}
         renderRow={(item) => {
@@ -103,7 +108,7 @@ export function TvShowsPage() {
               item={item}
               listType="shows"
               onOpenSettings={(entry) => setSettingsFor(entry)}
-              onRecordFirstWatch={(entry) => setFirstWatchFor(entry)}
+              onRecordFirstWatch={(entry) => setRecordWatchFor(entry)}
               onMoveUp={canMoveUp ? () => (isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)) : undefined}
               onMoveDown={canMoveDown ? () => (isLast ? moveToOtherClass(item.id, 1) : moveWithinClass(item.id, 1)) : undefined}
               onClassUp={canClassUp ? () => moveToOtherClass(item.id, -1) : undefined}
@@ -123,14 +128,26 @@ export function TvShowsPage() {
           }}
         />
       )}
-      {firstWatchFor && (
-        <RecordFirstWatchModal
-          item={firstWatchFor}
-          rankedClasses={classes.filter((c) => c.isRanked).map((c) => ({ key: c.key, label: c.label }))}
-          onClose={() => setFirstWatchFor(null)}
-          onConfirm={async (watch, toKey) => {
-            addWatchToShow(firstWatchFor.id, watch, { posterPath: firstWatchFor.posterPath });
-            moveItemToClass(firstWatchFor.id, toKey, { toTop: true });
+      {recordWatchFor && (
+        <RecordWatchModal
+          target={tvItemToTarget(recordWatchFor)}
+          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key) }))}
+          showClassPicker
+          isSaving={isSavingRecord}
+          primaryButtonLabel="Save and go to show"
+          onClose={() => setRecordWatchFor(null)}
+          onSave={async (params, goToShow) => {
+            setIsSavingRecord(true);
+            try {
+              addWatchToShow(recordWatchFor.id, params.watch, { posterPath: recordWatchFor.posterPath });
+              if (params.classKey) {
+                moveItemToClass(recordWatchFor.id, params.classKey, { toTop: params.position === 'top' });
+              }
+              setRecordWatchFor(null);
+              if (goToShow) navigate('/tv', { replace: true, state: { scrollToId: recordWatchFor.id } });
+            } finally {
+              setIsSavingRecord(false);
+            }
           }}
         />
       )}

@@ -10,11 +10,13 @@ type TvStore = {
   classes: MovieClassDef[];
   classOrder: ClassKey[];
   getClassLabel: (classKey: ClassKey) => string;
+  getClassTagline: (classKey: ClassKey) => string | undefined;
   isRankedClass: (classKey: ClassKey) => boolean;
   byClass: Record<ClassKey, MovieShowItem[]>;
 
   addClass: (label: string, options?: { isRanked?: boolean }) => void;
   renameClassLabel: (classKey: ClassKey, newLabel: string) => void;
+  renameClassTagline: (classKey: ClassKey, tagline: string) => void;
   moveClass: (classKey: ClassKey, delta: number) => void;
   deleteClass: (classKey: ClassKey) => void;
 
@@ -29,6 +31,7 @@ type TvStore = {
       classKey: ClassKey;
       firstWatch?: WatchRecord;
       cache?: TmdbTvCache;
+      toTop?: boolean;
     }
   ) => void;
   addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
@@ -84,6 +87,11 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     [classes]
   );
 
+  const getClassTagline = useCallback(
+    (classKey: ClassKey) => classes.find((c) => c.key === classKey)?.tagline?.trim() || undefined,
+    [classes]
+  );
+
   const isRankedClass = useCallback(
     (classKey: ClassKey) => classes.find((c) => c.key === classKey)?.isRanked ?? true,
     [classes]
@@ -95,7 +103,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     const key = trimmed.toUpperCase().replace(/\s+/g, '_');
     setClasses((prev) => {
       if (prev.some((c) => c.key === key)) return prev;
-      return [...prev, { key, label: trimmed.toUpperCase(), isRanked: options?.isRanked ?? true }];
+      return [...prev, { key, label: trimmed.toUpperCase(), tagline: undefined, isRanked: options?.isRanked ?? true }];
     });
   }, []);
 
@@ -103,6 +111,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     const trimmed = newLabel.trim();
     if (!trimmed) return;
     setClasses((prev) => prev.map((c) => (c.key === classKey ? { ...c, label: trimmed } : c)));
+  }, []);
+
+  const renameClassTagline = useCallback((classKey: ClassKey, tagline: string) => {
+    setClasses((prev) =>
+      prev.map((c) => (c.key === classKey ? { ...c, tagline: tagline.trim() || undefined } : c))
+    );
   }, []);
 
   const moveClass = useCallback((classKey: ClassKey, delta: number) => {
@@ -237,6 +251,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         classKey: ClassKey;
         firstWatch?: WatchRecord;
         cache?: TmdbTvCache;
+        toTop?: boolean;
       }
     ) => {
       setByClass((prev) => {
@@ -285,7 +300,11 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         });
 
         const targetList = prev[incoming.classKey] ?? [];
-        return { ...prev, [incoming.classKey]: [base, ...targetList] };
+        const toTop = incoming.toTop !== false;
+        return {
+          ...prev,
+          [incoming.classKey]: toTop ? [base, ...targetList] : [...targetList, base]
+        };
       });
     },
     []
@@ -405,10 +424,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       classes,
       classOrder,
       getClassLabel,
+      getClassTagline,
       isRankedClass,
       byClass,
       addClass,
       renameClassLabel,
+      renameClassTagline,
       moveClass,
       deleteClass,
       moveWithinClass,
@@ -426,10 +447,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       classes,
       classOrder,
       getClassLabel,
+      getClassTagline,
       isRankedClass,
       byClass,
       addClass,
       renameClassLabel,
+      renameClassTagline,
       moveClass,
       deleteClass,
       moveWithinClass,

@@ -4,19 +4,27 @@ import type { MovieShowItem } from '../components/EntryRowMovieShow';
 export type MovieClassDef = {
   key: ClassKey;
   label: string;
+  /** Optional tagline shown as "LABEL | TAGLINE" in UI. */
+  tagline?: string;
   /** If false, items in this class do not affect global percentile/absolute ranks. */
   isRanked: boolean;
 };
 
+const defaultTaglines: Record<string, string> = {
+  OLYMPUS: 'Crème de la Crème',
+  DELICIOUS_GARBAGE: "So Bad, It's Good",
+  BABY: 'Watched as Ankle-Biter'
+};
+
 export const defaultMovieClassDefs: MovieClassDef[] = [
-  { key: 'OLYMPUS', label: 'OLYMPUS', isRanked: true },
+  { key: 'OLYMPUS', label: 'OLYMPUS', tagline: defaultTaglines.OLYMPUS, isRanked: true },
   { key: 'DAMN_GOOD', label: 'DAMN GOOD', isRanked: true },
   { key: 'GOOD', label: 'GOOD', isRanked: true },
   { key: 'ALRIGHT', label: 'ALRIGHT', isRanked: true },
   { key: 'MEH', label: 'MEH', isRanked: true },
   { key: 'BAD', label: 'BAD', isRanked: true },
-  { key: 'BABY', label: 'BABY', isRanked: false },
-  { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS GARBAGE', isRanked: false },
+  { key: 'BABY', label: 'BABY', tagline: defaultTaglines.BABY, isRanked: false },
+  { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS GARBAGE', tagline: defaultTaglines.DELICIOUS_GARBAGE, isRanked: false },
   { key: 'UNRANKED', label: 'UNRANKED', isRanked: false }
 ];
 

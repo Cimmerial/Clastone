@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -13,7 +14,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-import { tmdbImagePath } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 import './WatchlistPage.css';
 
 function formatYear(releaseDate?: string): string {
@@ -98,7 +100,7 @@ function WatchlistRow({
             onRecordWatch();
           }}
         >
-          {hasWatched ? 'Record another watch' : 'Record first watch'}
+          {hasWatched ? 'Record another watch' : 'Record watch'}
         </button>
       </div>
     </div>
@@ -108,8 +110,40 @@ function WatchlistRow({
 export function WatchlistPage() {
   const navigate = useNavigate();
   const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
-  const { getMovieById } = useMoviesStore();
-  const { getShowById } = useTvStore();
+  const {
+    getMovieById,
+    addMovieFromSearch,
+    addWatchToMovie,
+    moveItemToClass,
+    updateMovieCache,
+    classOrder,
+    getClassLabel
+  } = useMoviesStore();
+  const {
+    getShowById,
+    addShowFromSearch,
+    addWatchToShow,
+    moveItemToClass: moveShowToClass,
+    updateShowCache,
+    classOrder: tvClassOrder,
+    getClassLabel: getTvClassLabel
+  } = useTvStore();
+  const [recordTarget, setRecordTarget] = useState<RecordWatchTarget | null>(null);
+  const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const movieRankedClasses = useMemo(
+    () => classOrder.filter((k) => k !== 'UNRANKED').map((k) => ({ key: k, label: getClassLabel(k) })),
+    [classOrder, getClassLabel]
+  );
+  const tvRankedClasses = useMemo(
+    () =>
+      tvClassOrder
+        .filter((k) => k !== 'UNRANKED')
+        .map((k) => ({ key: k, label: getTvClassLabel(k) })),
+    [tvClassOrder, getTvClassLabel]
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -128,8 +162,123 @@ export function WatchlistPage() {
     reorderWatchlist(type, reordered.map((e) => e.id));
   };
 
-  const handleRecordWatch = (entry: WatchlistEntry, type: WatchlistType) => {
-    navigate('/search', { state: { fromWatchlistId: entry.id, fromWatchlistType: type } });
+  const handleRecordWatch = async (entry: WatchlistEntry, type: WatchlistType) => {
+    const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
+    if (!match) return;
+    const [, media, idStr] = match;
+    const tmdbId = parseInt(idStr, 10);
+    if (Number.isNaN(tmdbId)) return;
+    const isMovie = media === 'movie';
+    setRecordWatchlistId(entry.id);
+    try {
+      const cache = isMovie
+        ? await tmdbMovieDetailsFull(tmdbId)
+        : await tmdbTvDetailsFull(tmdbId);
+      if (!cache) {
+        setRecordWatchlistId(null);
+        return;
+      }
+      const target: RecordWatchTarget = {
+        id: tmdbId,
+        title: cache.title ?? entry.title,
+        poster_path: cache.posterPath ?? entry.posterPath,
+        media_type: isMovie ? 'movie' : 'tv',
+        subtitle: cache.releaseDate ?? entry.releaseDate
+      };
+      setRecordTarget(target);
+    } catch {
+      setRecordWatchlistId(null);
+    }
+  };
+
+  const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
+    if (!recordTarget) return;
+    const { watch, classKey: recordClassKey, position } = params;
+    const toTop = position !== 'bottom';
+    const isMovie = recordTarget.media_type === 'movie';
+    const id = isMovie ? `tmdb-movie-${recordTarget.id}` : `tmdb-tv-${recordTarget.id}`;
+    const existing = isMovie ? getMovieById(id) : getShowById(id);
+    const existingIsUnranked = existing?.classKey === 'UNRANKED';
+
+    if (isMovie) {
+      if (existing) {
+        const needsCache = existing.tmdbId == null || existing.overview == null;
+        if (needsCache) {
+          try {
+            const cache = await tmdbMovieDetailsFull(recordTarget.id);
+            if (cache) updateMovieCache(id, cache);
+          } catch {
+            /* ignore */
+          }
+        }
+        addWatchToMovie(id, watch, {
+          posterPath: recordTarget.poster_path ?? existing.posterPath
+        });
+        if (existingIsUnranked && recordClassKey) {
+          moveItemToClass(id, recordClassKey, { toTop });
+        }
+      } else {
+        if (!recordClassKey || recordClassKey === 'UNRANKED') return;
+        setIsSaving(true);
+        let cache = null;
+        try {
+          cache = await tmdbMovieDetailsFull(recordTarget.id);
+        } catch {
+          /* ignore */
+        }
+        addMovieFromSearch({
+          id,
+          title: recordTarget.title,
+          subtitle: recordTarget.subtitle ?? '',
+          classKey: recordClassKey,
+          firstWatch: watch,
+          runtimeMinutes: cache?.runtimeMinutes,
+          posterPath: recordTarget.poster_path ?? cache?.posterPath,
+          cache: cache ?? undefined,
+          toTop
+        });
+        setIsSaving(false);
+      }
+    } else {
+      setIsSaving(true);
+      let cache = null;
+      try {
+        cache = await tmdbTvDetailsFull(recordTarget.id);
+      } catch {
+        /* ignore */
+      }
+      setIsSaving(false);
+      if (!cache) return;
+      if (existing) {
+        if (existing.tmdbId == null || existing.overview == null) {
+          updateShowCache(id, cache);
+        }
+        addWatchToShow(id, watch, { posterPath: cache.posterPath ?? existing.posterPath });
+        if (existingIsUnranked && recordClassKey) {
+          moveShowToClass(id, recordClassKey, { toTop });
+        }
+      } else {
+        if (!recordClassKey || recordClassKey === 'UNRANKED') return;
+        addShowFromSearch({
+          id,
+          title: cache.title,
+          subtitle: recordTarget.subtitle ?? '',
+          classKey: recordClassKey,
+          firstWatch: watch,
+          cache,
+          toTop
+        });
+      }
+    }
+
+    if (recordWatchlistId) {
+      removeFromWatchlist(recordWatchlistId);
+      setRecordWatchlistId(null);
+    }
+    setRecordTarget(null);
+    if (goToMovie) {
+      navigate(isMovie ? '/movies' : '/tv', { replace: true, state: { scrollToId: id } });
+    }
   };
 
   const moveWatchlistEntry = (type: WatchlistType, index: number, delta: number) => {
@@ -213,6 +362,27 @@ export function WatchlistPage() {
           </div>
         </DndContext>
       </div>
+
+      {recordTarget && (
+        <RecordWatchModal
+          target={recordTarget}
+          rankedClasses={recordTarget.media_type === 'movie' ? movieRankedClasses : tvRankedClasses}
+          showClassPicker={
+            recordTarget.media_type === 'movie'
+              ? !getMovieById(`tmdb-movie-${recordTarget.id}`) ||
+                getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
+              : !getShowById(`tmdb-tv-${recordTarget.id}`) ||
+                getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
+          }
+          onSave={handleRecordSave}
+          onClose={() => {
+            setRecordTarget(null);
+            setRecordWatchlistId(null);
+          }}
+          isSaving={isSaving}
+          primaryButtonLabel={recordTarget.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie'}
+        />
+      )}
     </section>
   );
 }
