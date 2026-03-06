@@ -5,6 +5,7 @@ import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
+import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import {
   useMoviesStore,
   getTotalMinutesFromRecords,
@@ -161,7 +162,7 @@ export function MoviesPage() {
       {recordWatchFor && (
         <RecordWatchModal
           target={movieItemToTarget(recordWatchFor)}
-          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key) }))}
+          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key), tagline: getClassTagline(c.key) }))}
           showClassPicker
           isSaving={isSavingRecord}
           primaryButtonLabel="Save and go to movie"
@@ -171,7 +172,10 @@ export function MoviesPage() {
             try {
               addWatchToMovie(recordWatchFor.id, params.watch, { posterPath: recordWatchFor.posterPath });
               if (params.classKey) {
-                moveItemToClass(recordWatchFor.id, params.classKey, { toTop: params.position === 'top' });
+                moveItemToClass(recordWatchFor.id, params.classKey, {
+                  toTop: params.position === 'top',
+                  toMiddle: params.position === 'middle'
+                });
               }
               setRecordWatchFor(null);
               if (goToMovie) navigate('/movies', { replace: true, state: { scrollToId: recordWatchFor.id } });
@@ -181,6 +185,7 @@ export function MoviesPage() {
           }}
         />
       )}
+      <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
     </section>
   );
 }

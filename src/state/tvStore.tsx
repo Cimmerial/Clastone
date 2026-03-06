@@ -23,7 +23,7 @@ type TvStore = {
   moveWithinClass: (itemId: string, delta: number) => void;
   reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
-  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
+  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
 
   addShowFromSearch: (
     item: Pick<MovieShowItem, 'id' | 'title'> & {
@@ -221,17 +221,15 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
   );
 
   const moveItemToClass = useCallback(
-    (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => {
+    (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => {
       setByClass((prev) => {
         const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
-        let fromKey: ClassKey | null = null;
         let item: MovieShowItem | null = null;
 
         for (const classKey of Object.keys(next)) {
           const list = next[classKey] ?? [];
           const idx = list.findIndex((m) => m.id === itemId);
           if (idx === -1) continue;
-          fromKey = classKey;
           const copy = [...list];
           [item] = copy.splice(idx, 1);
           next[classKey] = copy;
@@ -240,7 +238,16 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         if (!item) return prev;
         const updated = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
         const targetList = next[toClassKey] ?? [];
-        next[toClassKey] = options?.toTop ? [updated, ...targetList] : [...targetList, updated];
+        if (options?.toTop) {
+          next[toClassKey] = [updated, ...targetList];
+        } else if (options?.toMiddle) {
+          const mid = Math.ceil(targetList.length / 2);
+          const copy = [...targetList];
+          copy.splice(mid, 0, updated);
+          next[toClassKey] = copy;
+        } else {
+          next[toClassKey] = [...targetList, updated];
+        }
         return next;
       });
     },

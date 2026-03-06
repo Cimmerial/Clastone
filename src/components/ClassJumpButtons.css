@@ -1,0 +1,47 @@
+/* Fixed horizontal strip of class jump buttons along the bottom of the screen */
+.class-jump-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 48;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 64px 8px 8px;
+    /* right padding leaves room for DEV button */
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, transparent 100%);
+    pointer-events: none;
+    /* only buttons inside capture events */
+    backdrop-filter: blur(2px);
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.class-jump-btn {
+    pointer-events: all;
+    border-radius: 999px;
+    border: 1px solid rgba(244, 162, 97, 0.45);
+    background: rgba(0, 0, 0, 0.62);
+    color: var(--accent-soft);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 0.28rem 0.55rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(4px);
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.class-jump-btn:hover {
+    border-color: rgba(244, 162, 97, 0.85);
+    background: rgba(244, 162, 97, 0.14);
+    color: var(--text-primary);
+}

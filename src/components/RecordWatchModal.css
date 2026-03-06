@@ -10,7 +10,7 @@
 
 .record-modal {
   width: 100%;
-  max-width: 420px;
+  max-width: 580px;
   max-height: 90vh;
   overflow-y: auto;
   border-radius: var(--radius-lg);
@@ -160,16 +160,44 @@
   background: rgba(244, 162, 97, 0.1);
 }
 
-.record-modal-class-name {
+.record-modal-class-name-wrap {
   flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.record-modal-class-name {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.record-modal-class-tagline {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.record-modal-class-arrows {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .record-modal-class-arrow {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.6rem;
+  height: 1.6rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -177,9 +205,14 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.25);
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.record-modal-class-arrow--dot {
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .record-modal-class-arrow:hover {

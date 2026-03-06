@@ -178,7 +178,7 @@ type MoviesStore = {
   moveWithinClass: (itemId: string, delta: number) => void;
   reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
-  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => void;
+  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
   addClass: (label: string, options?: { isRanked?: boolean }) => void;
   renameClassLabel: (classKey: ClassKey, newLabel: string) => void;
   renameClassTagline: (classKey: ClassKey, tagline: string) => void;
@@ -397,7 +397,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     });
   }, [classOrder]);
 
-  const moveItemToClass = useCallback((itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean }) => {
+  const moveItemToClass = useCallback((itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => {
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
       let item: MovieShowItem | null = null;
@@ -414,7 +414,16 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       if (!item) return prev;
       const updated = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
       const targetList = next[toClassKey] ?? [];
-      next[toClassKey] = options?.toTop ? [updated, ...targetList] : [...targetList, updated];
+      if (options?.toTop) {
+        next[toClassKey] = [updated, ...targetList];
+      } else if (options?.toMiddle) {
+        const mid = Math.ceil(targetList.length / 2);
+        const copy = [...targetList];
+        copy.splice(mid, 0, updated);
+        next[toClassKey] = copy;
+      } else {
+        next[toClassKey] = [...targetList, updated];
+      }
       return next;
     });
   }, []);

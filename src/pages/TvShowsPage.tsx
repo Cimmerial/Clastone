@@ -5,6 +5,7 @@ import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
+import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { useTvStore } from '../state/tvStore';
 import { getTotalMinutesFromRecords, formatDuration } from '../state/moviesStore';
 
@@ -132,7 +133,7 @@ export function TvShowsPage() {
       {recordWatchFor && (
         <RecordWatchModal
           target={tvItemToTarget(recordWatchFor)}
-          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key) }))}
+          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key), tagline: getClassTagline(c.key) }))}
           showClassPicker
           isSaving={isSavingRecord}
           primaryButtonLabel="Save and go to show"
@@ -142,7 +143,10 @@ export function TvShowsPage() {
             try {
               addWatchToShow(recordWatchFor.id, params.watch, { posterPath: recordWatchFor.posterPath });
               if (params.classKey) {
-                moveItemToClass(recordWatchFor.id, params.classKey, { toTop: params.position === 'top' });
+                moveItemToClass(recordWatchFor.id, params.classKey, {
+                  toTop: params.position === 'top',
+                  toMiddle: params.position === 'middle'
+                });
               }
               setRecordWatchFor(null);
               if (goToShow) navigate('/tv', { replace: true, state: { scrollToId: recordWatchFor.id } });
@@ -152,6 +156,7 @@ export function TvShowsPage() {
           }}
         />
       )}
+      <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
     </section>
   );
 }

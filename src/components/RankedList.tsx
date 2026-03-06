@@ -108,6 +108,7 @@ export function RankedList<T extends RankedItemBase>({
               </div>
             )}
             <section
+              id={`class-section-${classKey}`}
               className={`class-section ${isNonRankedClass ? 'class-section--nonranked' : ''}`}
             >
               <header className="class-section-header">

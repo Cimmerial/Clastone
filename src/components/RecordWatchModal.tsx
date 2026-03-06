@@ -25,12 +25,12 @@ export type RecordWatchTarget = {
 export type RecordWatchSaveParams = {
   watch: WatchRecord;
   classKey?: string;
-  position?: 'top' | 'bottom';
+  position?: 'top' | 'middle' | 'bottom';
 };
 
 type Props = {
   target: RecordWatchTarget;
-  rankedClasses: { key: string; label: string }[];
+  rankedClasses: { key: string; label: string; tagline?: string }[];
   showClassPicker: boolean;
   onSave: (params: RecordWatchSaveParams, goToMovie: boolean) => void | Promise<void>;
   onClose: () => void;
@@ -57,7 +57,7 @@ export function RecordWatchModal({
   const [recordEndDay, setRecordEndDay] = useState('');
   const [recordDnfPercent, setRecordDnfPercent] = useState(50);
   const [recordClassKey, setRecordClassKey] = useState('');
-  const [recordPosition, setRecordPosition] = useState<'top' | 'bottom'>('top');
+  const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [error, setError] = useState<string | null>(null);
 
   const releaseYear = useMemo(() => {
@@ -315,36 +315,52 @@ export function RecordWatchModal({
 
           {showClassPicker && rankedClasses.length > 0 && (
             <div className="record-modal-field-row record-modal-class-picker">
-              <span className="record-modal-class-picker-label">Ranked class* — add to top or bottom</span>
+              <span className="record-modal-class-picker-label">Ranked class — place top, middle, bottom</span>
               <div className="record-modal-class-list">
                 {rankedClasses.map((c) => (
                   <div
                     key={c.key}
                     className={`record-modal-class-row ${recordClassKey === c.key ? 'record-modal-class-row--selected' : ''}`}
                   >
-                    <span className="record-modal-class-name">{c.label}</span>
-                    <button
-                      type="button"
-                      className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'top' ? 'record-modal-class-arrow--active' : ''}`}
-                      title="Add to top of this class"
-                      onClick={() => {
-                        setRecordClassKey(c.key);
-                        setRecordPosition('top');
-                      }}
-                    >
-                      <ArrowUp size={18} aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'bottom' ? 'record-modal-class-arrow--active' : ''}`}
-                      title="Add to bottom of this class"
-                      onClick={() => {
-                        setRecordClassKey(c.key);
-                        setRecordPosition('bottom');
-                      }}
-                    >
-                      <ArrowDown size={18} aria-hidden />
-                    </button>
+                    <div className="record-modal-class-name-wrap">
+                      <span className="record-modal-class-name">{c.label}</span>
+                      {c.tagline && <span className="record-modal-class-tagline">{c.tagline}</span>}
+                    </div>
+                    <div className="record-modal-class-arrows">
+                      <button
+                        type="button"
+                        className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'top' ? 'record-modal-class-arrow--active' : ''}`}
+                        title="Add to top of this class"
+                        onClick={() => {
+                          setRecordClassKey(c.key);
+                          setRecordPosition('top');
+                        }}
+                      >
+                        <ArrowUp size={15} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className={`record-modal-class-arrow record-modal-class-arrow--dot ${recordClassKey === c.key && recordPosition === 'middle' ? 'record-modal-class-arrow--active' : ''}`}
+                        title="Add roughly to the middle of this class"
+                        onClick={() => {
+                          setRecordClassKey(c.key);
+                          setRecordPosition('middle');
+                        }}
+                      >
+                        •
+                      </button>
+                      <button
+                        type="button"
+                        className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'bottom' ? 'record-modal-class-arrow--active' : ''}`}
+                        title="Add to bottom of this class"
+                        onClick={() => {
+                          setRecordClassKey(c.key);
+                          setRecordPosition('bottom');
+                        }}
+                      >
+                        <ArrowDown size={15} aria-hidden />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
