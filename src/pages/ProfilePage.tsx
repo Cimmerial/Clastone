@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { RandomQuote } from '../components/RandomQuote';
 import {
   useMoviesStore,
   getTotalMinutesFromRecords,
@@ -148,9 +149,9 @@ export function ProfilePage() {
       movieReleaseYears.length + showReleaseYears.length === 0
         ? null
         : Math.round(
-            [...movieReleaseYears, ...showReleaseYears].reduce((a, b) => a + b, 0) /
-              (movieReleaseYears.length + showReleaseYears.length)
-          );
+          [...movieReleaseYears, ...showReleaseYears].reduce((a, b) => a + b, 0) /
+          (movieReleaseYears.length + showReleaseYears.length)
+        );
 
     return {
       totalMinutes,
@@ -181,7 +182,7 @@ export function ProfilePage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">Profile</h1>
-          <p className="page-tagline">YOUR HIGHLIGHTS</p>
+          <RandomQuote />
         </div>
       </header>
 

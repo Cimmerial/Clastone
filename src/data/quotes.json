@@ -1,0 +1,201 @@
+{
+    "movies": [
+        {
+            "text": "May the Force be with you.",
+            "character": "Everyone Ever",
+            "source": "Star Wars"
+        },
+        {
+            "text": "Move, children! Vamanos!",
+            "character": "Merrill Hess",
+            "source": "Signs"
+        },
+        {
+            "text": "Everybody in this house needs to calm down, eat some fruit or something.",
+            "character": "Graham Hess",
+            "source": "Signs"
+        },
+        {
+            "text": "Why weren't you in the pros making stacks of cash and getting your toes licked by beautiful women?",
+            "character": "SFC Cunningham",
+            "source": "Signs"
+        },
+        {
+            "text": "I told you! I spent it with my uncle in Alaska hunting wolverines!",
+            "character": "Napoleon Dynamite",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "Gosh!",
+            "character": "Napoleon Dynamite",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "Your mom goes to college!",
+            "character": "Kip",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "I see you're drinking 1%. Is that 'cause you think you're fat? 'Cause you're not. You could be drinking whole if you wanted to.",
+            "character": "Napoleon Dynamite",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "Tina, you fat lard, come get some DINNER!... Tina, eat. Food. Eat the FOOD!",
+            "character": "Napoleon Dynamite",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "Napoleon, don't be jealous that I've been chatting online with babes... *all day*. Besides, we both know that I'm training to be a cage fighter.",
+            "character": "Kip",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "I caught you a delicious bass.",
+            "character": "Napoleon Dynamite",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "Back in '82, I used to be able to throw a pigskin a quarter mile.",
+            "character": "Uncle Rico",
+            "source": "Napoleon Dynamite"
+        },
+        {
+            "text": "What were the overheard words by the Nazi child masturbatin' in the bathroom?",
+            "character": "Benoit Blanc",
+            "source": "Knives Out"
+        },
+        {
+            "text": "You have a regurgitative reaction to mistruthing.",
+            "character": "Benoit Blanc",
+            "source": "Knives Out"
+        },
+        {
+            "text": "But the complexity and the gray lie not in the truth but what you do with the truth once you have it.",
+            "character": "Benoit Blanc",
+            "source": "Knives Out"
+        },
+        {
+            "text": "You had sex with my grandfather you dirty anchor baby!",
+            "character": "Jacob Thrombey",
+            "source": "Knives Out"
+        },
+        {
+            "text": "People love what other people are passionate about.",
+            "character": "Mia",
+            "source": "La La Land"
+        },
+        {
+            "text": "I'm letting life hit me until it gets tired. Then I'll hit back. It's a classic rope-a-dope.",
+            "character": "Sebastian",
+            "source": "La La Land"
+        },
+        {
+            "text": "With great ability comes great accountability.",
+            "character": "Jefferson Davis",
+            "source": "Spider-Man: Into the Spider-Verse"
+        },
+        {
+            "text": "Sometimes I let matches burn down to my fingertips just to feel something, anything.",
+            "character": "Spiderman Noir",
+            "source": "Spider-Man: Into the Spider-Verse"
+        },
+        {
+            "text": "So you're telling me you made a porno where the point is the plot?",
+            "character": "Holland March",
+            "source": "The Nice Guys"
+        },
+        {
+            "text": "That's when you know you've found somebody special. When you can just shut the fuck up for a minute and comfortably enjoy the silence.",
+            "character": "Mia",
+            "source": "Pulp Fiction"
+        },
+        {
+            "text": "They call it a Royale with cheese.",
+            "character": "Vincent",
+            "source": "Pulp Fiction"
+        },
+        {
+            "text": "This is some serious gourmet shit!",
+            "character": "Jules",
+            "source": "Pulp Fiction"
+        }
+        
+    ],
+    "tv": [
+        {
+            "text": "I am the one who knocks!",
+            "character": "Walter White",
+            "source": "Breaking Bad"
+        },
+        {
+            "text": "Winter is coming.",
+            "character": "Ned Stark",
+            "source": "Game of Thrones"
+        },
+        {
+            "text": "How you doin'?",
+            "character": "Joey Tribbiani",
+            "source": "Friends"
+        }
+    ],
+    "actors": [
+        {
+            "text": "Acting is behaving truthfully under imaginary circumstances.",
+            "character": "Sanford Meisner",
+            "source": "Quote"
+        },
+        {
+            "text": "There are no small parts, only small actors.",
+            "character": "Constantin Stanislavski",
+            "source": "Quote"
+        }
+    ],
+    "directors": [
+        {
+            "text": "A film is never really good unless the camera is an eye in the head of a poet.",
+            "character": "Orson Welles",
+            "source": "Quote"
+        },
+        {
+            "text": "Cinema is a matter of what's in the frame and what's out.",
+            "character": "Martin Scorsese",
+            "source": "Quote"
+        }
+    ],
+    "watchlist": [
+        {
+            "text": "So many movies, so little time.",
+            "character": "Frank Zappa",
+            "source": "Quote"
+        }
+    ],
+    "search": [
+        {
+            "text": "Not all those who wander are lost.",
+            "character": "J.R.R. Tolkien",
+            "source": "The Fellowship of the Ring"
+        }
+    ],
+    "profile": [
+        {
+            "text": "Here's looking at you, kid.",
+            "character": "Rick Blaine",
+            "source": "Casablanca"
+        }
+    ],
+    "settings": [
+        {
+            "text": "Life moves pretty fast. If you don't stop and look around once in a while, you could miss it.",
+            "character": "Ferris Bueller",
+            "source": "Ferris Bueller's Day Off"
+        }
+    ],
+    "general": [
+        {
+            "text": "There's no place like home.",
+            "character": "Dorothy Gale",
+            "source": "The Wizard of Oz"
+        }
+    ]
+}

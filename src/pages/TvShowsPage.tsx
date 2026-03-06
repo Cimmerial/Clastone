@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { EntrySettingsModal } from '../components/EntrySettingsModal';
@@ -77,7 +78,7 @@ export function TvShowsPage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">TV Shows</h1>
-          <p className="page-tagline">"I WAS FEELING EPIC" - Damon Salvatore</p>
+          <RandomQuote />
         </div>
       </header>
       <RankedList<MovieShowItem>

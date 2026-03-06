@@ -1,3 +1,43 @@
+export type TmdbImageSize = 'w45' | 'w92' | 'w154' | 'w185' | 'w300' | 'w500' | 'original';
+
+export type TmdbRefreshableItem = {
+  tmdbId?: number;
+  releaseDate?: string;
+  runtimeMinutes?: number;
+  posterPath?: string;
+  overview?: string;
+  cast?: any[];
+  directors?: any[];
+  totalEpisodes?: number;
+  totalSeasons?: number;
+};
+
+export function needsMovieRefresh(item: TmdbRefreshableItem): boolean {
+  return (
+    item.tmdbId == null ||
+    item.releaseDate == null ||
+    item.runtimeMinutes == null ||
+    item.posterPath == null ||
+    item.overview == null ||
+    item.cast == null ||
+    item.directors == null
+  );
+}
+
+export function needsTvRefresh(item: TmdbRefreshableItem): boolean {
+  return (
+    item.tmdbId == null ||
+    item.releaseDate == null ||
+    item.posterPath == null ||
+    item.overview == null ||
+    item.cast == null ||
+    item.directors == null ||
+    item.totalEpisodes == null ||
+    item.totalSeasons == null ||
+    item.runtimeMinutes == null
+  );
+}
+
 export type TmdbMovieResult = {
   id: number;
   title: string;
@@ -61,7 +101,7 @@ async function tmdbGet<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 /** Poster or profile image URL (w200 for list thumbnails). */
-export function tmdbImagePath(path: string | null | undefined, size = 'w200'): string | null {
+export function tmdbImagePath(path: string | null | undefined, size: TmdbImageSize = 'w185'): string | null {
   if (!path) return null;
   return `${IMAGE_BASE}/${size}${path}`;
 }

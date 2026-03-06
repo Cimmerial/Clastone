@@ -1,7 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RankedItemBase } from './RankedList';
 import { EntrySettingsModal, WatchEntry } from './EntrySettingsModal';
-import { tmdbImagePath } from '../lib/tmdb';
+import {
+  tmdbImagePath,
+  needsMovieRefresh,
+  needsTvRefresh,
+  tmdbMovieDetailsFull,
+  tmdbTvDetailsFull
+} from '../lib/tmdb';
+import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
 
 function getTopCastCount(): number {
   try {
@@ -131,8 +139,45 @@ export function EntryRowMovieShow({
   const castSlice = (item.cast ?? []).slice(0, topCastCount);
   const [hoveredCastId, setHoveredCastId] = useState<number | null>(null);
 
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const { updateMovieCache } = useMoviesStore();
+  const { updateShowCache } = useTvStore();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    if (rowRef.current) observer.observe(rowRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (isVisible && item.tmdbId) {
+      const isMovie = listType !== 'shows';
+      const needsRefresh = isMovie ? needsMovieRefresh(item) : needsTvRefresh(item);
+      if (needsRefresh) {
+        if (isMovie) {
+          tmdbMovieDetailsFull(item.tmdbId).then((cache) => {
+            if (cache) updateMovieCache(item.id, cache);
+          });
+        } else {
+          tmdbTvDetailsFull(item.tmdbId).then((cache) => {
+            if (cache) updateShowCache(item.id, cache);
+          });
+        }
+      }
+    }
+  }, [isVisible, item.tmdbId, item.id, listType, updateMovieCache, updateShowCache, item]);
+
   return (
-    <article className="entry-row">
+    <article className="entry-row" ref={rowRef}>
       <div className="entry-poster">
         {item.posterPath ? (
           <img src={tmdbImagePath(item.posterPath) ?? ''} alt="" loading="lazy" />
@@ -188,7 +233,7 @@ export function EntryRowMovieShow({
                       onMouseLeave={() => setHoveredCastId(null)}
                     >
                       {c.profilePath ? (
-                        <img src={tmdbImagePath(c.profilePath, 'w185') ?? ''} alt="" loading="lazy" />
+                        <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
                       ) : (
                         <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
                       )}
@@ -271,7 +316,7 @@ export function EntryRowMovieShow({
                       onMouseLeave={() => setHoveredCastId(null)}
                     >
                       {c.profilePath ? (
-                        <img src={tmdbImagePath(c.profilePath, 'w185') ?? ''} alt="" loading="lazy" />
+                        <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
                       ) : (
                         <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
                       )}

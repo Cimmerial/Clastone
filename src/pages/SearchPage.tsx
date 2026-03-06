@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RandomQuote } from '../components/RandomQuote';
 import {
   tmdbSearchMulti,
   tmdbMovieDetailsFull,
@@ -259,7 +260,7 @@ export function SearchPage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">Search</h1>
-          <p className="page-tagline">Lookin</p>
+          <RandomQuote />
         </div>
       </header>
 

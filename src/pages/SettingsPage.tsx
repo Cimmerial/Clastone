@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
+import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import './SettingsPage.css';
@@ -56,7 +57,7 @@ export function SettingsPage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-tagline">CLASSES + TAGS (UI ONLY)</p>
+          <RandomQuote />
         </div>
       </header>
 

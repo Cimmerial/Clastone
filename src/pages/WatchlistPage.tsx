@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RandomQuote } from '../components/RandomQuote';
 import {
   DndContext,
   type DragEndEvent,
@@ -301,7 +302,7 @@ export function WatchlistPage() {
       <header className="page-heading">
         <div>
           <h1 className="page-title">Watchlist</h1>
-          <p className="page-tagline">MOVIES & SHOWS TO WATCH</p>
+          <RandomQuote />
         </div>
       </header>
 
@@ -370,9 +371,9 @@ export function WatchlistPage() {
           showClassPicker={
             recordTarget.media_type === 'movie'
               ? !getMovieById(`tmdb-movie-${recordTarget.id}`) ||
-                getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
+              getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
               : !getShowById(`tmdb-tv-${recordTarget.id}`) ||
-                getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
+              getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
           }
           onSave={handleRecordSave}
           onClose={() => {

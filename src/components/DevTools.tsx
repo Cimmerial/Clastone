@@ -1,38 +1,17 @@
 import { useMemo, useState } from 'react';
-import { tmdbMovieDetailsFull, tmdbTvDetailsFull, type TmdbMovieCache, type TmdbTvCache } from '../lib/tmdb';
+import {
+  tmdbMovieDetailsFull,
+  tmdbTvDetailsFull,
+  type TmdbMovieCache,
+  type TmdbTvCache,
+  needsMovieRefresh,
+  needsTvRefresh
+} from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { ClassKey } from './RankedList';
 import './DevTools.css';
-
-function needsMovieRefresh(item: MovieShowItem): boolean {
-  // Minimal fields we consider "cached enough" for now.
-  return (
-    item.tmdbId == null ||
-    item.releaseDate == null ||
-    item.runtimeMinutes == null ||
-    item.posterPath == null ||
-    item.overview == null ||
-    item.cast == null ||
-    item.directors == null
-  );
-}
-
-function needsTvRefresh(item: MovieShowItem): boolean {
-  // TV runtime is often missing; include it explicitly.
-  return (
-    item.tmdbId == null ||
-    item.releaseDate == null ||
-    item.posterPath == null ||
-    item.overview == null ||
-    item.cast == null ||
-    item.directors == null ||
-    item.totalEpisodes == null ||
-    item.totalSeasons == null ||
-    item.runtimeMinutes == null
-  );
-}
 
 export function DevTools() {
   const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache } = useMoviesStore();

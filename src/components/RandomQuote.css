@@ -1,0 +1,9 @@
+.random-quote-text {
+    font-style: italic;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.random-quote-text:hover {
+    opacity: 1;
+}
