@@ -1,17 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { WatchRecord, WatchRecordType } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
-import { getYearOptions, MONTH_OPTIONS, DAY_OPTIONS, applyDatePreset } from '../lib/dateDropdowns';
+import { getYearOptions, MONTH_OPTIONS, DAY_OPTIONS, applyDatePreset, DATE_PRESET_OPTIONS, type DatePreset } from '../lib/dateDropdowns';
 import './RecordWatchModal.css';
 
 const WATCH_TYPES: ThemedDropdownOption<WatchRecordType>[] = [
   { value: 'DATE', label: 'Watch date' },
   { value: 'RANGE', label: 'Start / end date' },
-  { value: 'DNF', label: 'DNF' },
+  { value: 'DNF', label: 'DNF: Specific date' },
+  { value: 'DNF_LONG_AGO', label: 'DNF: Long ago' },
   { value: 'CURRENT', label: 'Currently watching' },
-  { value: 'LONG_AGO', label: 'Long ago' },
-  { value: 'UNKNOWN', label: 'Unknown' }
+  { value: 'LONG_AGO', label: 'Long ago' }
 ];
 
 export type RecordWatchTarget = {
@@ -21,10 +21,13 @@ export type RecordWatchTarget = {
   media_type: 'movie' | 'tv';
   subtitle?: string;
   releaseDate?: string;
+  runtimeMinutes?: number;
+  totalSeasons?: number;
+  totalEpisodes?: number;
 };
 
 export type RecordWatchSaveParams = {
-  watch: WatchRecord;
+  watches: WatchRecord[];
   classKey?: string;
   position?: 'top' | 'middle' | 'bottom';
 };
@@ -49,17 +52,62 @@ export function RecordWatchModal({
   isSaving,
   primaryButtonLabel
 }: Props) {
-  const [recordType, setRecordType] = useState<WatchRecordType>('DATE');
-  const [recordYear, setRecordYear] = useState('');
-  const [recordMonth, setRecordMonth] = useState('');
-  const [recordDay, setRecordDay] = useState('');
-  const [recordEndYear, setRecordEndYear] = useState('');
-  const [recordEndMonth, setRecordEndMonth] = useState('');
-  const [recordEndDay, setRecordEndDay] = useState('');
-  const [recordDnfPercent, setRecordDnfPercent] = useState(50);
+  const [records, setRecords] = useState<WatchRecord[]>(() => {
+    // If we have existing records, we might want to show them?
+    // But the user said "Record watch button", which usually adds a new one.
+    // However, they also said "all of the entries".
+    // I'll start with just one new record for simplicity, but as a list.
+    return [{
+      id: crypto.randomUUID(),
+      type: 'DATE',
+      year: new Date().getFullYear(),
+    } as WatchRecord];
+  });
   const [recordClassKey, setRecordClassKey] = useState('');
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [error, setError] = useState<string | null>(null);
+
+  const getWatchProgressLabel = (r: WatchRecord) => {
+    const label = r.type === 'DNF' || r.type === 'DNF_LONG_AGO' ? 'DNF' : 'Watching';
+    const pct = r.dnfPercent ?? 50;
+
+    if (target.media_type === 'movie' && target.runtimeMinutes) {
+      const totalMins = Math.round((pct / 100) * target.runtimeMinutes);
+      const h = Math.floor(totalMins / 60);
+      const m = totalMins % 60;
+      const duration = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      return `${label}: ${duration}`;
+    }
+
+    if (target.media_type === 'tv' && target.totalEpisodes) {
+      const epCount = Math.round((pct / 100) * target.totalEpisodes);
+      return `${label}: Ep ${epCount} of ${target.totalEpisodes}`;
+    }
+
+    return `${label}: ${pct}%`;
+  };
+
+  // Lock scrolling on the body when the modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow || 'unset';
+    };
+  }, []);
+
+  const updateRecord = (id: string, updates: Partial<WatchRecord>) => {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const addRecord = () => {
+    setRecords(prev => [...prev, { id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord]);
+  };
+
+  const removeRecord = (id: string) => {
+    if (records.length <= 1) return;
+    setRecords(prev => prev.filter(r => r.id !== id));
+  };
 
   const { releaseYear, releaseMonth, releaseDay } = useMemo(() => {
     const rd = target.releaseDate;
@@ -81,119 +129,106 @@ export function RecordWatchModal({
 
   const yearOptions = useMemo(() => getYearOptions(releaseYear), [releaseYear]);
 
-  const monthOptions = useMemo(() => {
-    const selectedYear = parseInt(recordYear, 10);
+  const getMonthOptionsForRecord = (yearStr: string) => {
+    const selectedYear = parseInt(yearStr, 10);
     if (!selectedYear || !releaseYear || !releaseMonth || selectedYear > releaseYear) return MONTH_OPTIONS;
-    // selectedYear === releaseYear
     return MONTH_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseMonth);
-  }, [recordYear, releaseYear, releaseMonth]);
+  };
 
-  const dayOptions = useMemo(() => {
-    const selectedYear = parseInt(recordYear, 10);
-    const selectedMonth = parseInt(recordMonth, 10);
+  const getDayOptionsForRecord = (yearStr: string, monthStr: string) => {
+    const selectedYear = parseInt(yearStr, 10);
+    const selectedMonth = parseInt(monthStr, 10);
     if (!selectedYear || !selectedMonth || !releaseYear || !releaseMonth || !releaseDay) return DAY_OPTIONS;
     if (selectedYear > releaseYear) return DAY_OPTIONS;
     if (selectedYear === releaseYear && selectedMonth > releaseMonth) return DAY_OPTIONS;
-    // selectedYear === releaseYear && selectedMonth === releaseMonth
     return DAY_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseDay);
-  }, [recordYear, recordMonth, releaseYear, releaseMonth, releaseDay]);
-
-  const applyPreset = (preset: 'today' | 'yesterday' | 'this_year') => {
-    const { year, month, day } = applyDatePreset(preset);
-    setRecordYear(year);
-    setRecordMonth(month);
-    setRecordDay(day);
-    if (recordType === 'RANGE') {
-      setRecordEndYear(year);
-      setRecordEndMonth(month);
-      setRecordEndDay(day);
-    }
   };
 
-  function buildWatchRecord(): WatchRecord | null {
-    if (recordType === 'DNF' || recordType === 'CURRENT') {
-      const yearNum = Number(recordYear);
-      if (!yearNum || Number.isNaN(yearNum)) return null;
-      const monthNum = recordMonth ? Number(recordMonth) : undefined;
-      const dayNum = recordDay ? Number(recordDay) : undefined;
-      if (monthNum !== undefined && (monthNum < 1 || monthNum > 12)) return null;
-      if (dayNum !== undefined && (dayNum < 1 || dayNum > 31)) return null;
+  const applyPreset = (id: string, preset: DatePreset | 'reset') => {
+    if (preset === 'reset') {
+      updateRecord(id, { year: undefined, month: undefined, day: undefined });
+      return;
+    }
+    const { year, month, day } = applyDatePreset(preset);
+    updateRecord(id, {
+      year: parseInt(year, 10) || undefined,
+      month: parseInt(month, 10) || undefined,
+      day: parseInt(day, 10) || undefined
+    });
+  };
+
+  function buildWatchRecord(r: WatchRecord): WatchRecord | null {
+    const { type, year, month, day, endYear, endMonth, endDay, dnfPercent } = r;
+    if (type === 'DNF' || type === 'CURRENT') {
+      if (!year) return null;
       return {
-        id: crypto.randomUUID(),
-        type: recordType,
-        year: yearNum,
-        month: monthNum,
-        day: dayNum,
-        dnfPercent: Math.min(100, Math.max(0, recordDnfPercent))
+        id: r.id,
+        type,
+        year,
+        month,
+        day,
+        dnfPercent: Math.min(100, Math.max(0, dnfPercent ?? 50))
       };
     }
-    if (recordType === 'LONG_AGO' || recordType === 'UNKNOWN') {
-      return { id: crypto.randomUUID(), type: recordType };
+    if (type === 'LONG_AGO') {
+      return { id: r.id, type: 'LONG_AGO' };
     }
-    const yearNum = Number(recordYear);
-    if (!yearNum || Number.isNaN(yearNum)) return null;
-    if (recordType === 'DATE') {
-      const monthNum = recordMonth ? Number(recordMonth) : undefined;
-      const dayNum = recordDay ? Number(recordDay) : undefined;
-      if (monthNum !== undefined && (monthNum < 1 || monthNum > 12)) return null;
-      if (dayNum !== undefined && (dayNum < 1 || dayNum > 31)) return null;
+    if (type === 'DNF_LONG_AGO') {
+      return { id: r.id, type: 'DNF_LONG_AGO', dnfPercent: Math.min(100, Math.max(0, dnfPercent ?? 50)) };
+    }
+    if (!year) return null;
+    if (type === 'DATE') {
       return {
-        id: crypto.randomUUID(),
+        id: r.id,
         type: 'DATE',
-        year: yearNum,
-        month: monthNum,
-        day: dayNum
+        year,
+        month,
+        day
       };
     }
-    const endYearNum = recordEndYear ? Number(recordEndYear) : undefined;
-    const monthNum = recordMonth ? Number(recordMonth) : undefined;
-    const dayNum = recordDay ? Number(recordDay) : undefined;
-    const endMonthNum = recordEndMonth ? Number(recordEndMonth) : undefined;
-    const endDayNum = recordEndDay ? Number(recordEndDay) : undefined;
-    if (monthNum !== undefined && (monthNum < 1 || monthNum > 12)) return null;
-    if (dayNum !== undefined && (dayNum < 1 || dayNum > 31)) return null;
-    if (endMonthNum !== undefined && (endMonthNum < 1 || endMonthNum > 12)) return null;
-    if (endDayNum !== undefined && (endDayNum < 1 || endDayNum > 31)) return null;
+    // RANGE
     return {
-      id: crypto.randomUUID(),
+      id: r.id,
       type: 'RANGE',
-      year: yearNum,
-      month: monthNum,
-      day: dayNum,
-      endYear: endYearNum,
-      endMonth: endMonthNum,
-      endDay: endDayNum
+      year,
+      month,
+      day,
+      endYear,
+      endMonth,
+      endDay
     };
   }
 
   const handleSave = async (goToMovie: boolean) => {
     setError(null);
-    if (recordType === 'DATE' || recordType === 'RANGE') {
-      const yearNum = Number(recordYear);
-      if (!yearNum || Number.isNaN(yearNum)) {
-        setError('Please enter at least a year for this type.');
-        return;
-      }
-    }
-    if (recordType === 'DNF' || recordType === 'CURRENT') {
-      const yearNum = Number(recordYear);
-      if (!yearNum || Number.isNaN(yearNum)) {
-        setError('Please enter a start year for this type.');
-        return;
-      }
-    }
-    const watch = buildWatchRecord();
-    if (!watch) {
-      setError('Invalid date fields.');
+    if (records.length === 0) {
+      setError('Please add at least one watch record.');
       return;
     }
+
+    // Basic validation for the first record for now
+    const first = records[0];
+    if ((first.type === 'DATE' || first.type === 'RANGE' || first.type === 'DNF' || first.type === 'CURRENT') && !first.year) {
+      setError('Please enter a year for your watch.');
+      return;
+    }
+
     if (showClassPicker && (!recordClassKey || !rankedClasses.some((c) => c.key === recordClassKey))) {
-      setError('Pick a ranked class (click ↑ or ↓ next to a class).');
+      setError('Pick a ranked class.');
+      return;
+    }
+
+    const validatedWatches = records
+      .map(r => buildWatchRecord(r))
+      .filter((r): r is WatchRecord => r !== null);
+
+    if (validatedWatches.length === 0) {
+      setError('Please enter at least one valid watch record.');
       return;
     }
     await onSave(
       {
-        watch,
+        watches: validatedWatches,
         classKey: recordClassKey || undefined,
         position: recordClassKey ? recordPosition : undefined
       },
@@ -203,221 +238,202 @@ export function RecordWatchModal({
     onClose();
   };
 
-  const needsDate = recordType === 'DATE' || recordType === 'RANGE' || recordType === 'DNF' || recordType === 'CURRENT';
-
   return (
     <div className="record-modal-backdrop" onClick={onClose}>
-      <div className="record-modal" onClick={(e) => e.stopPropagation()}>
-        <header className="record-modal-header">
-          <h2>Record watch</h2>
-          <button
-            type="button"
-            className="record-modal-close"
-            onClick={onClose}
-            aria-label="Close record watch"
-          >
-            ✕
-          </button>
-        </header>
-        <p className="record-modal-title">{target.title}</p>
+      <div className="record-modal record-modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div className="record-modal-layout">
+          {/* LEFT COLUMN */}
+          <div className="record-modal-left">
+            <header className="record-modal-left-header">
+              <h1 className="record-modal-large-title">{target.title}</h1>
+            </header>
 
-        <div className="record-modal-fields">
-          <div className="record-modal-field-row">
-            <label className="record-modal-class-label">
-              <span>Type</span>
-              <ThemedDropdown
-                value={recordType}
-                options={WATCH_TYPES}
-                onChange={(v) => setRecordType(v as WatchRecordType)}
-                aria-label="Watch type"
-              />
-            </label>
+            <div className="record-entries-list">
+              {records.map((r, idx) => {
+                const isDnfOrCurrent = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
+                const isRange = r.type === 'RANGE';
+                const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO';
+
+                return (
+                  <div key={r.id} className="record-entry-row">
+                    <div className="record-entry-main">
+                      <div className="record-entry-inputs">
+                        <ThemedDropdown
+                          value={r.type || 'DATE'}
+                          options={WATCH_TYPES}
+                          onChange={(v) => updateRecord(r.id, { type: v as WatchRecordType })}
+                          className="record-type-dropdown"
+                        />
+
+                        {showDates && (
+                          <>
+                            <ThemedDropdown
+                              value={String(r.year || '')}
+                              options={yearOptions}
+                              onChange={(v) => updateRecord(r.id, { year: parseInt(v, 10) || undefined })}
+                              placeholder="Year"
+                              className="record-date-dropdown record-year-dropdown"
+                            />
+
+                            <ThemedDropdown
+                              value={String(r.month || '')}
+                              options={getMonthOptionsForRecord(String(r.year || ''))}
+                              onChange={(v) => updateRecord(r.id, { month: parseInt(v, 10) || undefined })}
+                              placeholder="Month"
+                              className="record-date-dropdown"
+                            />
+
+                            <ThemedDropdown
+                              value={String(r.day || '')}
+                              options={getDayOptionsForRecord(String(r.year || ''), String(r.month || ''))}
+                              onChange={(v) => updateRecord(r.id, { day: parseInt(v, 10) || undefined })}
+                              placeholder="Day"
+                              className="record-date-dropdown"
+                            />
+                          </>
+                        )}
+
+                        {isRange && (
+                          <>
+                            <span className="range-sep">to</span>
+                            <ThemedDropdown
+                              value={String(r.endYear || '')}
+                              options={yearOptions}
+                              onChange={(v) => updateRecord(r.id, { endYear: parseInt(v, 10) || undefined })}
+                              placeholder="Year"
+                              className="record-date-dropdown record-year-dropdown"
+                            />
+                            <ThemedDropdown
+                              value={String(r.endMonth || '')}
+                              options={getMonthOptionsForRecord(String(r.endYear || ''))}
+                              onChange={(v) => updateRecord(r.id, { endMonth: parseInt(v, 10) || undefined })}
+                              placeholder="Month"
+                              className="record-date-dropdown"
+                            />
+                            <ThemedDropdown
+                              value={String(r.endDay || '')}
+                              options={getDayOptionsForRecord(String(r.endYear || ''), String(r.endMonth || ''))}
+                              onChange={(v) => updateRecord(r.id, { endDay: parseInt(v, 10) || undefined })}
+                              placeholder="Day"
+                              className="record-date-dropdown"
+                            />
+                          </>
+                        )}
+                      </div>
+
+                      {(r.type === 'DATE' || r.type === 'DNF' || r.type === 'CURRENT') && (
+                        <div className="record-entry-presets">
+                          <ThemedDropdown
+                            value=""
+                            options={[
+                              ...DATE_PRESET_OPTIONS,
+                              { value: 'reset', label: 'Reset' }
+                            ]}
+                            triggerLabel="P"
+                            showOnHover={true}
+                            onChange={(v) => applyPreset(r.id, v as DatePreset | 'reset')}
+                            className="record-preset-dropdown"
+                          />
+                        </div>
+                      )}
+
+                      {records.length > 1 && (
+                        <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
+                      )}
+
+                      {isDnfOrCurrent && (
+                        <div className="record-entry-inline-extra">
+                          <label className="record-extra-slider">
+                            <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={r.dnfPercent ?? 50}
+                              onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+
+                  </div>
+                );
+              })}
+            </div>
+
+            <button type="button" className="record-add-entry-btn" onClick={addRecord}>
+              + Add another watch
+            </button>
           </div>
 
-          {needsDate && (
-            <div className="record-modal-field-row record-modal-date-presets">
-              <span className="record-modal-presets-label">Presets</span>
-              <div className="record-modal-presets">
-                <button type="button" className="record-modal-preset-btn" onClick={() => applyPreset('today')}>
-                  Today
-                </button>
-                <button type="button" className="record-modal-preset-btn" onClick={() => applyPreset('yesterday')}>
-                  Yesterday
-                </button>
-                <button type="button" className="record-modal-preset-btn" onClick={() => applyPreset('this_year')}>
-                  This year
-                </button>
-              </div>
-            </div>
-          )}
-
-          {(recordType === 'DATE' || recordType === 'RANGE') && (
-            <div className="record-modal-field-row">
-              <label>
-                <span>{recordType === 'RANGE' ? 'Start year*' : 'Year*'}</span>
-                <ThemedDropdown
-                  value={recordYear}
-                  options={yearOptions}
-                  onChange={setRecordYear}
-                  placeholder="Year"
-                />
-              </label>
-              <label>
-                <span>Month</span>
-                <ThemedDropdown value={recordMonth} options={monthOptions} onChange={setRecordMonth} placeholder="—" />
-              </label>
-              <label>
-                <span>Day</span>
-                <ThemedDropdown value={recordDay} options={dayOptions} onChange={setRecordDay} placeholder="—" />
-              </label>
-            </div>
-          )}
-
-          {recordType === 'RANGE' && (
-            <div className="record-modal-field-row">
-              <label>
-                <span>End year</span>
-                <ThemedDropdown
-                  value={recordEndYear}
-                  options={yearOptions}
-                  onChange={setRecordEndYear}
-                  placeholder="—"
-                />
-              </label>
-              <label>
-                <span>Month</span>
-                <ThemedDropdown
-                  value={recordEndMonth}
-                  options={monthOptions}
-                  onChange={setRecordEndMonth}
-                  placeholder="—"
-                />
-              </label>
-              <label>
-                <span>Day</span>
-                <ThemedDropdown
-                  value={recordEndDay}
-                  options={dayOptions}
-                  onChange={setRecordEndDay}
-                  placeholder="—"
-                />
-              </label>
-            </div>
-          )}
-
-          {(recordType === 'DNF' || recordType === 'CURRENT') && (
-            <>
-              <div className="record-modal-field-row">
-                <label>
-                  <span>Started year*</span>
-                  <ThemedDropdown
-                    value={recordYear}
-                    options={yearOptions}
-                    onChange={setRecordYear}
-                    placeholder="Year"
-                  />
-                </label>
-                <label>
-                  <span>Month</span>
-                  <ThemedDropdown value={recordMonth} options={monthOptions} onChange={setRecordMonth} placeholder="—" />
-                </label>
-                <label>
-                  <span>Day</span>
-                  <ThemedDropdown value={recordDay} options={dayOptions} onChange={setRecordDay} placeholder="—" />
-                </label>
-              </div>
-              <div className="record-modal-field-row">
-                <label className="record-modal-field-slider">
-                  <span>
-                    {recordType === 'DNF' ? 'Got through' : 'Current progress'}: {recordDnfPercent}%
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={recordDnfPercent}
-                    onChange={(e) => setRecordDnfPercent(Number(e.target.value))}
-                  />
-                </label>
-              </div>
-            </>
-          )}
-
-          {showClassPicker && rankedClasses.length > 0 && (
-            <div className="record-modal-field-row record-modal-class-picker">
+          {/* RIGHT COLUMN */}
+          <div className="record-modal-right">
+            <header className="record-modal-right-header">
               <span className="record-modal-class-picker-label">Ranked class — place top, middle, bottom</span>
-              <div className="record-modal-class-list">
-                {rankedClasses.map((c) => (
-                  <div
-                    key={c.key}
-                    className={`record-modal-class-row ${recordClassKey === c.key ? 'record-modal-class-row--selected' : ''}`}
-                  >
-                    <div className="record-modal-class-name-wrap">
-                      <span className="record-modal-class-name">{c.label}</span>
-                      {c.tagline && <span className="record-modal-class-tagline">{c.tagline}</span>}
-                    </div>
-                    <div className="record-modal-class-arrows">
-                      <button
-                        type="button"
-                        className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'top' ? 'record-modal-class-arrow--active' : ''}`}
-                        title="Add to top of this class"
-                        onClick={() => {
-                          setRecordClassKey(c.key);
-                          setRecordPosition('top');
-                        }}
-                      >
-                        <ArrowUp size={15} aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className={`record-modal-class-arrow record-modal-class-arrow--dot ${recordClassKey === c.key && recordPosition === 'middle' ? 'record-modal-class-arrow--active' : ''}`}
-                        title="Add roughly to the middle of this class"
-                        onClick={() => {
-                          setRecordClassKey(c.key);
-                          setRecordPosition('middle');
-                        }}
-                      >
-                        •
-                      </button>
-                      <button
-                        type="button"
-                        className={`record-modal-class-arrow ${recordClassKey === c.key && recordPosition === 'bottom' ? 'record-modal-class-arrow--active' : ''}`}
-                        title="Add to bottom of this class"
-                        onClick={() => {
-                          setRecordClassKey(c.key);
-                          setRecordPosition('bottom');
-                        }}
-                      >
-                        <ArrowDown size={15} aria-hidden />
-                      </button>
-                    </div>
+              <button type="button" className="record-modal-close-icon" onClick={onClose}>✕</button>
+            </header>
+
+            <div className="record-modal-class-list">
+              {rankedClasses.map((c) => (
+                <div
+                  key={c.key}
+                  className={`record-modal-class-row ${recordClassKey === c.key ? 'record-modal-class-row--selected' : ''}`}
+                >
+                  <div className="record-modal-class-info">
+                    <span className="record-modal-class-label-text">{c.label}</span>
+                    {c.tagline && <span className="record-modal-class-tagline-text">{c.tagline}</span>}
                   </div>
-                ))}
-              </div>
+                  <div className="record-modal-class-actions">
+                    <button
+                      type="button"
+                      className={`record-modal-placement-btn ${recordClassKey === c.key && recordPosition === 'top' ? 'record-modal-placement-btn--active' : ''}`}
+                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('top'); }}
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`record-modal-placement-btn record-modal-placement-btn--dot ${recordClassKey === c.key && recordPosition === 'middle' ? 'record-modal-placement-btn--active' : ''}`}
+                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('middle'); }}
+                    >
+                      •
+                    </button>
+                    <button
+                      type="button"
+                      className={`record-modal-placement-btn ${recordClassKey === c.key && recordPosition === 'bottom' ? 'record-modal-placement-btn--active' : ''}`}
+                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('bottom'); }}
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+
+            {error && <div className="record-modal-error">{error}</div>}
+
+            <footer className="record-modal-footer">
+              <button
+                type="button"
+                className="record-modal-save-btn record-modal-save-btn--secondary"
+                onClick={() => void handleSave(false)}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving…' : 'Save and close'}
+              </button>
+              <button
+                type="button"
+                className="record-modal-save-btn"
+                onClick={() => void handleSave(true)}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
+              </button>
+            </footer>
+          </div>
         </div>
-
-        {error && <div className="record-modal-error">{error}</div>}
-
-        <footer className="record-modal-footer">
-          <button
-            type="button"
-            className="record-modal-btn record-modal-btn-secondary"
-            onClick={() => void handleSave(false)}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving…' : 'Save and close'}
-          </button>
-          <button
-            type="button"
-            className="record-modal-btn"
-            onClick={() => void handleSave(true)}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
-          </button>
-        </footer>
       </div>
     </div>
   );

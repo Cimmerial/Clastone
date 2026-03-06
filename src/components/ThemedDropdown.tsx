@@ -13,6 +13,8 @@ type Props<T extends string = string> = {
   triggerLabel?: string;
   id?: string;
   'aria-label'?: string;
+  className?: string;
+  showOnHover?: boolean;
 };
 
 type ListPosition = { top: number; left: number; minWidth: number } | null;
@@ -24,12 +26,28 @@ export function ThemedDropdown<T extends string>({
   placeholder = 'Select…',
   triggerLabel,
   id,
-  'aria-label': ariaLabel
+  'aria-label': ariaLabel,
+  className,
+  showOnHover
 }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [listPosition, setListPosition] = useState<ListPosition>(null);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const handleMouseEnter = () => {
+    if (!showOnHover) return;
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (!showOnHover) return;
+    timerRef.current = window.setTimeout(() => {
+      setOpen(false);
+    }, 100);
+  };
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) {
@@ -70,6 +88,8 @@ export function ThemedDropdown<T extends string>({
       className="themed-dropdown-list themed-dropdown-list--portal"
       role="listbox"
       aria-label={ariaLabel}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         position: 'fixed',
         top: listPosition.top,
@@ -95,7 +115,13 @@ export function ThemedDropdown<T extends string>({
   );
 
   return (
-    <div className="themed-dropdown" ref={ref} id={id}>
+    <div
+      className={`themed-dropdown ${className || ''}`}
+      ref={ref}
+      id={id}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <button
         ref={triggerRef}
         type="button"

@@ -13,7 +13,7 @@ import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
 
 /** Watch type for display and validation. */
-export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'UNKNOWN';
+export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'DNF_LONG_AGO';
 
 /** One recorded watch: type + optional date(s). */
 export type WatchRecord = {

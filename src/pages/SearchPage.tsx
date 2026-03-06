@@ -46,6 +46,7 @@ export function SearchPage() {
     getClassTagline: getTvClassTagline
   } = useTvStore();
   const [recordTarget, setRecordTarget] = useState<TmdbMultiResult | null>(null);
+  const [recordDetails, setRecordDetails] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist } = useWatchlistStore();
@@ -95,9 +96,23 @@ export function SearchPage() {
 
   const handleCloseRecord = () => setRecordTarget(null);
 
-  const handleOpenRecord = (r: TmdbMultiResult) => {
+  const handleOpenRecord = async (r: TmdbMultiResult) => {
     if (r.media_type !== 'movie' && r.media_type !== 'tv') return;
     setRecordTarget(r);
+    setIsSaving(true);
+    try {
+      const cache = r.media_type === 'movie'
+        ? await tmdbMovieDetailsFull(r.id)
+        : await tmdbTvDetailsFull(r.id);
+      if (cache) {
+        setRecordDetails(cache);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setIsLoading(false);
+      setIsSaving(false);
+    }
   };
 
   const handleAddToUnranked = async (r: TmdbMultiResult) => {
@@ -164,7 +179,7 @@ export function SearchPage() {
 
   const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
     if (!recordTarget) return;
-    const { watch, classKey: recordClassKey, position } = params;
+    const { watches, classKey: recordClassKey, position } = params;
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
     const isMovie = recordTarget.media_type === 'movie';
@@ -186,9 +201,11 @@ export function SearchPage() {
             /* ignore */
           }
         }
-        addWatchToMovie(id, watch, {
-          posterPath: recordTarget.poster_path ?? existing.posterPath
-        });
+        for (const w of watches) {
+          addWatchToMovie(id, w, {
+            posterPath: recordTarget.poster_path ?? existing.posterPath
+          });
+        }
         if (existingIsUnranked && recordClassKey) {
           moveItemToClass(id, recordClassKey, { toTop, toMiddle });
         }
@@ -206,12 +223,16 @@ export function SearchPage() {
           title: recordTarget.title,
           subtitle: recordTarget.subtitle,
           classKey: recordClassKey,
-          firstWatch: watch,
+          firstWatch: watches[0],
           runtimeMinutes: cache?.runtimeMinutes,
           posterPath: recordTarget.poster_path ?? cache?.posterPath,
           cache: cache ?? undefined,
           toTop
         });
+        // Add additional watches if any
+        for (let i = 1; i < watches.length; i++) {
+          addWatchToMovie(id, watches[i]);
+        }
         setIsSaving(false);
       }
       setRecordTarget(null);
@@ -238,7 +259,9 @@ export function SearchPage() {
       if (existing.tmdbId == null || existing.overview == null) {
         updateShowCache(id, cache);
       }
-      addWatchToShow(id, watch, { posterPath: cache.posterPath ?? existing.posterPath });
+      for (const w of watches) {
+        addWatchToShow(id, w, { posterPath: cache.posterPath ?? existing.posterPath });
+      }
       if (existingIsUnranked && recordClassKey) {
         moveShowToClass(id, recordClassKey, { toTop });
       }
@@ -249,10 +272,14 @@ export function SearchPage() {
         title: cache.title,
         subtitle: recordTarget.subtitle,
         classKey: recordClassKey,
-        firstWatch: watch,
+        firstWatch: watches[0],
         cache,
         toTop
       });
+      // Add additional watches if any
+      for (let i = 1; i < watches.length; i++) {
+        addWatchToShow(id, watches[i]);
+      }
     }
     setRecordTarget(null);
     if (goToMovie) navigate('/tv', { replace: true, state: { scrollToId: id } });
@@ -266,9 +293,11 @@ export function SearchPage() {
       poster_path: recordTarget.poster_path,
       media_type: recordTarget.media_type as 'movie' | 'tv',
       subtitle: recordTarget.subtitle,
-      releaseDate: recordTarget.release_date
+      releaseDate: recordTarget.release_date,
+      runtimeMinutes: recordDetails?.runtimeMinutes,
+      totalEpisodes: recordDetails?.totalEpisodes
     };
-  }, [recordTarget]);
+  }, [recordTarget, recordDetails]);
 
   return (
     <section>

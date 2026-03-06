@@ -17,7 +17,8 @@ function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
     poster_path: item.posterPath,
     media_type: 'tv',
     subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined,
-    releaseDate: item.releaseDate
+    releaseDate: item.releaseDate,
+    totalEpisodes: item.totalEpisodes
   };
 }
 
@@ -142,7 +143,9 @@ export function TvShowsPage() {
           onSave={async (params, goToShow) => {
             setIsSavingRecord(true);
             try {
-              addWatchToShow(recordWatchFor.id, params.watch, { posterPath: recordWatchFor.posterPath });
+              for (const w of params.watches) {
+                addWatchToShow(recordWatchFor.id, w, { posterPath: recordWatchFor.posterPath });
+              }
               if (params.classKey) {
                 moveItemToClass(recordWatchFor.id, params.classKey, {
                   toTop: params.position === 'top',

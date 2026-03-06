@@ -20,7 +20,8 @@ function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
     poster_path: item.posterPath,
     media_type: 'movie',
     subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined,
-    releaseDate: item.releaseDate
+    releaseDate: item.releaseDate,
+    runtimeMinutes: item.runtimeMinutes
   };
 }
 
@@ -171,7 +172,9 @@ export function MoviesPage() {
           onSave={async (params, goToMovie) => {
             setIsSavingRecord(true);
             try {
-              addWatchToMovie(recordWatchFor.id, params.watch, { posterPath: recordWatchFor.posterPath });
+              for (const w of params.watches) {
+                addWatchToMovie(recordWatchFor.id, w, { posterPath: recordWatchFor.posterPath });
+              }
               if (params.classKey) {
                 moveItemToClass(recordWatchFor.id, params.classKey, {
                   toTop: params.position === 'top',

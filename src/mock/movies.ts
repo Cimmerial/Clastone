@@ -12,19 +12,30 @@ export type MovieClassDef = {
 
 const defaultTaglines: Record<string, string> = {
   OLYMPUS: 'Crème de la Crème',
-  DELICIOUS_GARBAGE: "So Bad, It's Good",
-  BABY: 'Watched as Ankle-Biter'
+  INCREDIBLE: 'Nearly Olympian',
+  GREAT: 'WILL REWATCH',
+  GOOD: 'MIGHT REWATCH',
+  DECENT: "WOULDN'T REWATCH",
+  ALRIGHT: 'MOSTLY ACTION SLOP',
+  MID: 'TECHNICALLY WATCHABLE',
+  BAD: 'HOT ASS',
+  BABY: 'FOR BABIES',
+  DELICIOUS_GARBAGE: "So Bad... It's Good"
 };
 
 export const defaultMovieClassDefs: MovieClassDef[] = [
   { key: 'OLYMPUS', label: 'OLYMPUS', tagline: defaultTaglines.OLYMPUS, isRanked: true },
-  { key: 'DAMN_GOOD', label: 'DAMN GOOD', isRanked: true },
-  { key: 'GOOD', label: 'GOOD', isRanked: true },
-  { key: 'ALRIGHT', label: 'ALRIGHT', isRanked: true },
-  { key: 'MEH', label: 'MEH', isRanked: true },
-  { key: 'BAD', label: 'BAD', isRanked: true },
+  { key: 'INCREDIBLE', label: 'INCREDIBLE', tagline: defaultTaglines.INCREDIBLE, isRanked: true },
+  { key: 'AMAZING', label: 'AMAZING', isRanked: true },
+  { key: 'GREAT', label: 'GREAT', tagline: defaultTaglines.GREAT, isRanked: true },
+  { key: 'GOOD', label: 'GOOD', tagline: defaultTaglines.GOOD, isRanked: true },
+  { key: 'DECENT', label: 'DECENT', tagline: defaultTaglines.DECENT, isRanked: true },
+  { key: 'ALRIGHT', label: 'ALRIGHT', tagline: defaultTaglines.ALRIGHT, isRanked: true },
+  { key: 'MID', label: 'MID', tagline: defaultTaglines.MID, isRanked: true },
+  { key: 'BAD', label: 'BAD', tagline: defaultTaglines.BAD, isRanked: true },
   { key: 'BABY', label: 'BABY', tagline: defaultTaglines.BABY, isRanked: false },
   { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS GARBAGE', tagline: defaultTaglines.DELICIOUS_GARBAGE, isRanked: false },
+  { key: 'DONT_REMEMBER', label: "DON'T REMEMBER", isRanked: false },
   { key: 'UNRANKED', label: 'UNRANKED', isRanked: false }
 ];
 

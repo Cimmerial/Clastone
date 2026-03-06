@@ -187,7 +187,9 @@ export function WatchlistPage() {
         poster_path: cache.posterPath ?? entry.posterPath,
         media_type: isMovie ? 'movie' : 'tv',
         subtitle: cache.releaseDate ?? entry.releaseDate,
-        releaseDate: cache.releaseDate ?? entry.releaseDate
+        releaseDate: cache.releaseDate ?? entry.releaseDate,
+        runtimeMinutes: 'runtimeMinutes' in cache ? cache.runtimeMinutes as number : undefined,
+        totalEpisodes: 'totalEpisodes' in cache ? cache.totalEpisodes as number : undefined
       };
       setRecordTarget(target);
     } catch {
@@ -197,7 +199,7 @@ export function WatchlistPage() {
 
   const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
     if (!recordTarget) return;
-    const { watch, classKey: recordClassKey, position } = params;
+    const { watches, classKey: recordClassKey, position } = params;
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
     const isMovie = recordTarget.media_type === 'movie';
@@ -216,9 +218,11 @@ export function WatchlistPage() {
             /* ignore */
           }
         }
-        addWatchToMovie(id, watch, {
-          posterPath: recordTarget.poster_path ?? existing.posterPath
-        });
+        for (const w of watches) {
+          addWatchToMovie(id, w, {
+            posterPath: recordTarget.poster_path ?? existing.posterPath
+          });
+        }
         if (existingIsUnranked && recordClassKey) {
           moveItemToClass(id, recordClassKey, { toTop, toMiddle });
         }
@@ -236,12 +240,16 @@ export function WatchlistPage() {
           title: recordTarget.title,
           subtitle: recordTarget.subtitle ?? '',
           classKey: recordClassKey,
-          firstWatch: watch,
+          firstWatch: watches[0],
           runtimeMinutes: cache?.runtimeMinutes,
           posterPath: recordTarget.poster_path ?? cache?.posterPath,
           cache: cache ?? undefined,
           toTop
         });
+        // Add additional watches if any
+        for (let i = 1; i < watches.length; i++) {
+          addWatchToMovie(id, watches[i]);
+        }
         setIsSaving(false);
       }
     } else {
@@ -258,7 +266,9 @@ export function WatchlistPage() {
         if (existing.tmdbId == null || existing.overview == null) {
           updateShowCache(id, cache);
         }
-        addWatchToShow(id, watch, { posterPath: cache.posterPath ?? existing.posterPath });
+        for (const w of watches) {
+          addWatchToShow(id, w, { posterPath: cache.posterPath ?? existing.posterPath });
+        }
         if (existingIsUnranked && recordClassKey) {
           moveShowToClass(id, recordClassKey, { toTop, toMiddle });
         }
@@ -269,10 +279,14 @@ export function WatchlistPage() {
           title: cache.title,
           subtitle: recordTarget.subtitle ?? '',
           classKey: recordClassKey,
-          firstWatch: watch,
+          firstWatch: watches[0],
           cache,
           toTop
         });
+        // Add additional watches if any
+        for (let i = 1; i < watches.length; i++) {
+          addWatchToShow(id, watches[i]);
+        }
       }
     }
 
