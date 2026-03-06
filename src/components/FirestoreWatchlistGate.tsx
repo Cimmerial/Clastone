@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { loadWatchlist, saveWatchlist } from '../lib/firestoreWatchlist';
 import type { WatchlistEntry } from '../state/watchlistStore';
 import { WatchlistProvider } from '../state/watchlistStore';
+import { useSyncStatus } from '../context/SyncStatusContext';
 
 type Props = { children: React.ReactNode };
 
@@ -33,12 +34,17 @@ export function FirestoreWatchlistGate({ children }: Props) {
     });
   }, [user?.uid]);
 
+  const { updateStatus } = useSyncStatus();
+
   const onPersist = useCallback(
-    (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[] }) => {
+    (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => {
       if (!user || !db) return;
-      saveWatchlist(db, user.uid, payload).catch(console.error);
+      updateStatus('watchlist', 'saving', { pendingCount: payload.pendingCount });
+      saveWatchlist(db, user.uid, payload)
+        .then(() => updateStatus('watchlist', 'idle', { label: `Saved ${payload.pendingCount ?? 0} watchlist changes` }))
+        .catch((err) => updateStatus('watchlist', 'error', { error: err.message }));
     },
-    [user?.uid]
+    [user?.uid, updateStatus]
   );
 
   if (user && (initialMovies === null || initialTv === null)) {

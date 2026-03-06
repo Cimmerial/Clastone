@@ -5,6 +5,7 @@ import { loadMovies, saveMovies } from '../lib/firestoreMovies';
 import type { ClassKey } from './RankedList';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import { MoviesProvider } from '../state/moviesStore';
+import { useSyncStatus } from '../context/SyncStatusContext';
 import type { MovieClassDef } from '../mock/movies';
 
 type Props = { children: React.ReactNode };
@@ -37,12 +38,17 @@ export function FirestoreMoviesGate({ children }: Props) {
     });
   }, [user?.uid]);
 
+  const { updateStatus } = useSyncStatus();
+
   const onPersist = useCallback(
-    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }) => {
+    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
       if (!user || !db) return;
-      saveMovies(db, user.uid, payload).catch(console.error);
+      updateStatus('movies', 'saving', { pendingCount: payload.pendingCount });
+      saveMovies(db, user.uid, payload)
+        .then(() => updateStatus('movies', 'idle', { label: `Saved ${payload.pendingCount ?? 0} movie changes` }))
+        .catch((err) => updateStatus('movies', 'error', { error: err.message }));
     },
-    [user?.uid]
+    [user?.uid, updateStatus]
   );
 
   if ((initialByClass === null || initialClasses === null) && user) {

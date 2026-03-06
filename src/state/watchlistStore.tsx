@@ -24,7 +24,7 @@ type WatchlistProviderProps = {
   children: React.ReactNode;
   initialMovies?: WatchlistEntry[];
   initialTv?: WatchlistEntry[];
-  onPersist?: (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[] }) => void;
+  onPersist?: (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => void;
 };
 
 export function WatchlistProvider({
@@ -37,16 +37,44 @@ export function WatchlistProvider({
   const [tv, setTv] = useState<WatchlistEntry[]>(initialTv);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [pendingChanges, setPendingChanges] = useState(0);
+  const lastStateRef = useRef({ movies, tv });
+  lastStateRef.current = { movies, tv };
+
   useEffect(() => {
     if (!onPersist) return;
+    setPendingChanges((p) => p + 1);
+    if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+
     persistTimeoutRef.current = setTimeout(() => {
-      onPersist({ movies, tv });
-    }, 400);
+      onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+      setPendingChanges(0);
+      persistTimeoutRef.current = null;
+    }, 600);
+
     return () => {
-      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
-      onPersist({ movies, tv });
+      if (persistTimeoutRef.current) {
+        clearTimeout(persistTimeoutRef.current);
+        persistTimeoutRef.current = null;
+      }
     };
   }, [movies, tv, onPersist]);
+
+  // Handle browser tab closure / refresh.
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (persistTimeoutRef.current && onPersist) {
+        onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+        if (pendingChanges > 0) {
+          e.preventDefault();
+          e.returnValue = 'Saving changes...';
+          return e.returnValue;
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [onPersist, pendingChanges]);
 
   const addToWatchlist = useCallback((entry: WatchlistEntry, type: WatchlistType) => {
     if (type === 'movies') {

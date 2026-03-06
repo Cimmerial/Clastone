@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DevTools } from './components/DevTools';
 import { TvProvider } from './state/tvStore';
 import { WatchlistProvider } from './state/watchlistStore';
+import { SyncStatusProvider } from './context/SyncStatusContext';
 
 function App() {
   const { user, loading } = useAuth();
@@ -32,22 +33,24 @@ function App() {
 
   if (useAuthFlow && user) {
     return (
-      <FirestoreMoviesGate>
-        <FirestoreTvGate>
-          <FirestoreWatchlistGate>
-            <NavBar />
-            <main className="app-main">
-              <AppRoutes />
-            </main>
-            <DevTools />
-          </FirestoreWatchlistGate>
-        </FirestoreTvGate>
-      </FirestoreMoviesGate>
+      <SyncStatusProvider>
+        <FirestoreMoviesGate>
+          <FirestoreTvGate>
+            <FirestoreWatchlistGate>
+              <NavBar />
+              <main className="app-main">
+                <AppRoutes />
+              </main>
+              <DevTools />
+            </FirestoreWatchlistGate>
+          </FirestoreTvGate>
+        </FirestoreMoviesGate>
+      </SyncStatusProvider>
     );
   }
 
   return (
-    <>
+    <SyncStatusProvider>
       <MoviesProvider>
         <TvProvider>
           <WatchlistProvider initialMovies={[]} initialTv={[]}>
@@ -59,7 +62,7 @@ function App() {
           </WatchlistProvider>
         </TvProvider>
       </MoviesProvider>
-    </>
+    </SyncStatusProvider>
   );
 }
 

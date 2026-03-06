@@ -49,6 +49,20 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+/** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
+function pruneItem(item: MovieShowItem): MovieShowItem {
+  // We'll keep the top 10 cast members and directors to avoid empty UI 
+  // while still saving space compared to full TMDB responses.
+  return {
+    ...item,
+    cast: item.cast?.slice(0, 10),
+    directors: item.directors?.slice(0, 5),
+    overview: item.overview && item.overview.length > 300
+      ? item.overview.slice(0, 300) + '...'
+      : item.overview,
+  };
+}
+
 export async function loadMovies(
   db: Firestore,
   userId: string
@@ -77,9 +91,19 @@ export async function saveMovies(
   payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }
 ): Promise<void> {
   const ref = doc(db, MOVIES_COLLECTION, userId, MOVIES_SUBCOLLECTION, MOVIES_DOC_ID);
-  const sanitized = stripUndefined(payload);
+  const prunedByClass: Record<ClassKey, MovieShowItem[]> = {} as Record<ClassKey, MovieShowItem[]>;
+  for (const [key, list] of Object.entries(payload.byClass)) {
+    prunedByClass[key as ClassKey] = list.map(pruneItem);
+  }
+
+  const prunedPayload = {
+    ...payload,
+    byClass: prunedByClass
+  };
+
+  const sanitized = stripUndefined(prunedPayload);
   const total = Object.values(payload.byClass).reduce((acc, list) => acc + list.length, 0);
-  console.info('[Clastone] Saving movies to Firestore', {
+  console.info('[Clastone] Saving movies to Firestore (pruned)', {
     uid: userId,
     totalEntries: total
   });

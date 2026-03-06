@@ -5,6 +5,7 @@ import { loadTvShows, saveTvShows } from '../lib/firestoreTvShows';
 import type { ClassKey } from './RankedList';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { MovieClassDef } from '../mock/movies';
+import { useSyncStatus } from '../context/SyncStatusContext';
 import { TvProvider } from '../state/tvStore';
 
 type Props = { children: React.ReactNode };
@@ -34,12 +35,17 @@ export function FirestoreTvGate({ children }: Props) {
     });
   }, [user?.uid]);
 
+  const { updateStatus } = useSyncStatus();
+
   const onPersist = useCallback(
-    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }) => {
+    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
       if (!user || !db) return;
-      saveTvShows(db, user.uid, payload).catch(console.error);
+      updateStatus('tv', 'saving', { pendingCount: payload.pendingCount });
+      saveTvShows(db, user.uid, payload)
+        .then(() => updateStatus('tv', 'idle', { label: `Saved ${payload.pendingCount ?? 0} TV changes` }))
+        .catch((err) => updateStatus('tv', 'error', { error: err.message }));
     },
-    [user?.uid]
+    [user?.uid, updateStatus]
   );
 
   if ((initialByClass === null || initialClasses === null) && user) {

@@ -217,7 +217,7 @@ type MoviesProviderProps = {
   initialByClass?: Record<ClassKey, MovieShowItem[]>;
   initialClasses?: MovieClassDef[];
   /** Persist to Firestore when byClass changes (debounced). */
-  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }) => void;
+  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => void;
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
@@ -226,20 +226,55 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(
     initialByClass ?? initialMoviesByClass
   );
+  const [pendingChanges, setPendingChanges] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastStateRef = useRef({ byClass, classes });
+  lastStateRef.current = { byClass, classes };
 
+  // Debounced persistence logic.
   useEffect(() => {
     if (!onPersist) return;
+
+    // We increment pending changes whenever byClass/classes change, 
+    // EXCEPT for the very first mount or when initialByClass/initialClasses are passed (already saved).
+    // Actually, simple way: if lastSavedRef doesn't match current, we have pending.
+    setPendingChanges((p) => p + 1);
+
     if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+
     persistTimeoutRef.current = setTimeout(() => {
-      onPersist({ byClass, classes });
+      onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+      setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 1500); // 1.5s debounce for bulk ops
+    }, 1500);
+
     return () => {
-      // Do NOT call onPersist here immediately; it defeats the debounce during rapid state changes.
-      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+      // Don't save on cleanup during active changes; let the new timeout handle it.
+      if (persistTimeoutRef.current) {
+        clearTimeout(persistTimeoutRef.current);
+        persistTimeoutRef.current = null;
+      }
     };
   }, [byClass, classes, onPersist]);
+
+  // Handle browser tab closure / refresh.
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (persistTimeoutRef.current && onPersist) {
+        onPersist(lastStateRef.current);
+        // We can't await, but firing it here helps in some browsers.
+        // Some browsers require a return value to show a confirmation dialog,
+        // which gives the async call more time to finish.
+        if (pendingChanges > 0) {
+          e.preventDefault();
+          e.returnValue = 'Saving changes...';
+          return e.returnValue;
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [onPersist, pendingChanges]);
 
   // Keep byClass keys in sync with classes list (adds empty arrays for new classes).
   useEffect(() => {

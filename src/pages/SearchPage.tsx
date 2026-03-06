@@ -32,7 +32,8 @@ export function SearchPage() {
     updateMovieCache,
     moveItemToClass,
     classOrder,
-    getClassLabel
+    getClassLabel,
+    getClassTagline
   } = useMoviesStore();
   const {
     addShowFromSearch,
@@ -41,7 +42,8 @@ export function SearchPage() {
     updateShowCache,
     moveItemToClass: moveShowToClass,
     classOrder: tvClassOrder,
-    getClassLabel: getTvClassLabel
+    getClassLabel: getTvClassLabel,
+    getClassTagline: getTvClassTagline
   } = useTvStore();
   const [recordTarget, setRecordTarget] = useState<TmdbMultiResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -148,22 +150,23 @@ export function SearchPage() {
     () =>
       tvClassOrder
         .filter((k) => k !== 'UNRANKED')
-        .map((k) => ({ key: k, label: getTvClassLabel(k) })),
-    [tvClassOrder, getTvClassLabel]
+        .map((k) => ({ key: k, label: getTvClassLabel(k), tagline: getTvClassTagline(k) })),
+    [tvClassOrder, getTvClassLabel, getTvClassTagline]
   );
 
   const movieRankedClasses = useMemo(
     () =>
       classOrder
         .filter((k) => k !== 'UNRANKED')
-        .map((k) => ({ key: k, label: getClassLabel(k) })),
-    [classOrder, getClassLabel]
+        .map((k) => ({ key: k, label: getClassLabel(k), tagline: getClassTagline(k) })),
+    [classOrder, getClassLabel, getClassTagline]
   );
 
   const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
     if (!recordTarget) return;
     const { watch, classKey: recordClassKey, position } = params;
-    const toTop = position !== 'bottom';
+    const toTop = position === 'top';
+    const toMiddle = position === 'middle';
     const isMovie = recordTarget.media_type === 'movie';
     const isTv = recordTarget.media_type === 'tv';
     if (!isMovie && !isTv) return;
@@ -187,7 +190,7 @@ export function SearchPage() {
           posterPath: recordTarget.poster_path ?? existing.posterPath
         });
         if (existingIsUnranked && recordClassKey) {
-          moveItemToClass(id, recordClassKey, { toTop });
+          moveItemToClass(id, recordClassKey, { toTop, toMiddle });
         }
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;

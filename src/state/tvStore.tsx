@@ -47,7 +47,7 @@ type TvProviderProps = {
   children: React.ReactNode;
   initialByClass?: Record<ClassKey, MovieShowItem[]>;
   initialClasses?: MovieClassDef[];
-  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }) => void;
+  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => void;
 };
 
 const TvContext = createContext<TvStore | null>(null);
@@ -56,19 +56,46 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
   const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(initialByClass ?? {});
+  const [pendingChanges, setPendingChanges] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastStateRef = useRef({ byClass, classes });
+  lastStateRef.current = { byClass, classes };
 
+  // Debounced persistence logic.
   useEffect(() => {
     if (!onPersist) return;
+    setPendingChanges((p) => p + 1);
     if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+
     persistTimeoutRef.current = setTimeout(() => {
-      onPersist({ byClass, classes });
+      onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+      setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 1500); // 1.5s debounce for bulk ops
+    }, 1500);
+
     return () => {
-      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+      if (persistTimeoutRef.current) {
+        clearTimeout(persistTimeoutRef.current);
+        persistTimeoutRef.current = null;
+      }
     };
   }, [byClass, classes, onPersist]);
+
+  // Handle browser tab closure / refresh.
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (persistTimeoutRef.current && onPersist) {
+        onPersist(lastStateRef.current);
+        if (pendingChanges > 0) {
+          e.preventDefault();
+          e.returnValue = 'Saving changes...';
+          return e.returnValue;
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [onPersist, pendingChanges]);
 
   // Ensure keys exist for all classes.
   useEffect(() => {
