@@ -5,6 +5,7 @@ import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
 import { FirestoreTvGate } from './components/FirestoreTvGate';
 import { FirestoreWatchlistGate } from './components/FirestoreWatchlistGate';
 import { MoviesProvider } from './state/moviesStore';
+import { FirestoreSettingsGate } from './components/FirestoreSettingsGate';
 import { LoginPage } from './pages/LoginPage';
 import { DevTools } from './components/DevTools';
 import { TvProvider } from './state/tvStore';
@@ -34,17 +35,19 @@ function App() {
   if (useAuthFlow && user) {
     return (
       <SyncStatusProvider>
-        <FirestoreMoviesGate>
-          <FirestoreTvGate>
-            <FirestoreWatchlistGate>
-              <NavBar />
-              <main className="app-main">
-                <AppRoutes />
-              </main>
-              <DevTools />
-            </FirestoreWatchlistGate>
-          </FirestoreTvGate>
-        </FirestoreMoviesGate>
+        <FirestoreSettingsGate>
+          <FirestoreMoviesGate>
+            <FirestoreTvGate>
+              <FirestoreWatchlistGate>
+                <NavBar />
+                <main className="app-main">
+                  <AppRoutes />
+                </main>
+                <DevTools />
+              </FirestoreWatchlistGate>
+            </FirestoreTvGate>
+          </FirestoreMoviesGate>
+        </FirestoreSettingsGate>
       </SyncStatusProvider>
     );
   }

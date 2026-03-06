@@ -20,6 +20,7 @@ export type RecordWatchTarget = {
   poster_path?: string;
   media_type: 'movie' | 'tv';
   subtitle?: string;
+  releaseDate?: string;
 };
 
 export type RecordWatchSaveParams = {
@@ -60,13 +61,42 @@ export function RecordWatchModal({
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [error, setError] = useState<string | null>(null);
 
-  const releaseYear = useMemo(() => {
+  const { releaseYear, releaseMonth, releaseDay } = useMemo(() => {
+    const rd = target.releaseDate;
+    if (rd && /^\d{4}-\d{2}-\d{2}$/.test(rd)) {
+      const parts = rd.split('-');
+      return {
+        releaseYear: parseInt(parts[0], 10),
+        releaseMonth: parseInt(parts[1], 10),
+        releaseDay: parseInt(parts[2], 10)
+      };
+    }
+    // Fallback to subtitle if it's just a year
     const s = target.subtitle?.trim();
-    if (s && /^\d{4}$/.test(s)) return parseInt(s, 10);
-    return undefined;
-  }, [target.subtitle]);
+    if (s && /^\d{4}$/.test(s)) {
+      return { releaseYear: parseInt(s, 10), releaseMonth: undefined, releaseDay: undefined };
+    }
+    return { releaseYear: undefined, releaseMonth: undefined, releaseDay: undefined };
+  }, [target.releaseDate, target.subtitle]);
 
   const yearOptions = useMemo(() => getYearOptions(releaseYear), [releaseYear]);
+
+  const monthOptions = useMemo(() => {
+    const selectedYear = parseInt(recordYear, 10);
+    if (!selectedYear || !releaseYear || !releaseMonth || selectedYear > releaseYear) return MONTH_OPTIONS;
+    // selectedYear === releaseYear
+    return MONTH_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseMonth);
+  }, [recordYear, releaseYear, releaseMonth]);
+
+  const dayOptions = useMemo(() => {
+    const selectedYear = parseInt(recordYear, 10);
+    const selectedMonth = parseInt(recordMonth, 10);
+    if (!selectedYear || !selectedMonth || !releaseYear || !releaseMonth || !releaseDay) return DAY_OPTIONS;
+    if (selectedYear > releaseYear) return DAY_OPTIONS;
+    if (selectedYear === releaseYear && selectedMonth > releaseMonth) return DAY_OPTIONS;
+    // selectedYear === releaseYear && selectedMonth === releaseMonth
+    return DAY_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseDay);
+  }, [recordYear, recordMonth, releaseYear, releaseMonth, releaseDay]);
 
   const applyPreset = (preset: 'today' | 'yesterday' | 'this_year') => {
     const { year, month, day } = applyDatePreset(preset);
@@ -234,11 +264,11 @@ export function RecordWatchModal({
               </label>
               <label>
                 <span>Month</span>
-                <ThemedDropdown value={recordMonth} options={MONTH_OPTIONS} onChange={setRecordMonth} placeholder="—" />
+                <ThemedDropdown value={recordMonth} options={monthOptions} onChange={setRecordMonth} placeholder="—" />
               </label>
               <label>
                 <span>Day</span>
-                <ThemedDropdown value={recordDay} options={DAY_OPTIONS} onChange={setRecordDay} placeholder="—" />
+                <ThemedDropdown value={recordDay} options={dayOptions} onChange={setRecordDay} placeholder="—" />
               </label>
             </div>
           )}
@@ -258,7 +288,7 @@ export function RecordWatchModal({
                 <span>Month</span>
                 <ThemedDropdown
                   value={recordEndMonth}
-                  options={MONTH_OPTIONS}
+                  options={monthOptions}
                   onChange={setRecordEndMonth}
                   placeholder="—"
                 />
@@ -267,7 +297,7 @@ export function RecordWatchModal({
                 <span>Day</span>
                 <ThemedDropdown
                   value={recordEndDay}
-                  options={DAY_OPTIONS}
+                  options={dayOptions}
                   onChange={setRecordEndDay}
                   placeholder="—"
                 />
@@ -289,11 +319,11 @@ export function RecordWatchModal({
                 </label>
                 <label>
                   <span>Month</span>
-                  <ThemedDropdown value={recordMonth} options={MONTH_OPTIONS} onChange={setRecordMonth} placeholder="—" />
+                  <ThemedDropdown value={recordMonth} options={monthOptions} onChange={setRecordMonth} placeholder="—" />
                 </label>
                 <label>
                   <span>Day</span>
-                  <ThemedDropdown value={recordDay} options={DAY_OPTIONS} onChange={setRecordDay} placeholder="—" />
+                  <ThemedDropdown value={recordDay} options={dayOptions} onChange={setRecordDay} placeholder="—" />
                 </label>
               </div>
               <div className="record-modal-field-row">

@@ -186,7 +186,8 @@ export function WatchlistPage() {
         title: cache.title ?? entry.title,
         poster_path: cache.posterPath ?? entry.posterPath,
         media_type: isMovie ? 'movie' : 'tv',
-        subtitle: cache.releaseDate ?? entry.releaseDate
+        subtitle: cache.releaseDate ?? entry.releaseDate,
+        releaseDate: cache.releaseDate ?? entry.releaseDate
       };
       setRecordTarget(target);
     } catch {

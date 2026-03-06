@@ -258,6 +258,18 @@ export function SearchPage() {
     if (goToMovie) navigate('/tv', { replace: true, state: { scrollToId: id } });
   };
 
+  const recordWatchTarget = useMemo<RecordWatchTarget | null>(() => {
+    if (!recordTarget) return null;
+    return {
+      id: recordTarget.id,
+      title: recordTarget.title,
+      poster_path: recordTarget.poster_path,
+      media_type: recordTarget.media_type as 'movie' | 'tv',
+      subtitle: recordTarget.subtitle,
+      releaseDate: recordTarget.release_date
+    };
+  }, [recordTarget]);
+
   return (
     <section>
       <header className="page-heading">
@@ -431,9 +443,9 @@ export function SearchPage() {
         </div>
       </div>
 
-      {recordTarget && (recordTarget.media_type === 'movie' || recordTarget.media_type === 'tv') && (
+      {recordWatchTarget && recordTarget && (
         <RecordWatchModal
-          target={recordTarget as RecordWatchTarget}
+          target={recordWatchTarget}
           rankedClasses={recordTarget.media_type === 'movie' ? movieRankedClasses : tvRankedClasses}
           showClassPicker={
             recordTarget.media_type === 'movie'

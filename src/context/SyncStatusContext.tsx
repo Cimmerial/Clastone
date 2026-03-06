@@ -6,17 +6,23 @@ export type SyncStatus = {
     movies: SyncState;
     tv: SyncState;
     watchlist: SyncState;
+    settings: SyncState;
+    classes: SyncState;
     lastSaved?: Date;
     lastSavedLabel?: string;
     error?: string;
     pendingMovies: number;
     pendingTv: number;
     pendingWatchlist: number;
+    pendingSettings: number;
+    pendingClasses: number;
 };
+
+type DomainKey = keyof Omit<SyncStatus, 'lastSaved' | 'error' | 'lastSavedLabel' | 'pendingMovies' | 'pendingTv' | 'pendingWatchlist' | 'pendingSettings' | 'pendingClasses'>;
 
 type SyncStatusContextType = {
     status: SyncStatus;
-    updateStatus: (domain: keyof Omit<SyncStatus, 'lastSaved' | 'error' | 'lastSavedLabel' | 'pendingMovies' | 'pendingTv' | 'pendingWatchlist'>, state: SyncState, details?: { error?: string; pendingCount?: number; label?: string }) => void;
+    updateStatus: (domain: DomainKey, state: SyncState, details?: { error?: string; pendingCount?: number; label?: string }) => void;
 };
 
 const SyncStatusContext = createContext<SyncStatusContextType | null>(null);
@@ -26,13 +32,17 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
         movies: 'idle',
         tv: 'idle',
         watchlist: 'idle',
+        settings: 'idle',
+        classes: 'idle',
         pendingMovies: 0,
         pendingTv: 0,
         pendingWatchlist: 0,
+        pendingSettings: 0,
+        pendingClasses: 0,
     });
 
     const updateStatus = useCallback(
-        (domain: keyof Omit<SyncStatus, 'lastSaved' | 'error' | 'lastSavedLabel' | 'pendingMovies' | 'pendingTv' | 'pendingWatchlist'>, state: SyncState, details?: { error?: string; pendingCount?: number; label?: string }) => {
+        (domain: DomainKey, state: SyncState, details?: { error?: string; pendingCount?: number; label?: string }) => {
             setStatus((prev) => {
                 const next = { ...prev, [domain]: state };
 
@@ -40,6 +50,8 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
                     if (domain === 'movies') next.pendingMovies = details.pendingCount;
                     if (domain === 'tv') next.pendingTv = details.pendingCount;
                     if (domain === 'watchlist') next.pendingWatchlist = details.pendingCount;
+                    if (domain === 'settings') next.pendingSettings = details.pendingCount;
+                    if (domain === 'classes') next.pendingClasses = details.pendingCount;
                 }
 
                 if (state === 'idle') {
@@ -50,7 +62,13 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
                 if (details?.error) {
                     next.error = details.error;
                 } else if (state !== 'error') {
-                    if (next.movies !== 'error' && next.tv !== 'error' && next.watchlist !== 'error') {
+                    if (
+                        next.movies !== 'error' &&
+                        next.tv !== 'error' &&
+                        next.watchlist !== 'error' &&
+                        next.settings !== 'error' &&
+                        next.classes !== 'error'
+                    ) {
                         next.error = undefined;
                     }
                 }

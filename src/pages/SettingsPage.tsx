@@ -3,6 +3,7 @@ import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useSettingsStore } from '../state/settingsStore';
 import './SettingsPage.css';
 
 function getTopCastCount(): number {
@@ -15,6 +16,7 @@ function getTopCastCount(): number {
 
 export function SettingsPage() {
   const { user, signOut } = useAuth();
+  const { settings, updateSettings } = useSettingsStore();
   const {
     classes,
     byClass,
@@ -23,7 +25,6 @@ export function SettingsPage() {
     renameClassTagline,
     moveClass,
     deleteClass,
-    isRankedClass
   } = useMoviesStore();
   const {
     classes: tvClasses,
@@ -33,14 +34,12 @@ export function SettingsPage() {
     renameClassTagline: renameTvClassTagline,
     moveClass: moveTvClass,
     deleteClass: deleteTvClass,
-    isRankedClass: isRankedTvClass
   } = useTvStore();
   const [newRankedLabel, setNewRankedLabel] = useState('');
   const [newUnrankedLabel, setNewUnrankedLabel] = useState('');
   const [newRankedLabelTv, setNewRankedLabelTv] = useState('');
   const [newUnrankedLabelTv, setNewUnrankedLabelTv] = useState('');
   const signedIn = hasFirebaseConfig && user;
-  const [topCastCount, setTopCastCount] = useState(getTopCastCount);
 
   const rankedClasses = useMemo(() => classes.filter((c) => c.isRanked), [classes]);
   const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
@@ -350,21 +349,35 @@ export function SettingsPage() {
             Adjust how entries appear across your lists.
           </p>
           <label className="settings-slider-label">
-            <span>Top Cast Portraits: <strong>{topCastCount}</strong></span>
+            <span>Top Cast Portraits: <strong>{settings.topCastCount}</strong></span>
             <input
               type="range"
               min={3}
               max={10}
-              value={topCastCount}
+              value={settings.topCastCount}
               className="settings-slider"
               onChange={(e) => {
                 const v = Number(e.target.value);
-                setTopCastCount(v);
-                try { localStorage.setItem('clastone-topCastCount', String(v)); } catch { /* ignore */ }
+                updateSettings({ topCastCount: v });
               }}
             />
             <span className="settings-slider-range">3 – 10</span>
           </label>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Minimized Entries</span>
+              <span className="settings-toggle-description">Compact view for all movie and show rows.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.minimizedEntries}
+                onChange={(e) => updateSettings({ minimizedEntries: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
         </div>
 
         <div className="settings-card card-surface settings-card-wide">

@@ -70,7 +70,11 @@ function SyncStatusBubble() {
     return 'idle';
   }, [status]);
 
-  const totalPending = (status.pendingMovies || 0) + (status.pendingTv || 0) + (status.pendingWatchlist || 0);
+  const totalPending = (status.pendingMovies || 0) +
+    (status.pendingTv || 0) +
+    (status.pendingWatchlist || 0) +
+    (status.pendingSettings || 0) +
+    (status.pendingClasses || 0);
 
   const lastSavedStr = useMemo(() => {
     if (!status.lastSaved) return 'Not saved yet';
@@ -112,6 +116,16 @@ function SyncStatusBubble() {
             label="Watchlist"
             state={status.watchlist}
             pending={status.pendingWatchlist}
+          />
+          <SyncStatusRow
+            label="Settings"
+            state={status.settings}
+            pending={status.pendingSettings}
+          />
+          <SyncStatusRow
+            label="Class Config"
+            state={status.classes}
+            pending={status.pendingClasses}
           />
         </div>
         {status.error && (

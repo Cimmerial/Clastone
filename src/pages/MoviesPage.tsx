@@ -19,7 +19,8 @@ function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
     title: item.title,
     poster_path: item.posterPath,
     media_type: 'movie',
-    subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined
+    subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined,
+    releaseDate: item.releaseDate
   };
 }
 

@@ -476,3 +476,37 @@
   color: var(--text-muted);
   font-weight: 400;
 }
+/* ── Minimized Mode ── */
+.entry-row-minimized {
+    padding: 0.35rem 0.6rem !important;
+    align-items: center !important;
+    grid-template-columns: auto 1fr auto !important;
+    gap: 0 1rem !important;
+}
+
+.entry-row-minimized .entry-poster {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 6px !important;
+    font-size: 0.7rem !important;
+}
+
+.entry-row-minimized .entry-content {
+    gap: 0.5rem !important;
+    margin: 0 !important;
+}
+
+.entry-row-minimized .entry-title {
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+}
+
+.entry-row-minimized .entry-controls-row {
+    display: none !important;
+}
+
+.entry-row-minimized .entry-left-col {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.8rem !important;
+}

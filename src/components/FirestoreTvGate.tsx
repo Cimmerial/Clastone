@@ -40,10 +40,18 @@ export function FirestoreTvGate({ children }: Props) {
   const onPersist = useCallback(
     (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
       if (!user || !db) return;
-      updateStatus('tv', 'saving', { pendingCount: payload.pendingCount });
+      const count = payload.pendingCount ?? 0;
+      updateStatus('tv', 'saving', { pendingCount: count });
+      updateStatus('classes', 'saving', { pendingCount: count });
       saveTvShows(db, user.uid, payload)
-        .then(() => updateStatus('tv', 'idle', { label: `Saved ${payload.pendingCount ?? 0} TV changes` }))
-        .catch((err) => updateStatus('tv', 'error', { error: err.message }));
+        .then(() => {
+          updateStatus('tv', 'idle', { label: `Saved ${count} TV changes` });
+          updateStatus('classes', 'idle', { label: `Saved ${count} class changes` });
+        })
+        .catch((err) => {
+          updateStatus('tv', 'error', { error: err.message });
+          updateStatus('classes', 'error', { error: err.message });
+        });
     },
     [user?.uid, updateStatus]
   );

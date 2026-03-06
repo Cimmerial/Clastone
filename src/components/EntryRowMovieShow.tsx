@@ -10,17 +10,7 @@ import {
 } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-
-function getTopCastCount(): number {
-  try {
-    const v = localStorage.getItem('clastone-topCastCount');
-    if (v) {
-      const n = Number(v);
-      if (n >= 3 && n <= 10) return n;
-    }
-  } catch { /* ignore */ }
-  return 5;
-}
+import { useSettingsStore } from '../state/settingsStore';
 
 /** Watch type for display and validation. */
 export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'UNKNOWN';
@@ -135,7 +125,8 @@ export function EntryRowMovieShow({
   const releaseLabel = formatReleaseDate(item.releaseDate);
   const isUnranked = item.classKey === 'UNRANKED';
   const isNonRanked = item.classKey === 'BABY' || item.classKey === 'DELICIOUS_GARBAGE';
-  const topCastCount = getTopCastCount();
+  const { settings } = useSettingsStore();
+  const topCastCount = settings.topCastCount;
   const castSlice = (item.cast ?? []).slice(0, topCastCount);
   const [hoveredCastId, setHoveredCastId] = useState<number | null>(null);
 
@@ -143,6 +134,8 @@ export function EntryRowMovieShow({
   const [isVisible, setIsVisible] = useState(false);
   const { updateMovieCache } = useMoviesStore();
   const { updateShowCache } = useTvStore();
+
+  const isMinimized = settings.minimizedEntries;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -177,8 +170,8 @@ export function EntryRowMovieShow({
   }, [isVisible, item.tmdbId, item.id, listType, updateMovieCache, updateShowCache, item]);
 
   return (
-    <article className="entry-row" ref={rowRef}>
-      <div className="entry-poster">
+    <article className={`entry-row ${isMinimized ? 'entry-row-minimized' : ''}`} ref={rowRef}>
+      <div className="entry-poster" data-item-id={item.id}>
         {item.posterPath ? (
           <img src={tmdbImagePath(item.posterPath) ?? ''} alt="" loading="lazy" />
         ) : (
@@ -191,144 +184,121 @@ export function EntryRowMovieShow({
             {item.title}
             {releaseLabel ? <span className="entry-title-year"> ({releaseLabel})</span> : null}
           </h3>
-          <div className="entry-subtitle">{item.viewingDates}</div>
-          {!isUnranked && (
-            <div className="entry-stats-row">
-              <span className="entry-stat-pill" data-tooltip={isNonRanked ? 'Not ranked' : percentileTooltip ?? undefined}>
-                {isNonRanked ? 'N/A%' : item.percentileRank}
-              </span>
-              {!isNonRanked && (
-                <span className="entry-stat-pill" data-tooltip={absoluteTooltip ?? undefined}>
-                  {item.absoluteRank}
-                </span>
+          {!isMinimized && (
+            <>
+              <div className="entry-subtitle">{item.viewingDates}</div>
+              {!isUnranked && (
+                <div className="entry-stats-row">
+                  <span className="entry-stat-pill" data-tooltip={isNonRanked ? 'Not ranked' : percentileTooltip ?? undefined}>
+                    {isNonRanked ? 'N/A%' : item.percentileRank}
+                  </span>
+                  {!isNonRanked && (
+                    <span className="entry-stat-pill" data-tooltip={absoluteTooltip ?? undefined}>
+                      {item.absoluteRank}
+                    </span>
+                  )}
+                  <span className="entry-stat-pill" data-tooltip={classTooltip}>
+                    {item.rankInClass}
+                  </span>
+                </div>
               )}
-              <span className="entry-stat-pill" data-tooltip={classTooltip}>
-                {item.rankInClass}
-              </span>
-            </div>
+            </>
           )}
         </div>
 
-        {isUnranked ? (
-          <div className="entry-right-col">
-            <button
-              type="button"
-              className="entry-config-btn entry-record-first"
-              onClick={() => onRecordFirstWatch?.(item)}
-              data-tooltip="Record watch to rank"
-            >
-              Record First Watch
-            </button>
-            {castSlice.length > 0 && (
-              <div className="entry-cast-strip">
-                {castSlice.map((c) => {
-                  if (import.meta.env.DEV && c.profilePath) {
-                    console.debug(`[Clastone] Cast portrait for ${c.name}: ${c.profilePath}`);
-                  }
-                  return (
-                    <div
-                      key={c.id}
-                      className="entry-cast-thumb"
-                      onMouseEnter={() => setHoveredCastId(c.id)}
-                      onMouseLeave={() => setHoveredCastId(null)}
-                    >
-                      {c.profilePath ? (
-                        <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
-                      ) : (
-                        <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
-                      )}
-                      {hoveredCastId === c.id && (
-                        <div className="entry-cast-tooltip">
-                          <span className="entry-cast-tooltip-name">{c.name}</span>
-                          {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+        {isMinimized ? (
+          <div className="entry-controls-column">
+            {isUnranked && (
+              <button
+                type="button"
+                className="entry-config-btn entry-record-first"
+                onClick={() => onRecordFirstWatch?.(item)}
+                data-tooltip="Record Watch"
+              >
+                RW
+              </button>
             )}
+            <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class">⇡</button>
+            <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
+            <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
+            <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
+            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings">⚙</button>
           </div>
         ) : (
           <div className="entry-right-col">
-            <div className="entry-controls-column">
-              <button
-                type="button"
-                className="entry-config-btn"
-                aria-label="Move to previous class"
-                data-tooltip="Move to previous class"
-                disabled={!onClassUp}
-                onClick={onClassUp}
-              >
-                ⇡
-              </button>
-              <button
-                type="button"
-                className="entry-config-btn"
-                aria-label="Move to next class"
-                data-tooltip="Move to next class"
-                disabled={!onClassDown}
-                onClick={onClassDown}
-              >
-                ⇣
-              </button>
-              <button
-                type="button"
-                className="entry-config-btn"
-                aria-label="Move up"
-                data-tooltip="Move up"
-                disabled={!onMoveUp}
-                onClick={onMoveUp}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="entry-config-btn"
-                aria-label="Move down"
-                data-tooltip="Move down"
-                disabled={!onMoveDown}
-                onClick={onMoveDown}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="entry-config-btn"
-                aria-label="Entry settings"
-                data-tooltip="Edit watches"
-                onClick={() => onOpenSettings?.(item)}
-              >
-                ⚙
-              </button>
-            </div>
-            {castSlice.length > 0 && (
+            {isUnranked ? (
+              <>
+                <button
+                  type="button"
+                  className="entry-config-btn entry-record-first"
+                  onClick={() => onRecordFirstWatch?.(item)}
+                  data-tooltip="Record watch to rank"
+                >
+                  Record First Watch
+                </button>
+                {castSlice.length > 0 && (
+                  <div className="entry-cast-strip">
+                    {castSlice.map((c) => (
+                      <div
+                        key={c.id}
+                        className="entry-cast-thumb"
+                        onMouseEnter={() => setHoveredCastId(c.id)}
+                        onMouseLeave={() => setHoveredCastId(null)}
+                      >
+                        {c.profilePath ? (
+                          <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
+                        ) : (
+                          <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
+                        )}
+                        {hoveredCastId === c.id && (
+                          <div className="entry-cast-tooltip">
+                            <span className="entry-cast-tooltip-name">{c.name}</span>
+                            {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="entry-controls-column">
+                <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class">⇡</button>
+                <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
+                <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
+                <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
+                <button
+                  type="button"
+                  className="entry-config-btn"
+                  data-tooltip="Edit watches"
+                  onClick={() => onOpenSettings?.(item)}
+                >
+                  ⚙
+                </button>
+              </div>
+            )}
+            {!isUnranked && castSlice.length > 0 && (
               <div className="entry-cast-strip">
-                {castSlice.map((c) => {
-                  if (import.meta.env.DEV && c.profilePath) {
-                    console.debug(`[Clastone] Cast portrait for ${c.name}: ${c.profilePath}`);
-                  }
-                  return (
-                    <div
-                      key={c.id}
-                      className="entry-cast-thumb"
-                      onMouseEnter={() => setHoveredCastId(c.id)}
-                      onMouseLeave={() => setHoveredCastId(null)}
-                    >
-                      {c.profilePath ? (
-                        <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
-                      ) : (
-                        <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
-                      )}
-                      {hoveredCastId === c.id && (
-                        <div className="entry-cast-tooltip">
-                          <span className="entry-cast-tooltip-name">{c.name}</span>
-                          {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {castSlice.map((c) => (
+                  <div
+                    key={c.id}
+                    className="entry-cast-thumb"
+                    onMouseEnter={() => setHoveredCastId(c.id)}
+                    onMouseLeave={() => setHoveredCastId(null)}
+                  >
+                    {c.profilePath ? (
+                      <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
+                    ) : (
+                      <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
+                    )}
+                    {hoveredCastId === c.id && (
+                      <div className="entry-cast-tooltip">
+                        <span className="entry-cast-tooltip-name">{c.name}</span>
+                        {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -350,5 +320,3 @@ export function CompactMovieRow({ item }: CompactProps) {
     </article>
   );
 }
-
-
