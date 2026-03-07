@@ -444,6 +444,36 @@ export function SettingsPage() {
               <span className="settings-switch-slider"></span>
             </label>
           </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Show Cast Portraits</span>
+              <span className="settings-toggle-description">Display top cast members in the entry row.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.showCast}
+                onChange={(e) => updateSettings({ showCast: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Show Director/Creator Portraits</span>
+              <span className="settings-toggle-description">Display directors (movies) or creators (TV) in the entry row.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.showDirectors}
+                onChange={(e) => updateSettings({ showDirectors: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
         </div>
 
         <div className="settings-card card-surface settings-card-wide">

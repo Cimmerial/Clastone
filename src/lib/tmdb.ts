@@ -186,7 +186,7 @@ export type TmdbMovieCache = {
   releaseDate?: string;
   runtimeMinutes?: number;
   cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
-  directors: Array<{ id: number; name: string }>;
+  directors: Array<{ id: number; name: string; profilePath?: string }>;
 };
 
 /** Cached TV data we store on each entry so we don't need to re-fetch. */
@@ -205,7 +205,7 @@ export type TmdbTvCache = {
   /** Approximate total runtime for this instance (episode runtime * total episodes). */
   runtimeMinutes?: number;
   cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
-  creators: Array<{ id: number; name: string }>;
+  creators: Array<{ id: number; name: string; profilePath?: string }>;
   seasons: Array<{ seasonNumber: number; episodeCount?: number; airDate?: string }>;
 };
 
@@ -219,7 +219,7 @@ type TmdbMovieDetailsResponse = {
   runtime?: number | null;
   credits?: {
     cast?: Array<{ id: number; name?: string; character?: string; profile_path?: string | null }>;
-    crew?: Array<{ id: number; name?: string; job?: string }>;
+    crew?: Array<{ id: number; name?: string; job?: string; profile_path?: string | null }>;
   };
 };
 
@@ -234,7 +234,7 @@ type TmdbTvDetailsResponse = {
   number_of_seasons?: number | null;
   number_of_episodes?: number | null;
   episode_run_time?: number[] | null;
-  created_by?: Array<{ id: number; name?: string }>;
+  created_by?: Array<{ id: number; name?: string; profile_path?: string | null }>;
   seasons?: Array<{ season_number: number; episode_count?: number; air_date?: string | null }>;
   aggregate_credits?: {
     cast?: Array<{ id: number; name?: string; profile_path?: string | null; roles?: Array<{ character?: string }> }>;
@@ -280,7 +280,7 @@ export async function tmdbMovieDetailsFull(
     .map((c) => ({ id: c.id, name: c.name ?? '', character: c.character ?? undefined, profilePath: c.profile_path ?? undefined }));
   const directors = (data.credits?.crew ?? [])
     .filter((c) => c.job === 'Director')
-    .map((c) => ({ id: c.id, name: c.name ?? '' }));
+    .map((c) => ({ id: c.id, name: c.name ?? '', profilePath: c.profile_path ?? undefined }));
   const cache: TmdbMovieCache = {
     tmdbId: data.id,
     title: data.title ?? '',
@@ -321,7 +321,11 @@ export async function tmdbTvDetailsFull(
     profilePath: c.profile_path ?? undefined
   }));
   const cast = castFromAggregate.length > 0 ? castFromAggregate : castFromCredits;
-  const creators = (data.created_by ?? []).map((c) => ({ id: c.id, name: c.name ?? '' }));
+  const creators = (data.created_by ?? []).map((c) => ({
+    id: c.id,
+    name: c.name ?? '',
+    profilePath: c.profile_path ?? undefined
+  }));
   const seasonNumbers = (data.seasons ?? [])
     .map((s) => s.season_number ?? 0)
     .filter((n) => n > 0);

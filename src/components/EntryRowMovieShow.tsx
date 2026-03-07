@@ -34,7 +34,7 @@ export type WatchRecord = {
 /** Cached cast member (stored so we don't need to re-fetch from API). */
 export type CachedCastMember = { id: number; name: string; character?: string; profilePath?: string };
 /** Cached director (stored so we don't need to re-fetch from API). */
-export type CachedDirector = { id: number; name: string };
+export type CachedDirector = { id: number; name: string; profilePath?: string };
 
 export type MovieShowItem = RankedItemBase & {
   percentileRank: string;
@@ -236,30 +236,55 @@ export function EntryRowMovieShow({
                 >
                   Record First Watch
                 </button>
-                {castSlice.length > 0 && (
-                  <div className="entry-cast-strip">
-                    {castSlice.map((c) => (
-                      <div
-                        key={c.id}
-                        className="entry-cast-thumb"
-                        onMouseEnter={() => setHoveredCastId(c.id)}
-                        onMouseLeave={() => setHoveredCastId(null)}
-                      >
-                        {c.profilePath ? (
-                          <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
-                        ) : (
-                          <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
-                        )}
-                        {hoveredCastId === c.id && (
-                          <div className="entry-cast-tooltip">
-                            <span className="entry-cast-tooltip-name">{c.name}</span>
-                            {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="entry-cast-strip">
+                  {settings.showDirectors && (item.directors || []).length > 0 && (
+                    <>
+                      {(item.directors || []).slice(0, 2).map((d) => (
+                        <div
+                          key={d.id}
+                          className="entry-cast-thumb entry-director-thumb"
+                          onMouseEnter={() => setHoveredCastId(d.id)}
+                          onMouseLeave={() => setHoveredCastId(null)}
+                        >
+                          {d.profilePath ? (
+                            <img src={tmdbImagePath(d.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
+                          ) : (
+                            <span className="entry-cast-fallback">{d.name.charAt(0)}</span>
+                          )}
+                          {hoveredCastId === d.id && (
+                            <div className="entry-cast-tooltip">
+                              <span className="entry-cast-tooltip-name">{d.name}</span>
+                              <span className="entry-cast-tooltip-char">{listType === 'shows' ? 'Creator' : 'Director'}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {settings.showCast && castSlice.length > 0 && (
+                        <div className="entry-cast-separator" />
+                      )}
+                    </>
+                  )}
+                  {settings.showCast && castSlice.map((c) => (
+                    <div
+                      key={c.id}
+                      className="entry-cast-thumb"
+                      onMouseEnter={() => setHoveredCastId(c.id)}
+                      onMouseLeave={() => setHoveredCastId(null)}
+                    >
+                      {c.profilePath ? (
+                        <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
+                      ) : (
+                        <span className="entry-cast-fallback">{c.name.charAt(0)}</span>
+                      )}
+                      {hoveredCastId === c.id && (
+                        <div className="entry-cast-tooltip">
+                          <span className="entry-cast-tooltip-name">{c.name}</span>
+                          {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </>
             ) : (
               <div className="entry-controls-column">
@@ -277,9 +302,36 @@ export function EntryRowMovieShow({
                 </button>
               </div>
             )}
-            {!isUnranked && castSlice.length > 0 && (
+            {!isUnranked && (
               <div className="entry-cast-strip">
-                {castSlice.map((c) => (
+                {settings.showDirectors && (item.directors || []).length > 0 && (
+                  <>
+                    {(item.directors || []).slice(0, 2).map((d) => (
+                      <div
+                        key={d.id}
+                        className="entry-cast-thumb entry-director-thumb"
+                        onMouseEnter={() => setHoveredCastId(d.id)}
+                        onMouseLeave={() => setHoveredCastId(null)}
+                      >
+                        {d.profilePath ? (
+                          <img src={tmdbImagePath(d.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
+                        ) : (
+                          <span className="entry-cast-fallback">{d.name.charAt(0)}</span>
+                        )}
+                        {hoveredCastId === d.id && (
+                          <div className="entry-cast-tooltip">
+                            <span className="entry-cast-tooltip-name">{d.name}</span>
+                            <span className="entry-cast-tooltip-char">{listType === 'shows' ? 'Creator' : 'Director'}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {settings.showCast && castSlice.length > 0 && (
+                      <div className="entry-cast-separator" />
+                    )}
+                  </>
+                )}
+                {settings.showCast && castSlice.map((c) => (
                   <div
                     key={c.id}
                     className="entry-cast-thumb"

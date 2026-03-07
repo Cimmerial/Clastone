@@ -3,6 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 export type GlobalSettings = {
     topCastCount: number;
     minimizedEntries: boolean;
+    showCast: boolean;
+    showDirectors: boolean;
 };
 
 type SettingsStore = {
@@ -16,12 +18,17 @@ function getInitialSettings(): GlobalSettings {
     try {
         const cast = localStorage.getItem('clastone-topCastCount');
         const min = localStorage.getItem('clastone-minimizedEntries');
+        const sc = localStorage.getItem('clastone-showCast');
+        const sd = localStorage.getItem('clastone-showDirectors');
+
         return {
             topCastCount: cast ? Number(cast) : 5,
-            minimizedEntries: min === 'true'
+            minimizedEntries: min === 'true',
+            showCast: sc !== 'false', // Default to true
+            showDirectors: sd !== 'false' // Default to true
         };
     } catch {
-        return { topCastCount: 5, minimizedEntries: false };
+        return { topCastCount: 5, minimizedEntries: false, showCast: true, showDirectors: true };
     }
 }
 
@@ -81,6 +88,8 @@ export function SettingsProvider({
             try {
                 if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));
                 if (updates.minimizedEntries !== undefined) localStorage.setItem('clastone-minimizedEntries', String(next.minimizedEntries));
+                if (updates.showCast !== undefined) localStorage.setItem('clastone-showCast', String(next.showCast));
+                if (updates.showDirectors !== undefined) localStorage.setItem('clastone-showDirectors', String(next.showDirectors));
             } catch { /* ignore */ }
             return next;
         });
