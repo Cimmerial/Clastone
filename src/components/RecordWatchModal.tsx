@@ -20,7 +20,7 @@ export type RecordWatchTarget = {
   stringId?: string;
   title: string;
   poster_path?: string;
-  media_type: 'movie' | 'tv';
+  media_type: 'movie' | 'tv' | 'person';
   subtitle?: string;
   releaseDate?: string;
   runtimeMinutes?: number;
@@ -225,7 +225,7 @@ export function RecordWatchModal({
 
     // Basic validation for the first record for now
     const first = records[0];
-    if ((first.type === 'DATE' || first.type === 'RANGE' || first.type === 'DNF' || first.type === 'CURRENT') && !first.year) {
+    if (target.media_type !== 'person' && (first.type === 'DATE' || first.type === 'RANGE' || first.type === 'DNF' || first.type === 'CURRENT') && !first.year) {
       setError('Please enter a year for your watch.');
       return;
     }
@@ -265,127 +265,129 @@ export function RecordWatchModal({
       <div className={`record-modal ${showClassPicker ? 'record-modal-wide' : 'record-modal-compact'}`} onClick={(e) => e.stopPropagation()}>
         <div className={`record-modal-layout ${!showClassPicker ? 'record-modal-layout-single' : ''}`}>
           {/* LEFT COLUMN */}
-          <div className="record-modal-left">
-            <header className="record-modal-left-header">
-              <h1 className="record-modal-large-title">{target.title}</h1>
-            </header>
+          {target.media_type !== 'person' && (
+            <div className="record-modal-left">
+              <header className="record-modal-left-header">
+                <h1 className="record-modal-large-title">{target.title}</h1>
+              </header>
 
-            <div className="record-entries-list">
-              {records.map((r, idx) => {
-                const isDnfOrCurrent = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
-                const isRange = r.type === 'RANGE';
-                const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
+              <div className="record-entries-list">
+                {records.map((r, idx) => {
+                  const isDnfOrCurrent = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
+                  const isRange = r.type === 'RANGE';
+                  const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
 
-                return (
-                  <div key={r.id} className="record-entry-row">
-                    <div className="record-entry-main">
-                      <div className="record-entry-inputs">
-                        <ThemedDropdown
-                          value={r.type || 'DATE'}
-                          options={WATCH_TYPES}
-                          onChange={(v) => updateRecord(r.id, { type: v as WatchRecordType })}
-                          className="record-type-dropdown"
-                        />
-
-                        {showDates && (
-                          <>
-                            <ThemedDropdown
-                              value={String(r.year || '')}
-                              options={yearOptions}
-                              onChange={(v) => updateRecord(r.id, { year: parseInt(v, 10) || undefined })}
-                              placeholder="Year"
-                              className="record-date-dropdown record-year-dropdown"
-                            />
-
-                            <ThemedDropdown
-                              value={String(r.month || '')}
-                              options={getMonthOptionsForRecord(String(r.year || ''))}
-                              onChange={(v) => updateRecord(r.id, { month: parseInt(v, 10) || undefined })}
-                              placeholder="Month"
-                              className="record-date-dropdown"
-                            />
-
-                            <ThemedDropdown
-                              value={String(r.day || '')}
-                              options={getDayOptionsForRecord(String(r.year || ''), String(r.month || ''))}
-                              onChange={(v) => updateRecord(r.id, { day: parseInt(v, 10) || undefined })}
-                              placeholder="Day"
-                              className="record-date-dropdown"
-                            />
-                          </>
-                        )}
-
-                        {isRange && (
-                          <>
-                            <span className="range-sep">to</span>
-                            <ThemedDropdown
-                              value={String(r.endYear || '')}
-                              options={yearOptions}
-                              onChange={(v) => updateRecord(r.id, { endYear: parseInt(v, 10) || undefined })}
-                              placeholder="Year"
-                              className="record-date-dropdown record-year-dropdown"
-                            />
-                            <ThemedDropdown
-                              value={String(r.endMonth || '')}
-                              options={getMonthOptionsForRecord(String(r.endYear || ''))}
-                              onChange={(v) => updateRecord(r.id, { endMonth: parseInt(v, 10) || undefined })}
-                              placeholder="Month"
-                              className="record-date-dropdown"
-                            />
-                            <ThemedDropdown
-                              value={String(r.endDay || '')}
-                              options={getDayOptionsForRecord(String(r.endYear || ''), String(r.endMonth || ''))}
-                              onChange={(v) => updateRecord(r.id, { endDay: parseInt(v, 10) || undefined })}
-                              placeholder="Day"
-                              className="record-date-dropdown"
-                            />
-                          </>
-                        )}
-                      </div>
-
-                      {(r.type === 'DATE' || r.type === 'DNF' || r.type === 'CURRENT') && (
-                        <div className="record-entry-presets">
+                  return (
+                    <div key={r.id} className="record-entry-row">
+                      <div className="record-entry-main">
+                        <div className="record-entry-inputs">
                           <ThemedDropdown
-                            value=""
-                            options={[
-                              ...DATE_PRESET_OPTIONS,
-                              { value: 'reset', label: 'Reset' }
-                            ]}
-                            triggerLabel="P"
-                            showOnHover={true}
-                            onChange={(v) => applyPreset(r.id, v as DatePreset | 'reset')}
-                            className="record-preset-dropdown"
+                            value={r.type || 'DATE'}
+                            options={WATCH_TYPES}
+                            onChange={(v) => updateRecord(r.id, { type: v as WatchRecordType })}
+                            className="record-type-dropdown"
                           />
+
+                          {showDates && (
+                            <>
+                              <ThemedDropdown
+                                value={String(r.year || '')}
+                                options={yearOptions}
+                                onChange={(v) => updateRecord(r.id, { year: parseInt(v, 10) || undefined })}
+                                placeholder="Year"
+                                className="record-date-dropdown record-year-dropdown"
+                              />
+
+                              <ThemedDropdown
+                                value={String(r.month || '')}
+                                options={getMonthOptionsForRecord(String(r.year || ''))}
+                                onChange={(v) => updateRecord(r.id, { month: parseInt(v, 10) || undefined })}
+                                placeholder="Month"
+                                className="record-date-dropdown"
+                              />
+
+                              <ThemedDropdown
+                                value={String(r.day || '')}
+                                options={getDayOptionsForRecord(String(r.year || ''), String(r.month || ''))}
+                                onChange={(v) => updateRecord(r.id, { day: parseInt(v, 10) || undefined })}
+                                placeholder="Day"
+                                className="record-date-dropdown"
+                              />
+                            </>
+                          )}
+
+                          {isRange && (
+                            <>
+                              <span className="range-sep">to</span>
+                              <ThemedDropdown
+                                value={String(r.endYear || '')}
+                                options={yearOptions}
+                                onChange={(v) => updateRecord(r.id, { endYear: parseInt(v, 10) || undefined })}
+                                placeholder="Year"
+                                className="record-date-dropdown record-year-dropdown"
+                              />
+                              <ThemedDropdown
+                                value={String(r.endMonth || '')}
+                                options={getMonthOptionsForRecord(String(r.endYear || ''))}
+                                onChange={(v) => updateRecord(r.id, { endMonth: parseInt(v, 10) || undefined })}
+                                placeholder="Month"
+                                className="record-date-dropdown"
+                              />
+                              <ThemedDropdown
+                                value={String(r.endDay || '')}
+                                options={getDayOptionsForRecord(String(r.endYear || ''), String(r.endMonth || ''))}
+                                onChange={(v) => updateRecord(r.id, { endDay: parseInt(v, 10) || undefined })}
+                                placeholder="Day"
+                                className="record-date-dropdown"
+                              />
+                            </>
+                          )}
+                        </div>
+
+                        {(r.type === 'DATE' || r.type === 'DNF' || r.type === 'CURRENT') && (
+                          <div className="record-entry-presets">
+                            <ThemedDropdown
+                              value=""
+                              options={[
+                                ...DATE_PRESET_OPTIONS,
+                                { value: 'reset', label: 'Reset' }
+                              ]}
+                              triggerLabel="P"
+                              showOnHover={true}
+                              onChange={(v) => applyPreset(r.id, v as DatePreset | 'reset')}
+                              className="record-preset-dropdown"
+                            />
+                          </div>
+                        )}
+
+                      </div>
+                      {isDnfOrCurrent && (
+                        <div className="record-entry-inline-extra">
+                          <label className="record-extra-slider">
+                            <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={r.dnfPercent ?? 50}
+                              onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
+                            />
+                          </label>
                         </div>
                       )}
-
+                      {(records.length > 1 || onRemoveEntry) && (
+                        <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
+                      )}
                     </div>
-                    {isDnfOrCurrent && (
-                      <div className="record-entry-inline-extra">
-                        <label className="record-extra-slider">
-                          <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={r.dnfPercent ?? 50}
-                            onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
-                          />
-                        </label>
-                      </div>
-                    )}
-                    {(records.length > 1 || onRemoveEntry) && (
-                      <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <button type="button" className="record-add-entry-btn" onClick={addRecord}>
-              + Add another watch
-            </button>
-          </div>
+              <button type="button" className="record-add-entry-btn" onClick={addRecord}>
+                + Add another watch
+              </button>
+            </div>
+          )}
 
           {/* RIGHT COLUMN */}
           <div className="record-modal-right">
@@ -452,10 +454,21 @@ export function RecordWatchModal({
                     onClick={() => void handleSave(true)}
                     disabled={isSaving}
                   >
-                    {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
+                    {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'person' ? 'Add to list and go' : target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
+                  </button>
+                )}
+                {target.media_type !== 'person' && (
+                  <button
+                    type="button"
+                    className="record-modal-save-btn record-modal-secondary-btn"
+                    onClick={() => void handleSave(false)}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving…' : 'Save and close'}
                   </button>
                 )}
               </div>
+
 
               {onRemoveEntry && (
                 <button

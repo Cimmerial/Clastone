@@ -2,9 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 export type GlobalSettings = {
     topCastCount: number;
+    topRoleCount: number;
+    personProjectsLimit: number;
     minimizedEntries: boolean;
     showCast: boolean;
     showDirectors: boolean;
+    boycottTalkShows: boolean;
 };
 
 type SettingsStore = {
@@ -17,20 +20,35 @@ const SettingsContext = createContext<SettingsStore | null>(null);
 function getInitialSettings(): GlobalSettings {
     try {
         const cast = localStorage.getItem('clastone-topCastCount');
+        const role = localStorage.getItem('clastone-topRoleCount');
+        const ppl = localStorage.getItem('clastone-personProjectsLimit');
         const min = localStorage.getItem('clastone-minimizedEntries');
         const sc = localStorage.getItem('clastone-showCast');
         const sd = localStorage.getItem('clastone-showDirectors');
+        const bts = localStorage.getItem('clastone-boycottTalkShows');
 
         return {
             topCastCount: cast ? Number(cast) : 5,
+            topRoleCount: role ? Number(role) : 5,
+            personProjectsLimit: ppl ? Number(ppl) : 12,
             minimizedEntries: min === 'true',
             showCast: sc !== 'false', // Default to true
-            showDirectors: sd !== 'false' // Default to true
+            showDirectors: sd !== 'false', // Default to true
+            boycottTalkShows: bts === 'true'
         };
     } catch {
-        return { topCastCount: 5, minimizedEntries: false, showCast: true, showDirectors: true };
+        return {
+            topCastCount: 5,
+            topRoleCount: 5,
+            personProjectsLimit: 12,
+            minimizedEntries: false,
+            showCast: true,
+            showDirectors: true,
+            boycottTalkShows: false
+        };
     }
 }
+
 
 export function SettingsProvider({
     children,
@@ -87,9 +105,13 @@ export function SettingsProvider({
             // Save to local storage as backup and for non-auth users.
             try {
                 if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));
+                if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
+                if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
                 if (updates.minimizedEntries !== undefined) localStorage.setItem('clastone-minimizedEntries', String(next.minimizedEntries));
                 if (updates.showCast !== undefined) localStorage.setItem('clastone-showCast', String(next.showCast));
                 if (updates.showDirectors !== undefined) localStorage.setItem('clastone-showDirectors', String(next.showDirectors));
+                if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
+
             } catch { /* ignore */ }
             return next;
         });

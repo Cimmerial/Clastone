@@ -7,6 +7,7 @@ export type SyncStatus = {
     tv: SyncState;
     watchlist: SyncState;
     settings: SyncState;
+    people: SyncState;
     classes: SyncState;
     lastSaved?: Date;
     lastSavedLabel?: string;
@@ -15,11 +16,13 @@ export type SyncStatus = {
     pendingTv: number;
     pendingWatchlist: number;
     pendingSettings: number;
+    pendingPeople: number;
     pendingClasses: number;
     migration: {
         movies: boolean;
         tv: boolean;
         watchlist: boolean;
+        people: boolean;
     };
 };
 
@@ -33,6 +36,7 @@ type SyncStatusContextType = {
         label?: string;
         isMigrated?: boolean;
     }) => void;
+    updateMigrationStatus: (domain: 'movies' | 'tv' | 'watchlist' | 'people', isMigrated: boolean) => void;
 };
 
 const SyncStatusContext = createContext<SyncStatusContextType | null>(null);
@@ -49,10 +53,13 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
         pendingWatchlist: 0,
         pendingSettings: 0,
         pendingClasses: 0,
+        people: 'idle',
+        pendingPeople: 0,
         migration: {
             movies: false,
             tv: false,
             watchlist: false,
+            people: false,
         }
     });
 
@@ -71,6 +78,7 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
                 if (domain === 'tv') next.tv = state;
                 if (domain === 'watchlist') next.watchlist = state;
                 if (domain === 'settings') next.settings = state;
+                if (domain === 'people') next.people = state;
                 if (domain === 'classes') next.classes = state;
 
                 if (details?.pendingCount !== undefined) {
@@ -78,6 +86,7 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
                     if (domain === 'tv') next.pendingTv = details.pendingCount;
                     if (domain === 'watchlist') next.pendingWatchlist = details.pendingCount;
                     if (domain === 'settings') next.pendingSettings = details.pendingCount;
+                    if (domain === 'people') next.pendingPeople = details.pendingCount;
                     if (domain === 'classes') next.pendingClasses = details.pendingCount;
                 }
 
@@ -89,12 +98,14 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
                     if (domain === 'movies') next.migration.movies = true;
                     if (domain === 'tv') next.migration.tv = true;
                     if (domain === 'watchlist') next.migration.watchlist = true;
+                    if (domain === 'people') next.migration.people = true;
                 }
 
                 if (details?.isMigrated !== undefined) {
                     if (domain === 'movies') next.migration.movies = details.isMigrated;
                     if (domain === 'tv') next.migration.tv = details.isMigrated;
                     if (domain === 'watchlist') next.migration.watchlist = details.isMigrated;
+                    if (domain === 'people') next.migration.people = details.isMigrated;
                 }
 
                 if (details?.error) {
@@ -116,7 +127,17 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
         []
     );
 
-    const value = useMemo(() => ({ status, updateStatus }), [status, updateStatus]);
+    const updateMigrationStatus = useCallback((domain: 'movies' | 'tv' | 'watchlist' | 'people', isMigrated: boolean) => {
+        setStatus(prev => ({
+            ...prev,
+            migration: {
+                ...prev.migration,
+                [domain]: isMigrated
+            }
+        }));
+    }, []);
+
+    const value = useMemo(() => ({ status, updateStatus, updateMigrationStatus }), [status, updateStatus, updateMigrationStatus]);
 
     return <SyncStatusContext.Provider value={value}>{children}</SyncStatusContext.Provider>;
 }

@@ -9,6 +9,8 @@ import {
 } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { tmdbPersonDetailsFull } from '../lib/tmdb';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { ClassKey } from './RankedList';
 import './DevTools.css';
@@ -16,6 +18,7 @@ import './DevTools.css';
 export function DevTools() {
   const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache } = useMoviesStore();
   const { byClass: tvByClass, classOrder: tvClassOrder, updateBatchShowCache } = useTvStore();
+  const { byClass: peopleByClass, forceRefreshPerson } = usePeopleStore();
   const [open, setOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -38,6 +41,8 @@ export function DevTools() {
     }
     return out;
   }, [tvByClass, tvClassOrder]);
+
+  const peopleCount = useMemo(() => Object.values(peopleByClass).flat().length, [peopleByClass]);
 
   const refreshableMovies = useMemo(
     () => movieItems.filter(({ item }) => needsMovieRefresh(item)),
@@ -134,6 +139,30 @@ export function DevTools() {
     }
   };
 
+  const handleRefreshPeople = async () => {
+    setIsRunning(true);
+    setLastError(null);
+    const people = Object.values(peopleByClass).flat();
+    setProgress({ done: 0, total: people.length });
+
+    try {
+      let done = 0;
+      for (const p of people) {
+        if (!p.tmdbId) {
+          done++;
+          continue;
+        }
+        await forceRefreshPerson(p.id);
+        done += 1;
+        setProgress({ done, total: people.length });
+      }
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   if (!import.meta.env.DEV) return null;
 
   return (
@@ -150,11 +179,10 @@ export function DevTools() {
                 ✕
               </button>
             </div>
-
             <div className="dev-modal-body">
               <div className="dev-row">
                 <span className="dev-label">Entries</span>
-                <span className="dev-value">{movieItems.length + tvItems.length}</span>
+                <span className="dev-value">{movieItems.length + tvItems.length + peopleCount}</span>
               </div>
               <div className="dev-row">
                 <span className="dev-label">Missing cached fields</span>
@@ -178,6 +206,14 @@ export function DevTools() {
                 >
                   Force refresh all
                 </button>
+                <button
+                  type="button"
+                  className="dev-secondary"
+                  disabled={isRunning || peopleCount === 0}
+                  onClick={handleRefreshPeople}
+                >
+                  Force refresh actors
+                </button>
               </div>
 
               {progress && (
@@ -197,4 +233,3 @@ export function DevTools() {
     </>
   );
 }
-

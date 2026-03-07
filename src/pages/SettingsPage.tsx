@@ -7,6 +7,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { StorageVisualizer } from '../components/StorageVisualizer';
+import { usePeopleStore } from '../state/peopleStore';
 import { MigrationOverlay, type MigrationStep } from '../components/MigrationOverlay';
 import './SettingsPage.css';
 
@@ -42,6 +43,14 @@ export function SettingsPage() {
     deleteClass: deleteTvClass,
     forceSync: forceSyncTv
   } = useTvStore();
+  const {
+    classes: peopleClasses,
+    byClass: peopleByClass,
+    renameItemClass: renamePersonClassLabel,
+    renameItemClassTagline: renamePersonClassTagline,
+    moveItemInClassOrder: movePersonClass,
+    forceSync: forceSyncPeople
+  } = usePeopleStore();
   const { forceSync: forceSyncWatchlist } = useWatchlistStore();
   const [newRankedLabel, setNewRankedLabel] = useState('');
   const [newUnrankedLabel, setNewUnrankedLabel] = useState('');
@@ -57,6 +66,8 @@ export function SettingsPage() {
   const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
   const rankedTvClasses = useMemo(() => tvClasses.filter((c) => c.isRanked), [tvClasses]);
   const nonRankedTvClasses = useMemo(() => tvClasses.filter((c) => !c.isRanked), [tvClasses]);
+  const rankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => c.isRanked), [peopleClasses]);
+  const nonRankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => !c.isRanked), [peopleClasses]);
 
   const canAddRanked = useMemo(() => newRankedLabel.trim().length > 0, [newRankedLabel]);
   const canAddUnranked = useMemo(() => newUnrankedLabel.trim().length > 0, [newUnrankedLabel]);
@@ -409,26 +420,103 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <div className="settings-card card-surface">
+          <h2 className="settings-title">People Class Management</h2>
+          <p className="settings-muted">
+            Ranked classes for actors/directors.
+          </p>
+
+          <h3 className="settings-subtitle">Ranked classes</h3>
+          <div className="settings-list">
+            {rankedPeopleClasses.map((c) => {
+              const count = (peopleByClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    <span className="settings-class-name-main">{c.label}</span>
+                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}>↑</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}>↓</button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renamePersonClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Tagline', c.tagline ?? '');
+                        if (next === null) return;
+                        renamePersonClassTagline(c.key, next);
+                      }}
+                    >
+                      Tagline
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
+          <div className="settings-list">
+            {nonRankedPeopleClasses.map((c) => {
+              const count = (peopleByClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    <span className="settings-class-name-main">{c.label}</span>
+                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    {/* No reordering/renaming for default classes like UNRANKED usually, but we can allow it if the user wants */}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Display</h2>
           <p className="settings-muted">
             Adjust how entries appear across your lists.
           </p>
           <label className="settings-slider-label">
-            <span>Top Cast Portraits: <strong>{settings.topCastCount}</strong></span>
+            <span className="settings-slider-range">3 – 10</span>
+          </label>
+
+          <label className="settings-slider-label">
+            <span>Actor Projects Limit: <strong>{settings.personProjectsLimit}</strong></span>
             <input
               type="range"
-              min={3}
-              max={10}
-              value={settings.topCastCount}
+              min={1}
+              max={50}
+              value={settings.personProjectsLimit}
               className="settings-slider"
               onChange={(e) => {
                 const v = Number(e.target.value);
-                updateSettings({ topCastCount: v });
+                updateSettings({ personProjectsLimit: v });
               }}
             />
-            <span className="settings-slider-range">3 – 10</span>
+            <span className="settings-slider-range">1 – 50</span>
           </label>
+
 
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
@@ -474,6 +562,22 @@ export function SettingsPage() {
               <span className="settings-switch-slider"></span>
             </label>
           </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Boycott certain shows/movies from actor lists</span>
+              <span className="settings-toggle-description">Hides variety/talk shows like 'The Tonight Show' or 'The Late Night Show'.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.boycottTalkShows}
+                onChange={(e) => updateSettings({ boycottTalkShows: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
@@ -491,6 +595,9 @@ export function SettingsPage() {
             </div>
             <div className={`migration-indicator ${status.migration.watchlist ? 'migrated' : 'pending'}`}>
               Watchlist: {status.migration.watchlist ? '✓ Migrated' : '⚠ Pending Migration'}
+            </div>
+            <div className={`migration-indicator ${status.migration.people ? 'migrated' : 'pending'}`}>
+              People: {status.migration.people ? '✓ Migrated' : '⚠ Pending Migration'}
             </div>
           </div>
 

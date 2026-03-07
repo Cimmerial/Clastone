@@ -11,6 +11,8 @@ import { DevTools } from './components/DevTools';
 import { TvProvider } from './state/tvStore';
 import { WatchlistProvider } from './state/watchlistStore';
 import { SyncStatusProvider } from './context/SyncStatusContext';
+import { FirestorePeopleGate } from './components/FirestorePeopleGate';
+import { PeopleProvider } from './state/peopleStore';
 
 function App() {
   const { user, loading } = useAuth();
@@ -38,13 +40,15 @@ function App() {
         <FirestoreSettingsGate>
           <FirestoreMoviesGate>
             <FirestoreTvGate>
-              <FirestoreWatchlistGate>
-                <NavBar />
-                <main className="app-main">
-                  <AppRoutes />
-                </main>
-                <DevTools />
-              </FirestoreWatchlistGate>
+              <FirestorePeopleGate>
+                <FirestoreWatchlistGate>
+                  <NavBar />
+                  <main className="app-main">
+                    <AppRoutes />
+                  </main>
+                  <DevTools />
+                </FirestoreWatchlistGate>
+              </FirestorePeopleGate>
             </FirestoreTvGate>
           </FirestoreMoviesGate>
         </FirestoreSettingsGate>
@@ -56,13 +60,15 @@ function App() {
     <SyncStatusProvider>
       <MoviesProvider>
         <TvProvider>
-          <WatchlistProvider initialMovies={[]} initialTv={[]}>
-            <NavBar />
-            <main className="app-main">
-              <AppRoutes />
-            </main>
-            <DevTools />
-          </WatchlistProvider>
+          <PeopleProvider>
+            <WatchlistProvider initialMovies={[]} initialTv={[]}>
+              <NavBar />
+              <main className="app-main">
+                <AppRoutes />
+              </main>
+              <DevTools />
+            </WatchlistProvider>
+          </PeopleProvider>
         </TvProvider>
       </MoviesProvider>
     </SyncStatusProvider>

@@ -223,6 +223,15 @@
   color: var(--accent-soft);
 }
 
+.entry-director-thumb {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.entry-role-seen {
+  border: 2px solid var(--accent-color, #00d2ff);
+  box-shadow: 0 0 8px rgba(0, 210, 255, 0.4);
+}
+
 .entry-config-btn,
 .entry-move-btn {
   border-radius: 999px;
@@ -447,10 +456,10 @@
 }
 
 .entry-cast-separator {
-  width: 1px;
+  width: 2px;
   height: 48px;
-  background: rgba(244, 162, 97, 0.4);
-  margin: 0 0.1rem;
+  background: rgba(244, 162, 97, 0.6);
+  margin: 0 0.4rem;
   align-self: center;
 }
 

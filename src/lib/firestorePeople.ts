@@ -1,0 +1,124 @@
+import {
+    doc,
+    getDoc,
+    setDoc,
+    collection,
+    writeBatch,
+    deleteDoc,
+    getDocs,
+    type Firestore
+} from 'firebase/firestore';
+import type { PersonItem, PeopleClassDef } from '../state/peopleStore';
+
+const NEW_ROOT = 'users';
+const PEOPLE_DATA_COLLECTION = 'peopleData';
+const METADATA_DOC_ID = 'metadata';
+
+const LEGACY_COLLECTION = 'users';
+const LEGACY_SUBCOLLECTION = 'data';
+const LEGACY_DOC_ID = 'people';
+
+/** Firestore does not allow undefined. Strip it from objects/arrays so setDoc succeeds. */
+function stripUndefined<T>(value: T): T {
+    if (value === undefined) return value;
+    if (Array.isArray(value)) {
+        return value
+            .filter((item) => item !== undefined)
+            .map((item) => stripUndefined(item)) as T;
+    }
+    if (value !== null && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (v !== undefined) {
+                out[k] = stripUndefined(v);
+            }
+        }
+        return out as T;
+    }
+    return value;
+}
+
+/** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
+function pruneItem(item: PersonItem): PersonItem {
+    return {
+        ...item,
+        roles: item.roles?.slice(0, 50), // Keep a reasonable amount
+        biography: item.biography && item.biography.length > 500
+            ? item.biography.slice(0, 500) + '...'
+            : item.biography,
+    };
+}
+
+export async function loadPeople(db: Firestore, userId: string): Promise<{
+    byClass: Record<string, PersonItem[]>;
+    classes: PeopleClassDef[];
+    isMigrated: boolean;
+}> {
+    // Try loading from the flat peopleData sub-collection
+    const peopleCol = collection(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION);
+    const peopleSnap = await getDocs(peopleCol);
+
+    if (!peopleSnap.empty) {
+        let classes: PeopleClassDef[] = [];
+        const byClass: Record<string, PersonItem[]> = {};
+
+        peopleSnap.forEach((d) => {
+            const id = d.id;
+            if (id === METADATA_DOC_ID) {
+                classes = (d.data().classes || []) as PeopleClassDef[];
+            } else if (id.startsWith('class_')) {
+                const classKey = id.replace('class_', '');
+                byClass[classKey] = (d.data().items || []) as PersonItem[];
+            }
+        });
+
+        return { byClass, classes, isMigrated: true };
+    }
+
+    // If new structure doesn't exist, check legacy
+    const legacyRef = doc(db, LEGACY_COLLECTION, userId, LEGACY_SUBCOLLECTION, LEGACY_DOC_ID);
+    const legacySnap = await getDoc(legacyRef);
+
+    if (legacySnap.exists()) {
+        console.info('[Clastone] Found legacy people data, migration required.');
+        const legacyData = legacySnap.data() as { byClass: Record<string, PersonItem[]>; classes: PeopleClassDef[] } | undefined;
+        return {
+            byClass: legacyData?.byClass || {},
+            classes: legacyData?.classes || [],
+            isMigrated: false
+        };
+    }
+
+    return { byClass: {}, classes: [], isMigrated: false };
+}
+
+export async function savePeople(
+    db: Firestore,
+    userId: string,
+    payload: { byClass: Record<string, PersonItem[]>; classes: PeopleClassDef[] }
+): Promise<void> {
+    const batch = writeBatch(db);
+
+    // 1. Save metadata
+    const metadataRef = doc(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION, METADATA_DOC_ID);
+    batch.set(metadataRef, stripUndefined({ classes: payload.classes }));
+
+    // 2. Save each class as a flat document
+    for (const item of payload.classes) {
+        const key = item.key;
+        const classRef = doc(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION, `class_${key}`);
+        const items = (payload.byClass[key] || []).map(pruneItem);
+        batch.set(classRef, stripUndefined({ items }));
+    }
+
+    // 3. Delete legacy document if it exists
+    const legacyRef = doc(db, LEGACY_COLLECTION, userId, LEGACY_SUBCOLLECTION, LEGACY_DOC_ID);
+    batch.delete(legacyRef);
+
+    console.info('[Clastone] Saving people to flat Firestore sub-collection', {
+        uid: userId,
+        classes: payload.classes.length
+    });
+
+    await batch.commit();
+}

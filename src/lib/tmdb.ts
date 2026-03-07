@@ -209,6 +209,27 @@ export type TmdbTvCache = {
   seasons: Array<{ seasonNumber: number; episodeCount?: number; airDate?: string }>;
 };
 
+/** Cached person data including their roles in movies and shows. */
+export type TmdbPersonCache = {
+  tmdbId: number;
+  name: string;
+  profilePath?: string;
+  birthday?: string;
+  deathday?: string;
+  biography?: string;
+  /** Roles from combined_credits, sorted by popularity. */
+  roles: Array<{
+    id: number;
+    title: string;
+    mediaType: 'movie' | 'tv';
+    character?: string;
+    posterPath?: string;
+    popularity: number;
+    voteCount?: number;
+    releaseDate?: string;
+  }>;
+};
+
 type TmdbMovieDetailsResponse = {
   id: number;
   title?: string;
@@ -374,6 +395,49 @@ export async function tmdbTvDetailsFull(
     episodeRuntimeMinutes: cache.episodeRuntimeMinutes,
     totalEpisodes: cache.totalEpisodes,
     runtimeMinutes: cache.runtimeMinutes
+  });
+  return cache;
+}
+
+export async function tmdbPersonDetailsFull(
+  personId: number,
+  signal?: AbortSignal
+): Promise<TmdbPersonCache | null> {
+  const data = await tmdbGet<any>(`/person/${personId}?append_to_response=combined_credits`, signal).catch(
+    () => null
+  );
+  if (!data) return null;
+
+  const roles = (data.combined_credits?.cast ?? [])
+    .map((c: any) => ({
+      id: c.id,
+      title: c.title ?? c.name ?? 'Unknown',
+      mediaType: c.media_type as 'movie' | 'tv',
+      character: c.character ?? undefined,
+      posterPath: c.poster_path ?? undefined,
+      popularity: c.popularity ?? 0,
+      voteCount: c.vote_count ?? 0,
+      releaseDate: c.release_date ?? c.first_air_date ?? undefined
+    }))
+    .sort((a: any, b: any) => {
+      const scoreA = (a.popularity || 0) * (a.voteCount || 0);
+      const scoreB = (b.popularity || 0) * (b.voteCount || 0);
+      return scoreB - scoreA;
+    });
+
+  const cache: TmdbPersonCache = {
+    tmdbId: data.id,
+    name: data.name ?? '',
+    profilePath: data.profile_path ?? undefined,
+    birthday: data.birthday ?? undefined,
+    deathday: data.deathday ?? undefined,
+    biography: data.biography ?? undefined,
+    roles
+  };
+
+  console.info('[Clastone] TMDB person cache fetched', {
+    tmdbId: cache.tmdbId,
+    name: cache.name
   });
   return cache;
 }
