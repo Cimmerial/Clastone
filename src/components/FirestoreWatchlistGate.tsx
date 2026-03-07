@@ -12,6 +12,7 @@ export function FirestoreWatchlistGate({ children }: Props) {
   const { user } = useAuth();
   const [initialMovies, setInitialMovies] = useState<WatchlistEntry[] | null>(null);
   const [initialTv, setInitialTv] = useState<WatchlistEntry[] | null>(null);
+  const { updateStatus } = useSyncStatus();
   const didLogLoadRef = useRef(false);
 
   useEffect(() => {
@@ -31,18 +32,22 @@ export function FirestoreWatchlistGate({ children }: Props) {
       }
       setInitialMovies(data.movies);
       setInitialTv(data.tv);
+      updateStatus('watchlist', 'idle', { isMigrated: data.isMigrated });
     });
-  }, [user?.uid]);
+  }, [user?.uid, updateStatus]);
 
-  const { updateStatus } = useSyncStatus();
 
   const onPersist = useCallback(
-    (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => {
+    async (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => {
       if (!user || !db) return;
       updateStatus('watchlist', 'saving', { pendingCount: payload.pendingCount });
-      saveWatchlist(db, user.uid, payload)
-        .then(() => updateStatus('watchlist', 'idle', { label: `Saved ${payload.pendingCount ?? 0} watchlist changes` }))
-        .catch((err) => updateStatus('watchlist', 'error', { error: err.message }));
+      try {
+        await saveWatchlist(db, user.uid, payload);
+        updateStatus('watchlist', 'idle', { label: `Saved ${payload.pendingCount ?? 0} watchlist changes` });
+      } catch (err: any) {
+        updateStatus('watchlist', 'error', { error: err.message });
+        throw err;
+      }
     },
     [user?.uid, updateStatus]
   );

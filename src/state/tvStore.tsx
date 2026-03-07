@@ -41,13 +41,15 @@ type TvStore = {
   updateBatchShowCache: (updates: Record<string, Partial<TmdbTvCache>>) => void;
   getShowById: (id: string) => MovieShowItem | null;
   removeShowEntry: (itemId: string) => void;
+  /** Manually trigger a save to Firestore. */
+  forceSync: () => Promise<void>;
 };
 
 type TvProviderProps = {
   children: React.ReactNode;
   initialByClass?: Record<ClassKey, MovieShowItem[]>;
   initialClasses?: MovieClassDef[];
-  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => void;
+  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => Promise<void>;
 };
 
 const TvContext = createContext<TvStore | null>(null);
@@ -329,7 +331,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           totalEpisodes: cache?.totalEpisodes
         };
 
-        console.info('[Clastone] addShowFromSearch', {
+        console.info('[Clastone] addTvFromSearch', {
           id: incoming.id,
           title: base.title,
           classKey: incoming.classKey,
@@ -517,7 +519,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateShowCache,
       updateBatchShowCache,
       getShowById,
-      removeShowEntry
+      removeShowEntry,
+      forceSync: async () => {
+        if (onPersist) {
+          await onPersist(lastStateRef.current);
+        }
+      }
     }),
     [
       classes,
@@ -541,7 +548,8 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateShowCache,
       updateBatchShowCache,
       getShowById,
-      removeShowEntry
+      removeShowEntry,
+      onPersist
     ]
   );
 

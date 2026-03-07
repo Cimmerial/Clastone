@@ -12,6 +12,7 @@ type Props = { children: React.ReactNode };
 
 export function FirestoreTvGate({ children }: Props) {
   const { user } = useAuth();
+  const { updateStatus } = useSyncStatus();
   const [initialByClass, setInitialByClass] = useState<Record<ClassKey, MovieShowItem[]> | null>(
     null
   );
@@ -32,26 +33,27 @@ export function FirestoreTvGate({ children }: Props) {
       }
       setInitialByClass(data.byClass);
       setInitialClasses(data.classes);
+      updateStatus('tv', 'idle', { isMigrated: data.isMigrated });
     });
-  }, [user?.uid]);
+  }, [user?.uid, updateStatus]);
 
-  const { updateStatus } = useSyncStatus();
 
   const onPersist = useCallback(
-    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
+    async (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
       if (!user || !db) return;
       const count = payload.pendingCount ?? 0;
       updateStatus('tv', 'saving', { pendingCount: count });
       updateStatus('classes', 'saving', { pendingCount: count });
-      saveTvShows(db, user.uid, payload)
-        .then(() => {
-          updateStatus('tv', 'idle', { label: `Saved ${count} TV changes` });
-          updateStatus('classes', 'idle', { label: `Saved ${count} class changes` });
-        })
-        .catch((err) => {
-          updateStatus('tv', 'error', { error: err.message });
-          updateStatus('classes', 'error', { error: err.message });
-        });
+
+      try {
+        await saveTvShows(db, user.uid, payload);
+        updateStatus('tv', 'idle', { label: `Saved ${count} TV changes` });
+        updateStatus('classes', 'idle', { label: `Saved ${count} class changes` });
+      } catch (err: any) {
+        updateStatus('tv', 'error', { error: err.message });
+        updateStatus('classes', 'error', { error: err.message });
+        throw err;
+      }
     },
     [user?.uid, updateStatus]
   );

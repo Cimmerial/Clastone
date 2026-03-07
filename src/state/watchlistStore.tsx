@@ -16,6 +16,8 @@ type WatchlistStore = {
   removeFromWatchlist: (id: string) => void;
   reorderWatchlist: (type: WatchlistType, orderedIds: string[]) => void;
   isInWatchlist: (id: string) => boolean;
+  /** Manually trigger a save to Firestore. */
+  forceSync: () => Promise<void>;
 };
 
 const WatchlistContext = createContext<WatchlistStore | null>(null);
@@ -24,7 +26,7 @@ type WatchlistProviderProps = {
   children: React.ReactNode;
   initialMovies?: WatchlistEntry[];
   initialTv?: WatchlistEntry[];
-  onPersist?: (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => void;
+  onPersist?: (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => Promise<void>;
 };
 
 export function WatchlistProvider({
@@ -135,9 +137,14 @@ export function WatchlistProvider({
       addToWatchlist,
       removeFromWatchlist,
       reorderWatchlist,
-      isInWatchlist
+      isInWatchlist,
+      forceSync: async () => {
+        if (onPersist) {
+          await onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+        }
+      }
     }),
-    [movies, tv, addToWatchlist, removeFromWatchlist, reorderWatchlist, isInWatchlist]
+    [movies, tv, addToWatchlist, removeFromWatchlist, reorderWatchlist, isInWatchlist, onPersist, pendingChanges]
   );
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;

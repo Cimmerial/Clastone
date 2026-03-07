@@ -12,6 +12,7 @@ type Props = { children: React.ReactNode };
 
 export function FirestoreMoviesGate({ children }: Props) {
   const { user } = useAuth();
+  const { updateStatus } = useSyncStatus();
   const [initialByClass, setInitialByClass] = useState<
     Record<ClassKey, MovieShowItem[]> | null
   >(null);
@@ -35,26 +36,28 @@ export function FirestoreMoviesGate({ children }: Props) {
       }
       setInitialByClass(data.byClass);
       setInitialClasses(data.classes);
+      updateStatus('movies', 'idle', { isMigrated: data.isMigrated });
+      updateStatus('classes', 'idle', { isMigrated: data.isMigrated });
     });
-  }, [user?.uid]);
+  }, [user?.uid, updateStatus]);
 
-  const { updateStatus } = useSyncStatus();
 
   const onPersist = useCallback(
-    (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
+    async (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
       if (!user || !db) return;
       const count = payload.pendingCount ?? 0;
       updateStatus('movies', 'saving', { pendingCount: count });
       updateStatus('classes', 'saving', { pendingCount: count });
-      saveMovies(db, user.uid, payload)
-        .then(() => {
-          updateStatus('movies', 'idle', { label: `Saved ${count} movie changes` });
-          updateStatus('classes', 'idle', { label: `Saved ${count} class changes` });
-        })
-        .catch((err) => {
-          updateStatus('movies', 'error', { error: err.message });
-          updateStatus('classes', 'error', { error: err.message });
-        });
+
+      try {
+        await saveMovies(db, user.uid, payload);
+        updateStatus('movies', 'idle', { label: `Saved ${count} movie changes` });
+        updateStatus('classes', 'idle', { label: `Saved ${count} class changes` });
+      } catch (err: any) {
+        updateStatus('movies', 'error', { error: err.message });
+        updateStatus('classes', 'error', { error: err.message });
+        throw err; // Re-throw so forceSync can catch it
+      }
     },
     [user?.uid, updateStatus]
   );

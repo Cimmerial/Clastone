@@ -2,15 +2,25 @@ import {
   doc,
   getDoc,
   setDoc,
+  collection,
+  writeBatch,
+  deleteDoc,
+  getDocs,
   type Firestore
 } from 'firebase/firestore';
 import type { ClassKey } from '../components/RankedList';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
 import { defaultMovieClassDefs, movieClasses, type MovieClassDef } from '../mock/movies';
 
-const MOVIES_COLLECTION = 'users';
-const MOVIES_SUBCOLLECTION = 'data';
-const MOVIES_DOC_ID = 'movies';
+/** Legacy paths (single document) */
+const LEGACY_COLLECTION = 'users';
+const LEGACY_SUBCOLLECTION = 'data';
+const LEGACY_DOC_ID = 'movies';
+
+/** New paths (collection-based) */
+const NEW_ROOT = 'users';
+const MOVIE_DATA_COLLECTION = 'movieData';
+const METADATA_DOC_ID = 'metadata';
 
 export type MoviesData = {
   byClass: Record<ClassKey, MovieShowItem[]>;
@@ -51,8 +61,6 @@ function stripUndefined<T>(value: T): T {
 
 /** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
 function pruneItem(item: MovieShowItem): MovieShowItem {
-  // We'll keep the top 10 cast members and directors to avoid empty UI 
-  // while still saving space compared to full TMDB responses.
   return {
     ...item,
     cast: item.cast?.slice(0, 10),
@@ -63,26 +71,53 @@ function pruneItem(item: MovieShowItem): MovieShowItem {
   };
 }
 
-export async function loadMovies(
-  db: Firestore,
-  userId: string
-): Promise<{ byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }> {
-  const ref = doc(db, MOVIES_COLLECTION, userId, MOVIES_SUBCOLLECTION, MOVIES_DOC_ID);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs };
-  const data = snap.data() as MoviesData | undefined;
-  const loadedClasses = Array.isArray(data?.classes) && data?.classes?.length
-    ? data.classes
-    : defaultMovieClassDefs;
-  const keys = loadedClasses.map((c) => c.key);
-  const base = emptyByClass(keys);
-  if (!data?.byClass || typeof data.byClass !== 'object') return { byClass: base, classes: loadedClasses };
-  for (const key of keys) {
-    if (Array.isArray((data.byClass as Record<string, unknown>)[key])) {
-      base[key] = (data.byClass as Record<ClassKey, MovieShowItem[]>)[key] as MovieShowItem[];
+export async function loadMovies(db: Firestore, userId: string): Promise<{
+  byClass: Record<ClassKey, MovieShowItem[]>;
+  classes: MovieClassDef[];
+  isMigrated: boolean
+}> {
+  // Try loading from the flat movieData sub-collection (4 segments per doc)
+  const moviesCol = collection(db, NEW_ROOT, userId, MOVIE_DATA_COLLECTION);
+  const moviesSnap = await getDocs(moviesCol);
+
+  if (!moviesSnap.empty) {
+    let classes: MovieClassDef[] = defaultMovieClassDefs;
+    const byClass: Record<ClassKey, MovieShowItem[]> = {};
+
+    moviesSnap.forEach((d) => {
+      const id = d.id;
+      if (id === METADATA_DOC_ID) {
+        classes = (d.data().classes || defaultMovieClassDefs) as MovieClassDef[];
+      } else if (id.startsWith('class_')) {
+        const classKey = id.replace('class_', '') as ClassKey;
+        byClass[classKey] = (d.data().items || []) as MovieShowItem[];
+      }
+    });
+
+    const classOrder = classes.map(c => c.key);
+    // Ensure all classes exist in byClass even if empty.
+    for (const ck of classOrder) {
+      if (!byClass[ck]) byClass[ck] = [];
     }
+
+    return { byClass, classes, isMigrated: true };
   }
-  return { byClass: base, classes: loadedClasses };
+
+  // If new structure doesn't exist, check legacy
+  const legacyRef = doc(db, LEGACY_COLLECTION, userId, LEGACY_SUBCOLLECTION, LEGACY_DOC_ID);
+  const legacySnap = await getDoc(legacyRef);
+
+  if (legacySnap.exists()) {
+    console.info('[Clastone] Found legacy movie data, migration required.');
+    const legacyData = legacySnap.data() as MoviesData | undefined;
+    return {
+      byClass: legacyData?.byClass || emptyByClass(movieClasses),
+      classes: legacyData?.classes || defaultMovieClassDefs,
+      isMigrated: false
+    };
+  }
+
+  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: false };
 }
 
 export async function saveMovies(
@@ -90,22 +125,28 @@ export async function saveMovies(
   userId: string,
   payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[] }
 ): Promise<void> {
-  const ref = doc(db, MOVIES_COLLECTION, userId, MOVIES_SUBCOLLECTION, MOVIES_DOC_ID);
-  const prunedByClass: Record<ClassKey, MovieShowItem[]> = {} as Record<ClassKey, MovieShowItem[]>;
-  for (const [key, list] of Object.entries(payload.byClass)) {
-    prunedByClass[key as ClassKey] = list.map(pruneItem);
+  const batch = writeBatch(db);
+
+  // 1. Save metadata
+  const metadataRef = doc(db, NEW_ROOT, userId, MOVIE_DATA_COLLECTION, METADATA_DOC_ID);
+  batch.set(metadataRef, stripUndefined({ classes: payload.classes }));
+
+  // 2. Save each class as a flat document (4 segments)
+  for (const item of payload.classes) {
+    const key = item.key;
+    const classRef = doc(db, NEW_ROOT, userId, MOVIE_DATA_COLLECTION, `class_${key}`);
+    const items = (payload.byClass[key] || []).map(pruneItem);
+    batch.set(classRef, stripUndefined({ items }));
   }
 
-  const prunedPayload = {
-    ...payload,
-    byClass: prunedByClass
-  };
+  // 3. Delete legacy document if it exists
+  const legacyRef = doc(db, LEGACY_COLLECTION, userId, LEGACY_SUBCOLLECTION, LEGACY_DOC_ID);
+  batch.delete(legacyRef);
 
-  const sanitized = stripUndefined(prunedPayload);
-  const total = Object.values(payload.byClass).reduce((acc, list) => acc + list.length, 0);
-  console.info('[Clastone] Saving movies to Firestore (pruned)', {
+  console.info('[Clastone] Saving movies to flat Firestore sub-collection', {
     uid: userId,
-    totalEntries: total
+    classes: payload.classes.length
   });
-  await setDoc(ref, sanitized);
+
+  await batch.commit();
 }

@@ -1,0 +1,187 @@
+.migration-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.migration-modal {
+    max-width: 500px;
+    width: 100%;
+    padding: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    animation: modal-pop 0.3s ease-out;
+}
+
+@keyframes modal-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.migration-title {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent-bright);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.migration-description {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 2rem;
+    line-height: 1.4;
+}
+
+.migration-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.migration-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.migration-progress-fill {
+    height: 100%;
+    background: var(--accent-gradient);
+    box-shadow: 0 0 15px rgba(232, 93, 4, 0.5);
+    transition: width 0.4s ease;
+}
+
+.migration-progress-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent-bright);
+    min-width: 2.5rem;
+}
+
+.migration-steps-log {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.migration-step-item {
+    display: flex;
+    gap: 1rem;
+    transition: all 0.2s ease;
+}
+
+.step-indicator {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.step-dot {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+}
+
+.step-icon {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.status-completed .step-icon {
+    color: #4ade80;
+}
+
+.status-error .step-icon {
+    color: #ef4444;
+}
+
+.step-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(244, 162, 97, 0.2);
+    border-top-color: rgb(244, 162, 97);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.step-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.status-pending .step-label {
+    color: var(--text-muted);
+}
+
+.status-running .step-label {
+    color: var(--accent-bright);
+}
+
+.step-message {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.migration-error-box {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 2rem;
+    color: #f87171;
+    font-size: 0.85rem;
+}
+
+.error-tip {
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+}
+
+.migration-success-footer,
+.migration-error-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.success-msg {
+    color: #4ade80;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}

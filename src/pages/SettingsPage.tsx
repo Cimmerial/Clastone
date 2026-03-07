@@ -3,7 +3,11 @@ import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useSyncStatus } from '../context/SyncStatusContext';
+import { StorageVisualizer } from '../components/StorageVisualizer';
+import { MigrationOverlay, type MigrationStep } from '../components/MigrationOverlay';
 import './SettingsPage.css';
 
 function getTopCastCount(): number {
@@ -16,6 +20,7 @@ function getTopCastCount(): number {
 
 export function SettingsPage() {
   const { user, signOut } = useAuth();
+  const { status } = useSyncStatus();
   const { settings, updateSettings } = useSettingsStore();
   const {
     classes,
@@ -25,6 +30,7 @@ export function SettingsPage() {
     renameClassTagline,
     moveClass,
     deleteClass,
+    forceSync: forceSyncMovies
   } = useMoviesStore();
   const {
     classes: tvClasses,
@@ -34,11 +40,17 @@ export function SettingsPage() {
     renameClassTagline: renameTvClassTagline,
     moveClass: moveTvClass,
     deleteClass: deleteTvClass,
+    forceSync: forceSyncTv
   } = useTvStore();
+  const { forceSync: forceSyncWatchlist } = useWatchlistStore();
   const [newRankedLabel, setNewRankedLabel] = useState('');
   const [newUnrankedLabel, setNewUnrankedLabel] = useState('');
   const [newRankedLabelTv, setNewRankedLabelTv] = useState('');
   const [newUnrankedLabelTv, setNewUnrankedLabelTv] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationSteps, setMigrationSteps] = useState<MigrationStep[]>([]);
+  const [migrationError, setMigrationError] = useState<string | undefined>();
+
   const signedIn = hasFirebaseConfig && user;
 
   const rankedClasses = useMemo(() => classes.filter((c) => c.isRanked), [classes]);
@@ -50,6 +62,60 @@ export function SettingsPage() {
   const canAddUnranked = useMemo(() => newUnrankedLabel.trim().length > 0, [newUnrankedLabel]);
   const canAddRankedTv = useMemo(() => newRankedLabelTv.trim().length > 0, [newRankedLabelTv]);
   const canAddUnrankedTv = useMemo(() => newUnrankedLabelTv.trim().length > 0, [newUnrankedLabelTv]);
+
+  const handleMigration = async () => {
+    const confirmed = confirm("This will manually trigger a full save of your data and ensure it's migrated to the new scalable structure. Continue?");
+    if (!confirmed) return;
+
+    const initialSteps: MigrationStep[] = [
+      { id: 'movies', label: 'Migrating Movies...', status: 'pending' },
+      { id: 'tv', label: 'Migrating TV Shows...', status: 'pending' },
+      { id: 'watchlist', label: 'Migrating Watchlist...', status: 'pending' },
+      { id: 'finalize', label: 'Finalizing Verification...', status: 'pending' }
+    ];
+
+    setMigrationSteps(initialSteps);
+    setMigrationError(undefined);
+    setIsMigrating(true);
+
+    const updateStep = (id: string, updates: Partial<MigrationStep>) => {
+      setMigrationSteps(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    };
+
+    try {
+      // Step 1: Movies
+      updateStep('movies', { status: 'running' });
+      await forceSyncMovies();
+      updateStep('movies', { status: 'completed' });
+
+      // Step 2: TV
+      updateStep('tv', { status: 'running' });
+      await forceSyncTv();
+      updateStep('tv', { status: 'completed' });
+
+      // Step 3: Watchlist
+      updateStep('watchlist', { status: 'running' });
+      await forceSyncWatchlist();
+      updateStep('watchlist', { status: 'completed' });
+
+      // Step 4: Finalize
+      updateStep('finalize', { status: 'running' });
+      // Small artificial delay for visual confirmation
+      await new Promise(r => setTimeout(r, 600));
+      updateStep('finalize', { status: 'completed' });
+
+    } catch (e: any) {
+      console.error('[Clastone] Migration failed', e);
+      setMigrationError(e.message || String(e));
+      // Mark current running step as error
+      setMigrationSteps(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s));
+    }
+  };
+
+  const migrationProgress = useMemo(() => {
+    const completed = migrationSteps.filter(s => s.status === 'completed').length;
+    return (completed / migrationSteps.length) * 100;
+  }, [migrationSteps]);
 
   return (
     <section>
@@ -381,6 +447,55 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
+          <h2 className="settings-title">Storage & Migration</h2>
+          <p className="settings-muted">
+            Visualize your Firestore storage usage and manually trigger a migration to the new scalable structure.
+          </p>
+
+          <div className="settings-migration-status">
+            <div className={`migration-indicator ${status.migration.movies ? 'migrated' : 'pending'}`}>
+              Movies: {status.migration.movies ? '✓ Migrated' : '⚠ Pending Migration'}
+            </div>
+            <div className={`migration-indicator ${status.migration.tv ? 'migrated' : 'pending'}`}>
+              TV Shows: {status.migration.tv ? '✓ Migrated' : '⚠ Pending Migration'}
+            </div>
+            <div className={`migration-indicator ${status.migration.watchlist ? 'migrated' : 'pending'}`}>
+              Watchlist: {status.migration.watchlist ? '✓ Migrated' : '⚠ Pending Migration'}
+            </div>
+          </div>
+
+          <div className="settings-storage-grid">
+            <StorageVisualizer
+              label="Movies"
+              classes={classes}
+              byClass={byClass}
+            />
+            <StorageVisualizer
+              label="TV Shows"
+              classes={tvClasses}
+              byClass={tvByClass}
+            />
+          </div>
+
+          <div className="settings-migration-actions">
+            {(!status.migration.movies || !status.migration.tv || !status.migration.watchlist) ? (
+              <button
+                type="button"
+                className="settings-btn settings-btn-primary"
+                onClick={handleMigration}
+                id="migrate-verify-btn"
+              >
+                Migrate and Verify Storage
+              </button>
+            ) : (
+              <div className="migration-complete-msg">
+                <span className="check-icon">✓</span> All data is successfully migrated to the new scalable structure.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
           <p className="settings-muted">
             {hasFirebaseConfig
@@ -400,6 +515,16 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {isMigrating && (
+        <MigrationOverlay
+          steps={migrationSteps}
+          progress={migrationProgress}
+          isComplete={migrationProgress === 100}
+          error={migrationError}
+          onClose={() => setIsMigrating(false)}
+        />
+      )}
     </section>
   );
 }

@@ -207,6 +207,8 @@ type MoviesStore = {
   getMovieById: (id: string) => MovieShowItem | null;
   /** Remove entry entirely from the list (e.g. when user deletes all watches in edit modal). */
   removeMovieEntry: (itemId: string) => void;
+  /** Manually trigger a save to Firestore. */
+  forceSync: () => Promise<void>;
 };
 
 const MoviesContext = createContext<MoviesStore | null>(null);
@@ -217,7 +219,7 @@ type MoviesProviderProps = {
   initialByClass?: Record<ClassKey, MovieShowItem[]>;
   initialClasses?: MovieClassDef[];
   /** Persist to Firestore when byClass changes (debounced). */
-  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => void;
+  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => Promise<void>;
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
@@ -726,9 +728,14 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       updateMovieCache,
       updateBatchMovieCache,
       getMovieById,
-      removeMovieEntry
+      removeMovieEntry,
+      forceSync: async () => {
+        if (onPersist) {
+          await onPersist(lastStateRef.current);
+        }
+      }
     }),
-    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry]
+    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry, onPersist]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;
