@@ -10,8 +10,13 @@
 }
 
 .record-modal-wide {
-  max-width: 2000px;
-  width: 90vw;
+  width: 1100px;
+  max-width: 95vw;
+}
+
+.record-modal-compact {
+  width: 850px;
+  max-width: 95vw;
 }
 
 .record-modal {
@@ -26,9 +31,15 @@
 }
 
 .record-modal-layout {
-  display: flex;
-  flex-direction: row;
-  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 440px;
+  max-height: 85vh;
+  min-height: 500px;
+}
+
+.record-modal-layout-single {
+  grid-template-columns: 1fr;
+  min-height: auto;
 }
 
 /* LEFT COLUMN */
@@ -53,7 +64,21 @@
 .record-entries-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 15px;
+  margin-bottom: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Scrollbar for entries */
+.record-entries-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.record-entries-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
 }
 
 .record-entry-row {
@@ -72,6 +97,8 @@
 
 .record-entry-inputs {
   display: flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.4rem;
@@ -133,6 +160,16 @@
 
 .record-entry-delete:hover {
   color: #ef4444;
+}
+
+.record-modal-close-icon:hover {
+  color: #fff;
+}
+
+.record-modal-close-icon-abs {
+  position: absolute;
+  top: 15px;
+  right: 15px;
 }
 
 .record-entry-inline-extra {
@@ -311,10 +348,42 @@
 
 .record-modal-footer {
   margin-top: auto;
+  padding-top: 20px;
   display: flex;
-  flex-direction: row;
-  gap: 0.75rem;
-  padding-top: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.record-modal-footer-main {
+  display: flex;
+  gap: 10px;
+}
+
+.record-modal-remove-all-btn {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.record-modal-remove-all-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+.record-modal-remove-all-btn--confirm {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.record-modal-remove-all-btn--confirm:hover {
+  background: #dc2626;
 }
 
 .record-modal-footer>button {

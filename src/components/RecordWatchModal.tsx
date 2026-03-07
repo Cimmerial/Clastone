@@ -11,11 +11,13 @@ const WATCH_TYPES: ThemedDropdownOption<WatchRecordType>[] = [
   { value: 'DNF', label: 'DNF: Specific date' },
   { value: 'DNF_LONG_AGO', label: 'DNF: Long ago' },
   { value: 'CURRENT', label: 'Currently watching' },
-  { value: 'LONG_AGO', label: 'Long ago' }
+  { value: 'LONG_AGO', label: 'Long ago' },
+  { value: 'UNKNOWN', label: 'Unknown' }
 ];
 
 export type RecordWatchTarget = {
   id: number;
+  stringId?: string;
   title: string;
   poster_path?: string;
   media_type: 'movie' | 'tv';
@@ -36,8 +38,10 @@ type Props = {
   target: RecordWatchTarget;
   rankedClasses: { key: string; label: string; tagline?: string }[];
   showClassPicker: boolean;
+  initialRecords?: WatchRecord[];
   onSave: (params: RecordWatchSaveParams, goToMovie: boolean) => void | Promise<void>;
   onClose: () => void;
+  onRemoveEntry?: (itemId: string) => void;
   isSaving: boolean;
   /** e.g. "Save and go to movie" */
   primaryButtonLabel?: string;
@@ -47,16 +51,17 @@ export function RecordWatchModal({
   target,
   rankedClasses,
   showClassPicker,
+  initialRecords,
   onSave,
   onClose,
+  onRemoveEntry,
   isSaving,
   primaryButtonLabel
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
-    // If we have existing records, we might want to show them?
-    // But the user said "Record watch button", which usually adds a new one.
-    // However, they also said "all of the entries".
-    // I'll start with just one new record for simplicity, but as a list.
+    if (initialRecords && initialRecords.length > 0) {
+      return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
+    }
     return [{
       id: crypto.randomUUID(),
       type: 'DATE',
@@ -66,6 +71,14 @@ export function RecordWatchModal({
   const [recordClassKey, setRecordClassKey] = useState('');
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [error, setError] = useState<string | null>(null);
+  const [removeClickCount, setRemoveClickCount] = useState(0);
+
+  useEffect(() => {
+    if (removeClickCount > 0) {
+      const timer = setTimeout(() => setRemoveClickCount(0), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [removeClickCount]);
 
   const getWatchProgressLabel = (r: WatchRecord) => {
     const label = r.type === 'DNF' || r.type === 'DNF_LONG_AGO' ? 'DNF' : 'Watching';
@@ -104,9 +117,10 @@ export function RecordWatchModal({
     setRecords(prev => [...prev, { id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord]);
   };
 
-  const removeRecord = (id: string) => {
-    if (records.length <= 1) return;
-    setRecords(prev => prev.filter(r => r.id !== id));
+  const removeRecord = (id: string | number) => {
+    // String(id) because crypto.randomUUID() returns string, but old props might be number (though unlikely here)
+    if (records.length <= 1 && !onRemoveEntry) return;
+    setRecords(prev => prev.filter(r => String(r.id) !== String(id)));
   };
 
   const { releaseYear, releaseMonth, releaseDay } = useMemo(() => {
@@ -176,6 +190,9 @@ export function RecordWatchModal({
     if (type === 'DNF_LONG_AGO') {
       return { id: r.id, type: 'DNF_LONG_AGO', dnfPercent: Math.min(100, Math.max(0, dnfPercent ?? 50)) };
     }
+    if (type === 'UNKNOWN') {
+      return { id: r.id, type: 'UNKNOWN' };
+    }
     if (!year) return null;
     if (type === 'DATE') {
       return {
@@ -223,6 +240,11 @@ export function RecordWatchModal({
       .filter((r): r is WatchRecord => r !== null);
 
     if (validatedWatches.length === 0) {
+      if (onRemoveEntry) {
+        onRemoveEntry(target.stringId || String(target.id));
+        onClose();
+        return;
+      }
       setError('Please enter at least one valid watch record.');
       return;
     }
@@ -240,8 +262,8 @@ export function RecordWatchModal({
 
   return (
     <div className="record-modal-backdrop" onClick={onClose}>
-      <div className="record-modal record-modal-wide" onClick={(e) => e.stopPropagation()}>
-        <div className="record-modal-layout">
+      <div className={`record-modal ${showClassPicker ? 'record-modal-wide' : 'record-modal-compact'}`} onClick={(e) => e.stopPropagation()}>
+        <div className={`record-modal-layout ${!showClassPicker ? 'record-modal-layout-single' : ''}`}>
           {/* LEFT COLUMN */}
           <div className="record-modal-left">
             <header className="record-modal-left-header">
@@ -252,7 +274,7 @@ export function RecordWatchModal({
               {records.map((r, idx) => {
                 const isDnfOrCurrent = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
                 const isRange = r.type === 'RANGE';
-                const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO';
+                const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
 
                 return (
                   <div key={r.id} className="record-entry-row">
@@ -337,27 +359,24 @@ export function RecordWatchModal({
                         </div>
                       )}
 
-                      {records.length > 1 && (
-                        <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
-                      )}
-
-                      {isDnfOrCurrent && (
-                        <div className="record-entry-inline-extra">
-                          <label className="record-extra-slider">
-                            <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={r.dnfPercent ?? 50}
-                              onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
-                            />
-                          </label>
-                        </div>
-                      )}
                     </div>
-
-
+                    {isDnfOrCurrent && (
+                      <div className="record-entry-inline-extra">
+                        <label className="record-extra-slider">
+                          <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={r.dnfPercent ?? 50}
+                            onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
+                          />
+                        </label>
+                      </div>
+                    )}
+                    {(records.length > 1 || onRemoveEntry) && (
+                      <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
+                    )}
                   </div>
                 );
               })}
@@ -371,7 +390,9 @@ export function RecordWatchModal({
           {/* RIGHT COLUMN */}
           <div className="record-modal-right">
             <header className="record-modal-right-header">
-              <span className="record-modal-class-picker-label">Ranked class — place top, middle, bottom</span>
+              {showClassPicker && (
+                <span className="record-modal-class-picker-label">Ranked class — place top, middle, bottom</span>
+              )}
               <button type="button" className="record-modal-close-icon" onClick={onClose}>✕</button>
             </header>
 
@@ -415,26 +436,51 @@ export function RecordWatchModal({
             {error && <div className="record-modal-error">{error}</div>}
 
             <footer className="record-modal-footer">
-              <button
-                type="button"
-                className="record-modal-save-btn record-modal-save-btn--secondary"
-                onClick={() => void handleSave(false)}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving…' : 'Save and close'}
-              </button>
-              <button
-                type="button"
-                className="record-modal-save-btn"
-                onClick={() => void handleSave(true)}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
-              </button>
+              <div className="record-modal-footer-main">
+                <button
+                  type="button"
+                  className={`record-modal-save-btn ${showClassPicker ? 'record-modal-save-btn--secondary' : ''}`}
+                  onClick={() => void handleSave(false)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Saving…' : 'Save and close'}
+                </button>
+                {showClassPicker && (
+                  <button
+                    type="button"
+                    className="record-modal-save-btn"
+                    onClick={() => void handleSave(true)}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
+                  </button>
+                )}
+              </div>
+
+              {onRemoveEntry && (
+                <button
+                  type="button"
+                  className={`record-modal-remove-all-btn ${removeClickCount === 1 ? 'record-modal-remove-all-btn--confirm' : ''}`}
+                  onClick={() => {
+                    if (removeClickCount === 1) {
+                      onRemoveEntry(target.stringId || String(target.id));
+                      onClose();
+                    } else {
+                      setRemoveClickCount(1);
+                    }
+                  }}
+                >
+                  {removeClickCount === 1 ? 'Double click to remove' : 'Remove from list'}
+                </button>
+              )}
             </footer>
           </div>
+
+          {!showClassPicker && (
+            <button type="button" className="record-modal-close-icon record-modal-close-icon-abs" onClick={onClose}>✕</button>
+          )}
         </div>
       </div>
-    </div>
+    </div >
   );
 }

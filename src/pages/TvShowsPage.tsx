@@ -13,6 +13,7 @@ function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
   return {
     id,
+    stringId: item.id,
     title: item.title,
     poster_path: item.posterPath,
     media_type: 'tv',
@@ -122,12 +123,19 @@ export function TvShowsPage() {
         }}
       />
       {settingsFor && (
-        <EntrySettingsModal
-          item={settingsFor}
+        <RecordWatchModal
+          target={tvItemToTarget(settingsFor)}
+          initialRecords={settingsFor.watchRecords}
+          showClassPicker={false}
+          rankedClasses={[]}
+          isSaving={false}
           onClose={() => setSettingsFor(null)}
-          onSave={(records) => updateShowWatchRecords(settingsFor.id, records)}
           onRemoveEntry={(id) => {
             removeShowEntry(id);
+            setSettingsFor(null);
+          }}
+          onSave={(params) => {
+            updateShowWatchRecords(settingsFor.id, params.watches);
             setSettingsFor(null);
           }}
         />
