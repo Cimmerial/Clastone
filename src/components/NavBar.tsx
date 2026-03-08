@@ -66,8 +66,8 @@ function SyncStatusBubble() {
   const { status } = useSyncStatus();
 
   const overallState: SyncState = useMemo(() => {
-    if (status.movies === 'error' || status.tv === 'error' || status.watchlist === 'error') return 'error';
-    if (status.movies === 'saving' || status.tv === 'saving' || status.watchlist === 'saving') return 'saving';
+    if (status.movies === 'error' || status.tv === 'error' || status.watchlist === 'error' || status.directors === 'error') return 'error';
+    if (status.movies === 'saving' || status.tv === 'saving' || status.watchlist === 'saving' || status.directors === 'saving') return 'saving';
     return 'idle';
   }, [status]);
 
@@ -75,6 +75,7 @@ function SyncStatusBubble() {
     (status.pendingTv || 0) +
     (status.pendingWatchlist || 0) +
     (status.pendingSettings || 0) +
+    (status.pendingDirectors || 0) +
     (status.pendingClasses || 0);
 
   const lastSavedStr = useMemo(() => {
@@ -117,6 +118,16 @@ function SyncStatusBubble() {
             label="Watchlist"
             state={status.watchlist}
             pending={status.pendingWatchlist}
+          />
+          <SyncStatusRow
+            label="Actors"
+            state={status.people}
+            pending={status.pendingPeople}
+          />
+          <SyncStatusRow
+            label="Directors"
+            state={status.directors}
+            pending={status.pendingDirectors}
           />
           <SyncStatusRow
             label="Settings"

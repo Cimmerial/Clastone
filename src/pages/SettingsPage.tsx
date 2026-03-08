@@ -7,7 +7,8 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { StorageVisualizer } from '../components/StorageVisualizer';
-import { usePeopleStore } from '../state/peopleStore';
+import { usePeopleStore, defaultPeopleClasses } from '../state/peopleStore';
+import { useDirectorsStore, defaultDirectorsClasses } from '../state/directorsStore';
 import { MigrationOverlay, type MigrationStep } from '../components/MigrationOverlay';
 import './SettingsPage.css';
 
@@ -46,16 +47,32 @@ export function SettingsPage() {
   const {
     classes: peopleClasses,
     byClass: peopleByClass,
+    addClass: addPersonClass,
     renameItemClass: renamePersonClassLabel,
     renameItemClassTagline: renamePersonClassTagline,
     moveItemInClassOrder: movePersonClass,
+    deleteClass: deletePersonClass,
     forceSync: forceSyncPeople
   } = usePeopleStore();
+  const {
+    classes: directorClasses,
+    byClass: directorByClass,
+    addClass: addDirectorClass,
+    renameItemClass: renameDirectorClassLabel,
+    renameItemClassTagline: renameDirectorClassTagline,
+    moveItemInClassOrder: moveDirectorClass,
+    deleteClass: deleteDirectorClass,
+    forceSync: forceSyncDirectors
+  } = useDirectorsStore();
   const { forceSync: forceSyncWatchlist } = useWatchlistStore();
   const [newRankedLabel, setNewRankedLabel] = useState('');
   const [newUnrankedLabel, setNewUnrankedLabel] = useState('');
   const [newRankedLabelTv, setNewRankedLabelTv] = useState('');
   const [newUnrankedLabelTv, setNewUnrankedLabelTv] = useState('');
+  const [newRankedLabelPeople, setNewRankedLabelPeople] = useState('');
+  const [newUnrankedLabelPeople, setNewUnrankedLabelPeople] = useState('');
+  const [newRankedLabelDirectors, setNewRankedLabelDirectors] = useState('');
+  const [newUnrankedLabelDirectors, setNewUnrankedLabelDirectors] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationSteps, setMigrationSteps] = useState<MigrationStep[]>([]);
   const [migrationError, setMigrationError] = useState<string | undefined>();
@@ -66,13 +83,20 @@ export function SettingsPage() {
   const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
   const rankedTvClasses = useMemo(() => tvClasses.filter((c) => c.isRanked), [tvClasses]);
   const nonRankedTvClasses = useMemo(() => tvClasses.filter((c) => !c.isRanked), [tvClasses]);
-  const rankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => c.isRanked), [peopleClasses]);
-  const nonRankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => !c.isRanked), [peopleClasses]);
-
   const canAddRanked = useMemo(() => newRankedLabel.trim().length > 0, [newRankedLabel]);
   const canAddUnranked = useMemo(() => newUnrankedLabel.trim().length > 0, [newUnrankedLabel]);
   const canAddRankedTv = useMemo(() => newRankedLabelTv.trim().length > 0, [newRankedLabelTv]);
   const canAddUnrankedTv = useMemo(() => newUnrankedLabelTv.trim().length > 0, [newUnrankedLabelTv]);
+  const canAddRankedPeople = useMemo(() => newRankedLabelPeople.trim().length > 0, [newRankedLabelPeople]);
+  const canAddUnrankedPeople = useMemo(() => newUnrankedLabelPeople.trim().length > 0, [newUnrankedLabelPeople]);
+  const canAddRankedDirectors = useMemo(() => newRankedLabelDirectors.trim().length > 0, [newRankedLabelDirectors]);
+  const canAddUnrankedDirectors = useMemo(() => newUnrankedLabelDirectors.trim().length > 0, [newUnrankedLabelDirectors]);
+
+  const rankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => c.isRanked), [peopleClasses]);
+  const nonRankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => !c.isRanked), [peopleClasses]);
+  const rankedDirectorClasses = useMemo(() => directorClasses.filter((c) => c.isRanked), [directorClasses]);
+  const nonRankedDirectorClasses = useMemo(() => directorClasses.filter((c) => !c.isRanked), [directorClasses]);
+
 
   const handleMigration = async () => {
     const confirmed = confirm("This will manually trigger a full save of your data and ensure it's migrated to the new scalable structure. Continue?");
@@ -82,6 +106,8 @@ export function SettingsPage() {
       { id: 'movies', label: 'Migrating Movies...', status: 'pending' },
       { id: 'tv', label: 'Migrating TV Shows...', status: 'pending' },
       { id: 'watchlist', label: 'Migrating Watchlist...', status: 'pending' },
+      { id: 'people', label: 'Migrating Actors...', status: 'pending' },
+      { id: 'directors', label: 'Migrating Directors...', status: 'pending' },
       { id: 'finalize', label: 'Finalizing Verification...', status: 'pending' }
     ];
 
@@ -109,7 +135,17 @@ export function SettingsPage() {
       await forceSyncWatchlist();
       updateStep('watchlist', { status: 'completed' });
 
-      // Step 4: Finalize
+      // Step 4: People (Actors)
+      updateStep('people', { status: 'running' });
+      await forceSyncPeople();
+      updateStep('people', { status: 'completed' });
+
+      // Step 5: Directors
+      updateStep('directors', { status: 'running' });
+      await forceSyncDirectors();
+      updateStep('directors', { status: 'completed' });
+
+      // Step 6: Finalize
       updateStep('finalize', { status: 'running' });
       // Small artificial delay for visual confirmation
       await new Promise(r => setTimeout(r, 600));
@@ -421,9 +457,9 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-card card-surface">
-          <h2 className="settings-title">People Class Management</h2>
+          <h2 className="settings-title">Actor Class Management</h2>
           <p className="settings-muted">
-            Ranked classes for actors/directors.
+            Ranked classes for actors.
           </p>
 
           <h3 className="settings-subtitle">Ranked classes</h3>
@@ -464,11 +500,25 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );
             })}
           </div>
+          <div className="settings-add-row">
+            <input value={newRankedLabelPeople} onChange={(e) => setNewRankedLabelPeople(e.target.value)} placeholder="Add ranked class…" className="settings-input" />
+            <button type="button" className="settings-btn" disabled={!canAddRankedPeople} onClick={() => { addPersonClass(newRankedLabelPeople, { isRanked: true }); setNewRankedLabelPeople(''); }}>Add</button>
+          </div>
+
+          {peopleClasses.length === 0 && (
+            <div className="settings-empty-classes">
+              <p>No actor classes defined.</p>
+              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => {
+                defaultPeopleClasses.forEach(c => addPersonClass(c.label, { isRanked: c.isRanked }));
+              }}>Initialize with Defaults</button>
+            </div>
+          )}
 
           <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
           <div className="settings-list">
@@ -484,11 +534,153 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    {/* No reordering/renaming for default classes like UNRANKED usually, but we can allow it if the user wants */}
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}>↑</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}>↓</button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renamePersonClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Tagline', c.tagline ?? '');
+                        if (next === null) return;
+                        renamePersonClassTagline(c.key, next);
+                      }}
+                    >
+                      Tagline
+                    </button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );
             })}
+          </div>
+          <div className="settings-add-row">
+            <input value={newUnrankedLabelPeople} onChange={(e) => setNewUnrankedLabelPeople(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
+            <button type="button" className="settings-btn" disabled={!canAddUnrankedPeople} onClick={() => { addPersonClass(newUnrankedLabelPeople, { isRanked: false }); setNewUnrankedLabelPeople(''); }}>Add</button>
+          </div>
+        </div>
+
+        <div className="settings-card card-surface">
+          <h2 className="settings-title">Director Class Management</h2>
+          <p className="settings-muted">
+            Ranked classes for directors.
+          </p>
+
+          <h3 className="settings-subtitle">Ranked classes</h3>
+          <div className="settings-list">
+            {rankedDirectorClasses.map((c) => {
+              const count = (directorByClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    <span className="settings-class-name-main">{c.label}</span>
+                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}>↑</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}>↓</button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renameDirectorClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Tagline', c.tagline ?? '');
+                        if (next === null) return;
+                        renameDirectorClassTagline(c.key, next);
+                      }}
+                    >
+                      Tagline
+                    </button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="settings-add-row">
+            <input value={newRankedLabelDirectors} onChange={(e) => setNewRankedLabelDirectors(e.target.value)} placeholder="Add ranked class…" className="settings-input" />
+            <button type="button" className="settings-btn" disabled={!canAddRankedDirectors} onClick={() => { addDirectorClass(newRankedLabelDirectors, { isRanked: true }); setNewRankedLabelDirectors(''); }}>Add</button>
+          </div>
+
+          {directorClasses.length === 0 && (
+            <div className="settings-empty-classes">
+              <p>No director classes defined.</p>
+              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => {
+                defaultDirectorsClasses.forEach(c => addDirectorClass(c.label, { isRanked: c.isRanked }));
+              }}>Initialize with Defaults</button>
+            </div>
+          )}
+
+          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
+          <div className="settings-list">
+            {nonRankedDirectorClasses.map((c) => {
+              const count = (directorByClass[c.key] ?? []).length;
+              return (
+                <div key={c.key} className="settings-list-item">
+                  <span className="settings-class-name">
+                    <span className="settings-class-name-main">{c.label}</span>
+                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
+                    <span className="settings-class-count">
+                      · {count} {count === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </span>
+                  <div className="settings-list-actions">
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}>↑</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}>↓</button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Rename class', c.label);
+                        if (!next) return;
+                        renameDirectorClassLabel(c.key, next);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => {
+                        const next = prompt('Tagline', c.tagline ?? '');
+                        if (next === null) return;
+                        renameDirectorClassTagline(c.key, next);
+                      }}
+                    >
+                      Tagline
+                    </button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="settings-add-row">
+            <input value={newUnrankedLabelDirectors} onChange={(e) => setNewUnrankedLabelDirectors(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
+            <button type="button" className="settings-btn" disabled={!canAddUnrankedDirectors} onClick={() => { addDirectorClass(newUnrankedLabelDirectors, { isRanked: false }); setNewUnrankedLabelDirectors(''); }}>Add</button>
           </div>
         </div>
 
@@ -597,7 +789,10 @@ export function SettingsPage() {
               Watchlist: {status.migration.watchlist ? '✓ Migrated' : '⚠ Pending Migration'}
             </div>
             <div className={`migration-indicator ${status.migration.people ? 'migrated' : 'pending'}`}>
-              People: {status.migration.people ? '✓ Migrated' : '⚠ Pending Migration'}
+              Actors: {status.migration.people ? '✓ Migrated' : '⚠ Pending Migration'}
+            </div>
+            <div className={`migration-indicator ${status.migration.directors ? 'migrated' : 'pending'}`}>
+              Directors: {status.migration.directors ? '✓ Migrated' : '⚠ Pending Migration'}
             </div>
           </div>
 
@@ -611,6 +806,16 @@ export function SettingsPage() {
               label="TV Shows"
               classes={tvClasses}
               byClass={tvByClass}
+            />
+            <StorageVisualizer
+              label="Actors"
+              classes={peopleClasses}
+              byClass={peopleByClass}
+            />
+            <StorageVisualizer
+              label="Directors"
+              classes={directorClasses}
+              byClass={directorByClass}
             />
           </div>
 

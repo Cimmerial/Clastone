@@ -7,12 +7,15 @@ import { FirestoreWatchlistGate } from './components/FirestoreWatchlistGate';
 import { MoviesProvider } from './state/moviesStore';
 import { FirestoreSettingsGate } from './components/FirestoreSettingsGate';
 import { LoginPage } from './pages/LoginPage';
+import { DirectorsPage } from './pages/DirectorsPage';
 import { DevTools } from './components/DevTools';
 import { TvProvider } from './state/tvStore';
 import { WatchlistProvider } from './state/watchlistStore';
 import { SyncStatusProvider } from './context/SyncStatusContext';
 import { FirestorePeopleGate } from './components/FirestorePeopleGate';
 import { PeopleProvider } from './state/peopleStore';
+import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
+import { DirectorsProvider } from './state/directorsStore';
 
 function App() {
   const { user, loading } = useAuth();
@@ -41,13 +44,15 @@ function App() {
           <FirestoreMoviesGate>
             <FirestoreTvGate>
               <FirestorePeopleGate>
-                <FirestoreWatchlistGate>
-                  <NavBar />
-                  <main className="app-main">
-                    <AppRoutes />
-                  </main>
-                  <DevTools />
-                </FirestoreWatchlistGate>
+                <FirestoreDirectorsGate>
+                  <FirestoreWatchlistGate>
+                    <NavBar />
+                    <main className="app-main">
+                      <AppRoutes />
+                    </main>
+                    <DevTools />
+                  </FirestoreWatchlistGate>
+                </FirestoreDirectorsGate>
               </FirestorePeopleGate>
             </FirestoreTvGate>
           </FirestoreMoviesGate>
@@ -61,13 +66,15 @@ function App() {
       <MoviesProvider>
         <TvProvider>
           <PeopleProvider>
-            <WatchlistProvider initialMovies={[]} initialTv={[]}>
-              <NavBar />
-              <main className="app-main">
-                <AppRoutes />
-              </main>
-              <DevTools />
-            </WatchlistProvider>
+            <DirectorsProvider>
+              <WatchlistProvider initialMovies={[]} initialTv={[]}>
+                <NavBar />
+                <main className="app-main">
+                  <AppRoutes />
+                </main>
+                <DevTools />
+              </WatchlistProvider>
+            </DirectorsProvider>
           </PeopleProvider>
         </TvProvider>
       </MoviesProvider>

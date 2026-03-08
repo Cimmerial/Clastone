@@ -7,9 +7,9 @@ import { useMoviesStore } from './moviesStore';
 import { useTvStore } from './tvStore';
 import { getTotalMinutesFromRecords, getTotalEpisodesFromRecords } from './moviesStore';
 
-export type PersonItem = RankedItemBase & {
+export type DirectorItem = RankedItemBase & {
     title: string; // Actor name
-    media_type: 'person';
+    media_type: 'director';
     tmdbId?: number;
     profilePath?: string;
     birthday?: string;
@@ -42,14 +42,14 @@ export type PersonItem = RankedItemBase & {
     rankInClass: string;
 };
 
-export type PeopleClassDef = {
+export type DirectorsClassDef = {
     key: string;
     label: string;
     tagline?: string;
     isRanked: boolean;
 };
 
-export const defaultPeopleClasses: PeopleClassDef[] = [
+export const defaultDirectorsClasses: DirectorsClassDef[] = [
     { key: 'WORSHIP', label: 'WORSHIP', isRanked: true },
     { key: 'ADORE', label: 'ADORE', isRanked: true },
     { key: 'RESPECT', label: 'RESPECT', isRanked: true },
@@ -59,11 +59,11 @@ export const defaultPeopleClasses: PeopleClassDef[] = [
     { key: 'UNRANKED', label: 'UNRANKED', isRanked: false },
 ];
 
-type PeopleStore = {
-    classes: PeopleClassDef[];
+type DirectorsStore = {
+    classes: DirectorsClassDef[];
     classOrder: string[];
-    byClass: Record<string, PersonItem[]>;
-    addPersonFromSearch: (incoming: {
+    byClass: Record<string, DirectorItem[]>;
+    addDirectorFromSearch: (incoming: {
         id: string;
         title: string;
         profilePath?: string;
@@ -73,9 +73,9 @@ type PeopleStore = {
     }) => void;
 
     moveItemToClass: (itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
-    updatePersonCache: (itemId: string, cache: Partial<TmdbPersonCache>) => void;
-    removePersonEntry: (itemId: string) => void;
-    getPersonById: (id: string) => PersonItem | null;
+    updateDirectorCache: (itemId: string, cache: Partial<TmdbPersonCache>) => void;
+    removeDirectorEntry: (itemId: string) => void;
+    getDirectorById: (id: string) => DirectorItem | null;
     forceSync: () => Promise<void>;
     reorderWithinClass: (classKey: string, orderedIds: string[]) => void;
     moveItemWithinClass: (itemId: string, direction: number) => void;
@@ -84,31 +84,31 @@ type PeopleStore = {
     renameItemClassTagline: (classKey: string, newTagline: string) => void;
     addClass: (label: string, options: { isRanked: boolean }) => void;
     deleteClass: (classKey: string) => void;
-    forceRefreshPerson: (itemId: string) => Promise<void>;
+    forceRefreshDirector: (itemId: string) => Promise<void>;
 };
 
-const PeopleContext = createContext<PeopleStore | null>(null);
+const DirectorsContext = createContext<DirectorsStore | null>(null);
 
-export function PeopleProvider({
+export function DirectorsProvider({
     children,
     initialByClass,
     initialClasses,
     onPersist
 }: {
     children: React.ReactNode;
-    initialByClass?: Record<string, PersonItem[]>;
-    initialClasses?: PeopleClassDef[];
+    initialByClass?: Record<string, DirectorItem[]>;
+    initialClasses?: DirectorsClassDef[];
     onPersist?: (payload: {
-        byClass: Record<string, PersonItem[]>;
-        classes: PeopleClassDef[];
+        byClass: Record<string, DirectorItem[]>;
+        classes: DirectorsClassDef[];
         pendingCount?: number;
         dirtyClasses?: string[];
         classesMetadataChanged?: boolean;
     }) => Promise<void>;
 }) {
-    const [classes, setClasses] = useState<PeopleClassDef[]>(initialClasses ?? defaultPeopleClasses);
+    const [classes, setClasses] = useState<DirectorsClassDef[]>(initialClasses ?? defaultDirectorsClasses);
     const classOrder = useMemo(() => classes.map(c => c.key), [classes]);
-    const [byClass, setByClass] = useState<Record<string, PersonItem[]>>(initialByClass ?? {});
+    const [byClass, setByClass] = useState<Record<string, DirectorItem[]>>(initialByClass ?? {});
 
 
     const { byClass: moviesByClass } = useMoviesStore();
@@ -137,10 +137,10 @@ export function PeopleProvider({
 
             for (const classKey of Object.keys(next)) {
                 const list = next[classKey] ?? [];
-                const newList = list.map(person => {
-                    if (!person.tmdbId) return person;
+                const newList = list.map(director => {
+                    if (!director.tmdbId) return director;
 
-                    const roles = person.roles ?? [];
+                    const roles = director.roles ?? [];
                     const movieCredits = allMovies.filter(m =>
                         roles.some(r => r.mediaType === 'movie' && `tmdb-movie-${r.id}` === m.id) &&
                         (m.watchRecords?.length ?? 0) > 0
@@ -178,16 +178,16 @@ export function PeopleProvider({
                     const lastSeenDate = last ? `${last.year}-${String(last.month || 1).padStart(2, '0')}-${String(last.day || 1).padStart(2, '0')}` : undefined;
 
                     if (
-                        person.movieMinutes !== movieMinutes ||
-                        person.showMinutes !== showMinutes ||
-                        person.moviesSeen.length !== moviesSeen.length ||
-                        person.showsSeen.length !== showsSeen.length ||
-                        person.firstSeenDate !== firstSeenDate ||
-                        person.lastSeenDate !== lastSeenDate
+                        director.movieMinutes !== movieMinutes ||
+                        director.showMinutes !== showMinutes ||
+                        director.moviesSeen.length !== moviesSeen.length ||
+                        director.showsSeen.length !== showsSeen.length ||
+                        director.firstSeenDate !== firstSeenDate ||
+                        director.lastSeenDate !== lastSeenDate
                     ) {
                         changed = true;
                         return {
-                            ...person,
+                            ...director,
                             movieMinutes,
                             showMinutes,
                             moviesSeen,
@@ -196,7 +196,7 @@ export function PeopleProvider({
                             lastSeenDate
                         };
                     }
-                    return person;
+                    return director;
                 });
 
                 if (changed) {
@@ -284,7 +284,7 @@ export function PeopleProvider({
 
                 if (pendingChanges > 0) {
                     e.preventDefault();
-                    e.returnValue = 'Saving people changes...';
+                    e.returnValue = 'Saving directors changes...';
                     return e.returnValue;
                 }
             }
@@ -294,7 +294,7 @@ export function PeopleProvider({
     }, [onPersist, pendingChanges]);
 
 
-    const addPersonFromSearch = useCallback((incoming: {
+    const addDirectorFromSearch = useCallback((incoming: {
         id: string;
         title: string;
         profilePath?: string;
@@ -307,11 +307,11 @@ export function PeopleProvider({
             if (alreadyExists) return prev;
 
             const cache = incoming.cache;
-            const base: PersonItem = {
+            const base: DirectorItem = {
                 id: incoming.id,
                 classKey: incoming.classKey as any,
                 title: cache?.name ?? incoming.title,
-                media_type: 'person',
+                media_type: 'director',
                 tmdbId: cache?.tmdbId,
                 profilePath: cache?.profilePath ?? incoming.profilePath,
                 birthday: cache?.birthday,
@@ -346,7 +346,7 @@ export function PeopleProvider({
     const moveItemToClass = useCallback((itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean }) => {
         setByClass(prev => {
             const next = { ...prev };
-            let item: PersonItem | null = null;
+            let item: DirectorItem | null = null;
             for (const k of Object.keys(next)) {
                 const idx = next[k]?.findIndex(p => p.id === itemId) ?? -1;
                 if (idx !== -1) {
@@ -369,7 +369,7 @@ export function PeopleProvider({
         });
     }, []);
 
-    const updatePersonCache = useCallback((itemId: string, cache: Partial<TmdbPersonCache>) => {
+    const updateDirectorCache = useCallback((itemId: string, cache: Partial<TmdbPersonCache>) => {
         setByClass(prev => {
             const next = { ...prev };
             for (const k of Object.keys(next)) {
@@ -383,7 +383,7 @@ export function PeopleProvider({
         });
     }, []);
 
-    const removePersonEntry = useCallback((itemId: string) => {
+    const removeDirectorEntry = useCallback((itemId: string) => {
         setByClass(prev => {
             const next = { ...prev };
             for (const k of Object.keys(next)) {
@@ -397,7 +397,7 @@ export function PeopleProvider({
         });
     }, []);
 
-    const getPersonById = useCallback((id: string) => {
+    const getDirectorById = useCallback((id: string) => {
         for (const k of Object.keys(byClass)) {
             const found = byClass[k].find(p => p.id === id);
             if (found) return found;
@@ -473,7 +473,7 @@ export function PeopleProvider({
         });
     }, []);
 
-    const forceRefreshPerson = useCallback(async (itemId: string) => {
+    const forceRefreshDirector = useCallback(async (itemId: string) => {
         let tmdbId: number | undefined;
         for (const k of Object.keys(byClass)) {
             const found = byClass[k].find(p => p.id === itemId);
@@ -487,22 +487,22 @@ export function PeopleProvider({
         try {
             const cache = await tmdbPersonDetailsFull(tmdbId);
             if (cache) {
-                updatePersonCache(itemId, cache);
+                updateDirectorCache(itemId, cache);
             }
         } catch (e) {
-            console.error('[Clastone] forceRefreshPerson failed', e);
+            console.error('[Clastone] forceRefreshDirector failed', e);
         }
-    }, [byClass, updatePersonCache]);
+    }, [byClass, updateDirectorCache]);
 
     const value = useMemo(() => ({
         classes,
         classOrder,
         byClass,
-        addPersonFromSearch,
+        addDirectorFromSearch,
         moveItemToClass,
-        updatePersonCache,
-        removePersonEntry,
-        getPersonById,
+        updateDirectorCache,
+        removeDirectorEntry,
+        getDirectorById,
         forceSync: async () => {
             if (onPersist) {
                 const dirtyClasses: string[] = [];
@@ -530,14 +530,14 @@ export function PeopleProvider({
         renameItemClassTagline,
         addClass,
         deleteClass,
-        forceRefreshPerson
-    }), [classes, classOrder, byClass, addPersonFromSearch, moveItemToClass, updatePersonCache, removePersonEntry, getPersonById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshPerson]);
+        forceRefreshDirector
+    }), [classes, classOrder, byClass, addDirectorFromSearch, moveItemToClass, updateDirectorCache, removeDirectorEntry, getDirectorById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshDirector]);
 
-    return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
+    return <DirectorsContext.Provider value={value}>{children}</DirectorsContext.Provider>;
 }
 
-export function usePeopleStore() {
-    const ctx = useContext(PeopleContext);
-    if (!ctx) throw new Error('usePeopleStore must be used within PeopleProvider');
+export function useDirectorsStore() {
+    const ctx = useContext(DirectorsContext);
+    if (!ctx) throw new Error('useDirectorsStore must be used within DirectorsProvider');
     return ctx;
 }

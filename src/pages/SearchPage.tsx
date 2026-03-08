@@ -12,6 +12,7 @@ import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 import './SearchPage.css';
 
@@ -54,7 +55,16 @@ export function SearchPage() {
     classOrder: peopleClassOrder,
     classes: peopleClasses
   } = usePeopleStore();
+  const {
+    addDirectorFromSearch,
+    getDirectorById,
+    updateDirectorCache,
+    moveItemToClass: moveDirectorToClass,
+    classOrder: directorsClassOrder,
+    classes: directorsClasses
+  } = useDirectorsStore();
   const [recordTarget, setRecordTarget] = useState<TmdbMultiResult | null>(null);
+  const [personSaveType, setPersonSaveType] = useState<'actor' | 'director' | null>(null);
   const [recordDetails, setRecordDetails] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
@@ -103,11 +113,15 @@ export function SearchPage() {
     return () => window.clearTimeout(t);
   }, []);
 
-  const handleCloseRecord = () => setRecordTarget(null);
+  const handleCloseRecord = () => {
+    setRecordTarget(null);
+    setPersonSaveType(null);
+  };
 
-  const handleOpenRecord = async (r: TmdbMultiResult) => {
+  const handleOpenRecord = async (r: TmdbMultiResult, type?: 'actor' | 'director') => {
     if (r.media_type !== 'movie' && r.media_type !== 'tv' && r.media_type !== 'person') return;
     setRecordTarget(r);
+    if (type) setPersonSaveType(type);
     setIsSaving(true);
     try {
       const cache = r.media_type === 'movie'
@@ -172,10 +186,10 @@ export function SearchPage() {
     setIsSaving(false);
   };
 
-  const handleAddPersonToUnranked = async (r: TmdbMultiResult) => {
+  const handleAddPersonToUnranked = async (r: TmdbMultiResult, type: 'actor' | 'director') => {
     if (r.media_type !== 'person') return;
     const id = resultId(r);
-    const existing = getPersonById(id);
+    const existing = type === 'actor' ? getPersonById(id) : getDirectorById(id);
     if (existing) return;
     setIsSaving(true);
     let cache = null;
@@ -184,13 +198,23 @@ export function SearchPage() {
     } catch {
       /* ignore */
     }
-    addPersonFromSearch({
-      id,
-      title: r.title,
-      profilePath: r.profile_path ?? cache?.profilePath,
-      classKey: 'UNRANKED',
-      cache: cache ?? undefined
-    });
+    if (type === 'actor') {
+      addPersonFromSearch({
+        id,
+        title: r.title,
+        profilePath: r.profile_path ?? cache?.profilePath,
+        classKey: 'UNRANKED',
+        cache: cache ?? undefined
+      });
+    } else {
+      addDirectorFromSearch({
+        id,
+        title: r.title,
+        profilePath: r.profile_path ?? cache?.profilePath,
+        classKey: 'UNRANKED',
+        cache: cache ?? undefined
+      });
+    }
     setIsSaving(false);
   };
 
@@ -219,6 +243,17 @@ export function SearchPage() {
           return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
         }),
     [peopleClassOrder, peopleClasses]
+  );
+
+  const directorsRankedClasses = useMemo(
+    () =>
+      directorsClassOrder
+        .filter((k) => k !== 'UNRANKED')
+        .map((k) => {
+          const c = directorsClasses.find(c => c.key === k);
+          return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
+        }),
+    [directorsClassOrder, directorsClasses]
   );
 
   const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
@@ -299,9 +334,15 @@ export function SearchPage() {
     }
 
     if (recordTarget.media_type === 'person') {
-      const existing = getPersonById(id);
+      const type = personSaveType || 'actor';
+      const isActor = type === 'actor';
+      const existing = isActor ? getPersonById(id) : getDirectorById(id);
+
       if (existing) {
-        if (recordClassKey) movePersonToClass(id, recordClassKey, { toTop, toMiddle });
+        if (recordClassKey) {
+          if (isActor) movePersonToClass(id, recordClassKey, { toTop, toMiddle });
+          else moveDirectorToClass(id, recordClassKey, { toTop, toMiddle });
+        }
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;
         setIsSaving(true);
@@ -309,19 +350,32 @@ export function SearchPage() {
         try {
           cache = await import('../lib/tmdb').then(m => m.tmdbPersonDetailsFull(recordTarget.id));
         } catch { /* ignore */ }
-        addPersonFromSearch({
-          id,
-          title: recordTarget.title,
-          profilePath: recordTarget.poster_path,
-          classKey: recordClassKey,
-          cache: cache ?? undefined,
-          position
-        });
+
+        if (isActor) {
+          addPersonFromSearch({
+            id,
+            title: recordTarget.title,
+            profilePath: recordTarget.poster_path,
+            classKey: recordClassKey,
+            cache: cache ?? undefined,
+            position
+          });
+        } else {
+          addDirectorFromSearch({
+            id,
+            title: recordTarget.title,
+            profilePath: recordTarget.poster_path,
+            classKey: recordClassKey,
+            cache: cache ?? undefined,
+            position
+          });
+        }
 
         setIsSaving(false);
       }
       setRecordTarget(null);
-      if (goToMovie) navigate('/actors', { replace: true, state: { scrollToId: id } });
+      setPersonSaveType(null);
+      if (goToMovie) navigate(isActor ? '/actors' : '/directors', { replace: true, state: { scrollToId: id } });
       return;
     }
   };
@@ -505,34 +559,56 @@ export function SearchPage() {
                     )}
                   </div>
                 ) : r.media_type === 'person' ? (
-                  <div className="search-card-actions">
-                    <button
-                      type="button"
-                      className="search-card-action"
-                      disabled={isSaving}
-                      onClick={() => handleOpenRecord(r)}
-                    >
-                      {getPersonById(id) && getPersonById(id)?.classKey !== 'UNRANKED' ? 'Edit Ranking' : 'Add to List'}
-                    </button>
-                    {!getPersonById(id) && (
+                  <div className="search-card-actions search-card-actions-person">
+                    <div className="search-card-action-group">
+                      <span className="search-card-action-label">Actor</span>
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
+                        className="search-card-action"
                         disabled={isSaving}
-                        onClick={() => void handleAddPersonToUnranked(r)}
+                        onClick={() => handleOpenRecord(r, 'actor')}
                       >
-                        Add to unranked
+                        {getPersonById(id) && getPersonById(id)?.classKey !== 'UNRANKED' ? 'Edit' : 'Add'}
                       </button>
-                    )}
-                    {getPersonById(id)?.classKey === 'UNRANKED' && (
+                      {!getPersonById(id) && (
+                        <button
+                          type="button"
+                          className="search-card-action search-card-action-subtle"
+                          disabled={isSaving}
+                          onClick={() => void handleAddPersonToUnranked(r, 'actor')}
+                        >
+                          Unranked
+                        </button>
+                      )}
+                      {getPersonById(id)?.classKey === 'UNRANKED' && (
+                        <span className="search-card-status">IN UNRANKED</span>
+                      )}
+                    </div>
+
+                    <div className="search-card-action-group">
+                      <span className="search-card-action-label">Director</span>
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
-                        disabled
+                        className="search-card-action"
+                        disabled={isSaving}
+                        onClick={() => handleOpenRecord(r, 'director')}
                       >
-                        IN UNRANKED
+                        {getDirectorById(id) && getDirectorById(id)?.classKey !== 'UNRANKED' ? 'Edit' : 'Add'}
                       </button>
-                    )}
+                      {!getDirectorById(id) && (
+                        <button
+                          type="button"
+                          className="search-card-action search-card-action-subtle"
+                          disabled={isSaving}
+                          onClick={() => void handleAddPersonToUnranked(r, 'director')}
+                        >
+                          Unranked
+                        </button>
+                      )}
+                      {getDirectorById(id)?.classKey === 'UNRANKED' && (
+                        <span className="search-card-status">IN UNRANKED</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <span className="search-card-no-action">—</span>
@@ -551,21 +627,25 @@ export function SearchPage() {
               ? movieRankedClasses
               : recordTarget.media_type === 'tv'
                 ? tvRankedClasses
-                : peopleRankedClasses
+                : personSaveType === 'director'
+                  ? directorsRankedClasses
+                  : peopleRankedClasses
           }
           showClassPicker={
             recordTarget.media_type === 'movie'
               ? !getMovieById(resultId(recordTarget)) || getMovieById(resultId(recordTarget))?.classKey === 'UNRANKED'
               : recordTarget.media_type === 'tv'
                 ? !getShowById(`tmdb-tv-${recordTarget.id}`) || getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
-                : !getPersonById(resultId(recordTarget)) || getPersonById(resultId(recordTarget))?.classKey === 'UNRANKED'
+                : personSaveType === 'director'
+                  ? !getDirectorById(resultId(recordTarget)) || getDirectorById(resultId(recordTarget))?.classKey === 'UNRANKED'
+                  : !getPersonById(resultId(recordTarget)) || getPersonById(resultId(recordTarget))?.classKey === 'UNRANKED'
           }
           onSave={handleRecordSave}
           onClose={handleCloseRecord}
           isSaving={isSaving}
           primaryButtonLabel={
             recordTarget.media_type === 'person'
-              ? 'Add to list'
+              ? personSaveType === 'director' ? 'Add to Directors' : 'Add to Actors'
               : recordTarget.media_type === 'tv'
                 ? 'Save and go to show'
                 : 'Save and go to movie'

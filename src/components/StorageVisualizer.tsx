@@ -5,7 +5,7 @@ import './StorageVisualizer.css';
 
 interface StorageVisualizerProps {
     label: string;
-    byClass: Record<ClassKey, MovieShowItem[]>;
+    byClass: Record<ClassKey, any[]>;
     classes: { key: ClassKey; label: string }[];
 }
 
@@ -15,7 +15,7 @@ const FIRESTORE_LIMIT = 1048576; // 1MB
  * Rough estimation of Firestore document size for a list of items.
  * This counts characters in JSON string as a proxy for bytes.
  */
-function estimateSize(items: MovieShowItem[]): number {
+function estimateSize(items: any[]): number {
     if (!items || items.length === 0) return 0;
     try {
         // We stringify just the items since that's the bulk of the class-specific document

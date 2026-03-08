@@ -493,10 +493,33 @@
   letter-spacing: 0.04em;
 }
 
+.entry-cast-tooltip-job {
+  font-size: 0.65rem;
+  color: var(--accent-color, #00d2ff);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .entry-cast-tooltip-char {
   font-size: 0.65rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.entry-dept-badge {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  background: rgba(232, 93, 4, 0.15);
+  border: 1px solid rgba(232, 93, 4, 0.5);
+  color: var(--accent-light);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-right: 0.2rem;
+  vertical-align: middle;
 }
 
 /* ── Minimized Mode ── */

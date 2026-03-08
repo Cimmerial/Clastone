@@ -217,12 +217,14 @@ export type TmdbPersonCache = {
   birthday?: string;
   deathday?: string;
   biography?: string;
+  knownForDepartment?: string;
   /** Roles from combined_credits, sorted by popularity. */
   roles: Array<{
     id: number;
     title: string;
     mediaType: 'movie' | 'tv';
     character?: string;
+    job?: string;
     posterPath?: string;
     popularity: number;
     voteCount?: number;
@@ -408,22 +410,70 @@ export async function tmdbPersonDetailsFull(
   );
   if (!data) return null;
 
-  const roles = (data.combined_credits?.cast ?? [])
+  const rawCast = data.combined_credits?.cast ?? [];
+  const rawCrew = data.combined_credits?.crew ?? [];
+
+  const relevantCrewJobs = new Set(['Director', 'Creator', 'Writer', 'Executive Producer', 'Producer']);
+
+  // Map cast roles
+  const castRoles = rawCast.map((c: any) => ({
+    id: c.id,
+    title: c.title ?? c.name ?? 'Unknown',
+    mediaType: c.media_type as 'movie' | 'tv',
+    character: c.character ?? undefined,
+    job: undefined,
+    posterPath: c.poster_path ?? undefined,
+    popularity: c.popularity ?? 0,
+    voteCount: c.vote_count ?? 0,
+    releaseDate: c.release_date ?? c.first_air_date ?? undefined
+  }));
+
+  // Map crew roles, filtering for specific jobs
+  const crewRoles = rawCrew
+    .filter((c: any) => relevantCrewJobs.has(c.job))
     .map((c: any) => ({
       id: c.id,
       title: c.title ?? c.name ?? 'Unknown',
       mediaType: c.media_type as 'movie' | 'tv',
-      character: c.character ?? undefined,
+      character: undefined,
+      job: c.job as string,
       posterPath: c.poster_path ?? undefined,
       popularity: c.popularity ?? 0,
       voteCount: c.vote_count ?? 0,
       releaseDate: c.release_date ?? c.first_air_date ?? undefined
-    }))
-    .sort((a: any, b: any) => {
-      const scoreA = (a.popularity || 0) * (a.voteCount || 0);
-      const scoreB = (b.popularity || 0) * (b.voteCount || 0);
-      return scoreB - scoreA;
-    });
+    }));
+
+  // Combine and deduplicate
+  // Strategy: Group by mediaType + id. 
+  // If multiple exist, combine character and job text. Maintain max popularity.
+  const rolesMap = new Map<string, any>();
+
+  for (const r of [...castRoles, ...crewRoles]) {
+    const key = `${r.mediaType}-${r.id}`;
+    if (!rolesMap.has(key)) {
+      rolesMap.set(key, { ...r });
+    } else {
+      const existing = rolesMap.get(key);
+      if (r.character && !existing.character) existing.character = r.character;
+      else if (r.character && existing.character && !existing.character.includes(r.character)) {
+        existing.character = `${existing.character} / ${r.character}`;
+      }
+
+      if (r.job && !existing.job) existing.job = r.job;
+      else if (r.job && existing.job && !existing.job.includes(r.job)) {
+        existing.job = `${existing.job} / ${r.job}`;
+      }
+
+      existing.popularity = Math.max(existing.popularity, r.popularity);
+      existing.voteCount = Math.max(existing.voteCount ?? 0, r.voteCount ?? 0);
+    }
+  }
+
+  const roles = Array.from(rolesMap.values()).sort((a: any, b: any) => {
+    const scoreA = (a.popularity || 0) * (a.voteCount || 0);
+    const scoreB = (b.popularity || 0) * (b.voteCount || 0);
+    return scoreB - scoreA;
+  });
 
   const cache: TmdbPersonCache = {
     tmdbId: data.id,
@@ -432,12 +482,15 @@ export async function tmdbPersonDetailsFull(
     birthday: data.birthday ?? undefined,
     deathday: data.deathday ?? undefined,
     biography: data.biography ?? undefined,
+    knownForDepartment: data.known_for_department ?? undefined,
     roles
   };
 
   console.info('[Clastone] TMDB person cache fetched', {
     tmdbId: cache.tmdbId,
-    name: cache.name
+    name: cache.name,
+    knownForDepartment: cache.knownForDepartment,
+    rolesCount: cache.roles.length
   });
   return cache;
 }

@@ -2,17 +2,19 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import type { TmdbPersonCache } from '../lib/tmdb';
 import { tmdbImagePath, tmdbPersonDetailsFull } from '../lib/tmdb';
 import { usePeopleStore, PersonItem } from '../state/peopleStore';
+import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { formatDuration, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 
 type Props = {
-  item: PersonItem;
-  onOpenSettings?: (item: PersonItem) => void;
+  item: PersonItem | DirectorItem;
+  onOpenSettings?: (item: any) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onClassUp?: () => void;
   onClassDown?: () => void;
+  onUpdateCache?: (id: string, cache: TmdbPersonCache) => void;
 };
 
 export function EntryRowPerson({
@@ -21,10 +23,13 @@ export function EntryRowPerson({
   onMoveUp,
   onMoveDown,
   onClassUp,
-  onClassDown
+  onClassDown,
+  onUpdateCache
 }: Props) {
   const { settings } = useSettingsStore();
-  const { updatePersonCache } = usePeopleStore();
+  // We'll use the passed in update function if available, otherwise fallback to peopleStore
+  const { updatePersonCache: defaultUpdateCache } = usePeopleStore();
+  const updatePersonCache = onUpdateCache ?? defaultUpdateCache;
   const { byClass: moviesByClass, globalRanks: moviesGlobalRanks } = useMoviesStore();
   const { byClass: tvByClass, globalRanks: tvGlobalRanks } = useTvStore();
   const rowRef = useRef<HTMLDivElement>(null);
@@ -49,7 +54,7 @@ export function EntryRowPerson({
     if (isVisible && item.tmdbId && (!item.roles || item.roles.length === 0)) {
       tmdbPersonDetailsFull(item.tmdbId).then(cache => {
         if (cache) updatePersonCache(item.id, cache);
-      });
+      }).catch(err => console.error('[Clastone] EntryRowPerson fetch failed', err));
     }
   }, [isVisible, item.tmdbId, item.id, updatePersonCache, item.roles]);
 
@@ -67,14 +72,14 @@ export function EntryRowPerson({
       });
     }
 
-    const seen = all.filter(r => (r.mediaType === 'movie' && seenMovies.has(`tmdb-movie-${r.id}`)) ||
+    const seen = all.filter((r: any) => (r.mediaType === 'movie' && seenMovies.has(`tmdb-movie-${r.id}`)) ||
       (r.mediaType === 'tv' && seenShows.has(`tmdb-tv-${r.id}`)));
-    const unseen = all.filter(r => !((r.mediaType === 'movie' && seenMovies.has(`tmdb-movie-${r.id}`)) ||
+    const unseen = all.filter((r: any) => !((r.mediaType === 'movie' && seenMovies.has(`tmdb-movie-${r.id}`)) ||
       (r.mediaType === 'tv' && seenShows.has(`tmdb-tv-${r.id}`))));
 
     // Sort seen by percentile ranking descending
-    seen.sort((a, b) => {
-      const getPercentile = (r: typeof a) => {
+    seen.sort((a: any, b: any) => {
+      const getPercentile = (r: any) => {
         const id = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
         const ranks = r.mediaType === 'movie' ? moviesGlobalRanks : tvGlobalRanks;
         const info = ranks.get(id);
@@ -91,12 +96,15 @@ export function EntryRowPerson({
     });
 
     // Sort unseen by a combine score of popularity + role quality
-    unseen.sort((a, b) => {
-      const isTalkShowA = a.character?.toLowerCase().includes('self') || a.character?.toLowerCase().includes('guest');
-      const isTalkShowB = b.character?.toLowerCase().includes('self') || b.character?.toLowerCase().includes('guest');
+    unseen.sort((a: any, b: any) => {
+      const isTalkShowA = a.character?.toLowerCase().includes('self') || a.character?.toLowerCase().includes('guest') || a.job?.toLowerCase().includes('self');
+      const isTalkShowB = b.character?.toLowerCase().includes('self') || b.character?.toLowerCase().includes('guest') || b.job?.toLowerCase().includes('self');
 
-      const scoreA = (a.popularity || 0) * (a.voteCount || 1) * (isTalkShowA ? 0.01 : 1) * (a.mediaType === 'movie' ? 2 : 1);
-      const scoreB = (b.popularity || 0) * (b.voteCount || 1) * (isTalkShowB ? 0.01 : 1) * (b.mediaType === 'movie' ? 2 : 1);
+      const isDirectorA = a.job?.toLowerCase().includes('director') || a.job?.toLowerCase().includes('creator');
+      const isDirectorB = b.job?.toLowerCase().includes('director') || b.job?.toLowerCase().includes('creator');
+
+      const scoreA = (a.popularity || 0) * (a.voteCount || 1) * (isTalkShowA ? 0.01 : 1) * (a.mediaType === 'movie' ? 2 : 1) * (isDirectorA ? 1.5 : 1);
+      const scoreB = (b.popularity || 0) * (b.voteCount || 1) * (isTalkShowB ? 0.01 : 1) * (b.mediaType === 'movie' ? 2 : 1) * (isDirectorB ? 1.5 : 1);
 
       return scoreB - scoreA;
     });
@@ -154,9 +162,15 @@ export function EntryRowPerson({
           <div className="entry-subtitle">
             {[
               age != null && `Age: ${age}${item.deathday ? ' (Deceased)' : ''}`,
+              item.knownForDepartment && <span key="dept" className="entry-dept-badge">{item.knownForDepartment}</span>,
               item.firstSeenDate && `First seen: ${item.firstSeenDate.slice(0, 4)}`,
               item.lastSeenDate && `Most recently seen: ${item.lastSeenDate.slice(0, 4)}`,
-            ].filter(Boolean).join(' · ')}
+            ].filter(Boolean).map((x, i, arr) => (
+              <span key={i}>
+                {x}
+                {i < arr.length - 1 && ' · '}
+              </span>
+            ))}
           </div>
 
           <div className="entry-stats-row">
@@ -208,6 +222,7 @@ export function EntryRowPerson({
                   {hoveredRoleId === role.id && (
                     <div className="entry-cast-tooltip">
                       <span className="entry-cast-tooltip-name">{role.title}</span>
+                      {role.job && <span className="entry-cast-tooltip-job">{role.job}</span>}
                       {role.character && <span className="entry-cast-tooltip-char">{role.character}</span>}
                       {isSeen && <span className="entry-cast-tooltip-seen">Seen</span>}
                     </div>

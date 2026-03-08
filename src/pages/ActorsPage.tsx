@@ -13,7 +13,8 @@ export function ActorsPage() {
     classes,
     moveItemToClass,
     reorderWithinClass,
-    moveItemWithinClass
+    moveItemWithinClass,
+    updatePersonCache
   } = usePeopleStore();
   const [recordTarget, setRecordTarget] = useState<PersonItem | null>(null);
 
@@ -82,6 +83,7 @@ export function ActorsPage() {
         renderRow={(item) => (
           <EntryRowPerson
             item={item}
+            onUpdateCache={updatePersonCache}
             onOpenSettings={handleOpenSettings}
             onMoveUp={() => moveItemWithinClass(item.id, -1)}
             onMoveDown={() => moveItemWithinClass(item.id, 1)}
