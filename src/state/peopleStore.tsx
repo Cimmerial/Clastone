@@ -94,7 +94,13 @@ export function PeopleProvider({
     children: React.ReactNode;
     initialByClass?: Record<string, PersonItem[]>;
     initialClasses?: PeopleClassDef[];
-    onPersist?: (payload: { byClass: Record<string, PersonItem[]>; classes: PeopleClassDef[]; pendingCount?: number }) => Promise<void>;
+    onPersist?: (payload: {
+        byClass: Record<string, PersonItem[]>;
+        classes: PeopleClassDef[];
+        pendingCount?: number;
+        dirtyClasses?: string[];
+        classesMetadataChanged?: boolean;
+    }) => Promise<void>;
 }) {
     const [classes, setClasses] = useState<PeopleClassDef[]>(initialClasses ?? defaultPeopleClasses);
     const classOrder = useMemo(() => classes.map(c => c.key), [classes]);
@@ -104,18 +110,16 @@ export function PeopleProvider({
     const { byClass: moviesByClass } = useMoviesStore();
     const { byClass: tvByClass } = useTvStore();
 
-    const lastStateRef = useRef({ byClass, classes });
-    lastStateRef.current = { byClass, classes };
-    const hasInitializedRef = useRef(false);
-
-    useEffect(() => {
-        if (initialByClass || initialClasses) {
-            hasInitializedRef.current = true;
-        }
-    }, [initialByClass, initialClasses]);
-
     const [pendingChanges, setPendingChanges] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Track what was last explicitly saved to calculate diffs.
+    const lastSavedStateRef = useRef({ byClass, classes });
+    const isHydratedRef = useRef(false);
+
+    // We need current values for the strict forceSync
+    const currentStateRef = useRef({ byClass, classes });
+    currentStateRef.current = { byClass, classes };
 
     // Watchtime calculation logic
     useEffect(() => {
@@ -203,24 +207,49 @@ export function PeopleProvider({
 
     // Debounced persistence logic
     useEffect(() => {
-        if (!onPersist) return;
-
-        // Skip if not initialized or substantive change
-        if (!hasInitializedRef.current && Object.keys(byClass).length === 0) {
+        // 1. Skip the very first "fresh load" mutation
+        if (!isHydratedRef.current) {
+            lastSavedStateRef.current = { byClass, classes };
+            isHydratedRef.current = true;
             return;
         }
 
-        setPendingChanges(p => p + 1);
+        if (!onPersist) return;
+
+        // 2. Diffing
+        const dirtyClasses: string[] = [];
+        const classesMetadataChanged = classes !== lastSavedStateRef.current.classes;
+
+        for (const c of classes) {
+            if (byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+                dirtyClasses.push(c.key);
+            }
+        }
+
+        // 3. Early return if no changes
+        if (dirtyClasses.length === 0 && !classesMetadataChanged) {
+            return;
+        }
+
+        setPendingChanges((p) => p + 1);
 
         if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
 
+        const savedByClass = byClass;
+        const savedClasses = classes;
+
         persistTimeoutRef.current = setTimeout(() => {
-            onPersist({ byClass: lastStateRef.current.byClass, classes: lastStateRef.current.classes, pendingCount: pendingChanges + 1 });
+            onPersist({
+                byClass: savedByClass,
+                classes: savedClasses,
+                pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
+                dirtyClasses,
+                classesMetadataChanged
+            });
+            lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
             setPendingChanges(0);
             persistTimeoutRef.current = null;
-        }, 1500);
-
-        hasInitializedRef.current = true;
+        }, 10000); // 10s debounce
 
         return () => {
             if (persistTimeoutRef.current) {
@@ -234,7 +263,21 @@ export function PeopleProvider({
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             if (persistTimeoutRef.current && onPersist) {
-                onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+                const dirtyClasses: string[] = [];
+                const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
+                for (const c of currentStateRef.current.classes) {
+                    if (currentStateRef.current.byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+                        dirtyClasses.push(c.key);
+                    }
+                }
+
+                onPersist({
+                    ...currentStateRef.current,
+                    pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
+                    dirtyClasses,
+                    classesMetadataChanged
+                });
+
                 if (pendingChanges > 0) {
                     e.preventDefault();
                     e.returnValue = 'Saving people changes...';
@@ -440,8 +483,22 @@ export function PeopleProvider({
         getPersonById,
         forceSync: async () => {
             if (onPersist) {
-                await onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
-                setPendingChanges(0);
+                const dirtyClasses: string[] = [];
+                const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
+                for (const c of currentStateRef.current.classes) {
+                    if (currentStateRef.current.byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+                        dirtyClasses.push(c.key);
+                    }
+                }
+
+                if (dirtyClasses.length > 0 || classesMetadataChanged) {
+                    await onPersist({
+                        ...currentStateRef.current,
+                        dirtyClasses,
+                        classesMetadataChanged
+                    });
+                    lastSavedStateRef.current = currentStateRef.current;
+                }
             }
         },
         reorderWithinClass,

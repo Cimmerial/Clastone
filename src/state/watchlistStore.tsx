@@ -26,7 +26,13 @@ type WatchlistProviderProps = {
   children: React.ReactNode;
   initialMovies?: WatchlistEntry[];
   initialTv?: WatchlistEntry[];
-  onPersist?: (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => Promise<void>;
+  onPersist?: (payload: {
+    movies: WatchlistEntry[];
+    tv: WatchlistEntry[];
+    pendingCount?: number;
+    dirtyMovies?: boolean;
+    dirtyTv?: boolean;
+  }) => Promise<void>;
 };
 
 export function WatchlistProvider({
@@ -40,19 +46,53 @@ export function WatchlistProvider({
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [pendingChanges, setPendingChanges] = useState(0);
-  const lastStateRef = useRef({ movies, tv });
-  lastStateRef.current = { movies, tv };
+
+  // Track what was last explicitly saved to calculate diffs.
+  const lastSavedStateRef = useRef({ movies, tv });
+  const isHydratedRef = useRef(false);
+
+  // We need current values for the strict forceSync
+  const currentStateRef = useRef({ movies, tv });
+  currentStateRef.current = { movies, tv };
 
   useEffect(() => {
+    // 1. Skip the very first "fresh load" mutation
+    if (!isHydratedRef.current) {
+      lastSavedStateRef.current = { movies, tv };
+      isHydratedRef.current = true;
+      return;
+    }
+
     if (!onPersist) return;
+
+    // 2. Diffing
+    const dirtyMovies = movies !== lastSavedStateRef.current.movies;
+    const dirtyTv = tv !== lastSavedStateRef.current.tv;
+
+    // 3. Early return if no changes
+    if (!dirtyMovies && !dirtyTv) {
+      return;
+    }
+
     setPendingChanges((p) => p + 1);
+
     if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
 
+    const savedMovies = movies;
+    const savedTv = tv;
+
     persistTimeoutRef.current = setTimeout(() => {
-      onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+      onPersist({
+        movies: savedMovies,
+        tv: savedTv,
+        pendingCount: (dirtyMovies ? 1 : 0) + (dirtyTv ? 1 : 0),
+        dirtyMovies,
+        dirtyTv
+      });
+      lastSavedStateRef.current = { movies: savedMovies, tv: savedTv };
       setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 600);
+    }, 10000); // 10s debounce
 
     return () => {
       if (persistTimeoutRef.current) {
@@ -66,7 +106,16 @@ export function WatchlistProvider({
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (persistTimeoutRef.current && onPersist) {
-        onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+        const dirtyMovies = currentStateRef.current.movies !== lastSavedStateRef.current.movies;
+        const dirtyTv = currentStateRef.current.tv !== lastSavedStateRef.current.tv;
+
+        onPersist({
+          ...currentStateRef.current,
+          pendingCount: (dirtyMovies ? 1 : 0) + (dirtyTv ? 1 : 0),
+          dirtyMovies,
+          dirtyTv
+        });
+
         if (pendingChanges > 0) {
           e.preventDefault();
           e.returnValue = 'Saving changes...';
@@ -140,7 +189,17 @@ export function WatchlistProvider({
       isInWatchlist,
       forceSync: async () => {
         if (onPersist) {
-          await onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+          const dirtyMovies = currentStateRef.current.movies !== lastSavedStateRef.current.movies;
+          const dirtyTv = currentStateRef.current.tv !== lastSavedStateRef.current.tv;
+
+          if (dirtyMovies || dirtyTv) {
+            await onPersist({
+              ...currentStateRef.current,
+              dirtyMovies,
+              dirtyTv
+            });
+            lastSavedStateRef.current = currentStateRef.current;
+          }
         }
       }
     }),

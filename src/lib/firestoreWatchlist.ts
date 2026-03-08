@@ -1,11 +1,9 @@
 import {
   doc,
   getDoc,
-  setDoc,
-  writeBatch,
-  deleteDoc,
   type Firestore
 } from 'firebase/firestore';
+import { throttledSetDoc, throttledWriteBatch, throttledDeleteDoc } from './firebaseThrottler';
 import type { WatchlistEntry } from '../state/watchlistStore';
 
 /** Legacy path */
@@ -84,15 +82,28 @@ export async function loadWatchlist(db: Firestore, userId: string): Promise<{
 export async function saveWatchlist(
   db: Firestore,
   userId: string,
-  payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[] }
+  payload: {
+    movies: WatchlistEntry[];
+    tv: WatchlistEntry[];
+    dirtyMovies?: boolean;
+    dirtyTv?: boolean;
+  }
 ): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = throttledWriteBatch(db, {
+    storeName: 'watchlist',
+    dirtyMovies: payload.dirtyMovies,
+    dirtyTv: payload.dirtyTv
+  });
 
   const movieRef = doc(db, NEW_ROOT, userId, WATCHLIST_FOLDER, MOVIES_DOC_ID);
   const tvRef = doc(db, NEW_ROOT, userId, WATCHLIST_FOLDER, TV_DOC_ID);
 
-  batch.set(movieRef, stripUndefined({ items: payload.movies.map(pruneWatchlistEntry) }));
-  batch.set(tvRef, stripUndefined({ items: payload.tv.map(pruneWatchlistEntry) }));
+  if (payload.dirtyMovies || payload.dirtyMovies === undefined) {
+    batch.set(movieRef, stripUndefined({ items: payload.movies.map(pruneWatchlistEntry) }));
+  }
+  if (payload.dirtyTv || payload.dirtyTv === undefined) {
+    batch.set(tvRef, stripUndefined({ items: payload.tv.map(pruneWatchlistEntry) }));
+  }
 
   const legacyRef = doc(db, LEGACY_ROOT, userId, LEGACY_SUB, LEGACY_DOC);
   batch.delete(legacyRef);
@@ -100,7 +111,9 @@ export async function saveWatchlist(
   console.info('[Clastone] Saving watchlist to split documents', {
     uid: userId,
     movies: payload.movies.length,
-    tv: payload.tv.length
+    tv: payload.tv.length,
+    dirtyMovies: payload.dirtyMovies,
+    dirtyTv: payload.dirtyTv
   });
 
   await batch.commit();

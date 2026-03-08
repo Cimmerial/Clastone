@@ -43,7 +43,13 @@ export function FirestoreMoviesGate({ children }: Props) {
 
 
   const onPersist = useCallback(
-    async (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => {
+    async (payload: {
+      byClass: Record<ClassKey, MovieShowItem[]>;
+      classes: MovieClassDef[];
+      pendingCount?: number;
+      dirtyClasses?: ClassKey[];
+      classesMetadataChanged?: boolean;
+    }) => {
       if (!user || !db) return;
       const count = payload.pendingCount ?? 0;
       updateStatus('movies', 'saving', { pendingCount: count });

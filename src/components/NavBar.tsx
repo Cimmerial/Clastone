@@ -15,7 +15,8 @@ const mainLinks = [
 const iconLinks = [
   { to: '/search', label: 'Search', icon: Search as React.ComponentType<{ size?: number; className?: string }> },
   { to: '/profile', label: 'Profile', icon: User as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/settings', label: 'Settings', icon: Settings as React.ComponentType<{ size?: number; className?: string }> }
+  { to: '/settings', label: 'Settings', icon: Settings as React.ComponentType<{ size?: number; className?: string }> },
+  { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw as React.ComponentType<{ size?: number; className?: string }> }
 ];
 
 export function NavBar() {

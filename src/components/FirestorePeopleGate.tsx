@@ -33,7 +33,13 @@ export function FirestorePeopleGate({ children }: { children: React.ReactNode })
         fetchInitial();
     }, [user, updateMigrationStatus, updateStatus]);
 
-    const handlePersist = async (payload: { byClass: Record<string, PersonItem[]>; classes: PeopleClassDef[]; pendingCount?: number }) => {
+    const handlePersist = async (payload: {
+        byClass: Record<string, PersonItem[]>;
+        classes: PeopleClassDef[];
+        pendingCount?: number;
+        dirtyClasses?: string[];
+        classesMetadataChanged?: boolean;
+    }) => {
         if (!user || !db) return;
         updateStatus('people', 'saving', { pendingCount: payload.pendingCount });
         try {

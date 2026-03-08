@@ -1,13 +1,11 @@
 import {
     doc,
     getDoc,
-    setDoc,
     collection,
-    writeBatch,
-    deleteDoc,
     getDocs,
     type Firestore
 } from 'firebase/firestore';
+import { throttledSetDoc, throttledWriteBatch, throttledDeleteDoc } from './firebaseThrottler';
 import type { PersonItem, PeopleClassDef } from '../state/peopleStore';
 
 const NEW_ROOT = 'users';
@@ -95,16 +93,31 @@ export async function loadPeople(db: Firestore, userId: string): Promise<{
 export async function savePeople(
     db: Firestore,
     userId: string,
-    payload: { byClass: Record<string, PersonItem[]>; classes: PeopleClassDef[] }
+    payload: {
+        byClass: Record<string, PersonItem[]>;
+        classes: PeopleClassDef[];
+        dirtyClasses?: string[];
+        classesMetadataChanged?: boolean;
+    }
 ): Promise<void> {
-    const batch = writeBatch(db);
+    const batch = throttledWriteBatch(db, {
+        storeName: 'people',
+        dirtyClasses: payload.dirtyClasses,
+        metadataChanged: payload.classesMetadataChanged
+    });
 
     // 1. Save metadata
     const metadataRef = doc(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION, METADATA_DOC_ID);
-    batch.set(metadataRef, stripUndefined({ classes: payload.classes }));
+    if (payload.classesMetadataChanged || !payload.dirtyClasses) {
+        batch.set(metadataRef, stripUndefined({ classes: payload.classes }));
+    }
 
     // 2. Save each class as a flat document
-    for (const item of payload.classes) {
+    const classesToSave = payload.dirtyClasses
+        ? payload.classes.filter(c => payload.dirtyClasses!.includes(c.key))
+        : payload.classes;
+
+    for (const item of classesToSave) {
         const key = item.key;
         const classRef = doc(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION, `class_${key}`);
         const items = (payload.byClass[key] || []).map(pruneItem);
@@ -117,7 +130,8 @@ export async function savePeople(
 
     console.info('[Clastone] Saving people to flat Firestore sub-collection', {
         uid: userId,
-        classes: payload.classes.length
+        classesSaved: classesToSave.length,
+        dirtyClasses: payload.dirtyClasses
     });
 
     await batch.commit();

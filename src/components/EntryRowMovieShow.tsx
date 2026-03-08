@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { RankedItemBase } from './RankedList';
-import { EntrySettingsModal, WatchEntry } from './EntrySettingsModal';
 import {
   tmdbImagePath,
   needsMovieRefresh,
@@ -44,7 +43,7 @@ export type MovieShowItem = RankedItemBase & {
   title: string;
   viewingDates: string;
   watchTime?: string;
-  watchHistory?: WatchEntry[];
+  watchHistory?: any[];
   /** Source of truth for "Watched N× · Last: … · N% · Xh Ym total". */
   watchRecords?: WatchRecord[];
   /** Minutes; used for total duration when set. */

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
-import { EntrySettingsModal } from '../components/EntrySettingsModal';
+
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import {
@@ -43,56 +43,36 @@ export function MoviesPage() {
     getClassTagline,
     isRankedClass,
     classes,
-    removeMovieEntry
+    removeMovieEntry,
+    globalRanks // Added globalRanks from store
   } = useMoviesStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
-    const rankedItems: MovieShowItem[] = [];
-    for (const classKey of classOrder) {
-      const list = byClass[classKey] ?? [];
-      if (!isRankedClass(classKey)) continue;
-      for (const item of list) rankedItems.push(item);
-    }
-
-    const total = rankedItems.length || 1;
-    const globalRanks = new Map<
-      string,
-      {
-        absoluteRank: string;
-        percentileRank: string;
-      }
-    >();
-
-    rankedItems.forEach((item, index) => {
-      const absoluteRank = `${index + 1} / ${total}`;
-      const percentile = Math.round(((total - index) / total) * 100);
-      const percentileRank = `${percentile}%`;
-      globalRanks.set(item.id, { absoluteRank, percentileRank });
-    });
-
+    // Removed the recalculation of globalRanks here
     const next: typeof byClass = {} as typeof byClass;
     for (const classKey of classOrder) {
       const list = byClass[classKey] ?? [];
+      const ranked = isRankedClass(classKey);
+      const isUnranked = classKey === 'UNRANKED';
+
       next[classKey] = list.map((item, idx) => {
         const ranks = globalRanks.get(item.id);
-        const ranked = isRankedClass(classKey);
-        const isUnranked = classKey === 'UNRANKED';
         return {
           ...item,
           percentileRank: !ranked && isUnranked
             ? '—'
             : !ranked
               ? 'N/A%'
-              : ranks?.percentileRank ?? item.percentileRank ?? '—',
-          absoluteRank: !ranked ? '—' : ranks?.absoluteRank ?? item.absoluteRank ?? '—',
+              : ranks?.percentileRank ?? '—', // Simplified to use ranks directly
+          absoluteRank: !ranked ? '—' : ranks?.absoluteRank ?? '—', // Simplified to use ranks directly
           rankInClass: `#${idx + 1} in ${getClassLabel(classKey)}`
         };
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks]); // Added globalRanks to dependencies
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {

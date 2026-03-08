@@ -175,6 +175,7 @@ type MoviesStore = {
   getClassTagline: (classKey: ClassKey) => string | undefined;
   isRankedClass: (classKey: ClassKey) => boolean;
   byClass: Record<ClassKey, MovieShowItem[]>;
+  globalRanks: Map<string, { absoluteRank: string; percentileRank: string }>;
   moveWithinClass: (itemId: string, delta: number) => void;
   reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
@@ -219,7 +220,13 @@ type MoviesProviderProps = {
   initialByClass?: Record<ClassKey, MovieShowItem[]>;
   initialClasses?: MovieClassDef[];
   /** Persist to Firestore when byClass changes (debounced). */
-  onPersist?: (payload: { byClass: Record<ClassKey, MovieShowItem[]>; classes: MovieClassDef[]; pendingCount?: number }) => Promise<void>;
+  onPersist?: (payload: {
+    byClass: Record<ClassKey, MovieShowItem[]>;
+    classes: MovieClassDef[];
+    pendingCount?: number;
+    dirtyClasses?: ClassKey[];
+    classesMetadataChanged?: boolean;
+  }) => Promise<void>;
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
@@ -230,25 +237,65 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
   );
   const [pendingChanges, setPendingChanges] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastStateRef = useRef({ byClass, classes });
-  lastStateRef.current = { byClass, classes };
+
+  // Track what was last explicitly saved to calculate diffs.
+  const lastSavedStateRef = useRef({ byClass, classes });
+  const isHydratedRef = useRef(false);
+
+  // We need current values for the strict forceSync (to capture everything immediately if needed)
+  const currentStateRef = useRef({ byClass, classes });
+  currentStateRef.current = { byClass, classes };
 
   // Debounced persistence logic.
   useEffect(() => {
+    // 1. Skip the very first "fresh load" mutation to prevent writing back identical data on mount
+    if (!isHydratedRef.current) {
+      lastSavedStateRef.current = { byClass, classes };
+      isHydratedRef.current = true;
+      return;
+    }
+
     if (!onPersist) return;
 
-    // We increment pending changes whenever byClass/classes change, 
-    // EXCEPT for the very first mount or when initialByClass/initialClasses are passed (already saved).
-    // Actually, simple way: if lastSavedRef doesn't match current, we have pending.
+    // 2. Diffing: figure out what actually changed since the last save
+    const dirtyClasses: ClassKey[] = [];
+    const classesMetadataChanged = classes !== lastSavedStateRef.current.classes;
+
+    for (const c of classes) {
+      // Since React state updates by replacing arrays, a shallow equality check works perfectly
+      if (byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+        dirtyClasses.push(c.key);
+      }
+    }
+
+    // 3. If there are absolutely no changes, early return
+    if (dirtyClasses.length === 0 && !classesMetadataChanged) {
+      return;
+    }
+
+    console.info(`[MoviesStore] Local changes detected (Dirty classes: ${dirtyClasses.join(', ')}). Queuing save in 10 seconds...`);
+
     setPendingChanges((p) => p + 1);
 
     if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
 
+    // Capture the state *at this moment* to be used in the closure
+    const savedByClass = byClass;
+    const savedClasses = classes;
+
     persistTimeoutRef.current = setTimeout(() => {
-      onPersist({ ...lastStateRef.current, pendingCount: pendingChanges });
+      console.info(`[MoviesStore] Debounce finished. Executing onPersist...`);
+      onPersist({
+        byClass: savedByClass,
+        classes: savedClasses,
+        pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
+        dirtyClasses,
+        classesMetadataChanged
+      });
+      lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
       setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 1500);
+    }, 10000); // 10s debounce
 
     return () => {
       // Don't save on cleanup during active changes; let the new timeout handle it.
@@ -263,10 +310,23 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (persistTimeoutRef.current && onPersist) {
-        onPersist(lastStateRef.current);
-        // We can't await, but firing it here helps in some browsers.
-        // Some browsers require a return value to show a confirmation dialog,
-        // which gives the async call more time to finish.
+        // Force an immediate save of the known dirty state before the window dies
+        const dirtyClasses: ClassKey[] = [];
+        const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
+        for (const c of currentStateRef.current.classes) {
+          if (currentStateRef.current.byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+            dirtyClasses.push(c.key);
+          }
+        }
+
+        console.info(`[MoviesStore] beforeunload triggered. Forcing emergency save of dirty state...`);
+        onPersist({
+          ...currentStateRef.current,
+          pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
+          dirtyClasses,
+          classesMetadataChanged
+        });
+
         if (pendingChanges > 0) {
           e.preventDefault();
           e.returnValue = 'Saving changes...';
@@ -308,6 +368,24 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     (classKey: ClassKey) => classes.find((c) => c.key === classKey)?.isRanked ?? true,
     [classes]
   );
+
+  const globalRanks = useMemo(() => {
+    const rankedItems: MovieShowItem[] = [];
+    for (const classKey of classOrder) {
+      if (!isRankedClass(classKey)) continue;
+      const list = byClass[classKey] ?? [];
+      for (const item of list) rankedItems.push(item);
+    }
+    const total = rankedItems.length || 1;
+    const map = new Map<string, { absoluteRank: string; percentileRank: string }>();
+    rankedItems.forEach((item, index) => {
+      map.set(item.id, {
+        absoluteRank: `${index + 1} / ${total}`,
+        percentileRank: `${Math.round(((total - index) / total) * 100)}%`
+      });
+    });
+    return map;
+  }, [byClass, classOrder, isRankedClass]);
 
   const addClass = useCallback((label: string, options?: { isRanked?: boolean }) => {
     const trimmed = label.trim();
@@ -712,6 +790,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       getClassTagline,
       isRankedClass,
       byClass,
+      globalRanks,
       addClass,
       renameClassLabel,
       renameClassTagline,
@@ -731,7 +810,22 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       removeMovieEntry,
       forceSync: async () => {
         if (onPersist) {
-          await onPersist(lastStateRef.current);
+          const dirtyClasses: ClassKey[] = [];
+          const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
+          for (const c of currentStateRef.current.classes) {
+            if (currentStateRef.current.byClass[c.key] !== lastSavedStateRef.current.byClass[c.key]) {
+              dirtyClasses.push(c.key);
+            }
+          }
+
+          if (dirtyClasses.length > 0 || classesMetadataChanged) {
+            await onPersist({
+              ...currentStateRef.current,
+              dirtyClasses,
+              classesMetadataChanged
+            });
+            lastSavedStateRef.current = currentStateRef.current;
+          }
         }
       }
     }),

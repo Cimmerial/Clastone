@@ -38,7 +38,13 @@ export function FirestoreWatchlistGate({ children }: Props) {
 
 
   const onPersist = useCallback(
-    async (payload: { movies: WatchlistEntry[]; tv: WatchlistEntry[]; pendingCount?: number }) => {
+    async (payload: {
+      movies: WatchlistEntry[];
+      tv: WatchlistEntry[];
+      pendingCount?: number;
+      dirtyMovies?: boolean;
+      dirtyTv?: boolean;
+    }) => {
       if (!user || !db) return;
       updateStatus('watchlist', 'saving', { pendingCount: payload.pendingCount });
       try {

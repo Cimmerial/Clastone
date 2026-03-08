@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
-import { EntrySettingsModal } from '../components/EntrySettingsModal';
+
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { useTvStore } from '../state/tvStore';
@@ -27,34 +27,20 @@ export function TvShowsPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
-  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry } =
+  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
-    const rankedItems: MovieShowItem[] = [];
-    for (const classKey of classOrder) {
-      if (!isRankedClass(classKey)) continue;
-      const list = byClass[classKey] ?? [];
-      for (const item of list) rankedItems.push(item);
-    }
-    const total = rankedItems.length || 1;
-    const globalRanks = new Map<string, { absoluteRank: string; percentileRank: string }>();
-    rankedItems.forEach((item, index) => {
-      globalRanks.set(item.id, {
-        absoluteRank: `${index + 1} / ${total}`,
-        percentileRank: `${Math.round(((total - index) / total) * 100)}%`
-      });
-    });
-
     const next: typeof byClass = {} as typeof byClass;
     for (const classKey of classOrder) {
       const list = byClass[classKey] ?? [];
       const ranked = isRankedClass(classKey);
+      const isUnranked = classKey === 'UNRANKED';
+
       next[classKey] = list.map((item, idx) => {
         const ranks = globalRanks.get(item.id);
-        const isUnranked = classKey === 'UNRANKED';
         return {
           ...item,
           percentileRank: !ranked && isUnranked ? '—' : !ranked ? 'N/A%' : ranks?.percentileRank ?? '—',
@@ -64,7 +50,7 @@ export function TvShowsPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks]);
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {

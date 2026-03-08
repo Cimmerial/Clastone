@@ -7,6 +7,7 @@ import { WatchlistPage } from './pages/WatchlistPage';
 import { SearchPage } from './pages/SearchPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DiagnosticsPage } from './pages/DiagnosticsPage';
 
 export function AppRoutes() {
   return (
@@ -20,6 +21,7 @@ export function AppRoutes() {
       <Route path="/search" element={<SearchPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="*" element={<Navigate to="/movies" replace />} />
     </Routes>
   );

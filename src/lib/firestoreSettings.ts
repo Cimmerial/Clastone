@@ -1,4 +1,5 @@
-import { doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, type Firestore } from 'firebase/firestore';
+import { throttledSetDoc } from './firebaseThrottler';
 import type { GlobalSettings } from '../state/settingsStore';
 
 export async function loadSettings(db: Firestore, uid: string): Promise<GlobalSettings | null> {
@@ -10,5 +11,5 @@ export async function loadSettings(db: Firestore, uid: string): Promise<GlobalSe
 
 export async function saveSettings(db: Firestore, uid: string, settings: GlobalSettings) {
     const ref = doc(db, 'users', uid, 'config', 'global');
-    await setDoc(ref, settings, { merge: true });
+    await throttledSetDoc(ref, settings, { merge: true });
 }

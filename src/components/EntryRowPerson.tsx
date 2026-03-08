@@ -25,8 +25,8 @@ export function EntryRowPerson({
 }: Props) {
   const { settings } = useSettingsStore();
   const { updatePersonCache } = usePeopleStore();
-  const { byClass: moviesByClass } = useMoviesStore();
-  const { byClass: tvByClass } = useTvStore();
+  const { byClass: moviesByClass, globalRanks: moviesGlobalRanks } = useMoviesStore();
+  const { byClass: tvByClass, globalRanks: tvGlobalRanks } = useTvStore();
   const rowRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [hoveredRoleId, setHoveredRoleId] = useState<number | null>(null);
@@ -76,14 +76,10 @@ export function EntryRowPerson({
     seen.sort((a, b) => {
       const getPercentile = (r: typeof a) => {
         const id = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
-        const store = r.mediaType === 'movie' ? moviesByClass : tvByClass;
-        let foundItem = null;
-        for (const list of Object.values(store)) {
-          foundItem = (list as any[]).find((it: any) => it.id === id);
-          if (foundItem) break;
-        }
-        if (!foundItem || !foundItem.percentileRank) return -1;
-        const match = foundItem.percentileRank.match(/^(\d+)%$/);
+        const ranks = r.mediaType === 'movie' ? moviesGlobalRanks : tvGlobalRanks;
+        const info = ranks.get(id);
+        if (!info || !info.percentileRank) return -1;
+        const match = info.percentileRank.match(/^(\d+)%$/);
         return match ? parseInt(match[1], 10) : -1;
       };
 
@@ -106,7 +102,7 @@ export function EntryRowPerson({
     });
 
     return { seenRoles: seen, knownFor: unseen };
-  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, moviesByClass, tvByClass]);
+  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, moviesGlobalRanks, tvGlobalRanks]);
 
 
   // Combine and apply limit from settings

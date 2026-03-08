@@ -1,4 +1,4 @@
-import type { PersonItem } from '../components/EntryRowPerson';
+import type { PersonItem } from '../state/peopleStore';
 import { ClassKey } from '../components/RankedList';
 
 export const actorClasses: ClassKey[] = [
@@ -15,19 +15,31 @@ const actors: PersonItem[] = [
     id: 'actor-1',
     classKey: 'ABSOLUTE_FAVORITE',
     absoluteRank: '1 / 80',
+    percentileRank: '99%',
+    media_type: 'person',
     rankInClass: '#1 in ABSOLUTE_FAVORITE',
-    name: 'Regina King',
+    title: 'Regina King',
     birthday: 'Jan 15, 1971',
-    topPerformances: ['The Leftovers', 'Watchmen', 'If Beale Street Could Talk']
+    roles: [],
+    moviesSeen: [],
+    showsSeen: [],
+    movieMinutes: 0,
+    showMinutes: 0
   },
   {
     id: 'actor-2',
     classKey: 'MARVELOUS',
     absoluteRank: '9 / 80',
+    percentileRank: '88%',
+    media_type: 'person',
     rankInClass: '#2 in MARVELOUS',
-    name: 'Amy Adams',
+    title: 'Amy Adams',
     birthday: 'Aug 20, 1974',
-    topPerformances: ['Arrival', 'Nocturnal Animals', 'Her']
+    roles: [],
+    moviesSeen: [],
+    showsSeen: [],
+    movieMinutes: 0,
+    showMinutes: 0
   }
 ];
 
