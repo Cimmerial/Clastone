@@ -404,6 +404,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           watchTime: watchTime || undefined,
           watchRecords,
           runtimeMinutes: cache?.runtimeMinutes,
+          genres: cache?.genres,
           posterPath: cache?.posterPath,
           topCastNames: cache?.cast?.map((c) => c.name) ?? [],
           stickerTags: [],
@@ -502,13 +503,9 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
               ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
               ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
               ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-              ...(cache.cast != null && {
-                cast: cache.cast,
-                topCastNames: cache.cast.map((c) => c.name)
-              }),
-              ...(cache.creators != null && { directors: cache.creators }),
               ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
-              ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes })
+              ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
+              ...(cache.genres != null && { genres: cache.genres })
             }
             : m
         );
@@ -545,7 +542,8 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
             }),
             ...(cache.creators != null && { directors: cache.creators }),
             ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
-            ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes })
+            ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
+            ...(cache.genres != null && { genres: cache.genres })
           };
         });
         if (changedClass) {

@@ -16,6 +16,7 @@ import { FirestorePeopleGate } from './components/FirestorePeopleGate';
 import { PeopleProvider } from './state/peopleStore';
 import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
 import { DirectorsProvider } from './state/directorsStore';
+import { FilterProvider } from './state/filterStore';
 
 function App() {
   const { user, loading } = useAuth();
@@ -46,11 +47,13 @@ function App() {
               <FirestorePeopleGate>
                 <FirestoreDirectorsGate>
                   <FirestoreWatchlistGate>
-                    <NavBar />
-                    <main className="app-main">
-                      <AppRoutes />
-                    </main>
-                    <DevTools />
+                    <FilterProvider>
+                      <NavBar />
+                      <main className="app-main">
+                        <AppRoutes />
+                      </main>
+                      <DevTools />
+                    </FilterProvider>
                   </FirestoreWatchlistGate>
                 </FirestoreDirectorsGate>
               </FirestorePeopleGate>
@@ -68,11 +71,13 @@ function App() {
           <PeopleProvider>
             <DirectorsProvider>
               <WatchlistProvider initialMovies={[]} initialTv={[]}>
-                <NavBar />
-                <main className="app-main">
-                  <AppRoutes />
-                </main>
-                <DevTools />
+                <FilterProvider>
+                  <NavBar />
+                  <main className="app-main">
+                    <AppRoutes />
+                  </main>
+                  <DevTools />
+                </FilterProvider>
               </WatchlistProvider>
             </DirectorsProvider>
           </PeopleProvider>

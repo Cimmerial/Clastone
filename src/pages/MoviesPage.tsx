@@ -9,8 +9,12 @@ import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import {
   useMoviesStore,
   getTotalMinutesFromRecords,
-  formatDuration
+  formatDuration,
+  getWatchRecordSortKey
 } from '../state/moviesStore';
+import { useFilterStore } from '../state/filterStore';
+import { FilterModal } from '../components/FilterModal';
+import { Filter as FilterIcon } from 'lucide-react';
 
 function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -30,6 +34,7 @@ export function MoviesPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const {
     byClass,
     classOrder,
@@ -46,6 +51,7 @@ export function MoviesPage() {
     removeMovieEntry,
     globalRanks // Added globalRanks from store
   } = useMoviesStore();
+  const { movieFilters } = useFilterStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -57,7 +63,38 @@ export function MoviesPage() {
       const ranked = isRankedClass(classKey);
       const isUnranked = classKey === 'UNRANKED';
 
-      next[classKey] = list.map((item, idx) => {
+      // Apply Filters
+      const filteredList = list.filter(item => {
+        // Genre Filter
+        if (movieFilters.genres.length > 0) {
+          const itemGenres = item.genres || [];
+          if (!movieFilters.genres.some(g => itemGenres.includes(g))) return false;
+        }
+
+        // Actor Filter
+        if (movieFilters.actorIds.length > 0) {
+          const itemActorIds = (item.cast || []).map(c => c.id);
+          if (!movieFilters.actorIds.every(id => itemActorIds.includes(id))) return false;
+        }
+
+        // Timeline Filter
+        if (movieFilters.watchTimeRange) {
+          const records = item.watchRecords || [];
+          const hasInRange = records.some(r => {
+            const t = r.type ?? 'DATE';
+            if (t === 'LONG_AGO' || t === 'UNKNOWN' || t === 'DNF_LONG_AGO') {
+              return movieFilters.includeLongAgo;
+            }
+            const year = r.year;
+            return year && year >= movieFilters.watchTimeRange![0] && year <= movieFilters.watchTimeRange![1];
+          });
+          if (!hasInRange && records.length > 0) return false;
+        }
+
+        return true;
+      });
+
+      next[classKey] = filteredList.map((item, idx) => {
         const ranks = globalRanks.get(item.id);
         return {
           ...item,
@@ -72,7 +109,7 @@ export function MoviesPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks]); // Added globalRanks to dependencies
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, movieFilters]); // Added globalRanks to dependencies
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {
@@ -92,6 +129,14 @@ export function MoviesPage() {
           <h1 className="page-title">Movies</h1>
           <RandomQuote />
         </div>
+        <button
+          className="filter-toggle-btn"
+          onClick={() => setIsFilterModalOpen(true)}
+          title="Filter Movies"
+        >
+          <FilterIcon size={20} />
+          <span>Filter</span>
+        </button>
       </header>
       <RankedList<MovieShowItem>
         classOrder={classOrder}
@@ -177,6 +222,12 @@ export function MoviesPage() {
           }}
         />
       )}
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        items={Object.values(byClass).flat()}
+        type="movies"
+      />
       <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
     </section>
   );

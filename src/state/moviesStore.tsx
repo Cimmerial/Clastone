@@ -583,6 +583,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
           watchTime: watchTime || undefined,
           watchRecords,
           runtimeMinutes: runtime,
+          genres: cache?.genres,
           posterPath: cache?.posterPath ?? incoming.posterPath,
           topCastNames: cache?.cast?.map((c) => c.name) ?? [],
           stickerTags: [],
@@ -623,11 +624,8 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
               ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
               ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
               ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-              ...(cache.cast != null && {
-                cast: cache.cast,
-                topCastNames: cache.cast.map((c) => c.name)
-              }),
-              ...(cache.directors != null && { directors: cache.directors })
+              ...(cache.directors != null && { directors: cache.directors }),
+              ...(cache.genres != null && { genres: cache.genres })
             }
             : m
         );
@@ -662,7 +660,8 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
               cast: cache.cast,
               topCastNames: cache.cast.map((c) => c.name)
             }),
-            ...(cache.directors != null && { directors: cache.directors })
+            ...(cache.directors != null && { directors: cache.directors }),
+            ...(cache.genres != null && { genres: cache.genres })
           };
         });
         if (changedClass) {

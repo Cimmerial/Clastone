@@ -10,6 +10,7 @@ export type TmdbRefreshableItem = {
   directors?: any[];
   totalEpisodes?: number;
   totalSeasons?: number;
+  genres?: string[];
 };
 
 export function needsMovieRefresh(item: TmdbRefreshableItem): boolean {
@@ -20,7 +21,8 @@ export function needsMovieRefresh(item: TmdbRefreshableItem): boolean {
     item.posterPath == null ||
     item.overview == null ||
     item.cast == null ||
-    item.directors == null
+    item.directors == null ||
+    item.genres == null
   );
 }
 
@@ -34,7 +36,8 @@ export function needsTvRefresh(item: TmdbRefreshableItem): boolean {
     item.directors == null ||
     item.totalEpisodes == null ||
     item.totalSeasons == null ||
-    item.runtimeMinutes == null
+    item.runtimeMinutes == null ||
+    item.genres == null
   );
 }
 
@@ -185,6 +188,7 @@ export type TmdbMovieCache = {
   overview?: string;
   releaseDate?: string;
   runtimeMinutes?: number;
+  genres: string[];
   cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
   directors: Array<{ id: number; name: string; profilePath?: string }>;
 };
@@ -204,6 +208,7 @@ export type TmdbTvCache = {
   episodeRuntimeMinutes?: number;
   /** Approximate total runtime for this instance (episode runtime * total episodes). */
   runtimeMinutes?: number;
+  genres: string[];
   cast: Array<{ id: number; name: string; character?: string; profilePath?: string }>;
   creators: Array<{ id: number; name: string; profilePath?: string }>;
   seasons: Array<{ seasonNumber: number; episodeCount?: number; airDate?: string }>;
@@ -240,6 +245,7 @@ type TmdbMovieDetailsResponse = {
   overview?: string | null;
   release_date?: string | null;
   runtime?: number | null;
+  genres?: Array<{ id: number; name: string }>;
   credits?: {
     cast?: Array<{ id: number; name?: string; character?: string; profile_path?: string | null }>;
     crew?: Array<{ id: number; name?: string; job?: string; profile_path?: string | null }>;
@@ -259,6 +265,7 @@ type TmdbTvDetailsResponse = {
   episode_run_time?: number[] | null;
   created_by?: Array<{ id: number; name?: string; profile_path?: string | null }>;
   seasons?: Array<{ season_number: number; episode_count?: number; air_date?: string | null }>;
+  genres?: Array<{ id: number; name: string }>;
   aggregate_credits?: {
     cast?: Array<{ id: number; name?: string; profile_path?: string | null; roles?: Array<{ character?: string }> }>;
   };
@@ -312,6 +319,7 @@ export async function tmdbMovieDetailsFull(
     overview: data.overview ?? undefined,
     releaseDate: data.release_date ?? undefined,
     runtimeMinutes: data.runtime ?? undefined,
+    genres: (data.genres ?? []).map((g) => g.name),
     cast,
     directors
   };
@@ -387,6 +395,7 @@ export async function tmdbTvDetailsFull(
     totalEpisodes,
     episodeRuntimeMinutes: effectiveEpisodeRuntime,
     runtimeMinutes,
+    genres: (data.genres ?? []).map((g) => g.name),
     cast,
     creators,
     seasons

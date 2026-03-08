@@ -67,6 +67,7 @@ export type MovieShowItem = RankedItemBase & {
   tvInstanceLabel?: string;
   tvSeasonStart?: number;
   tvSeasonEnd?: number;
+  genres?: string[];
 };
 
 type Props = {

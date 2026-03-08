@@ -8,6 +8,9 @@ import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWa
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { useTvStore } from '../state/tvStore';
 import { getTotalMinutesFromRecords, formatDuration } from '../state/moviesStore';
+import { useFilterStore } from '../state/filterStore';
+import { FilterModal } from '../components/FilterModal';
+import { Filter as FilterIcon } from 'lucide-react';
 
 function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -27,8 +30,10 @@ export function TvShowsPage() {
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
+  const { showFilters } = useFilterStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -39,7 +44,38 @@ export function TvShowsPage() {
       const ranked = isRankedClass(classKey);
       const isUnranked = classKey === 'UNRANKED';
 
-      next[classKey] = list.map((item, idx) => {
+      // Apply Filters
+      const filteredList = list.filter(item => {
+        // Genre Filter
+        if (showFilters.genres.length > 0) {
+          const itemGenres = item.genres || [];
+          if (!showFilters.genres.some(g => itemGenres.includes(g))) return false;
+        }
+
+        // Actor Filter
+        if (showFilters.actorIds.length > 0) {
+          const itemActorIds = (item.cast || []).map(c => c.id);
+          if (!showFilters.actorIds.every(id => itemActorIds.includes(id))) return false;
+        }
+
+        // Timeline Filter
+        if (showFilters.watchTimeRange) {
+          const records = item.watchRecords || [];
+          const hasInRange = records.some(r => {
+            const t = r.type ?? 'DATE';
+            if (t === 'LONG_AGO' || t === 'UNKNOWN' || t === 'DNF_LONG_AGO') {
+              return showFilters.includeLongAgo;
+            }
+            const year = r.year;
+            return year && year >= showFilters.watchTimeRange![0] && year <= showFilters.watchTimeRange![1];
+          });
+          if (!hasInRange && records.length > 0) return false;
+        }
+
+        return true;
+      });
+
+      next[classKey] = filteredList.map((item, idx) => {
         const ranks = globalRanks.get(item.id);
         return {
           ...item,
@@ -50,7 +86,7 @@ export function TvShowsPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, showFilters]);
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {
@@ -70,6 +106,14 @@ export function TvShowsPage() {
           <h1 className="page-title">TV Shows</h1>
           <RandomQuote />
         </div>
+        <button
+          className="filter-toggle-btn"
+          onClick={() => setIsFilterModalOpen(true)}
+          title="Filter TV Shows"
+        >
+          <FilterIcon size={20} />
+          <span>Filter</span>
+        </button>
       </header>
       <RankedList<MovieShowItem>
         classOrder={classOrder}
@@ -154,6 +198,12 @@ export function TvShowsPage() {
           }}
         />
       )}
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        items={Object.values(byClass).flat()}
+        type="shows"
+      />
       <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
     </section>
   );
