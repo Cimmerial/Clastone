@@ -4,6 +4,7 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
+import { PageSearch } from '../components/PageSearch';
 import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 
 export function DirectorsPage() {
@@ -113,6 +114,14 @@ export function DirectorsPage() {
           primaryButtonLabel="Update Ranking"
         />
       )}
+      <PageSearch
+        items={Object.values(byClass).flat().map(i => ({ id: i.id, title: i.title }))}
+        onSelect={(id) => {
+          const el = document.querySelector(`[data-item-id="${id}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
+        placeholder="Search directors..."
+      />
     </section>
   );
 }

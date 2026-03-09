@@ -135,10 +135,10 @@ button {
 .filter-toggle-btn {
   position: fixed;
   top: 4.5rem;
-  right: 1.5rem;
-  background: rgba(26, 26, 26, 0.4);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  right: 18.5rem;
+  background: rgba(26, 26, 26, 0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   padding: 8px 16px;
   border-radius: 12px;
@@ -149,7 +149,7 @@ button {
   font-size: 0.9rem;
   transition: all 0.3s ease;
   z-index: 1000;
-  opacity: 0.6;
+  opacity: 0.75;
 }
 
 .filter-toggle-btn:hover {

@@ -45,6 +45,7 @@ type Props = {
   isSaving: boolean;
   /** e.g. "Save and go to movie" */
   primaryButtonLabel?: string;
+  onAddToUnranked?: () => void | Promise<void>;
 };
 
 export function RecordWatchModal({
@@ -56,7 +57,8 @@ export function RecordWatchModal({
   onClose,
   onRemoveEntry,
   isSaving,
-  primaryButtonLabel
+  primaryButtonLabel,
+  onAddToUnranked
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
     if (initialRecords && initialRecords.length > 0) {
@@ -439,14 +441,17 @@ export function RecordWatchModal({
 
             <footer className="record-modal-footer">
               <div className="record-modal-footer-main">
+                {/* Secondary Save: Close without navigating */}
                 <button
                   type="button"
-                  className={`record-modal-save-btn ${showClassPicker ? 'record-modal-save-btn--secondary' : ''}`}
+                  className="record-modal-save-btn record-modal-secondary-btn"
                   onClick={() => void handleSave(false)}
                   disabled={isSaving}
                 >
                   {isSaving ? 'Saving…' : 'Save and close'}
                 </button>
+
+                {/* Primary Save: Custom label or Navigate */}
                 {showClassPicker && (
                   <button
                     type="button"
@@ -457,18 +462,19 @@ export function RecordWatchModal({
                     {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'person' ? 'Add to list and go' : target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
                   </button>
                 )}
-                {target.media_type !== 'person' && (
+
+                {/* Person-specific: Quick Unranked Add */}
+                {target.media_type === 'person' && onAddToUnranked && (
                   <button
                     type="button"
                     className="record-modal-save-btn record-modal-secondary-btn"
-                    onClick={() => void handleSave(false)}
+                    onClick={() => void onAddToUnranked()}
                     disabled={isSaving}
                   >
-                    {isSaving ? 'Saving…' : 'Save and close'}
+                    {isSaving ? 'Saving…' : 'Add to Unranked'}
                   </button>
                 )}
               </div>
-
 
               {onRemoveEntry && (
                 <button
@@ -494,6 +500,6 @@ export function RecordWatchModal({
           )}
         </div>
       </div>
-    </div >
+    </div>
   );
 }

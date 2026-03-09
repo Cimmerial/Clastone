@@ -1,0 +1,130 @@
+.page-search-container {
+    position: fixed;
+    top: 4.5rem;
+    z-index: 1001;
+    width: 240px;
+    transition: all 0.3s ease;
+}
+
+.page-search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(26, 26, 26, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+    opacity: 0.75;
+}
+
+.page-search-input-wrapper:hover,
+.page-search-input-wrapper:focus-within,
+.page-search-input-wrapper.active {
+    opacity: 1;
+    background: rgba(26, 26, 26, 0.8);
+    border-color: var(--accent-soft);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.page-search-input-wrapper .search-icon {
+    color: #888;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.page-search-input-wrapper input {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+}
+
+.page-search-input-wrapper input::placeholder {
+    color: #666;
+}
+
+.clear-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.clear-btn:hover {
+    color: #fff;
+}
+
+.page-search-results {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 350px;
+    margin-top: 8px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page-search-result-item {
+    padding: 10px 14px;
+    color: #ddd;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 1px solid #222;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.page-search-result-item:last-child {
+    border-bottom: none;
+}
+
+.page-search-result-item:hover {
+    background: #2a2a2a;
+    color: #fff;
+    padding-left: 18px;
+}
+
+.no-results {
+    padding: 12px;
+    color: #666;
+    font-size: 0.85rem;
+    text-align: center;
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .page-search-container {
+        width: 160px;
+    }
+
+    .page-search-input-wrapper:hover,
+    .page-search-input-wrapper:focus-within {
+        /* No expansion on mobile either */
+    }
+}

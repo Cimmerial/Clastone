@@ -33,6 +33,7 @@ type TvStore = {
       firstWatch?: WatchRecord;
       cache?: TmdbTvCache;
       toTop?: boolean;
+      toMiddle?: boolean;
     }
   ) => void;
   addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
@@ -377,6 +378,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         firstWatch?: WatchRecord;
         cache?: TmdbTvCache;
         toTop?: boolean;
+        toMiddle?: boolean;
       }
     ) => {
       setByClass((prev) => {
@@ -426,10 +428,22 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         });
 
         const targetList = prev[incoming.classKey] ?? [];
-        const toTop = incoming.toTop !== false;
+        const toTop = incoming.toTop;
+        const toMiddle = incoming.toMiddle;
+
+        let newList: MovieShowItem[];
+        if (toTop) {
+          newList = [base, ...targetList];
+        } else if (toMiddle) {
+          const mid = Math.ceil(targetList.length / 2);
+          newList = [...targetList.slice(0, mid), base, ...targetList.slice(mid)];
+        } else {
+          newList = [...targetList, base];
+        }
+
         return {
           ...prev,
-          [incoming.classKey]: toTop ? [base, ...targetList] : [...targetList, base]
+          [incoming.classKey]: newList
         };
       });
     },

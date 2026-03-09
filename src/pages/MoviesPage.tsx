@@ -12,8 +12,11 @@ import {
   formatDuration,
   getWatchRecordSortKey
 } from '../state/moviesStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { useFilterStore } from '../state/filterStore';
 import { FilterModal } from '../components/FilterModal';
+import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
 
 function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
@@ -35,6 +38,8 @@ export function MoviesPage() {
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
+  const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const {
     byClass,
     classOrder,
@@ -51,6 +56,8 @@ export function MoviesPage() {
     removeMovieEntry,
     globalRanks // Added globalRanks from store
   } = useMoviesStore();
+  const { addPersonFromSearch, classes: peopleClasses, moveItemToClass: movePersonToClass } = usePeopleStore();
+  const { addDirectorFromSearch, classes: directorsClasses, moveItemToClass: moveDirectorToClass } = useDirectorsStore();
   const { movieFilters } = useFilterStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -122,6 +129,9 @@ export function MoviesPage() {
     return () => clearTimeout(t);
   }, [scrollToId, navigate]);
 
+  const hasActiveModal = !!settingsFor || !!recordWatchFor || !!recordPersonTarget || isFilterModalOpen;
+  const allMovies = useMemo(() => Object.values(byClass).flat().map(i => ({ id: i.id, title: i.title })), [byClass]);
+
   return (
     <section>
       <header className="page-heading">
@@ -129,15 +139,28 @@ export function MoviesPage() {
           <h1 className="page-title">Movies</h1>
           <RandomQuote />
         </div>
-        <button
-          className="filter-toggle-btn"
-          onClick={() => setIsFilterModalOpen(true)}
-          title="Filter Movies"
-        >
-          <FilterIcon size={20} />
-          <span>Filter</span>
-        </button>
+        {!hasActiveModal && (
+          <button
+            className="filter-toggle-btn"
+            onClick={() => setIsFilterModalOpen(true)}
+            title="Filter Movies"
+          >
+            <FilterIcon size={20} />
+            <span>Filter</span>
+          </button>
+        )}
       </header>
+      {!hasActiveModal && (
+        <PageSearch
+          items={allMovies}
+          onSelect={(id: string) => {
+            const el = document.getElementById(`entry-${id}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+          placeholder="Search movies..."
+          className="page-search-locked"
+        />
+      )}
       <RankedList<MovieShowItem>
         classOrder={classOrder}
         itemsByClass={computedByClass}
@@ -172,6 +195,15 @@ export function MoviesPage() {
               onMoveDown={canMoveDown ? () => (isLast ? moveToOtherClass(item.id, 1) : moveWithinClass(item.id, 1)) : undefined}
               onClassUp={canClassUp ? () => moveToOtherClass(item.id, -1) : undefined}
               onClassDown={canClassDown ? () => moveToOtherClass(item.id, 1) : undefined}
+              onRecordPerson={async (info) => {
+                setRecordPersonTarget(info);
+                setIsSavingRecord(true);
+                try {
+                  const cache = await import('../lib/tmdb').then(m => m.tmdbPersonDetailsFull(info.id));
+                  setRecordPersonDetails(cache);
+                } catch { /* ignore */ }
+                finally { setIsSavingRecord(false); }
+              }}
             />
           );
         }}
@@ -194,28 +226,81 @@ export function MoviesPage() {
           }}
         />
       )}
-      {recordWatchFor && (
+      {recordPersonTarget && (
         <RecordWatchModal
-          target={movieItemToTarget(recordWatchFor)}
-          rankedClasses={classes.filter((c) => c.key !== 'UNRANKED').map((c) => ({ key: c.key, label: getClassLabel(c.key), tagline: getClassTagline(c.key) }))}
+          target={{
+            id: recordPersonTarget.id,
+            title: recordPersonTarget.name,
+            poster_path: recordPersonTarget.profilePath,
+            media_type: 'person'
+          }}
+          rankedClasses={
+            recordPersonTarget.type === 'director'
+              ? directorsClasses.filter(c => c.key !== 'UNRANKED').map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
+              : peopleClasses.filter(c => c.key !== 'UNRANKED').map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
+          }
           showClassPicker
           isSaving={isSavingRecord}
-          primaryButtonLabel="Save and go to movie"
-          onClose={() => setRecordWatchFor(null)}
-          onSave={async (params, goToMovie) => {
+          primaryButtonLabel={recordPersonTarget.type === 'director' ? 'Add to Directors' : 'Add to Actors'}
+          onClose={() => {
+            setRecordPersonTarget(null);
+            setRecordPersonDetails(null);
+          }}
+          onSave={async (params, goToPerson) => {
+            const isActor = recordPersonTarget.type === 'actor';
+            const id = `tmdb-person-${recordPersonTarget.id}`;
             setIsSavingRecord(true);
             try {
-              for (const w of params.watches) {
-                addWatchToMovie(recordWatchFor.id, w, { posterPath: recordWatchFor.posterPath });
-              }
-              if (params.classKey) {
-                moveItemToClass(recordWatchFor.id, params.classKey, {
-                  toTop: params.position === 'top',
-                  toMiddle: params.position === 'middle'
+              if (isActor) {
+                addPersonFromSearch({
+                  id,
+                  title: recordPersonTarget.name,
+                  profilePath: recordPersonTarget.profilePath,
+                  classKey: params.classKey || 'UNRANKED',
+                  cache: recordPersonDetails,
+                  position: params.position
+                });
+              } else {
+                addDirectorFromSearch({
+                  id,
+                  title: recordPersonTarget.name,
+                  profilePath: recordPersonTarget.profilePath,
+                  classKey: params.classKey || 'UNRANKED',
+                  cache: recordPersonDetails,
+                  position: params.position
                 });
               }
-              setRecordWatchFor(null);
-              if (goToMovie) navigate('/movies', { replace: true, state: { scrollToId: recordWatchFor.id } });
+              setRecordPersonTarget(null);
+              setRecordPersonDetails(null);
+              if (goToPerson) navigate(isActor ? '/actors' : '/directors', { state: { scrollToId: id } });
+            } finally {
+              setIsSavingRecord(false);
+            }
+          }}
+          onAddToUnranked={async () => {
+            const isActor = recordPersonTarget.type === 'actor';
+            const id = `tmdb-person-${recordPersonTarget.id}`;
+            setIsSavingRecord(true);
+            try {
+              if (isActor) {
+                addPersonFromSearch({
+                  id,
+                  title: recordPersonTarget.name,
+                  profilePath: recordPersonTarget.profilePath,
+                  classKey: 'UNRANKED',
+                  cache: recordPersonDetails
+                });
+              } else {
+                addDirectorFromSearch({
+                  id,
+                  title: recordPersonTarget.name,
+                  profilePath: recordPersonTarget.profilePath,
+                  classKey: 'UNRANKED',
+                  cache: recordPersonDetails
+                });
+              }
+              setRecordPersonTarget(null);
+              setRecordPersonDetails(null);
             } finally {
               setIsSavingRecord(false);
             }

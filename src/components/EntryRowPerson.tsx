@@ -6,6 +6,7 @@ import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { formatDuration, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useNavigate } from 'react-router-dom';
 
 type Props = {
   item: PersonItem | DirectorItem;
@@ -32,6 +33,7 @@ export function EntryRowPerson({
   const updatePersonCache = onUpdateCache ?? defaultUpdateCache;
   const { byClass: moviesByClass, globalRanks: moviesGlobalRanks } = useMoviesStore();
   const { byClass: tvByClass, globalRanks: tvGlobalRanks } = useTvStore();
+  const navigate = useNavigate();
   const rowRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [hoveredRoleId, setHoveredRoleId] = useState<number | null>(null);
@@ -210,9 +212,14 @@ export function EntryRowPerson({
               elements.push(
                 <div
                   key={`${role.mediaType}-${role.id}`}
-                  className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : ''}`}
+                  className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : ''} ${isSeen ? 'clickable' : ''}`}
                   onMouseEnter={() => setHoveredRoleId(role.id)}
                   onMouseLeave={() => setHoveredRoleId(null)}
+                  onClick={() => {
+                    if (isSeen) {
+                      navigate(role.mediaType === 'movie' ? '/movies' : '/tv', { state: { scrollToId: id } });
+                    }
+                  }}
                 >
                   {role.posterPath ? (
                     <img src={tmdbImagePath(role.posterPath, 'w92') ?? ''} alt="" loading="lazy" />
@@ -224,7 +231,18 @@ export function EntryRowPerson({
                       <span className="entry-cast-tooltip-name">{role.title}</span>
                       {role.job && <span className="entry-cast-tooltip-job">{role.job}</span>}
                       {role.character && <span className="entry-cast-tooltip-char">{role.character}</span>}
-                      {isSeen && <span className="entry-cast-tooltip-seen">Seen</span>}
+                      {isSeen && (
+                        <>
+                          <span className="entry-cast-tooltip-rank">
+                            {(() => {
+                              const ranks = role.mediaType === 'movie' ? moviesGlobalRanks : tvGlobalRanks;
+                              const info = ranks.get(id);
+                              return info?.percentileRank ? `Rank: ${info.percentileRank}` : 'Seen';
+                            })()}
+                          </span>
+                          <span className="entry-cast-tooltip-nav">Click to goto {role.title} in list</span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -196,6 +196,7 @@ type MoviesStore = {
       cache?: TmdbMovieCache;
       /** If false, insert at bottom of class (default true = top). */
       toTop?: boolean;
+      toMiddle?: boolean;
     }
   ) => void;
   addWatchToMovie: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
@@ -553,6 +554,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         posterPath?: string;
         cache?: TmdbMovieCache;
         toTop?: boolean;
+        toMiddle?: boolean;
       }
     ) => {
       setByClass((prev) => {
@@ -596,10 +598,22 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         };
 
         const targetList = prev[toKey] ?? [];
-        const toTop = incoming.toTop !== false;
+        const toTop = incoming.toTop;
+        const toMiddle = incoming.toMiddle;
+
+        let newList: MovieShowItem[];
+        if (toTop) {
+          newList = [base, ...targetList];
+        } else if (toMiddle) {
+          const mid = Math.ceil(targetList.length / 2);
+          newList = [...targetList.slice(0, mid), base, ...targetList.slice(mid)];
+        } else {
+          newList = [...targetList, base];
+        }
+
         return {
           ...prev,
-          [toKey]: toTop ? [base, ...targetList] : [...targetList, base]
+          [toKey]: newList
         };
       });
     },

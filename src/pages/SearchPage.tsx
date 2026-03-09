@@ -296,7 +296,8 @@ export function SearchPage() {
           runtimeMinutes: cache?.runtimeMinutes,
           posterPath: recordTarget.poster_path ?? cache?.posterPath,
           cache: cache ?? undefined,
-          toTop
+          toTop,
+          toMiddle
         });
         for (let i = 1; i < watches.length; i++) addWatchToMovie(id, watches[i]);
         setIsSaving(false);
@@ -325,7 +326,16 @@ export function SearchPage() {
         if (existingIsUnranked && recordClassKey) moveShowToClass(id, recordClassKey, { toTop });
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;
-        addShowFromSearch({ id, title: cache.title, subtitle: recordTarget.subtitle, classKey: recordClassKey, firstWatch: watches[0], cache, toTop });
+        addShowFromSearch({
+          id,
+          title: cache.title,
+          subtitle: recordTarget.subtitle,
+          classKey: recordClassKey,
+          firstWatch: watches[0],
+          cache,
+          toTop,
+          toMiddle
+        });
         for (let i = 1; i < watches.length; i++) addWatchToShow(id, watches[i]);
       }
       setRecordTarget(null);

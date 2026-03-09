@@ -4,6 +4,7 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { usePeopleStore, PersonItem } from '../state/peopleStore';
+import { PageSearch } from '../components/PageSearch';
 import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 
 export function ActorsPage() {
@@ -116,6 +117,14 @@ export function ActorsPage() {
           primaryButtonLabel="Update Ranking"
         />
       )}
+      <PageSearch
+        items={flatItems.map(i => ({ id: i.id, title: i.title }))}
+        onSelect={(id) => {
+          const el = document.querySelector(`[data-item-id="${id}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
+        placeholder="Search actors..."
+      />
     </section>
   );
 }

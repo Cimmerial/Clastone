@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { RankedItemBase } from './RankedList';
 import {
   tmdbImagePath,
@@ -9,7 +9,10 @@ import {
 } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useNavigate } from 'react-router-dom';
 
 /** Watch type for display and validation. */
 export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'DNF_LONG_AGO' | 'UNKNOWN';
@@ -80,6 +83,7 @@ type Props = {
   onMoveDown?: () => void;
   onClassUp?: () => void;
   onClassDown?: () => void;
+  onRecordPerson?: (info: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => void;
 };
 
 function parsePercentile(s: string): number | null {
@@ -112,7 +116,8 @@ export function EntryRowMovieShow({
   onMoveUp,
   onMoveDown,
   onClassUp,
-  onClassDown
+  onClassDown,
+  onRecordPerson
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -126,9 +131,43 @@ export function EntryRowMovieShow({
   const isUnranked = item.classKey === 'UNRANKED';
   const isNonRanked = item.classKey === 'BABY' || item.classKey === 'DELICIOUS_GARBAGE';
   const { settings } = useSettingsStore();
+  const navigate = useNavigate();
+  const { getPersonById, classes: peopleClasses } = usePeopleStore();
+  const { getDirectorById, classes: directorsClasses } = useDirectorsStore();
+
   const topCastCount = settings.topCastCount;
   const castSlice = (item.cast ?? []).slice(0, topCastCount);
   const [hoveredCastId, setHoveredCastId] = useState<number | null>(null);
+
+  const castWithSavedStatus = useMemo(() => {
+    return castSlice.map(c => {
+      const person = getPersonById(`tmdb-person-${c.id}`);
+      const isSaved = !!person;
+      const classLabel = person ? (peopleClasses.find(cl => cl.key === person.classKey)?.label ?? person.classKey.replace(/_/g, ' ')) : undefined;
+      return { ...c, isSaved, classLabel };
+    });
+  }, [castSlice, getPersonById, peopleClasses]);
+
+  const directorsWithSavedStatus = useMemo(() => {
+    return (item.directors || []).slice(0, 2).map(d => {
+      const director = getDirectorById(`tmdb-person-${d.id}`);
+      const isSaved = !!director;
+      const classLabel = director ? (directorsClasses.find(cl => cl.key === director.classKey)?.label ?? director.classKey.replace(/_/g, ' ')) : undefined;
+      return { ...d, isSaved, classLabel };
+    });
+  }, [item.directors, getDirectorById, directorsClasses]);
+
+  const handlePersonClick = (id: number, type: 'actor' | 'director', name: string, profilePath?: string) => {
+    const stringId = `tmdb-person-${id}`;
+    const target = type === 'actor' ? '/actors' : '/directors';
+    const existing = type === 'actor' ? getPersonById(stringId) : getDirectorById(stringId);
+
+    if (existing) {
+      navigate(target, { state: { scrollToId: stringId } });
+    } else {
+      onRecordPerson?.({ id, name, profilePath, type });
+    }
+  };
 
   const rowRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -173,7 +212,7 @@ export function EntryRowMovieShow({
     <article className={`entry-row ${isMinimized ? 'entry-row-minimized' : ''}`} ref={rowRef}>
       <div className="entry-poster" data-item-id={item.id}>
         {item.posterPath ? (
-          <img src={tmdbImagePath(item.posterPath) ?? ''} alt="" loading="lazy" />
+          <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
         ) : (
           <span>🎬</span>
         )}
@@ -237,14 +276,15 @@ export function EntryRowMovieShow({
                   Record First Watch
                 </button>
                 <div className="entry-cast-strip">
-                  {settings.showDirectors && (item.directors || []).length > 0 && (
+                  {settings.showDirectors && directorsWithSavedStatus.length > 0 && (
                     <>
-                      {(item.directors || []).slice(0, 2).map((d) => (
+                      {directorsWithSavedStatus.map((d) => (
                         <div
                           key={d.id}
-                          className="entry-cast-thumb entry-director-thumb"
+                          className={`entry-cast-thumb entry-director-thumb ${d.isSaved ? 'entry-role-seen' : ''} clickable`}
                           onMouseEnter={() => setHoveredCastId(d.id)}
                           onMouseLeave={() => setHoveredCastId(null)}
+                          onClick={() => handlePersonClick(d.id, 'director', d.name, d.profilePath)}
                         >
                           {d.profilePath ? (
                             <img src={tmdbImagePath(d.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
@@ -255,21 +295,28 @@ export function EntryRowMovieShow({
                             <div className="entry-cast-tooltip">
                               <span className="entry-cast-tooltip-name">{d.name}</span>
                               <span className="entry-cast-tooltip-char">{listType === 'shows' ? 'Creator' : 'Director'}</span>
+                              {d.classLabel && <span className="entry-cast-tooltip-rank">Class: {d.classLabel}</span>}
+                              {d.isSaved ? (
+                                <span className="entry-cast-tooltip-nav">Click to goto {d.name} in list</span>
+                              ) : (
+                                <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                              )}
                             </div>
                           )}
                         </div>
                       ))}
-                      {settings.showCast && castSlice.length > 0 && (
+                      {settings.showCast && castWithSavedStatus.length > 0 && (
                         <div className="entry-cast-separator" />
                       )}
                     </>
                   )}
-                  {settings.showCast && castSlice.map((c) => (
+                  {settings.showCast && castWithSavedStatus.map((c) => (
                     <div
                       key={c.id}
-                      className="entry-cast-thumb"
+                      className={`entry-cast-thumb ${c.isSaved ? 'entry-role-seen' : ''} clickable`}
                       onMouseEnter={() => setHoveredCastId(c.id)}
                       onMouseLeave={() => setHoveredCastId(null)}
+                      onClick={() => handlePersonClick(c.id, 'actor', c.name, c.profilePath)}
                     >
                       {c.profilePath ? (
                         <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
@@ -280,6 +327,12 @@ export function EntryRowMovieShow({
                         <div className="entry-cast-tooltip">
                           <span className="entry-cast-tooltip-name">{c.name}</span>
                           {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
+                          {c.classLabel && <span className="entry-cast-tooltip-rank">Class: {c.classLabel}</span>}
+                          {c.isSaved ? (
+                            <span className="entry-cast-tooltip-nav">Click to goto {c.name} in list</span>
+                          ) : (
+                            <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -304,14 +357,15 @@ export function EntryRowMovieShow({
             )}
             {!isUnranked && (
               <div className="entry-cast-strip">
-                {settings.showDirectors && (item.directors || []).length > 0 && (
+                {settings.showDirectors && directorsWithSavedStatus.length > 0 && (
                   <>
-                    {(item.directors || []).slice(0, 2).map((d) => (
+                    {directorsWithSavedStatus.map((d) => (
                       <div
                         key={d.id}
-                        className="entry-cast-thumb entry-director-thumb"
+                        className={`entry-cast-thumb entry-director-thumb ${d.isSaved ? 'entry-role-seen' : ''} clickable`}
                         onMouseEnter={() => setHoveredCastId(d.id)}
                         onMouseLeave={() => setHoveredCastId(null)}
+                        onClick={() => handlePersonClick(d.id, 'director', d.name, d.profilePath)}
                       >
                         {d.profilePath ? (
                           <img src={tmdbImagePath(d.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
@@ -322,21 +376,28 @@ export function EntryRowMovieShow({
                           <div className="entry-cast-tooltip">
                             <span className="entry-cast-tooltip-name">{d.name}</span>
                             <span className="entry-cast-tooltip-char">{listType === 'shows' ? 'Creator' : 'Director'}</span>
+                            {d.classLabel && <span className="entry-cast-tooltip-rank">Class: {d.classLabel}</span>}
+                            {d.isSaved ? (
+                              <span className="entry-cast-tooltip-nav">Click to goto {d.name} in list</span>
+                            ) : (
+                              <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                            )}
                           </div>
                         )}
                       </div>
                     ))}
-                    {settings.showCast && castSlice.length > 0 && (
+                    {settings.showCast && castWithSavedStatus.length > 0 && (
                       <div className="entry-cast-separator" />
                     )}
                   </>
                 )}
-                {settings.showCast && castSlice.map((c) => (
+                {settings.showCast && castWithSavedStatus.map((c) => (
                   <div
                     key={c.id}
-                    className="entry-cast-thumb"
+                    className={`entry-cast-thumb ${c.isSaved ? 'entry-role-seen' : ''} clickable`}
                     onMouseEnter={() => setHoveredCastId(c.id)}
                     onMouseLeave={() => setHoveredCastId(null)}
+                    onClick={() => handlePersonClick(c.id, 'actor', c.name, c.profilePath)}
                   >
                     {c.profilePath ? (
                       <img src={tmdbImagePath(c.profilePath, 'w92') ?? ''} alt="" loading="lazy" />
@@ -347,6 +408,12 @@ export function EntryRowMovieShow({
                       <div className="entry-cast-tooltip">
                         <span className="entry-cast-tooltip-name">{c.name}</span>
                         {c.character && <span className="entry-cast-tooltip-char">{c.character}</span>}
+                        {c.classLabel && <span className="entry-cast-tooltip-rank">Class: {c.classLabel}</span>}
+                        {c.isSaved ? (
+                          <span className="entry-cast-tooltip-nav">Click to goto {c.name} in list</span>
+                        ) : (
+                          <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                        )}
                       </div>
                     )}
                   </div>

@@ -433,6 +433,16 @@
   background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), transparent 70%);
   flex-shrink: 0;
   cursor: default;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.entry-cast-thumb.clickable {
+  cursor: pointer;
+}
+
+.entry-cast-thumb.clickable:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-light);
 }
 
 .entry-cast-thumb img {
@@ -505,6 +515,21 @@
   font-size: 0.65rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.entry-cast-tooltip-nav {
+  font-size: 0.6rem;
+  color: var(--accent-soft);
+  font-weight: 500;
+  margin-top: 0.15rem;
+  letter-spacing: 0.02em;
+}
+
+.entry-cast-tooltip-rank {
+  font-size: 0.65rem;
+  color: var(--accent-light);
+  font-weight: 600;
+  margin-top: 0.1rem;
 }
 
 .entry-dept-badge {
