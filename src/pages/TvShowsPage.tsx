@@ -208,6 +208,34 @@ export function TvShowsPage() {
           }}
         />
       )}
+      {recordWatchFor && (
+        <RecordWatchModal
+          target={tvItemToTarget(recordWatchFor)}
+          initialRecords={[]}
+          showClassPicker={true}
+          rankedClasses={classes
+            .filter((c) => isRankedClass(c.key))
+            .map((c) => ({ key: c.key, label: c.label, tagline: c.tagline }))}
+          isSaving={false}
+          onClose={() => setRecordWatchFor(null)}
+          onSave={(params, goToMedia) => {
+            addWatchToShow(recordWatchFor.id, params.watches[0]);
+            if (params.classKey) {
+              moveItemToClass(recordWatchFor.id, params.classKey, {
+                toTop: params.position === 'top',
+                toMiddle: params.position === 'middle'
+              });
+            }
+            setRecordWatchFor(null);
+            if (goToMedia) {
+              setTimeout(() => {
+                const el = document.getElementById(`entry-${recordWatchFor.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }
+          }}
+        />
+      )}
       {recordPersonTarget && (
         <RecordWatchModal
           target={{

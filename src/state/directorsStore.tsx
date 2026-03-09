@@ -213,6 +213,7 @@ export function DirectorsProvider({
     useEffect(() => {
         // 1. Skip the very first "fresh load" mutation
         if (!isHydratedRef.current) {
+            setByClass(prev => cleanupDuplicates(prev));
             lastSavedStateRef.current = { byClass, classes };
             isHydratedRef.current = true;
             return;
@@ -294,6 +295,57 @@ export function DirectorsProvider({
     }, [onPersist, pendingChanges]);
 
 
+    const cleanupDuplicates = useCallback((prev: Record<string, DirectorItem[]>) => {
+        const next = { ...prev };
+        const seenIds = new Map<string, { classKey: string; index: number; isRanked: boolean }>();
+        let hasChanges = false;
+
+        const classDefs = classes;
+        const rankedKeys = new Set(classDefs.filter(c => c.isRanked).map(c => c.key));
+
+        for (const classKey of classOrder) {
+            const list = next[classKey] ?? [];
+            const filteredList: DirectorItem[] = [];
+
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
+                const existing = seenIds.get(item.id);
+                const isRanked = rankedKeys.has(classKey);
+
+                if (existing) {
+                    hasChanges = true;
+                    // Logic: Ranked > Unranked, higher Rank > lower Rank
+                    let keepNew = false;
+                    if (isRanked && !existing.isRanked) {
+                        keepNew = true;
+                    } else if (isRanked && existing.isRanked) {
+                        const oldClassIdx = classOrder.indexOf(existing.classKey);
+                        const newClassIdx = classOrder.indexOf(classKey);
+                        if (newClassIdx < oldClassIdx) {
+                            keepNew = true;
+                        } else if (newClassIdx === oldClassIdx && i < existing.index) {
+                            keepNew = true;
+                        }
+                    }
+
+                    if (keepNew) {
+                        // Remove old one from its class
+                        next[existing.classKey] = next[existing.classKey].filter(it => it.id !== item.id);
+                        filteredList.push(item);
+                        seenIds.set(item.id, { classKey, index: i, isRanked });
+                    }
+                    // Else: discard this one (the old one was better)
+                } else {
+                    filteredList.push(item);
+                    seenIds.set(item.id, { classKey, index: i, isRanked });
+                }
+            }
+            next[classKey] = filteredList;
+        }
+        return hasChanges ? next : prev;
+    }, [classOrder, classes]);
+
+
     const addDirectorFromSearch = useCallback((incoming: {
         id: string;
         title: string;
@@ -303,8 +355,54 @@ export function DirectorsProvider({
         position?: 'top' | 'middle' | 'bottom';
     }) => {
         setByClass(prev => {
-            const alreadyExists = Object.values(prev).some(list => list.some(p => p.id === incoming.id));
-            if (alreadyExists) return prev;
+            const rankedKeys = new Set(classes.filter(c => c.isRanked).map(c => c.key));
+            const isTargetRanked = rankedKeys.has(incoming.classKey);
+
+            // Find existing
+            let existingItem: DirectorItem | null = null;
+            let existingClass: string | null = null;
+            for (const k of Object.keys(prev)) {
+                const found = prev[k].find(p => p.id === incoming.id);
+                if (found) {
+                    existingItem = found;
+                    existingClass = k;
+                    break;
+                }
+            }
+
+            if (existingItem && existingClass) {
+                const isExistingRanked = rankedKeys.has(existingClass);
+                let shouldMove = false;
+
+                if (isTargetRanked && !isExistingRanked) {
+                    shouldMove = true;
+                } else if (isTargetRanked && isExistingRanked) {
+                    const oldClassIdx = classOrder.indexOf(existingClass);
+                    const newClassIdx = classOrder.indexOf(incoming.classKey);
+                    if (newClassIdx < oldClassIdx) shouldMove = true;
+                } else if (!isTargetRanked && !isExistingRanked) {
+                    // Both unranked, move to newest selection
+                    shouldMove = true;
+                }
+
+                if (!shouldMove) return prev;
+
+                // Remove from old, add to new
+                const next = { ...prev };
+                next[existingClass] = next[existingClass].filter(it => it.id !== incoming.id);
+
+                const target = next[incoming.classKey] ?? [];
+                existingItem.classKey = incoming.classKey as any;
+                if (incoming.position === 'top') {
+                    next[incoming.classKey] = [existingItem, ...target];
+                } else if (incoming.position === 'middle') {
+                    const mid = Math.ceil(target.length / 2);
+                    next[incoming.classKey] = [...target.slice(0, mid), existingItem, ...target.slice(mid)];
+                } else {
+                    next[incoming.classKey] = [...target, existingItem];
+                }
+                return next;
+            }
 
             const cache = incoming.cache;
             const base: DirectorItem = {
