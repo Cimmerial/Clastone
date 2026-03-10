@@ -145,13 +145,6 @@ export function MoviesPage() {
         {!hasActiveModal && (
           <div className="page-actions-row">
             <ViewToggle />
-            <button
-              className="filter-toggle-btn"
-              onClick={() => setIsFilterModalOpen(true)}
-              title="Filter Movies"
-            >
-              <FilterIcon size={20} />
-            </button>
           </div>
         )}
       </header>
@@ -366,7 +359,9 @@ export function MoviesPage() {
         items={Object.values(byClass).flat()}
         type="movies"
       />
-      <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
+      <div className="class-jump-buttons-mobile-hidden">
+        <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
+      </div>
     </section>
   );
 }

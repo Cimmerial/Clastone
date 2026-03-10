@@ -1,0 +1,159 @@
+/* Mobile-specific optimizations for Clastone */
+
+@media (max-width: 768px) {
+  /* Hide class jump buttons on mobile */
+  .class-jump-bar {
+    display: none !important;
+  }
+
+  .class-jump-buttons-mobile-hidden {
+    display: none !important;
+  }
+
+  /* Force tile view only on mobile */
+  .mode-tile .class-section-rows,
+  .class-section-rows {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, 100px) !important;
+    gap: 1rem !important;
+    justify-content: center !important;
+    padding: 0.5rem !important;
+  }
+
+  /* Hide detailed/row view on mobile */
+  .entry-row {
+    display: none !important;
+  }
+
+  /* Make tiles smaller for mobile */
+  .entry-tile {
+    width: 100px !important;
+    gap: 0.4rem !important;
+  }
+
+  .entry-tile-poster {
+    border-radius: 8px !important;
+  }
+
+  .entry-tile-title {
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    height: 1.7rem !important;
+  }
+
+  /* Make posters smaller */
+  .entry-poster {
+    width: 40px !important;
+    height: 60px !important;
+    border-radius: 6px !important;
+  }
+
+  /* Make cast thumbnails smaller */
+  .entry-cast-thumb {
+    width: 28px !important;
+    height: 42px !important;
+    border-radius: 6px !important;
+  }
+
+  /* Make text smaller overall */
+  .entry-title {
+    font-size: 0.9rem !important;
+  }
+
+  .entry-subtitle {
+    font-size: 0.7rem !important;
+  }
+
+  .entry-stat-pill {
+    font-size: 0.65rem !important;
+    min-width: 45px !important;
+    padding: 0.1rem 0.35rem !important;
+  }
+
+  .class-section-title {
+    font-size: 0.7rem !important;
+  }
+
+  .class-section-tagline {
+    font-size: 0.7rem !important;
+  }
+
+  .page-title {
+    font-size: 1.2rem !important;
+  }
+
+  /* Make navbar more mobile-friendly */
+  .nav-inner {
+    padding: 0.4rem 0.3rem !important;
+  }
+
+  .nav-logo-mark {
+    padding: 0.3rem 0.8rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  .nav-logo-dropdown {
+    min-width: 280px !important;
+    padding: 0.6rem 0.7rem !important;
+  }
+
+  .nav-link {
+    padding: 0.2rem 0.5rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  /* Hide view toggle on mobile (force tile view) */
+  .view-toggle-btn {
+    display: none !important;
+  }
+
+  /* Hide filter toggle on mobile */
+  .filter-toggle-btn {
+    display: none !important;
+  }
+
+  /* Make page search more compact */
+  .page-search-locked {
+    margin: 0.5rem 0 !important;
+  }
+
+  /* Make class sections more compact */
+  .class-section {
+    padding: 0.4rem 0.4rem 0.5rem !important;
+  }
+
+  .class-section-header {
+    margin-bottom: 0.3rem !important;
+    padding-bottom: 0.2rem !important;
+  }
+
+  /* Reduce spacing overall */
+  .ranked-list-body {
+    gap: 0.5rem !important;
+  }
+
+  .ranked-list-header {
+    margin-bottom: 0.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Even more compact for very small screens */
+  .class-section-rows {
+    grid-template-columns: repeat(auto-fill, 85px) !important;
+    gap: 0.8rem !important;
+  }
+
+  .entry-tile {
+    width: 85px !important;
+  }
+
+  .entry-tile-title {
+    font-size: 0.65rem !important;
+    height: 1.5rem !important;
+  }
+
+  .nav-logo-dropdown {
+    min-width: 240px !important;
+  }
+}

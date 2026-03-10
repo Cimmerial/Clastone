@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users } from 'lucide-react';
-import { useMemo } from 'react';
+import { Search, Home, Settings, RefreshCw, Users, Menu, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import './NavBar.css';
 
 const mainLinks = [
@@ -20,6 +20,8 @@ const iconLinks = [
 ];
 
 export function NavBar() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <header className="nav-root">
       <div className="nav-inner">
@@ -39,6 +41,14 @@ export function NavBar() {
               </nav>
             </div>
           </div>
+          {/* Mobile hamburger menu */}
+          <button 
+            className="nav-mobile-toggle"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
         <div className="nav-right nav-right-inline">
           <nav className="nav-menu nav-menu-inline">
@@ -56,6 +66,31 @@ export function NavBar() {
             ))}
           </nav>
         </div>
+        {/* Mobile menu overlay */}
+        {isMobileMenuOpen && (
+          <div className="nav-mobile-overlay">
+            <nav className="nav-mobile-menu">
+              {mainLinks.map((link) => (
+                <NavItem 
+                  key={link.to} 
+                  to={link.to} 
+                  label={link.label} 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+              ))}
+              <span className="nav-sep" aria-hidden role="separator" />
+              {iconLinks.map((link) => (
+                <NavItem
+                  key={link.to}
+                  to={link.to}
+                  label={link.label}
+                  icon={link.icon}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );
@@ -68,7 +103,7 @@ type NavItemProps = {
   icon?: React.ComponentType<{ size?: number; className?: string }>;
 };
 
-function NavItem({ to, label, icon: Icon }: NavItemProps) {
+function NavItem({ to, label, icon: Icon, onClick }: NavItemProps & { onClick?: () => void }) {
   return (
     <NavLink
       to={to}
@@ -76,6 +111,7 @@ function NavItem({ to, label, icon: Icon }: NavItemProps) {
         ['nav-link', isActive ? 'nav-link-active' : ''].filter(Boolean).join(' ')
       }
       aria-label={label}
+      onClick={onClick}
     >
       {Icon ? (
         <Icon size={18} className="nav-link-icon" />

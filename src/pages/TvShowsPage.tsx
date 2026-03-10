@@ -126,13 +126,6 @@ export function TvShowsPage() {
         {!hasActiveModal && (
           <div className="page-actions-row">
             <ViewToggle />
-            <button
-              className="filter-toggle-btn"
-              onClick={() => setIsFilterModalOpen(true)}
-              title="Filter Shows"
-            >
-              <FilterIcon size={20} />
-            </button>
           </div>
         )}
       </header>
@@ -348,7 +341,9 @@ export function TvShowsPage() {
         items={Object.values(byClass).flat()}
         type="shows"
       />
-      <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
+      <div className="class-jump-buttons-mobile-hidden">
+        <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
+      </div>
     </section>
   );
 }
