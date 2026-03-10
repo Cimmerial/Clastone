@@ -20,6 +20,7 @@ import { FilterModal } from '../components/FilterModal';
 import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -62,6 +63,7 @@ export function MoviesPage() {
   const { addDirectorFromSearch, classes: directorsClasses, moveItemToClass: moveDirectorToClass } = useDirectorsStore();
   const { movieFilters } = useFilterStore();
   const { settings } = useSettingsStore();
+  const mobileViewMode = useMobileViewMode();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -160,7 +162,7 @@ export function MoviesPage() {
         />
       )}
       <RankedList<MovieShowItem>
-        viewMode={settings.viewMode}
+        viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={computedByClass}
         getClassLabel={getClassLabel}

@@ -8,6 +8,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { PageSearch } from '../components/PageSearch';
 import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 import { ViewToggle } from '../components/ViewToggle';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 export function DirectorsPage() {
   const {
@@ -21,6 +22,7 @@ export function DirectorsPage() {
     removeDirectorEntry
   } = useDirectorsStore();
   const { settings } = useSettingsStore();
+  const mobileViewMode = useMobileViewMode();
   const [recordTarget, setRecordTarget] = useState<DirectorItem | null>(null);
   const hasActiveModal = !!recordTarget;
 
@@ -86,7 +88,7 @@ export function DirectorsPage() {
       </header>
 
       <RankedList<DirectorItem>
-        viewMode={settings.viewMode}
+        viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
