@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import './RankedList.css';
 
@@ -30,6 +30,8 @@ type RankedListProps<T extends RankedItemBase> = {
   getClassTagline?: (classKey: ClassKey) => string | undefined;
   /** When provided, entries can be dragged to reorder within each class. */
   onReorderWithinClass?: (classKey: ClassKey, orderedIds: string[]) => void;
+  /** Optional view mode for layout adjustments */
+  viewMode?: 'minimized' | 'detailed' | 'tile';
 };
 
 function SortableRow<T extends RankedItemBase>({
@@ -69,8 +71,10 @@ export function RankedList<T extends RankedItemBase>({
   getClassSubtitle,
   getClassLabel,
   getClassTagline,
-  onReorderWithinClass
+  onReorderWithinClass,
+  viewMode = 'detailed'
 }: RankedListProps<T>) {
+  const isTile = viewMode === 'tile';
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -122,9 +126,12 @@ export function RankedList<T extends RankedItemBase>({
                   </p>
                 </div>
               </header>
-              <div className="class-section-rows">
+              <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''}`}>
                 {onReorderWithinClass ? (
-                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                  <SortableContext
+                    items={sortableIds}
+                    strategy={isTile ? rectSortingStrategy : verticalListSortingStrategy}
+                  >
                     {items.map((item) => (
                       <SortableRow
                         key={item.id}
@@ -155,7 +162,7 @@ export function RankedList<T extends RankedItemBase>({
 
   if (onReorderWithinClass) {
     return (
-      <div className="ranked-list ranked-list--sortable">
+      <div className={`ranked-list ranked-list--sortable mode-${viewMode}`}>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -167,6 +174,6 @@ export function RankedList<T extends RankedItemBase>({
     );
   }
 
-  return <div className="ranked-list">{content}</div>;
+  return <div className={`ranked-list mode-${viewMode}`}>{content}</div>;
 }
 

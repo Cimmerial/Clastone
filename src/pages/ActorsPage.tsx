@@ -4,8 +4,10 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { usePeopleStore, PersonItem } from '../state/peopleStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { PageSearch } from '../components/PageSearch';
 import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { ViewToggle } from '../components/ViewToggle';
 
 export function ActorsPage() {
   const {
@@ -18,7 +20,9 @@ export function ActorsPage() {
     updatePersonCache,
     removePersonEntry
   } = usePeopleStore();
+  const { settings } = useSettingsStore();
   const [recordTarget, setRecordTarget] = useState<PersonItem | null>(null);
+  const hasActiveModal = !!recordTarget;
 
   const location = useLocation();
   const scrollToId = location.state?.scrollToId;
@@ -76,9 +80,15 @@ export function ActorsPage() {
           <h1 className="page-title">Actors</h1>
           <RandomQuote />
         </div>
+        {!hasActiveModal && (
+          <div className="page-actions-row">
+            <ViewToggle />
+          </div>
+        )}
       </header>
 
       <RankedList<PersonItem>
+        viewMode={settings.viewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -118,6 +128,7 @@ export function ActorsPage() {
           mode='person'
           onSave={handleSaveRanking}
           onClose={handleCloseModal}
+          primaryButtonLabel="Save and go to Actors"
           onRemoveEntry={(id) => {
             removePersonEntry(id);
             handleCloseModal();

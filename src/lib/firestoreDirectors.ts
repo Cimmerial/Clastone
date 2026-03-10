@@ -37,10 +37,34 @@ function stripUndefined<T>(value: T): T {
 }
 
 /** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
-function pruneItem(item: DirectorItem): DirectorItem {
+export function pruneItem(item: DirectorItem): DirectorItem {
+    const roles = item.roles || [];
+    const seenMovieIds = new Set(item.moviesSeen);
+    const seenShowIds = new Set(item.showsSeen);
+
+    // 1. Separate seen and unseen roles
+    const seenRoles = roles.filter(r => {
+        const fullId = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
+        return seenMovieIds.has(fullId) || seenShowIds.has(fullId);
+    });
+
+    const unseenRoles = roles.filter(r => {
+        const fullId = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
+        return !seenMovieIds.has(fullId) && !seenShowIds.has(fullId);
+    });
+
+    // 2. Combine: All seen roles + top remaining up to 30 total
+    const limit = 30;
+    const finalRoles = [...seenRoles];
+    const remainingSpace = Math.max(0, limit - seenRoles.length);
+
+    if (remainingSpace > 0) {
+        finalRoles.push(...unseenRoles.slice(0, remainingSpace));
+    }
+
     return {
         ...item,
-        roles: item.roles?.slice(0, 50), // Keep a reasonable amount
+        roles: finalRoles,
         biography: item.biography && item.biography.length > 500
             ? item.biography.slice(0, 500) + '...'
             : item.biography,

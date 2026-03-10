@@ -30,6 +30,9 @@ export function formatWatchLabel(r: WatchRecord): string {
       if (y > 0) return `DNF (started ${formatDateParts(y, m, d)})`;
       return 'DNF';
     }
+    case 'DNF_LONG_AGO': {
+      return `DNF Long Ago (${r.dnfPercent ?? 50}%)`;
+    }
     case 'CURRENT': {
       const { y, m, d } = dateParts(r, false);
       if (y > 0) return `Currently watching (started ${formatDateParts(y, m, d)})`;
@@ -150,7 +153,7 @@ export function formatViewingFromRecords(
     } else if (t === 'LONG_AGO' || t === 'UNKNOWN') {
       pctSum += 100;
       totalMins += runtime;
-    } else if (t === 'DNF' || t === 'CURRENT') {
+    } else if (t === 'DNF' || t === 'CURRENT' || t === 'DNF_LONG_AGO') {
       const percent = Math.min(100, Math.max(0, r.dnfPercent ?? 0));
       pctSum += percent;
       totalMins += (percent / 100) * runtime;

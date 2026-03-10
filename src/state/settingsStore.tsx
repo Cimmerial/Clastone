@@ -4,7 +4,7 @@ export type GlobalSettings = {
     topCastCount: number;
     topRoleCount: number;
     personProjectsLimit: number;
-    minimizedEntries: boolean;
+    viewMode: 'minimized' | 'detailed' | 'tile';
     showCast: boolean;
     showDirectors: boolean;
     boycottTalkShows: boolean;
@@ -22,16 +22,26 @@ function getInitialSettings(): GlobalSettings {
         const cast = localStorage.getItem('clastone-topCastCount');
         const role = localStorage.getItem('clastone-topRoleCount');
         const ppl = localStorage.getItem('clastone-personProjectsLimit');
+        const vm = localStorage.getItem('clastone-viewMode');
         const min = localStorage.getItem('clastone-minimizedEntries');
         const sc = localStorage.getItem('clastone-showCast');
         const sd = localStorage.getItem('clastone-showDirectors');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
 
+        let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
+        if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
+            viewMode = vm as any;
+        } else if (min === 'true') {
+            viewMode = 'minimized';
+        } else if (min === 'false') {
+            viewMode = 'detailed';
+        }
+
         return {
             topCastCount: cast ? Number(cast) : 5,
             topRoleCount: role ? Number(role) : 5,
             personProjectsLimit: ppl ? Number(ppl) : 12,
-            minimizedEntries: min === 'true',
+            viewMode,
             showCast: sc !== 'false', // Default to true
             showDirectors: sd !== 'false', // Default to true
             boycottTalkShows: bts === 'true'
@@ -41,7 +51,7 @@ function getInitialSettings(): GlobalSettings {
             topCastCount: 5,
             topRoleCount: 5,
             personProjectsLimit: 12,
-            minimizedEntries: false,
+            viewMode: 'minimized',
             showCast: true,
             showDirectors: true,
             boycottTalkShows: false
@@ -107,7 +117,7 @@ export function SettingsProvider({
                 if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));
                 if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
                 if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
-                if (updates.minimizedEntries !== undefined) localStorage.setItem('clastone-minimizedEntries', String(next.minimizedEntries));
+                if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
                 if (updates.showCast !== undefined) localStorage.setItem('clastone-showCast', String(next.showCast));
                 if (updates.showDirectors !== undefined) localStorage.setItem('clastone-showDirectors', String(next.showDirectors));
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { pruneItem } from '../lib/firestoreDirectors';
 import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
 import type { TmdbPersonCache } from '../lib/tmdb';
@@ -244,6 +245,7 @@ export function DirectorsProvider({
         const savedClasses = classes;
 
         persistTimeoutRef.current = setTimeout(() => {
+            console.info(`[DirectorsStore] Debounce finished. Executing onPersist...`);
             onPersist({
                 byClass: savedByClass,
                 classes: savedClasses,
@@ -251,6 +253,18 @@ export function DirectorsProvider({
                 dirtyClasses,
                 classesMetadataChanged
             });
+
+            // Update local state to the pruned version so StorageVisualizer reflects "true" size
+            setByClass(prev => {
+                const updated = { ...prev };
+                dirtyClasses.forEach(key => {
+                    if (updated[key]) {
+                        updated[key] = updated[key].map(pruneItem);
+                    }
+                });
+                return updated;
+            });
+
             lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
             setPendingChanges(0);
             persistTimeoutRef.current = null;

@@ -61,6 +61,26 @@ export type TmdbMultiResult = {
   release_date?: string;
 };
 
+export type TmdbWatchProvider = {
+  display_priority: number;
+  logo_path: string;
+  provider_id: number;
+  provider_name: string;
+};
+
+export type TmdbWatchProvidersResponse = {
+  id: number;
+  results: {
+    [countryCode: string]: {
+      link: string;
+      flatrate?: TmdbWatchProvider[];
+      rent?: TmdbWatchProvider[];
+      buy?: TmdbWatchProvider[];
+      ads?: TmdbWatchProvider[];
+    };
+  };
+};
+
 type TmdbSearchMovieResponse = {
   results: TmdbMovieResult[];
 };
@@ -502,5 +522,16 @@ export async function tmdbPersonDetailsFull(
     rolesCount: cache.roles.length
   });
   return cache;
+}
+
+/** Fetch watch providers for a movie or TV show. */
+export async function tmdbWatchProviders(
+  id: number,
+  mediaType: 'movie' | 'tv',
+  signal?: AbortSignal
+): Promise<TmdbWatchProvidersResponse | null> {
+  return tmdbGet<TmdbWatchProvidersResponse>(`/${mediaType}/${id}/watch/providers`, signal).catch(
+    () => null
+  );
 }
 

@@ -1,0 +1,35 @@
+.view-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-dim);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    justify-content: center;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.view-toggle-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+    border-color: var(--accent-primary);
+}
+
+.view-toggle-btn svg {
+    opacity: 0.7;
+}
+
+.view-toggle-btn:hover svg {
+    opacity: 1;
+}
+
+@media (max-width: 600px) {
+    .view-toggle-btn span {
+        display: none;
+    }
+}

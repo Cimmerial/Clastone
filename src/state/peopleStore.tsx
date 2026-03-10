@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { pruneItem } from '../lib/firestorePeople';
 import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
 import type { TmdbPersonCache } from '../lib/tmdb';
@@ -244,6 +245,17 @@ export function PeopleProvider({
         const savedClasses = classes;
 
         persistTimeoutRef.current = setTimeout(() => {
+            console.info(`[PeopleStore] Debounce finished. Executing onPersist...`);
+
+            // 1. Calculate the pruned version of the data that will be saved
+            const prunedByClass = { ...savedByClass };
+            dirtyClasses.forEach(key => {
+                if (prunedByClass[key]) {
+                    prunedByClass[key] = prunedByClass[key].map(pruneItem);
+                }
+            });
+
+            // 2. Persist to Firestore
             onPersist({
                 byClass: savedByClass,
                 classes: savedClasses,
@@ -251,7 +263,12 @@ export function PeopleProvider({
                 dirtyClasses,
                 classesMetadataChanged
             });
-            lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
+
+            // 3. Update local state to the pruned version so StorageVisualizer reflects "true" size
+            // AND update the ref with the exact pruned version so the next diff check finds NO changes.
+            setByClass(prunedByClass);
+            lastSavedStateRef.current = { byClass: prunedByClass, classes: savedClasses };
+
             setPendingChanges(0);
             persistTimeoutRef.current = null;
         }, 10000); // 10s debounce

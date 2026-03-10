@@ -50,9 +50,12 @@ export function StorageVisualizer({ label, byClass, classes }: StorageVisualizer
             <h3 className="storage-viz-title">{label} Storage breakdown</h3>
             <div className="storage-viz-list">
                 {stats.map(stat => (
-                    <div key={stat.key} className="storage-viz-item">
+                    <div key={stat.key} className="storage-viz-item" title={`${stat.label}: ${formatBytes(stat.size)} (${stat.percent.toFixed(1)}% of 1MB limit)`}>
                         <div className="storage-viz-info">
-                            <span className="storage-viz-label">{stat.label}</span>
+                            <span className="storage-viz-label">
+                                {stat.label}
+                                <span className="storage-viz-count"> · {(byClass[stat.key] || []).length} items</span>
+                            </span>
                             <span className="storage-viz-size">{formatBytes(stat.size)}</span>
                         </div>
                         <div className="storage-viz-bar-bg">

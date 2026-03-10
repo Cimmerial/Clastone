@@ -149,6 +149,33 @@ export function EntryRowPerson({
 
   const totalWatchTime = (item.movieMinutes || 0) + (item.showMinutes || 0);
 
+  const viewMode = settings.viewMode;
+  const isTile = viewMode === 'tile';
+
+  if (isTile) {
+    const age = calculateAge(item.birthday, item.deathday);
+    return (
+      <article className="entry-tile entry-tile-person" ref={rowRef}>
+        <div className="entry-tile-poster" data-item-id={item.id}>
+          {item.profilePath ? (
+            <img src={tmdbImagePath(item.profilePath) ?? ''} alt="" loading="lazy" />
+          ) : (
+            <span>👤</span>
+          )}
+          <div className="entry-tile-stats-overlay">
+            {age != null && <div className="entry-stat-pill">Age: {age}</div>}
+            <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
+            {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
+          </div>
+          <div className="entry-tile-quick-actions">
+            <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+          </div>
+        </div>
+        <div className="entry-tile-title">{item.title}</div>
+      </article>
+    );
+  }
+
   return (
     <article className="entry-row" ref={rowRef}>
       <div className="entry-poster" data-item-id={item.id}>

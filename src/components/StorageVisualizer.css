@@ -33,6 +33,13 @@
     color: var(--text-bright);
 }
 
+.storage-viz-count {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-weight: normal;
+    margin-left: 0.25rem;
+}
+
 .storage-viz-size {
     color: var(--text-dim);
 }

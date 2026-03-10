@@ -174,7 +174,9 @@ export function EntryRowMovieShow({
   const { updateMovieCache } = useMoviesStore();
   const { updateShowCache } = useTvStore();
 
-  const isMinimized = settings.minimizedEntries;
+  const viewMode = settings.viewMode;
+  const isMinimized = viewMode === 'minimized';
+  const isTile = viewMode === 'tile';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -207,6 +209,30 @@ export function EntryRowMovieShow({
       }
     }
   }, [isVisible, item.tmdbId, item.id, listType, updateMovieCache, updateShowCache, item]);
+
+  if (isTile) {
+    return (
+      <article className="entry-tile" ref={rowRef}>
+        <div className="entry-tile-poster">
+          {item.posterPath ? (
+            <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
+          ) : (
+            <span>🎬</span>
+          )}
+          <div className="entry-tile-stats-overlay">
+            <div className="entry-stat-pill">{item.percentileRank}</div>
+            <div className="entry-stat-pill">{item.absoluteRank}</div>
+            {item.watchTime && <div className="entry-stat-pill">{item.watchTime}</div>}
+          </div>
+          <div className="entry-tile-quick-actions">
+            <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+            {isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
+          </div>
+        </div>
+        <div className="entry-tile-title">{item.title}</div>
+      </article>
+    );
+  }
 
   return (
     <article className={`entry-row ${isMinimized ? 'entry-row-minimized' : ''}`} ref={rowRef}>

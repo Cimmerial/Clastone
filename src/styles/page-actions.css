@@ -1,0 +1,11 @@
+.page-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+@media (max-width: 600px) {
+    .page-actions-row {
+        gap: 0.5rem;
+    }
+}

@@ -4,8 +4,10 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { PageSearch } from '../components/PageSearch';
 import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { ViewToggle } from '../components/ViewToggle';
 
 export function DirectorsPage() {
   const {
@@ -18,7 +20,9 @@ export function DirectorsPage() {
     updateDirectorCache,
     removeDirectorEntry
   } = useDirectorsStore();
+  const { settings } = useSettingsStore();
   const [recordTarget, setRecordTarget] = useState<DirectorItem | null>(null);
+  const hasActiveModal = !!recordTarget;
 
   const location = useLocation();
   const scrollToId = location.state?.scrollToId;
@@ -74,9 +78,15 @@ export function DirectorsPage() {
           <h1 className="page-title">Directors</h1>
           <RandomQuote />
         </div>
+        {!hasActiveModal && (
+          <div className="page-actions-row">
+            <ViewToggle />
+          </div>
+        )}
       </header>
 
       <RankedList<DirectorItem>
+        viewMode={settings.viewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -116,6 +126,7 @@ export function DirectorsPage() {
           mode='person'
           onSave={handleSaveRanking}
           onClose={handleCloseModal}
+          primaryButtonLabel="Save and go to Directors"
           onRemoveEntry={(id) => {
             removeDirectorEntry(id);
             handleCloseModal();

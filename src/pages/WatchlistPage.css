@@ -82,6 +82,27 @@
   flex-shrink: 0;
 }
 
+.watchlist-row-remove-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 100, 100, 0.2);
+  background: rgba(100, 0, 0, 0.2);
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.watchlist-row-remove-btn:hover {
+  background: rgba(255, 100, 100, 0.25);
+  border-color: rgba(255, 100, 100, 0.5);
+  transform: scale(1.1);
+}
+
 .watchlist-row-move-btn {
   width: 1.75rem;
   height: 1.75rem;
@@ -126,3 +147,52 @@
   background: rgba(244, 162, 97, 0.25);
   border-color: rgba(244, 162, 97, 0.8);
 }
+
+.watchlist-row-providers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.watchlist-provider-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 4px 2px 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.watchlist-provider-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: block;
+}
+
+.watchlist-provider-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.watchlist-provider-badge--subs {
+  color: #4ade80;
+}
+
+/* green */
+.watchlist-provider-badge--rent {
+  color: #60a5fa;
+}
+
+/* blue */
+.watchlist-provider-badge--ads {
+  color: #fbbf24;
+}
+
+/* yellow */

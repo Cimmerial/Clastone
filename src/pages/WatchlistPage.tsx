@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import {
@@ -15,7 +15,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
 import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 import './WatchlistPage.css';
 
@@ -31,18 +31,22 @@ function WatchlistRow({
   onRecordWatch,
   onMoveUp,
   onMoveDown,
+  onRemove,
   hasWatched,
   canMoveUp,
-  canMoveDown
+  canMoveDown,
+  providers
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
   onRecordWatch: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onRemove: () => void;
   hasWatched: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
@@ -66,9 +70,39 @@ function WatchlistRow({
       </div>
       <div className="watchlist-row-main">
         <div className="watchlist-row-title">{entry.title}</div>
-        <div className="watchlist-row-year">{formatYear(entry.releaseDate)}</div>
+        <div className="watchlist-row-year">
+          {formatYear(entry.releaseDate)}
+          {providers && providers.length > 0 && (
+            <div className="watchlist-row-providers">
+              {providers.slice(0, 4).map((p) => (
+                <div key={`${p.provider_id}-${p.type}`} className="watchlist-provider-wrapper">
+                  <img
+                    src={tmdbImagePath(p.logo_path, 'w45') ?? ''}
+                    alt={p.provider_name}
+                    title={`${p.provider_name} (${p.type.toUpperCase()})`}
+                    className="watchlist-provider-icon"
+                  />
+                  <span className={`watchlist-provider-badge watchlist-provider-badge--${p.type}`}>
+                    {p.type === 'subs' ? 'Subs' : p.type === 'rent' ? 'Rent' : 'Ads'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div className="watchlist-row-actions">
+        <button
+          type="button"
+          className="watchlist-row-remove-btn"
+          aria-label="Remove from watchlist"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
+          ✕
+        </button>
         <button
           type="button"
           className="watchlist-row-move-btn"
@@ -136,6 +170,43 @@ export function WatchlistPage() {
   const [recordTarget, setRecordTarget] = useState<RecordWatchTarget | null>(null);
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>>>({});
+
+  useEffect(() => {
+    const fetchAllProviders = async () => {
+      const allEntries = [...movies, ...tv];
+      for (const entry of allEntries) {
+        if (watchProviders[entry.id]) continue;
+        const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
+        if (!match) continue;
+        const [, media, idStr] = match;
+        const tmdbId = parseInt(idStr, 10);
+        if (Number.isNaN(tmdbId)) continue;
+
+        try {
+          const res = await tmdbWatchProviders(tmdbId, media as 'movie' | 'tv');
+          const us = res?.results?.US;
+          if (us) {
+            const combined: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }> = [
+              ...(us.flatrate || []).map(p => ({ ...p, type: 'subs' as const })),
+              ...(us.ads || []).map(p => ({ ...p, type: 'ads' as const })),
+              ...(us.rent || []).map(p => ({ ...p, type: 'rent' as const }))
+            ];
+
+            if (combined.length > 0) {
+              setWatchProviders((prev) => ({
+                ...prev,
+                [entry.id]: combined
+              }));
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to fetch providers for ${entry.id}`, err);
+        }
+      }
+    };
+    fetchAllProviders();
+  }, [movies, tv]);
 
   const movieRankedClasses = useMemo(
     () => classOrder.map((k) => ({
@@ -357,9 +428,11 @@ export function WatchlistPage() {
                       onRecordWatch={() => handleRecordWatch(entry, 'movies')}
                       onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
                       onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
                       hasWatched={hasWatched(entry.id)}
                       canMoveUp={index > 0}
                       canMoveDown={index < movies.length - 1}
+                      providers={watchProviders[entry.id]}
                     />
                   ))}
                 </SortableContext>
@@ -381,9 +454,11 @@ export function WatchlistPage() {
                       onRecordWatch={() => handleRecordWatch(entry, 'tv')}
                       onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
                       onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
                       hasWatched={hasWatched(entry.id)}
                       canMoveUp={index > 0}
                       canMoveDown={index < tv.length - 1}
+                      providers={watchProviders[entry.id]}
                     />
                   ))}
                 </SortableContext>

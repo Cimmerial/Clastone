@@ -14,9 +14,11 @@ import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useTvStore } from '../state/tvStore';
 import { useFilterStore } from '../state/filterStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { FilterModal } from '../components/FilterModal';
 import { PageSearch } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
+import { ViewToggle } from '../components/ViewToggle';
 
 function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -44,6 +46,7 @@ export function TvShowsPage() {
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
   const { addDirectorFromSearch, classes: directorsClasses } = useDirectorsStore();
   const { showFilters } = useFilterStore();
+  const { settings } = useSettingsStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -121,14 +124,16 @@ export function TvShowsPage() {
           <RandomQuote />
         </div>
         {!hasActiveModal && (
-          <button
-            className="filter-toggle-btn"
-            onClick={() => setIsFilterModalOpen(true)}
-            title="Filter Shows"
-          >
-            <FilterIcon size={20} />
-            <span>Filter</span>
-          </button>
+          <div className="page-actions-row">
+            <ViewToggle />
+            <button
+              className="filter-toggle-btn"
+              onClick={() => setIsFilterModalOpen(true)}
+              title="Filter Shows"
+            >
+              <FilterIcon size={20} />
+            </button>
+          </div>
         )}
       </header>
 
@@ -145,6 +150,7 @@ export function TvShowsPage() {
       )}
 
       <RankedList<MovieShowItem>
+        viewMode={settings.viewMode}
         classOrder={classOrder}
         itemsByClass={computedByClass}
         getClassLabel={getClassLabel}

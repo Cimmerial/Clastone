@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
     getThrottlerState,
     subscribeToThrottler,
@@ -6,10 +6,46 @@ import {
     clearThrottlerLog,
     type ThrottledRequest
 } from '../lib/firebaseThrottler';
+import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
+import { useSyncStatus } from '../context/SyncStatusContext';
+import { StorageVisualizer } from '../components/StorageVisualizer';
+import { MigrationOverlay, type MigrationStep } from '../components/MigrationOverlay';
 import './SettingsPage.css'; // Reuse settings page styling
 
 export function DiagnosticsPage() {
     const [state, setState] = useState(getThrottlerState());
+    const { status } = useSyncStatus();
+
+    const {
+        classes,
+        byClass,
+        forceSync: forceSyncMovies
+    } = useMoviesStore();
+    const {
+        classes: tvClasses,
+        byClass: tvByClass,
+        forceSync: forceSyncTv
+    } = useTvStore();
+    const {
+        classes: peopleClasses,
+        byClass: peopleByClass,
+        forceSync: forceSyncPeople
+    } = usePeopleStore();
+    const {
+        classes: directorClasses,
+        byClass: directorByClass,
+        forceSync: forceSyncDirectors
+    } = useDirectorsStore();
+    const { forceSync: forceSyncWatchlist } = useWatchlistStore();
+
+    const [isMigrating, setIsMigrating] = useState(false);
+    const [migrationSteps, setMigrationSteps] = useState<MigrationStep[]>([]);
+    const [migrationProgress, setMigrationProgress] = useState(0);
+    const [migrationError, setMigrationError] = useState<string | undefined>();
 
     useEffect(() => {
         const unsubscribe = subscribeToThrottler(() => {
@@ -17,6 +53,57 @@ export function DiagnosticsPage() {
         });
         return unsubscribe;
     }, []);
+
+    const handleMigration = async () => {
+        const confirmed = confirm("This will manually trigger a full save of your data and ensure it's migrated to the new scalable structure. Continue?");
+        if (!confirmed) return;
+
+        const initialSteps: MigrationStep[] = [
+            { id: 'movies', label: 'Migrating Movies...', status: 'pending' },
+            { id: 'tv', label: 'Migrating TV Shows...', status: 'pending' },
+            { id: 'watchlist', label: 'Migrating Watchlist...', status: 'pending' },
+            { id: 'people', label: 'Migrating Actors...', status: 'pending' },
+            { id: 'directors', label: 'Migrating Directors...', status: 'pending' },
+        ];
+        setMigrationSteps(initialSteps);
+        setIsMigrating(true);
+        setMigrationProgress(0);
+        setMigrationError(undefined);
+
+        try {
+            const updateStep = (id: string, status: MigrationStep['status']) => {
+                setMigrationSteps(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+            };
+
+            updateStep('movies', 'running');
+            await forceSyncMovies();
+            updateStep('movies', 'completed');
+            setMigrationProgress(20);
+
+            updateStep('tv', 'running');
+            await forceSyncTv();
+            updateStep('tv', 'completed');
+            setMigrationProgress(40);
+
+            updateStep('watchlist', 'running');
+            await forceSyncWatchlist();
+            updateStep('watchlist', 'completed');
+            setMigrationProgress(60);
+
+            updateStep('people', 'running');
+            await forceSyncPeople();
+            updateStep('people', 'completed');
+            setMigrationProgress(80);
+
+            updateStep('directors', 'running');
+            await forceSyncDirectors();
+            updateStep('directors', 'completed');
+            setMigrationProgress(100);
+
+        } catch (err: any) {
+            setMigrationError(err.message || 'Migration failed');
+        }
+    };
 
     const { queue, requestLog, isPaused } = state;
 
@@ -124,7 +211,82 @@ export function DiagnosticsPage() {
                         </table>
                     </div>
                 </div>
+
+                <div className="settings-card card-surface settings-card-wide">
+                    <h2 className="settings-title">Storage & Migration</h2>
+                    <p className="settings-muted">
+                        Visualize your Firestore storage usage and manually trigger a migration to the new scalable structure.
+                    </p>
+
+                    <div className="settings-migration-status">
+                        <div className={`migration-indicator ${status.migration.movies ? 'migrated' : 'pending'}`}>
+                            Movies: {status.migration.movies ? '✓ Migrated' : '⚠ Pending Migration'}
+                        </div>
+                        <div className={`migration-indicator ${status.migration.tv ? 'migrated' : 'pending'}`}>
+                            TV Shows: {status.migration.tv ? '✓ Migrated' : '⚠ Pending Migration'}
+                        </div>
+                        <div className={`migration-indicator ${status.migration.watchlist ? 'migrated' : 'pending'}`}>
+                            Watchlist: {status.migration.watchlist ? '✓ Migrated' : '⚠ Pending Migration'}
+                        </div>
+                        <div className={`migration-indicator ${status.migration.people ? 'migrated' : 'pending'}`}>
+                            Actors: {status.migration.people ? '✓ Migrated' : '⚠ Pending Migration'}
+                        </div>
+                        <div className={`migration-indicator ${status.migration.directors ? 'migrated' : 'pending'}`}>
+                            Directors: {status.migration.directors ? '✓ Migrated' : '⚠ Pending Migration'}
+                        </div>
+                    </div>
+
+                    <div className="settings-storage-grid">
+                        <StorageVisualizer
+                            label="Movies"
+                            classes={classes}
+                            byClass={byClass}
+                        />
+                        <StorageVisualizer
+                            label="TV Shows"
+                            classes={tvClasses}
+                            byClass={tvByClass}
+                        />
+                        <StorageVisualizer
+                            label="Actors"
+                            classes={peopleClasses}
+                            byClass={peopleByClass}
+                        />
+                        <StorageVisualizer
+                            label="Directors"
+                            classes={directorClasses}
+                            byClass={directorByClass}
+                        />
+                    </div>
+
+                    <div className="settings-migration-actions">
+                        {(!status.migration.movies || !status.migration.tv || !status.migration.watchlist) ? (
+                            <button
+                                type="button"
+                                className="settings-btn settings-btn-primary"
+                                onClick={handleMigration}
+                                id="migrate-verify-btn"
+                            >
+                                Migrate and Verify Storage
+                            </button>
+                        ) : (
+                            <div className="migration-complete-msg">
+                                <span className="check-icon">✓</span> All data is successfully migrated to the new scalable structure.
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
+
+            {isMigrating && (
+                <MigrationOverlay
+                    steps={migrationSteps}
+                    progress={migrationProgress}
+                    isComplete={migrationProgress === 100}
+                    error={migrationError}
+                    onClose={() => setIsMigrating(false)}
+                />
+            )}
         </section>
     );
 }
