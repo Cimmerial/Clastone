@@ -8,6 +8,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { usePeopleStore, defaultPeopleClasses } from '../state/peopleStore';
 import { useDirectorsStore, defaultDirectorsClasses } from '../state/directorsStore';
+import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
 import './SettingsPage.css';
 
 
@@ -139,7 +140,10 @@ export function SettingsPage() {
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
-                        renameClassLabel(c.key, next);
+                        const sanitized = sanitizeLabel(next);
+                        if (isValidLabel(sanitized)) {
+                          renameClassLabel(c.key, sanitized);
+                        }
                       }}
                     >
                       Rename
@@ -150,7 +154,10 @@ export function SettingsPage() {
                       onClick={() => {
                         const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
                         if (next === null) return;
-                        renameClassTagline(c.key, next);
+                        const sanitized = sanitizeTagline(next);
+                        if (isValidTagline(sanitized)) {
+                          renameClassTagline(c.key, sanitized);
+                        }
                       }}
                     >
                       Tagline
@@ -181,8 +188,11 @@ export function SettingsPage() {
               className="settings-btn"
               disabled={!canAddRanked}
               onClick={() => {
-                addClass(newRankedLabel, { isRanked: true });
-                setNewRankedLabel('');
+                const sanitized = sanitizeClassName(newRankedLabel);
+                if (sanitized) {
+                  addClass(sanitized.label, { isRanked: true });
+                  setNewRankedLabel('');
+                }
               }}
             >
               Add
@@ -224,7 +234,10 @@ export function SettingsPage() {
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
-                        renameClassLabel(c.key, next);
+                        const sanitized = sanitizeLabel(next);
+                        if (isValidLabel(sanitized)) {
+                          renameClassLabel(c.key, sanitized);
+                        }
                       }}
                     >
                       Rename
@@ -235,7 +248,10 @@ export function SettingsPage() {
                       onClick={() => {
                         const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
                         if (next === null) return;
-                        renameClassTagline(c.key, next);
+                        const sanitized = sanitizeTagline(next);
+                        if (isValidTagline(sanitized)) {
+                          renameClassTagline(c.key, sanitized);
+                        }
                       }}
                     >
                       Tagline

@@ -58,7 +58,7 @@ function stripUndefined<T>(value: T): T {
 }
 
 /** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
-function pruneItem(item: MovieShowItem): MovieShowItem {
+export function pruneItem(item: MovieShowItem): MovieShowItem {
   return {
     ...item,
     cast: item.cast?.slice(0, 10),

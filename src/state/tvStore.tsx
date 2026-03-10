@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
+import { pruneItem } from '../lib/firestoreTvShows';
+import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
-import type { MovieClassDef } from '../mock/movies';
-import { defaultMovieClassDefs } from '../mock/movies';
-import { formatViewingFromRecords } from './moviesStore';
-import type { TmdbTvCache } from '../lib/tmdb';
+import type { TmdbMovieCache } from '../lib/tmdb';
+import { tmdbMovieDetailsFull } from '../lib/tmdb';
+import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
+import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
+import { tvClasses, tvByClass as initialTvByClass } from '../mock/tvShows';
+import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 
 type TvStore = {
   classes: MovieClassDef[];
@@ -20,30 +23,24 @@ type TvStore = {
   renameClassTagline: (classKey: ClassKey, tagline: string) => void;
   moveClass: (classKey: ClassKey, delta: number) => void;
   deleteClass: (classKey: ClassKey) => void;
-
-  moveWithinClass: (itemId: string, delta: number) => void;
-  reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
+  moveWithinClass: (itemId: string, direction: number) => void;
+  reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
-
-  addShowFromSearch: (
-    item: Pick<MovieShowItem, 'id' | 'title'> & {
-      subtitle?: string;
-      classKey: ClassKey;
-      firstWatch?: WatchRecord;
-      cache?: TmdbTvCache;
-      toTop?: boolean;
-      toMiddle?: boolean;
-    }
-  ) => void;
-  addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
-  updateShowWatchRecords: (itemId: string, records: WatchRecord[]) => void;
-  updateShowCache: (itemId: string, cache: Partial<TmdbTvCache>) => void;
-  /** Bulk merge cached TMDB data onto multiple entries. */
-  updateBatchShowCache: (updates: Record<string, Partial<TmdbTvCache>>) => void;
-  getShowById: (id: string) => MovieShowItem | null;
-  removeShowEntry: (itemId: string) => void;
-  /** Manually trigger a save to Firestore. */
+  addTvShowFromSearch: (incoming: {
+    id: string;
+    title: string;
+    posterPath?: string;
+    classKey: ClassKey;
+    cache?: TmdbMovieCache;
+    position?: 'top' | 'middle' | 'bottom';
+  }) => void;
+  updateTvShowCache: (itemId: string, cache: Partial<TmdbMovieCache>) => void;
+  removeTvShowEntry: (itemId: string) => void;
+  getTvShowById: (id: string) => MovieShowItem | null;
+  addWatchToTvShow: (itemId: string, watch: WatchRecord) => void;
+  updateTvShowWatchRecords: (itemId: string, watches: WatchRecord[]) => void;
+  setTvShowRuntime: (itemId: string, runtimeMinutes: number) => void;
   forceSync: () => Promise<void>;
 };
 

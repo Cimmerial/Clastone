@@ -1,8 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { MovieShowItem, WatchRecord, WatchRecordType } from '../components/EntryRowMovieShow';
+import { pruneItem } from '../lib/firestoreMovies';
+import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
 import type { TmdbMovieCache } from '../lib/tmdb';
+import { tmdbMovieDetailsFull } from '../lib/tmdb';
+import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
 import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
+import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 
 function dateParts(r: WatchRecord, useEnd = false): { y: number; m: number; d: number } {
   const y = useEnd ? (r.endYear ?? r.year ?? 0) : (r.year ?? 0);
@@ -392,24 +396,28 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
   }, [byClass, classOrder, isRankedClass]);
 
   const addClass = useCallback((label: string, options?: { isRanked?: boolean }) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    const key = trimmed.toUpperCase().replace(/\s+/g, '_');
-    setClasses((prev) => {
-      if (prev.some((c) => c.key === key)) return prev;
-      return [...prev, { key, label: trimmed.toUpperCase(), tagline: undefined, isRanked: options?.isRanked ?? true }];
+    const sanitized = sanitizeClassName(label);
+    if (!sanitized) return;
+    
+    const { key, label: sanitizedLabel } = sanitized;
+    
+    setClasses(prev => {
+      if (prev.some(c => c.key === key)) return prev;
+      return [...prev, { key, label: sanitizedLabel, isRanked: options?.isRanked ?? true }];
     });
   }, []);
 
   const renameClassLabel = useCallback((classKey: ClassKey, newLabel: string) => {
-    const trimmed = newLabel.trim();
-    if (!trimmed) return;
-    setClasses((prev) => prev.map((c) => (c.key === classKey ? { ...c, label: trimmed } : c)));
+    const sanitized = sanitizeLabel(newLabel);
+    if (!isValidLabel(sanitized)) return;
+    setClasses((prev) => prev.map((c) => (c.key === classKey ? { ...c, label: sanitized } : c)));
   }, []);
 
   const renameClassTagline = useCallback((classKey: ClassKey, tagline: string) => {
+    const sanitized = sanitizeTagline(tagline);
+    if (!isValidTagline(sanitized)) return;
     setClasses((prev) =>
-      prev.map((c) => (c.key === classKey ? { ...c, tagline: tagline.trim() || undefined } : c))
+      prev.map((c) => (c.key === classKey ? { ...c, tagline: sanitized } : c))
     );
   }, []);
 

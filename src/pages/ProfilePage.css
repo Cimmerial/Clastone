@@ -91,13 +91,48 @@
   padding: 1rem;
 }
 
+.profile-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .profile-chart-title {
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--accent-soft);
-  margin-bottom: 1rem;
+  margin: 0;
+}
+
+.profile-chart-toggle {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem;
+}
+
+.profile-chart-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-chart-toggle-btn:hover {
+  color: var(--text);
+}
+
+.profile-chart-toggle-btn.active {
+  background: var(--accent);
+  color: var(--bg);
 }
 
 .profile-chart-tooltip {

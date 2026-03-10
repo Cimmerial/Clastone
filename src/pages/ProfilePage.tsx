@@ -96,6 +96,7 @@ export function ProfilePage() {
 
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
+  const [watchGraphMode, setWatchGraphMode] = useState<'count' | 'time'>('count');
 
   const rankedMovies = useMemo(() => {
     const list: MovieShowItem[] = [];
@@ -231,6 +232,80 @@ export function ProfilePage() {
       });
     tvReleaseYearData.sort((a, b) => a.year - b.year);
 
+    // Calculate watch count per year
+    const movieWatchYearData: { year: number; count: number; watchTime: number }[] = [];
+    const movieYearWatchCounts: Record<number, { count: number; watchTime: number }> = {};
+    for (const k of movieClassOrder) {
+      for (const item of moviesByClass[k] ?? []) {
+        for (const record of item.watchRecords ?? []) {
+          if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+            const year = record.year;
+            if (!movieYearWatchCounts[year]) {
+              movieYearWatchCounts[year] = { count: 0, watchTime: 0 };
+            }
+            movieYearWatchCounts[year].count += 1;
+            movieYearWatchCounts[year].watchTime += getTotalMinutesFromRecords([record], item.runtimeMinutes);
+          }
+        }
+      }
+    }
+    Object.entries(movieYearWatchCounts)
+      .forEach(([year, data]) => {
+        movieWatchYearData.push({ year: parseInt(year), count: data.count, watchTime: data.watchTime });
+      });
+    movieWatchYearData.sort((a, b) => a.year - b.year);
+
+    const tvWatchYearData: { year: number; count: number; watchTime: number }[] = [];
+    const tvYearWatchCounts: Record<number, { count: number; watchTime: number }> = {};
+    for (const k of tvClassOrder) {
+      for (const item of tvByClass[k] ?? []) {
+        for (const record of item.watchRecords ?? []) {
+          if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+            const year = record.year;
+            if (!tvYearWatchCounts[year]) {
+              tvYearWatchCounts[year] = { count: 0, watchTime: 0 };
+            }
+            tvYearWatchCounts[year].count += 1;
+            tvYearWatchCounts[year].watchTime += getTotalMinutesFromRecords([record], item.runtimeMinutes);
+          }
+        }
+      }
+    }
+    Object.entries(tvYearWatchCounts)
+      .forEach(([year, data]) => {
+        tvWatchYearData.push({ year: parseInt(year), count: data.count, watchTime: data.watchTime });
+      });
+    tvWatchYearData.sort((a, b) => a.year - b.year);
+
+    // Calculate DNF and rewatch stats
+    let movieTotalWatches = 0;
+    let movieDNFCount = 0;
+    let movieRewatchCount = 0;
+    for (const k of movieClassOrder) {
+      for (const item of moviesByClass[k] ?? []) {
+        const watches = item.watchRecords ?? [];
+        movieTotalWatches += watches.length;
+        movieDNFCount += watches.filter(r => (r.type ?? 'DATE') === 'DNF').length;
+        if (watches.length > 1) {
+          movieRewatchCount += watches.length - 1;
+        }
+      }
+    }
+
+    let tvTotalWatches = 0;
+    let tvDNFCount = 0;
+    let tvRewatchCount = 0;
+    for (const k of tvClassOrder) {
+      for (const item of tvByClass[k] ?? []) {
+        const watches = item.watchRecords ?? [];
+        tvTotalWatches += watches.length;
+        tvDNFCount += watches.filter(r => (r.type ?? 'DATE') === 'DNF').length;
+        if (watches.length > 1) {
+          tvRewatchCount += watches.length - 1;
+        }
+      }
+    }
+
     const avg = (arr: number[]) =>
       arr.length === 0 ? null : Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
     const avgMovie = avg(movieReleaseYears);
@@ -256,7 +331,15 @@ export function ProfilePage() {
       movieRankedCategories,
       tvRankedCategories,
       movieReleaseYearData,
-      tvReleaseYearData
+      tvReleaseYearData,
+      movieWatchYearData,
+      tvWatchYearData,
+      movieTotalWatches,
+      movieDNFCount,
+      movieRewatchCount,
+      tvTotalWatches,
+      tvDNFCount,
+      tvRewatchCount
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass]);
 
@@ -293,6 +376,23 @@ export function ProfilePage() {
         <div className="profile-chart-tooltip">
           <p className="profile-chart-tooltip-year">{data.year}</p>
           <p className="profile-chart-tooltip-count">{data.count} items</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom tooltip for watch year charts
+  const WatchYearTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="profile-chart-tooltip">
+          <p className="profile-chart-tooltip-year">{data.year}</p>
+          <p className="profile-chart-tooltip-count">{data.count} watches</p>
+          {watchGraphMode === 'time' && (
+            <p className="profile-chart-tooltip-watchtime">{formatDuration(data.watchTime)}</p>
+          )}
         </div>
       );
     }
@@ -387,9 +487,87 @@ export function ProfilePage() {
                 <span className="profile-stat-value">{stats.movieWatches}</span>
                 <span className="profile-stat-label">Total movie watches</span>
               </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{stats.movieTotalWatches > 0 ? Math.round((stats.movieDNFCount / stats.movieTotalWatches) * 100) : 0}%</span>
+                <span className="profile-stat-label">Movie DNF rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{stats.movieTotalWatches > 0 ? Math.round((stats.movieRewatchCount / stats.movieTotalWatches) * 100) : 0}%</span>
+                <span className="profile-stat-label">Movie rewatch rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{stats.tvTotalWatches > 0 ? Math.round((stats.tvDNFCount / stats.tvTotalWatches) * 100) : 0}%</span>
+                <span className="profile-stat-label">Show DNF rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{stats.tvTotalWatches > 0 ? Math.round((stats.tvRewatchCount / stats.tvTotalWatches) * 100) : 0}%</span>
+                <span className="profile-stat-label">Show rewatch rate</span>
+              </div>
             </div>
 
             <div className="profile-stats-charts">
+              <div className="profile-chart-section">
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Movies Watched by Year</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${watchGraphMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setWatchGraphMode('count')}
+                    >
+                      Count
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${watchGraphMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setWatchGraphMode('time')}
+                    >
+                      Time
+                    </button>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.movieWatchYearData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                    <YAxis stroke="rgba(255,255,255,0.5)" />
+                    <Tooltip content={<WatchYearTooltip />} />
+                    <Bar dataKey={watchGraphMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Shows Watched by Year</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${watchGraphMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setWatchGraphMode('count')}
+                    >
+                      Count
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${watchGraphMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setWatchGraphMode('time')}
+                    >
+                      Time
+                    </button>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.tvWatchYearData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                    <YAxis stroke="rgba(255,255,255,0.5)" />
+                    <Tooltip content={<WatchYearTooltip />} />
+                    <Bar dataKey={watchGraphMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
               <div className="profile-chart-section">
                 <h3 className="profile-chart-title">Movies by Ranked Category</h3>
                 <ResponsiveContainer width="100%" height={250}>
