@@ -11,8 +11,21 @@
   }
 
   /* Force tile view only on mobile */
+  .ranked-list {
+    --view-mode: tile;
+  }
+
   .mode-tile .class-section-rows,
   .class-section-rows {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, 100px) !important;
+    gap: 1rem !important;
+    justify-content: center !important;
+    padding: 0.5rem !important;
+  }
+
+  /* Force tile mode on all ranked lists */
+  .ranked-list .class-section-rows {
     display: grid !important;
     grid-template-columns: repeat(auto-fill, 100px) !important;
     gap: 1rem !important;
@@ -25,8 +38,22 @@
     display: none !important;
   }
 
+  /* Ensure tiles are visible */
+  .entry-tile {
+    display: flex !important;
+  }
+
+  .entry-tile-person {
+    display: flex !important;
+  }
+
   /* Make tiles smaller for mobile */
   .entry-tile {
+    width: 100px !important;
+    gap: 0.4rem !important;
+  }
+
+  .entry-tile-person {
     width: 100px !important;
     gap: 0.4rem !important;
   }
@@ -139,12 +166,21 @@
 
 @media (max-width: 480px) {
   /* Even more compact for very small screens */
+  .ranked-list .class-section-rows {
+    grid-template-columns: repeat(auto-fill, 85px) !important;
+    gap: 0.8rem !important;
+  }
+
   .class-section-rows {
     grid-template-columns: repeat(auto-fill, 85px) !important;
     gap: 0.8rem !important;
   }
 
   .entry-tile {
+    width: 85px !important;
+  }
+
+  .entry-tile-person {
     width: 85px !important;
   }
 

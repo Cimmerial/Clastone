@@ -317,7 +317,8 @@ export function SearchPage() {
         for (const w of watches) {
           addWatchToMovie(id, w, { posterPath: recordTarget.poster_path ?? existing.posterPath });
         }
-        if (existingIsUnranked && recordClassKey) {
+        // Move item if class changed or if position is specified for the same class
+        if (recordClassKey && (existingIsUnranked || existing.classKey !== recordClassKey || position)) {
           moveItemToClass(id, recordClassKey, { toTop, toMiddle });
         }
       } else {
@@ -363,7 +364,10 @@ export function SearchPage() {
       if (existing) {
         if (existing.tmdbId == null || existing.overview == null) updateShowCache(id, cache);
         for (const w of watches) addWatchToShow(id, w, { posterPath: cache.posterPath ?? existing.posterPath });
-        if (existingIsUnranked && recordClassKey) moveShowToClass(id, recordClassKey, { toTop });
+        // Move item if class changed or if position is specified for the same class
+        if (recordClassKey && (existingIsUnranked || existing.classKey !== recordClassKey || position)) {
+          moveShowToClass(id, recordClassKey, { toTop, toMiddle });
+        }
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;
         addShowFromSearch({
@@ -389,7 +393,8 @@ export function SearchPage() {
       const existing = isActor ? getPersonById(id) : getDirectorById(id);
 
       if (existing) {
-        if (recordClassKey) {
+        // Move person if class changed or if position is specified for the same class
+        if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
           if (isActor) movePersonToClass(id, recordClassKey, { toTop, toMiddle });
           else moveDirectorToClass(id, recordClassKey, { toTop, toMiddle });
         }

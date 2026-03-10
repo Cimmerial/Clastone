@@ -361,7 +361,7 @@ export function RecordWatchModal({
         <div className={`rwm-body${twoCol ? ' rwm-body--two-col' : ''}`}>
           {showWatches && (
             <div className="rwm-watch-col">
-              <p className="rwm-col-label">Watch history</p>
+              <p className="rwm-col-label">watches</p>
               <div className="rwm-entries">
                 {records.map(r => {
                   const hasDate = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
