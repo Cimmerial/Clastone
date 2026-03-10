@@ -15,7 +15,8 @@ export function DirectorsPage() {
     moveItemToClass,
     reorderWithinClass,
     moveItemWithinClass,
-    updateDirectorCache
+    updateDirectorCache,
+    removeDirectorEntry
   } = useDirectorsStore();
   const [recordTarget, setRecordTarget] = useState<DirectorItem | null>(null);
 
@@ -49,17 +50,20 @@ export function DirectorsPage() {
     setRecordTarget(null);
 
     if (goToDirectors) {
-      const el = document.querySelector(`[data-item-id="${recordTarget.id}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const el = document.querySelector(`[data-item-id="${recordTarget.id}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
   };
 
 
   const rankedClassesForModal = useMemo(() =>
-    classes.filter(c => c.key !== 'UNRANKED').map(c => ({
+    classes.map(c => ({
       key: c.key,
       label: c.label,
-      tagline: c.tagline
+      tagline: c.tagline,
+      isRanked: c.isRanked
     }))
     , [classes]);
 
@@ -107,11 +111,20 @@ export function DirectorsPage() {
             media_type: 'person'
           }}
           rankedClasses={rankedClassesForModal}
-          showClassPicker={true}
-          onSave={(params, goToDirectors) => handleSaveRanking(params, goToDirectors)}
+          currentClassKey={recordTarget.classKey}
+          currentClassLabel={classes.find(c => c.key === recordTarget.classKey)?.label ?? recordTarget.classKey}
+          mode='person'
+          onSave={handleSaveRanking}
           onClose={handleCloseModal}
+          onRemoveEntry={(id) => {
+            removeDirectorEntry(id);
+            handleCloseModal();
+          }}
           isSaving={false}
-          primaryButtonLabel="Update Ranking"
+          onAddToUnranked={() => {
+            moveItemToClass(recordTarget.id, 'UNRANKED');
+            setRecordTarget(null);
+          }}
         />
       )}
       <PageSearch

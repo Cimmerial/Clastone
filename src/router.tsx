@@ -8,6 +8,7 @@ import { SearchPage } from './pages/SearchPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
+import { UISandboxPage } from './pages/UISandboxPage';
 
 export function AppRoutes() {
   return (
@@ -22,6 +23,7 @@ export function AppRoutes() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />
+      <Route path="/ui-sandbox" element={<UISandboxPage />} />
       <Route path="*" element={<Navigate to="/movies" replace />} />
     </Routes>
   );

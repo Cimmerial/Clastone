@@ -15,7 +15,8 @@ export function ActorsPage() {
     moveItemToClass,
     reorderWithinClass,
     moveItemWithinClass,
-    updatePersonCache
+    updatePersonCache,
+    removePersonEntry
   } = usePeopleStore();
   const [recordTarget, setRecordTarget] = useState<PersonItem | null>(null);
 
@@ -51,18 +52,20 @@ export function ActorsPage() {
     setRecordTarget(null);
 
     if (goToActors) {
-      // Already on Actors page, but maybe scroll to it
-      const el = document.querySelector(`[data-item-id="${recordTarget.id}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const el = document.querySelector(`[data-item-id="${recordTarget.id}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
   };
 
 
   const rankedClassesForModal = useMemo(() =>
-    classes.filter(c => c.key !== 'UNRANKED').map(c => ({
+    classes.map(c => ({
       key: c.key,
       label: c.label,
-      tagline: c.tagline
+      tagline: c.tagline,
+      isRanked: c.isRanked
     }))
     , [classes]);
 
@@ -110,11 +113,20 @@ export function ActorsPage() {
             media_type: 'person'
           }}
           rankedClasses={rankedClassesForModal}
-          showClassPicker={true}
-          onSave={(params, goToActors) => handleSaveRanking(params, goToActors)}
+          currentClassKey={recordTarget.classKey}
+          currentClassLabel={classes.find(c => c.key === recordTarget.classKey)?.label ?? recordTarget.classKey}
+          mode='person'
+          onSave={handleSaveRanking}
           onClose={handleCloseModal}
+          onRemoveEntry={(id) => {
+            removePersonEntry(id);
+            handleCloseModal();
+          }}
           isSaving={false}
-          primaryButtonLabel="Update Ranking"
+          onAddToUnranked={() => {
+            moveItemToClass(recordTarget.id, 'UNRANKED');
+            setRecordTarget(null);
+          }}
         />
       )}
       <PageSearch

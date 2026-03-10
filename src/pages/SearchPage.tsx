@@ -35,7 +35,8 @@ export function SearchPage() {
     moveItemToClass,
     classOrder,
     getClassLabel,
-    getClassTagline
+    getClassTagline,
+    removeMovieEntry
   } = useMoviesStore();
   const {
     addShowFromSearch,
@@ -45,7 +46,8 @@ export function SearchPage() {
     moveItemToClass: moveShowToClass,
     classOrder: tvClassOrder,
     getClassLabel: getTvClassLabel,
-    getClassTagline: getTvClassTagline
+    getClassTagline: getTvClassTagline,
+    removeShowEntry
   } = useTvStore();
   const {
     addPersonFromSearch,
@@ -53,7 +55,8 @@ export function SearchPage() {
     updatePersonCache,
     moveItemToClass: movePersonToClass,
     classOrder: peopleClassOrder,
-    classes: peopleClasses
+    classes: peopleClasses,
+    removePersonEntry
   } = usePeopleStore();
   const {
     addDirectorFromSearch,
@@ -61,7 +64,8 @@ export function SearchPage() {
     updateDirectorCache,
     moveItemToClass: moveDirectorToClass,
     classOrder: directorsClassOrder,
-    classes: directorsClasses
+    classes: directorsClasses,
+    removeDirectorEntry
   } = useDirectorsStore();
   const [recordTarget, setRecordTarget] = useState<TmdbMultiResult | null>(null);
   const [personSaveType, setPersonSaveType] = useState<'actor' | 'director' | null>(null);
@@ -220,39 +224,41 @@ export function SearchPage() {
 
   const tvRankedClasses = useMemo(
     () =>
-      tvClassOrder
-        .filter((k) => k !== 'UNRANKED')
-        .map((k) => ({ key: k, label: getTvClassLabel(k), tagline: getTvClassTagline(k) })),
+      tvClassOrder.map((k) => ({
+        key: k,
+        label: getTvClassLabel(k),
+        tagline: getTvClassTagline(k),
+        isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE' // Approximation, or use store.isRanked
+      })),
     [tvClassOrder, getTvClassLabel, getTvClassTagline]
   );
 
   const movieRankedClasses = useMemo(
     () =>
-      classOrder
-        .filter((k) => k !== 'UNRANKED')
-        .map((k) => ({ key: k, label: getClassLabel(k), tagline: getClassTagline(k) })),
+      classOrder.map((k) => ({
+        key: k,
+        label: getClassLabel(k),
+        tagline: getClassTagline(k),
+        isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE'
+      })),
     [classOrder, getClassLabel, getClassTagline]
   );
 
   const peopleRankedClasses = useMemo(
     () =>
-      peopleClassOrder
-        .filter((k) => k !== 'UNRANKED')
-        .map((k) => {
-          const c = peopleClasses.find(c => c.key === k);
-          return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
-        }),
+      peopleClassOrder.map((k) => {
+        const c = peopleClasses.find(c => c.key === k);
+        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
+      }),
     [peopleClassOrder, peopleClasses]
   );
 
   const directorsRankedClasses = useMemo(
     () =>
-      directorsClassOrder
-        .filter((k) => k !== 'UNRANKED')
-        .map((k) => {
-          const c = directorsClasses.find(c => c.key === k);
-          return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
-        }),
+      directorsClassOrder.map((k) => {
+        const c = directorsClasses.find(c => c.key === k);
+        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
+      }),
     [directorsClassOrder, directorsClasses]
   );
 
@@ -641,25 +647,47 @@ export function SearchPage() {
                   ? directorsRankedClasses
                   : peopleRankedClasses
           }
-          showClassPicker={
+          mode={
+            recordTarget.media_type === 'person'
+              ? 'person'
+              : recordTarget.media_type === 'movie'
+                ? (getMovieById(resultId(recordTarget)) && getMovieById(resultId(recordTarget))?.classKey !== 'UNRANKED'
+                  ? 'edit-watch'
+                  : 'first-watch')
+                : (getShowById(`tmdb-tv-${recordTarget.id}`) && getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey !== 'UNRANKED'
+                  ? 'edit-watch'
+                  : 'first-watch')
+          }
+          currentClassKey={
             recordTarget.media_type === 'movie'
-              ? !getMovieById(resultId(recordTarget)) || getMovieById(resultId(recordTarget))?.classKey === 'UNRANKED'
+              ? getMovieById(resultId(recordTarget))?.classKey
               : recordTarget.media_type === 'tv'
-                ? !getShowById(`tmdb-tv-${recordTarget.id}`) || getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
-                : personSaveType === 'director'
-                  ? !getDirectorById(resultId(recordTarget)) || getDirectorById(resultId(recordTarget))?.classKey === 'UNRANKED'
-                  : !getPersonById(resultId(recordTarget)) || getPersonById(resultId(recordTarget))?.classKey === 'UNRANKED'
+                ? getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey
+                : undefined
+          }
+          currentClassLabel={
+            recordTarget.media_type === 'movie'
+              ? getClassLabel(getMovieById(resultId(recordTarget))?.classKey ?? '')
+              : recordTarget.media_type === 'tv'
+                ? getTvClassLabel(getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey ?? '')
+                : undefined
           }
           onSave={handleRecordSave}
           onClose={handleCloseRecord}
+          onRemoveEntry={(id) => {
+            if (recordTarget.media_type === 'movie') removeMovieEntry(id);
+            else if (recordTarget.media_type === 'tv') removeShowEntry(id);
+            else if (personSaveType === 'director') removeDirectorEntry(id);
+            else removePersonEntry(id);
+            handleCloseRecord();
+          }}
           isSaving={isSaving}
-          primaryButtonLabel={
-            recordTarget.media_type === 'person'
-              ? personSaveType === 'director' ? 'Add to Directors' : 'Add to Actors'
-              : recordTarget.media_type === 'tv'
-                ? 'Save and go to show'
-                : 'Save and go to movie'
-          }
+          onAddToUnranked={() => {
+            const id = resultId(recordTarget);
+            if (recordTarget.media_type === 'movie') moveItemToClass(id, 'UNRANKED');
+            else if (recordTarget.media_type === 'tv') moveShowToClass(id, 'UNRANKED');
+            handleCloseRecord();
+          }}
         />
       )}
     </section>

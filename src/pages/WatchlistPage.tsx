@@ -119,7 +119,8 @@ export function WatchlistPage() {
     updateMovieCache,
     classOrder,
     getClassLabel,
-    getClassTagline
+    getClassTagline,
+    removeMovieEntry
   } = useMoviesStore();
   const {
     getShowById,
@@ -129,21 +130,31 @@ export function WatchlistPage() {
     updateShowCache,
     classOrder: tvClassOrder,
     getClassLabel: getTvClassLabel,
-    getClassTagline: getTvClassTagline
+    getClassTagline: getTvClassTagline,
+    removeShowEntry
   } = useTvStore();
   const [recordTarget, setRecordTarget] = useState<RecordWatchTarget | null>(null);
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const movieRankedClasses = useMemo(
-    () => classOrder.filter((k) => k !== 'UNRANKED').map((k) => ({ key: k, label: getClassLabel(k), tagline: getClassTagline(k) })),
+    () => classOrder.map((k) => ({
+      key: k,
+      label: getClassLabel(k),
+      tagline: getClassTagline(k),
+      isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE'
+    })),
     [classOrder, getClassLabel, getClassTagline]
   );
   const tvRankedClasses = useMemo(
     () =>
       tvClassOrder
-        .filter((k) => k !== 'UNRANKED')
-        .map((k) => ({ key: k, label: getTvClassLabel(k), tagline: getTvClassTagline(k) })),
+        .map((k) => ({
+          key: k,
+          label: getTvClassLabel(k),
+          tagline: getTvClassTagline(k),
+          isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE'
+        })),
     [tvClassOrder, getTvClassLabel, getTvClassTagline]
   );
 
@@ -386,20 +397,46 @@ export function WatchlistPage() {
         <RecordWatchModal
           target={recordTarget}
           rankedClasses={recordTarget.media_type === 'movie' ? movieRankedClasses : tvRankedClasses}
-          showClassPicker={
+          mode={
             recordTarget.media_type === 'movie'
-              ? !getMovieById(`tmdb-movie-${recordTarget.id}`) ||
-              getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
-              : !getShowById(`tmdb-tv-${recordTarget.id}`) ||
-              getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
+              ? (!getMovieById(`tmdb-movie-${recordTarget.id}`) ||
+                getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
+                ? 'first-watch' : 'edit-watch')
+              : (!getShowById(`tmdb-tv-${recordTarget.id}`) ||
+                getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
+                ? 'first-watch' : 'edit-watch')
+          }
+          currentClassKey={
+            recordTarget.media_type === 'movie'
+              ? getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey
+              : getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey
+          }
+          currentClassLabel={
+            recordTarget.media_type === 'movie'
+              ? getClassLabel(getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey ?? '')
+              : getTvClassLabel(getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey ?? '')
           }
           onSave={handleRecordSave}
           onClose={() => {
             setRecordTarget(null);
             setRecordWatchlistId(null);
           }}
+          onRemoveEntry={(id) => {
+            if (recordTarget.media_type === 'movie') removeMovieEntry(id);
+            else removeShowEntry(id);
+            if (recordWatchlistId) removeFromWatchlist(recordWatchlistId);
+            setRecordTarget(null);
+            setRecordWatchlistId(null);
+          }}
           isSaving={isSaving}
-          primaryButtonLabel={recordTarget.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie'}
+          onAddToUnranked={() => {
+            const id = recordTarget.media_type === 'movie' ? `tmdb-movie-${recordTarget.id}` : `tmdb-tv-${recordTarget.id}`;
+            if (recordTarget.media_type === 'movie') moveItemToClass(id, 'UNRANKED');
+            else moveShowToClass(id, 'UNRANKED');
+            if (recordWatchlistId) removeFromWatchlist(recordWatchlistId);
+            setRecordTarget(null);
+            setRecordWatchlistId(null);
+          }}
         />
       )}
     </section>

@@ -1,503 +1,513 @@
-import { useMemo, useState, useEffect } from 'react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { ArrowUp, ArrowDown, X } from 'lucide-react';
 import type { WatchRecord, WatchRecordType } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
-import { getYearOptions, MONTH_OPTIONS, DAY_OPTIONS, applyDatePreset, DATE_PRESET_OPTIONS, type DatePreset } from '../lib/dateDropdowns';
+import {
+  getYearOptions,
+  MONTH_OPTIONS,
+  DAY_OPTIONS,
+  applyDatePreset,
+  DATE_PRESET_OPTIONS,
+  type DatePreset
+} from '../lib/dateDropdowns';
 import './RecordWatchModal.css';
 
+/* ─── Constants ─────────────────────────────────────── */
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const WATCH_TYPES: ThemedDropdownOption<WatchRecordType>[] = [
-  { value: 'DATE', label: 'Watch date' },
-  { value: 'RANGE', label: 'Start / end date' },
-  { value: 'DNF', label: 'DNF: Specific date' },
-  { value: 'DNF_LONG_AGO', label: 'DNF: Long ago' },
-  { value: 'CURRENT', label: 'Currently watching' },
+  { value: 'DATE', label: 'Date' },
+  { value: 'RANGE', label: 'Range' },
+  { value: 'DNF', label: 'DNF' },
+  { value: 'DNF_LONG_AGO', label: 'DNF (ago)' },
+  { value: 'CURRENT', label: 'Watching' },
   { value: 'LONG_AGO', label: 'Long ago' },
-  { value: 'UNKNOWN', label: 'Unknown' }
 ];
 
+/* ─── DatePicker ─────────────────────────────────────── */
+
+interface DPItem { val: number | undefined; label: string }
+
+function DPCol({
+  items, selected, onSelect,
+}: { items: DPItem[]; selected: number | undefined; onSelect: (v: number | undefined) => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>('[data-sel="1"]');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, []);
+
+  return (
+    <div className="dp-col" ref={listRef}>
+      {items.map((item, i) => (
+        <div
+          key={i}
+          data-sel={item.val === selected ? '1' : undefined}
+          className={`dp-item${item.val === selected ? ' dp-item--on' : ''}`}
+          onMouseDown={e => { e.preventDefault(); onSelect(item.val); }}
+        >
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface DatePickerProps {
+  year?: number; month?: number; day?: number;
+  allYearOpts: ThemedDropdownOption[];
+  monthOptsFor: (yearStr: string) => ThemedDropdownOption[];
+  dayOptsFor: (yearStr: string, monthStr: string) => ThemedDropdownOption[];
+  onChange: (updates: { year?: number; month?: number; day?: number }) => void;
+}
+
+function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, onChange }: DatePickerProps) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  const yStr = String(year ?? '');
+  const mStr = String(month ?? '');
+
+  const yearItems: DPItem[] = [
+    { val: undefined, label: '—' },
+    ...allYearOpts.filter(o => o.value).map(o => ({ val: parseInt(o.value, 10), label: o.value })),
+  ];
+  const monthItems: DPItem[] = [
+    { val: undefined, label: '—' },
+    ...monthOptsFor(yStr).filter(o => o.value).map(o => ({
+      val: parseInt(o.value, 10),
+      label: MONTH_SHORT[parseInt(o.value, 10) - 1] ?? o.label,
+    })),
+  ];
+  const dayItems: DPItem[] = [
+    { val: undefined, label: '—' },
+    ...dayOptsFor(yStr, mStr).filter(o => o.value).map(o => ({ val: parseInt(o.value, 10), label: o.value })),
+  ];
+
+  const yPart = year ? String(year) : '—';
+  const mPart = month ? (MONTH_SHORT[month - 1] ?? '—') : '—';
+  const dPart = day ? String(day) : '—';
+
+  return (
+    <div className="dp-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`dp-trigger${open ? ' dp-trigger--open' : ''}`}
+        onClick={() => setOpen(p => !p)}
+      >
+        <span className={year ? 'dp-set' : 'dp-null'}>{yPart}</span>
+        <span className="dp-sep">/</span>
+        <span className={month ? 'dp-set' : 'dp-null'}>{mPart}</span>
+        <span className="dp-sep">/</span>
+        <span className={day ? 'dp-set' : 'dp-null'}>{dPart}</span>
+      </button>
+
+      {open && (
+        <div className="dp-popover" onClick={e => e.stopPropagation()}>
+          <DPCol items={yearItems} selected={year} onSelect={v => onChange({ year: v, month, day })} />
+          <div className="dp-div" />
+          <DPCol items={monthItems} selected={month} onSelect={v => onChange({ year, month: v, day })} />
+          <div className="dp-div" />
+          <DPCol items={dayItems} selected={day} onSelect={v => onChange({ year, month, day: v })} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Types ──────────────────────────────────────────── */
+
+export type ModalMode = 'first-watch' | 'edit-watch' | 'person';
+
 export type RecordWatchTarget = {
-  id: number;
-  stringId?: string;
-  title: string;
-  poster_path?: string;
+  id: number; stringId?: string; title: string; poster_path?: string;
   media_type: 'movie' | 'tv' | 'person';
-  subtitle?: string;
-  releaseDate?: string;
-  runtimeMinutes?: number;
-  totalSeasons?: number;
-  totalEpisodes?: number;
+  subtitle?: string; releaseDate?: string;
+  runtimeMinutes?: number; totalSeasons?: number; totalEpisodes?: number;
 };
 
 export type RecordWatchSaveParams = {
-  watches: WatchRecord[];
-  classKey?: string;
-  position?: 'top' | 'middle' | 'bottom';
+  watches: WatchRecord[]; classKey?: string; position?: 'top' | 'middle' | 'bottom';
 };
 
 type Props = {
   target: RecordWatchTarget;
-  rankedClasses: { key: string; label: string; tagline?: string }[];
-  showClassPicker: boolean;
+  rankedClasses: { key: string; label: string; tagline?: string; isRanked?: boolean }[];
+  mode: ModalMode;
   initialRecords?: WatchRecord[];
+  currentClassKey?: string;
+  currentClassLabel?: string;
   onSave: (params: RecordWatchSaveParams, goToMovie: boolean) => void | Promise<void>;
   onClose: () => void;
   onRemoveEntry?: (itemId: string) => void;
   isSaving: boolean;
-  /** e.g. "Save and go to movie" */
   primaryButtonLabel?: string;
   onAddToUnranked?: () => void | Promise<void>;
 };
 
+/* ─── Main Modal ─────────────────────────────────────── */
+
 export function RecordWatchModal({
-  target,
-  rankedClasses,
-  showClassPicker,
-  initialRecords,
-  onSave,
-  onClose,
-  onRemoveEntry,
-  isSaving,
-  primaryButtonLabel,
-  onAddToUnranked
+  target, rankedClasses, mode, initialRecords,
+  currentClassKey, currentClassLabel,
+  onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked,
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
-    if (initialRecords && initialRecords.length > 0) {
-      return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
-    }
-    return [{
-      id: crypto.randomUUID(),
-      type: 'DATE',
-      year: new Date().getFullYear(),
-    } as WatchRecord];
+    if (initialRecords?.length) return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
+    return [{ id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord];
   });
   const [recordClassKey, setRecordClassKey] = useState('');
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [error, setError] = useState<string | null>(null);
   const [removeClickCount, setRemoveClickCount] = useState(0);
+  const [overrideClass, setOverrideClass] = useState(false);
+  const entriesEndRef = useRef<HTMLDivElement>(null);
+
+  const isPerson = mode === 'person';
+  const isSearch = mode === 'first-watch' && !initialRecords?.length;
+  const showWatches = mode !== 'person';
+  const showClassPicker = mode === 'first-watch' || mode === 'person';
+  const isEditWatch = mode === 'edit-watch';
+
+  useEffect(() => {
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = orig || 'unset'; };
+  }, []);
 
   useEffect(() => {
     if (removeClickCount > 0) {
-      const timer = setTimeout(() => setRemoveClickCount(0), 3000);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => setRemoveClickCount(0), 3000);
+      return () => clearTimeout(t);
     }
   }, [removeClickCount]);
 
-  const getWatchProgressLabel = (r: WatchRecord) => {
-    const label = r.type === 'DNF' || r.type === 'DNF_LONG_AGO' ? 'DNF' : 'Watching';
-    const pct = r.dnfPercent ?? 50;
-
-    if (target.media_type === 'movie' && target.runtimeMinutes) {
-      const totalMins = Math.round((pct / 100) * target.runtimeMinutes);
-      const h = Math.floor(totalMins / 60);
-      const m = totalMins % 60;
-      const duration = h > 0 ? `${h}h ${m}m` : `${m}m`;
-      return `${label}: ${duration}`;
-    }
-
-    if (target.media_type === 'tv' && target.totalEpisodes) {
-      const epCount = Math.round((pct / 100) * target.totalEpisodes);
-      return `${label}: Ep ${epCount} of ${target.totalEpisodes}`;
-    }
-
-    return `${label}: ${pct}%`;
-  };
-
-  // Lock scrolling on the body when the modal is open
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow || 'unset';
-    };
-  }, []);
-
-  const updateRecord = (id: string, updates: Partial<WatchRecord>) => {
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
-  };
-
   const addRecord = () => {
     setRecords(prev => [...prev, { id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord]);
+    setTimeout(() => entriesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
-
   const removeRecord = (id: string | number) => {
-    // String(id) because crypto.randomUUID() returns string, but old props might be number (though unlikely here)
     if (records.length <= 1 && !onRemoveEntry) return;
     setRecords(prev => prev.filter(r => String(r.id) !== String(id)));
   };
+  const updateRecord = (id: string, updates: Partial<WatchRecord>) =>
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
 
   const { releaseYear, releaseMonth, releaseDay } = useMemo(() => {
     const rd = target.releaseDate;
     if (rd && /^\d{4}-\d{2}-\d{2}$/.test(rd)) {
-      const parts = rd.split('-');
-      return {
-        releaseYear: parseInt(parts[0], 10),
-        releaseMonth: parseInt(parts[1], 10),
-        releaseDay: parseInt(parts[2], 10)
-      };
+      const [y, m, d] = rd.split('-').map(Number);
+      return { releaseYear: y, releaseMonth: m, releaseDay: d };
     }
-    // Fallback to subtitle if it's just a year
     const s = target.subtitle?.trim();
-    if (s && /^\d{4}$/.test(s)) {
-      return { releaseYear: parseInt(s, 10), releaseMonth: undefined, releaseDay: undefined };
-    }
+    if (s && /^\d{4}$/.test(s)) return { releaseYear: +s, releaseMonth: undefined, releaseDay: undefined };
     return { releaseYear: undefined, releaseMonth: undefined, releaseDay: undefined };
   }, [target.releaseDate, target.subtitle]);
 
   const yearOptions = useMemo(() => getYearOptions(releaseYear), [releaseYear]);
 
-  const getMonthOptionsForRecord = (yearStr: string) => {
-    const selectedYear = parseInt(yearStr, 10);
-    if (!selectedYear || !releaseYear || !releaseMonth || selectedYear > releaseYear) return MONTH_OPTIONS;
+  const monthOptsFor = (yearStr: string): ThemedDropdownOption[] => {
+    const y = parseInt(yearStr, 10);
+    if (!y || !releaseYear || !releaseMonth || y > releaseYear) return MONTH_OPTIONS;
     return MONTH_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseMonth);
   };
-
-  const getDayOptionsForRecord = (yearStr: string, monthStr: string) => {
-    const selectedYear = parseInt(yearStr, 10);
-    const selectedMonth = parseInt(monthStr, 10);
-    if (!selectedYear || !selectedMonth || !releaseYear || !releaseMonth || !releaseDay) return DAY_OPTIONS;
-    if (selectedYear > releaseYear) return DAY_OPTIONS;
-    if (selectedYear === releaseYear && selectedMonth > releaseMonth) return DAY_OPTIONS;
+  const dayOptsFor = (yearStr: string, monthStr: string): ThemedDropdownOption[] => {
+    const y = parseInt(yearStr, 10), m = parseInt(monthStr, 10);
+    if (!y || !m || !releaseYear || !releaseMonth || !releaseDay) return DAY_OPTIONS;
+    if (y > releaseYear) return DAY_OPTIONS;
+    if (y === releaseYear && m > releaseMonth) return DAY_OPTIONS;
     return DAY_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseDay);
   };
 
   const applyPreset = (id: string, preset: DatePreset | 'reset') => {
-    if (preset === 'reset') {
-      updateRecord(id, { year: undefined, month: undefined, day: undefined });
-      return;
-    }
+    if (preset === 'reset') { updateRecord(id, { year: undefined, month: undefined, day: undefined }); return; }
     const { year, month, day } = applyDatePreset(preset);
     updateRecord(id, {
       year: parseInt(year, 10) || undefined,
       month: parseInt(month, 10) || undefined,
-      day: parseInt(day, 10) || undefined
+      day: parseInt(day, 10) || undefined,
     });
   };
 
+  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+
   function buildWatchRecord(r: WatchRecord): WatchRecord | null {
     const { type, year, month, day, endYear, endMonth, endDay, dnfPercent } = r;
-    if (type === 'DNF' || type === 'CURRENT') {
-      if (!year) return null;
-      return {
-        id: r.id,
-        type,
-        year,
-        month,
-        day,
-        dnfPercent: Math.min(100, Math.max(0, dnfPercent ?? 50))
-      };
-    }
-    if (type === 'LONG_AGO') {
-      return { id: r.id, type: 'LONG_AGO' };
-    }
-    if (type === 'DNF_LONG_AGO') {
-      return { id: r.id, type: 'DNF_LONG_AGO', dnfPercent: Math.min(100, Math.max(0, dnfPercent ?? 50)) };
-    }
-    if (type === 'UNKNOWN') {
-      return { id: r.id, type: 'UNKNOWN' };
-    }
+    if (type === 'LONG_AGO') return { id: r.id, type: 'LONG_AGO' };
+    if (type === 'DNF_LONG_AGO') return { id: r.id, type: 'DNF_LONG_AGO', dnfPercent: clamp(dnfPercent ?? 50) };
+    if (type === 'UNKNOWN') return { id: r.id, type: 'UNKNOWN' };
+    if ((type === 'DNF' || type === 'CURRENT') && !year) return null;
+    if (type === 'DNF' || type === 'CURRENT') return { id: r.id, type, year, month, day, dnfPercent: clamp(dnfPercent ?? 50) };
     if (!year) return null;
-    if (type === 'DATE') {
-      return {
-        id: r.id,
-        type: 'DATE',
-        year,
-        month,
-        day
-      };
-    }
-    // RANGE
-    return {
-      id: r.id,
-      type: 'RANGE',
-      year,
-      month,
-      day,
-      endYear,
-      endMonth,
-      endDay
-    };
+    if (type === 'RANGE') return { id: r.id, type: 'RANGE', year, month, day, endYear, endMonth, endDay };
+    return { id: r.id, type: 'DATE', year, month, day };
   }
 
-  const handleSave = async (goToMovie: boolean) => {
+  const getShortProgressLabel = (r: WatchRecord) => {
+    const pct = r.dnfPercent ?? 50;
+    if (target.media_type === 'movie' && target.runtimeMinutes) {
+      const mins = Math.round((pct / 100) * target.runtimeMinutes);
+      const h = Math.floor(mins / 60), m = mins % 60;
+      return h > 0 ? `${h}h${m}m` : `${m}m`;
+    }
+    if (target.media_type === 'tv' && target.totalEpisodes) {
+      return `Ep ${Math.round((pct / 100) * target.totalEpisodes)}/${target.totalEpisodes}`;
+    }
+    return `${pct}%`;
+  };
+
+  const effectiveClassKey = isEditWatch
+    ? (overrideClass ? recordClassKey || undefined : undefined)
+    : (recordClassKey || undefined);
+  const isUnrankedSelected = effectiveClassKey === 'UNRANKED';
+
+  const handleSave = async (goTo: boolean) => {
     setError(null);
-    if (records.length === 0) {
-      setError('Please add at least one watch record.');
-      return;
-    }
-
-    // Basic validation for the first record for now
-    const first = records[0];
-    if (target.media_type !== 'person' && (first.type === 'DATE' || first.type === 'RANGE' || first.type === 'DNF' || first.type === 'CURRENT') && !first.year) {
-      setError('Please enter a year for your watch.');
-      return;
-    }
-
-    if (showClassPicker && (!recordClassKey || !rankedClasses.some((c) => c.key === recordClassKey))) {
-      setError('Pick a ranked class.');
-      return;
-    }
-
-    const validatedWatches = records
-      .map(r => buildWatchRecord(r))
-      .filter((r): r is WatchRecord => r !== null);
-
-    if (validatedWatches.length === 0) {
-      if (onRemoveEntry) {
-        onRemoveEntry(target.stringId || String(target.id));
-        onClose();
-        return;
+    let validatedWatches: WatchRecord[] = [];
+    if (showWatches && !isUnrankedSelected) {
+      if (records.length === 0) { setError('Add at least one watch record.'); return; }
+      const first = records[0];
+      if ((first.type === 'DATE' || first.type === 'RANGE' || first.type === 'DNF' || first.type === 'CURRENT') && !first.year) {
+        setError('Enter a year for your watch.'); return;
       }
-      setError('Please enter at least one valid watch record.');
-      return;
+      validatedWatches = records.map(r => buildWatchRecord(r)).filter((r): r is WatchRecord => r !== null);
+      if (validatedWatches.length === 0) {
+        if (onRemoveEntry) { onRemoveEntry(target.stringId || String(target.id)); onClose(); return; }
+        setError('Enter at least one valid watch record.'); return;
+      }
+    }
+    if (showClassPicker && !isUnrankedSelected && (!recordClassKey || !rankedClasses.some(c => c.key === recordClassKey))) {
+      setError('Pick a class.'); return;
+    }
+    if (isEditWatch && overrideClass && (!recordClassKey || !rankedClasses.some(c => c.key === recordClassKey))) {
+      setError('Pick a class, or cancel override.'); return;
     }
     await onSave(
-      {
-        watches: validatedWatches,
-        classKey: recordClassKey || undefined,
-        position: recordClassKey ? recordPosition : undefined
-      },
-      goToMovie
+      { watches: validatedWatches, classKey: effectiveClassKey, position: (effectiveClassKey && !isUnrankedSelected) ? recordPosition : undefined },
+      goTo,
     );
     setError(null);
     onClose();
   };
 
-  return (
-    <div className="record-modal-backdrop" onClick={onClose}>
-      <div className={`record-modal ${showClassPicker ? 'record-modal-wide' : 'record-modal-compact'}`} onClick={(e) => e.stopPropagation()}>
-        <div className={`record-modal-layout ${!showClassPicker ? 'record-modal-layout-single' : ''}`}>
-          {/* LEFT COLUMN */}
-          {target.media_type !== 'person' && (
-            <div className="record-modal-left">
-              <header className="record-modal-left-header">
-                <h1 className="record-modal-large-title">{target.title}</h1>
-              </header>
+  const handleRemove = () => {
+    if (!onRemoveEntry) return;
+    if (removeClickCount === 1) { onRemoveEntry(target.stringId || String(target.id)); onClose(); }
+    else setRemoveClickCount(1);
+  };
 
-              <div className="record-entries-list">
-                {records.map((r, idx) => {
-                  const isDnfOrCurrent = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
+  const PlacementBtns = ({ classKey }: { classKey: string }) => (
+    <div className="rwm-placement-btns">
+      {(['top', 'middle', 'bottom'] as const).map(pos => (
+        <button key={pos} type="button"
+          className={`rwm-place-btn${recordClassKey === classKey && recordPosition === pos ? ' rwm-place-btn--on' : ''}`}
+          onClick={() => { setRecordClassKey(classKey); setRecordPosition(pos); }}>
+          {pos === 'top' ? <ArrowUp size={10} /> : pos === 'bottom' ? <ArrowDown size={10} /> : '•'}
+        </button>
+      ))}
+    </div>
+  );
+
+  const ClassList = ({ classes }: { classes: { key: string; label: string; tagline?: string; isRanked?: boolean }[] }) => (
+    <div className="rwm-class-list">
+      {classes.filter(c => c.key !== 'UNRANKED').map(c => {
+        const isRanked = c.isRanked !== false;
+        const selected = recordClassKey === c.key;
+        return (
+          <div key={c.key} className={`rwm-class-row${selected ? ' rwm-class-row--on' : ''}`}>
+            <div className="rwm-class-info">
+              <span className="rwm-class-name">{c.label}</span>
+              {c.tagline && <span className="rwm-class-tagline">{c.tagline}</span>}
+            </div>
+            <PlacementBtns classKey={c.key} />
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const twoCol = showWatches && (showClassPicker || ((isEditWatch || isPerson) && overrideClass));
+  const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
+
+  return (
+    <div className="rwm-backdrop" onClick={onClose}>
+      <div
+        className={`rwm-modal${twoCol ? ' rwm-modal--wide' : ' rwm-modal--compact'}`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="rwm-header">
+          <div className="rwm-header-info">
+            <h2 className="rwm-title">{target.title}</h2>
+            {target.subtitle && <span className="rwm-subtitle">{target.subtitle}</span>}
+          </div>
+          <button type="button" className="rwm-close-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className={`rwm-body${twoCol ? ' rwm-body--two-col' : ''}`}>
+          {showWatches && (
+            <div className="rwm-watch-col">
+              <p className="rwm-col-label">Watch history</p>
+              <div className="rwm-entries">
+                {records.map(r => {
+                  const hasDate = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
                   const isRange = r.type === 'RANGE';
-                  const showDates = r.type !== 'LONG_AGO' && r.type !== 'DNF_LONG_AGO' && r.type !== 'UNKNOWN';
+                  const hasSlider = r.type === 'DNF' || r.type === 'CURRENT' || r.type === 'DNF_LONG_AGO';
+                  const showPreset = r.type === 'DATE' || r.type === 'DNF' || r.type === 'CURRENT';
+                  const canDelete = records.length > 1 || !!onRemoveEntry;
 
                   return (
-                    <div key={r.id} className="record-entry-row">
-                      <div className="record-entry-main">
-                        <div className="record-entry-inputs">
-                          <ThemedDropdown
-                            value={r.type || 'DATE'}
-                            options={WATCH_TYPES}
-                            onChange={(v) => updateRecord(r.id, { type: v as WatchRecordType })}
-                            className="record-type-dropdown"
+                    <div key={r.id} className="rwm-entry">
+                      {/* Type */}
+                      <ThemedDropdown
+                        value={r.type || 'DATE'}
+                        options={WATCH_TYPES}
+                        onChange={v => updateRecord(r.id, { type: v as WatchRecordType })}
+                        className="rwm-dd rwm-dd--type"
+                      />
+
+                      {/* Start date */}
+                      {hasDate && (
+                        <DatePicker
+                          year={r.year} month={r.month} day={r.day}
+                          allYearOpts={yearOptions}
+                          monthOptsFor={monthOptsFor}
+                          dayOptsFor={dayOptsFor}
+                          onChange={u => updateRecord(r.id, u)}
+                        />
+                      )}
+
+                      {/* Range end date */}
+                      {isRange && (
+                        <>
+                          <span className="rwm-range-arrow">→</span>
+                          <DatePicker
+                            year={r.endYear} month={r.endMonth} day={r.endDay}
+                            allYearOpts={yearOptions}
+                            monthOptsFor={monthOptsFor}
+                            dayOptsFor={dayOptsFor}
+                            onChange={u => updateRecord(r.id, { endYear: u.year, endMonth: u.month, endDay: u.day })}
                           />
+                        </>
+                      )}
 
-                          {showDates && (
-                            <>
-                              <ThemedDropdown
-                                value={String(r.year || '')}
-                                options={yearOptions}
-                                onChange={(v) => updateRecord(r.id, { year: parseInt(v, 10) || undefined })}
-                                placeholder="Year"
-                                className="record-date-dropdown record-year-dropdown"
-                              />
-
-                              <ThemedDropdown
-                                value={String(r.month || '')}
-                                options={getMonthOptionsForRecord(String(r.year || ''))}
-                                onChange={(v) => updateRecord(r.id, { month: parseInt(v, 10) || undefined })}
-                                placeholder="Month"
-                                className="record-date-dropdown"
-                              />
-
-                              <ThemedDropdown
-                                value={String(r.day || '')}
-                                options={getDayOptionsForRecord(String(r.year || ''), String(r.month || ''))}
-                                onChange={(v) => updateRecord(r.id, { day: parseInt(v, 10) || undefined })}
-                                placeholder="Day"
-                                className="record-date-dropdown"
-                              />
-                            </>
-                          )}
-
-                          {isRange && (
-                            <>
-                              <span className="range-sep">to</span>
-                              <ThemedDropdown
-                                value={String(r.endYear || '')}
-                                options={yearOptions}
-                                onChange={(v) => updateRecord(r.id, { endYear: parseInt(v, 10) || undefined })}
-                                placeholder="Year"
-                                className="record-date-dropdown record-year-dropdown"
-                              />
-                              <ThemedDropdown
-                                value={String(r.endMonth || '')}
-                                options={getMonthOptionsForRecord(String(r.endYear || ''))}
-                                onChange={(v) => updateRecord(r.id, { endMonth: parseInt(v, 10) || undefined })}
-                                placeholder="Month"
-                                className="record-date-dropdown"
-                              />
-                              <ThemedDropdown
-                                value={String(r.endDay || '')}
-                                options={getDayOptionsForRecord(String(r.endYear || ''), String(r.endMonth || ''))}
-                                onChange={(v) => updateRecord(r.id, { endDay: parseInt(v, 10) || undefined })}
-                                placeholder="Day"
-                                className="record-date-dropdown"
-                              />
-                            </>
-                          )}
+                      {/* Inline slider */}
+                      {hasSlider && (
+                        <div className="rwm-inline-slider">
+                          <span className="rwm-slider-lbl">{getShortProgressLabel(r)}</span>
+                          <input
+                            type="range" min={0} max={100}
+                            value={r.dnfPercent ?? 50}
+                            onChange={e => updateRecord(r.id, { dnfPercent: +e.target.value })}
+                            className="rwm-slider"
+                          />
                         </div>
+                      )}
 
-                        {(r.type === 'DATE' || r.type === 'DNF' || r.type === 'CURRENT') && (
-                          <div className="record-entry-presets">
-                            <ThemedDropdown
-                              value=""
-                              options={[
-                                ...DATE_PRESET_OPTIONS,
-                                { value: 'reset', label: 'Reset' }
-                              ]}
-                              triggerLabel="P"
-                              showOnHover={true}
-                              onChange={(v) => applyPreset(r.id, v as DatePreset | 'reset')}
-                              className="record-preset-dropdown"
-                            />
-                          </div>
+                      {/* Actions */}
+                      <div className="rwm-entry-actions">
+                        {showPreset && (
+                          <ThemedDropdown
+                            value=""
+                            options={[...DATE_PRESET_OPTIONS, { value: 'reset', label: 'Reset' }]}
+                            triggerLabel="preset"
+                            showOnHover
+                            onChange={v => applyPreset(r.id, v as DatePreset | 'reset')}
+                            className="rwm-dd rwm-preset-dd"
+                          />
                         )}
-
+                        {canDelete && (
+                          <button type="button" className="rwm-entry-del" onClick={() => removeRecord(r.id)} aria-label="Remove">
+                            <X size={11} />
+                          </button>
+                        )}
                       </div>
-                      {isDnfOrCurrent && (
-                        <div className="record-entry-inline-extra">
-                          <label className="record-extra-slider">
-                            <span className="record-slider-label">{getWatchProgressLabel(r)}</span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={r.dnfPercent ?? 50}
-                              onChange={(e) => updateRecord(r.id, { dnfPercent: Number(e.target.value) })}
-                            />
-                          </label>
-                        </div>
-                      )}
-                      {(records.length > 1 || onRemoveEntry) && (
-                        <button type="button" className="record-entry-delete" onClick={() => removeRecord(r.id)}>✕</button>
-                      )}
                     </div>
                   );
                 })}
+                <div ref={entriesEndRef} />
               </div>
-
-              <button type="button" className="record-add-entry-btn" onClick={addRecord}>
-                + Add another watch
-              </button>
+              <button type="button" className="rwm-add-btn" onClick={addRecord}>+ Add watch</button>
             </div>
           )}
 
-          {/* RIGHT COLUMN */}
-          <div className="record-modal-right">
-            <header className="record-modal-right-header">
-              {showClassPicker && (
-                <span className="record-modal-class-picker-label">Ranked class — place top, middle, bottom</span>
-              )}
-              <button type="button" className="record-modal-close-icon" onClick={onClose}>✕</button>
-            </header>
+          {/* Right Column / Sidebar */}
+          {(showClassPicker || ((isEditWatch || isPerson) && overrideClass)) && (
+            <div className="rwm-class-col">
+              <div className="rwm-class-header">
+                <h3 className="rwm-section-title">
+                  {isRankedItem ? 'Change rank' : 'Place in class'}
+                </h3>
+                {!isRankedItem && (
+                  <p className="rwm-section-muted">Select a class and placement</p>
+                )}
+              </div>
+              <ClassList classes={rankedClasses} />
+            </div>
+          )}
 
-            <div className="record-modal-class-list">
-              {rankedClasses.map((c) => (
-                <div
-                  key={c.key}
-                  className={`record-modal-class-row ${recordClassKey === c.key ? 'record-modal-class-row--selected' : ''}`}
-                >
-                  <div className="record-modal-class-info">
-                    <span className="record-modal-class-label-text">{c.label}</span>
-                    {c.tagline && <span className="record-modal-class-tagline-text">{c.tagline}</span>}
-                  </div>
-                  <div className="record-modal-class-actions">
-                    <button
-                      type="button"
-                      className={`record-modal-placement-btn ${recordClassKey === c.key && recordPosition === 'top' ? 'record-modal-placement-btn--active' : ''}`}
-                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('top'); }}
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className={`record-modal-placement-btn record-modal-placement-btn--dot ${recordClassKey === c.key && recordPosition === 'middle' ? 'record-modal-placement-btn--active' : ''}`}
-                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('middle'); }}
-                    >
-                      •
-                    </button>
-                    <button
-                      type="button"
-                      className={`record-modal-placement-btn ${recordClassKey === c.key && recordPosition === 'bottom' ? 'record-modal-placement-btn--active' : ''}`}
-                      onClick={() => { setRecordClassKey(c.key); setRecordPosition('bottom'); }}
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                  </div>
+          {((isPerson || isEditWatch) && isRankedItem && !overrideClass) && (
+            <div className={`rwm-sidebar ${twoCol ? '' : 'rwm-sidebar--compact'}`}>
+              <div className="rwm-section-header">
+                <h3 className="rwm-section-title">Ranking</h3>
+              </div>
+              <div className="rwm-keep-row">
+                <div className="rwm-keep-info">
+                  <span className="rwm-keep-sub">Ranked in</span>
+                  <span className="rwm-keep-name">{currentClassLabel}</span>
                 </div>
-              ))}
-            </div>
-
-            {error && <div className="record-modal-error">{error}</div>}
-
-            <footer className="record-modal-footer">
-              <div className="record-modal-footer-main">
-                {/* Secondary Save: Close without navigating */}
-                <button
-                  type="button"
-                  className="record-modal-save-btn record-modal-secondary-btn"
-                  onClick={() => void handleSave(false)}
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Saving…' : 'Save and close'}
+                <button type="button" className="rwm-override-btn" onClick={() => setOverrideClass(true)}>
+                  Change
                 </button>
-
-                {/* Primary Save: Custom label or Navigate */}
-                {showClassPicker && (
-                  <button
-                    type="button"
-                    className="record-modal-save-btn"
-                    onClick={() => void handleSave(true)}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? 'Saving…' : primaryButtonLabel ?? (target.media_type === 'person' ? 'Add to list and go' : target.media_type === 'tv' ? 'Save and go to show' : 'Save and go to movie')}
-                  </button>
-                )}
-
-                {/* Person-specific: Quick Unranked Add */}
-                {target.media_type === 'person' && onAddToUnranked && (
-                  <button
-                    type="button"
-                    className="record-modal-save-btn record-modal-secondary-btn"
-                    onClick={() => void onAddToUnranked()}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? 'Saving…' : 'Add to Unranked'}
-                  </button>
-                )}
               </div>
+            </div>
+          )}
+        </div>
 
-              {onRemoveEntry && (
-                <button
-                  type="button"
-                  className={`record-modal-remove-all-btn ${removeClickCount === 1 ? 'record-modal-remove-all-btn--confirm' : ''}`}
-                  onClick={() => {
-                    if (removeClickCount === 1) {
-                      onRemoveEntry(target.stringId || String(target.id));
-                      onClose();
-                    } else {
-                      setRemoveClickCount(1);
-                    }
-                  }}
-                >
-                  {removeClickCount === 1 ? 'Double click to remove' : 'Remove from list'}
+        {/* Footer */}
+        <div className="rwm-footer">
+          {error && <div className="rwm-error">{error}</div>}
+          <div className="rwm-footer-inner">
+            {onRemoveEntry && (
+              <button type="button"
+                className={`rwm-remove-btn${removeClickCount === 1 ? ' rwm-remove-btn--confirm' : ''}`}
+                onClick={handleRemove}>
+                {removeClickCount === 1 ? 'Confirm remove' : 'Remove'}
+              </button>
+            )}
+            <div className="rwm-save-btns">
+              <button type="button" className="rwm-btn rwm-btn--secondary"
+                onClick={() => void handleSave(false)} disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save and close'}
+              </button>
+              {(!isEditWatch || overrideClass) && (
+                <button type="button" className="rwm-btn rwm-btn--primary"
+                  onClick={() => void handleSave(true)} disabled={isSaving}>
+                  {isSaving ? 'Saving…' : (primaryButtonLabel ?? 'Save and go to')}
                 </button>
               )}
-            </footer>
+              {(onAddToUnranked && (mode === 'person' || mode === 'first-watch')) && (
+                <button type="button" className="rwm-btn rwm-btn--ghost"
+                  onClick={() => void onAddToUnranked()} disabled={isSaving}>
+                  Add to Unranked
+                </button>
+              )}
+            </div>
           </div>
-
-          {!showClassPicker && (
-            <button type="button" className="record-modal-close-icon record-modal-close-icon-abs" onClick={onClose}>✕</button>
-          )}
         </div>
       </div>
     </div>

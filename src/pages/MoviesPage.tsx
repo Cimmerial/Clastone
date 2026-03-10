@@ -212,8 +212,10 @@ export function MoviesPage() {
         <RecordWatchModal
           target={movieItemToTarget(settingsFor)}
           initialRecords={settingsFor.watchRecords}
-          showClassPicker={false}
-          rankedClasses={[]}
+          mode="edit-watch"
+          currentClassKey={settingsFor.classKey}
+          currentClassLabel={getClassLabel(settingsFor.classKey)}
+          rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline }))}
           isSaving={false}
           onClose={() => setSettingsFor(null)}
           onRemoveEntry={(id) => {
@@ -222,6 +224,12 @@ export function MoviesPage() {
           }}
           onSave={(params) => {
             updateMovieWatchRecords(settingsFor.id, params.watches);
+            if (params.classKey) {
+              moveItemToClass(settingsFor.id, params.classKey, {
+                toTop: params.position === 'top',
+                toMiddle: params.position === 'middle'
+              });
+            }
             setSettingsFor(null);
           }}
         />
@@ -230,12 +238,23 @@ export function MoviesPage() {
         <RecordWatchModal
           target={movieItemToTarget(recordWatchFor)}
           initialRecords={[]}
-          showClassPicker={true}
-          rankedClasses={classes
-            .filter((c) => isRankedClass(c.key))
-            .map((c) => ({ key: c.key, label: c.label, tagline: c.tagline }))}
+          mode="first-watch"
+          rankedClasses={classes.map((c) => ({
+            key: c.key,
+            label: c.label,
+            tagline: c.tagline,
+            isRanked: c.isRanked
+          }))}
           isSaving={false}
           onClose={() => setRecordWatchFor(null)}
+          onRemoveEntry={(id) => {
+            removeMovieEntry(id);
+            setRecordWatchFor(null);
+          }}
+          onAddToUnranked={() => {
+            moveItemToClass(recordWatchFor.id, 'UNRANKED');
+            setRecordWatchFor(null);
+          }}
           onSave={(params, goToMedia) => {
             addWatchToMovie(recordWatchFor.id, params.watches[0]);
             if (params.classKey) {
@@ -264,10 +283,10 @@ export function MoviesPage() {
           }}
           rankedClasses={
             recordPersonTarget.type === 'director'
-              ? directorsClasses.filter(c => c.key !== 'UNRANKED').map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
-              : peopleClasses.filter(c => c.key !== 'UNRANKED').map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
+              ? directorsClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
+              : peopleClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
           }
-          showClassPicker
+          mode='person'
           isSaving={isSavingRecord}
           primaryButtonLabel={recordPersonTarget.type === 'director' ? 'Add to Directors' : 'Add to Actors'}
           onClose={() => {

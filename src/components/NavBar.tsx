@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, User, Settings, Cloud, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, User, Settings, Cloud, Check, AlertCircle, RefreshCw, FlaskConical } from 'lucide-react';
 import { useSyncStatus, SyncState } from '../context/SyncStatusContext';
 import { useMemo } from 'react';
 import './NavBar.css';
@@ -16,7 +16,8 @@ const iconLinks = [
   { to: '/search', label: 'Search', icon: Search as React.ComponentType<{ size?: number; className?: string }> },
   { to: '/profile', label: 'Profile', icon: User as React.ComponentType<{ size?: number; className?: string }> },
   { to: '/settings', label: 'Settings', icon: Settings as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw as React.ComponentType<{ size?: number; className?: string }> }
+  { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw as React.ComponentType<{ size?: number; className?: string }> },
+  { to: '/ui-sandbox', label: 'UI Sandbox', icon: FlaskConical as React.ComponentType<{ size?: number; className?: string }> }
 ];
 
 export function NavBar() {
