@@ -111,7 +111,7 @@ export async function loadPeople(db: Firestore, userId: string): Promise<{
         };
     }
 
-    return { byClass: {}, classes: [], isMigrated: false };
+    return { byClass: {}, classes: [], isMigrated: true };
 }
 
 export async function savePeople(

@@ -142,7 +142,69 @@ export async function tmdbSearchMovies(query: string, signal?: AbortSignal) {
     throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
   }
   const data = (await res.json()) as TmdbSearchMovieResponse;
-  return data.results ?? [];
+  const list = data.results ?? [];
+  return list.map(r => ({
+    media_type: 'movie' as const,
+    id: r.id,
+    title: r.title ?? 'Unknown',
+    subtitle: r.release_date ? r.release_date.slice(0, 4) : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.release_date ?? undefined
+  }));
+}
+
+export async function tmdbSearchTv(query: string, signal?: AbortSignal): Promise<TmdbMultiResult[]> {
+  const url = new URL(`${TMDB_BASE}/search/tv`);
+  url.searchParams.set('query', query);
+  url.searchParams.set('include_adult', 'false');
+  url.searchParams.set('language', 'en-US');
+  url.searchParams.set('page', '1');
+
+  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
+  }
+  const data = (await res.json()) as { results?: any[] };
+  const list = data.results ?? [];
+  return list.map(r => ({
+    media_type: 'tv' as const,
+    id: r.id,
+    title: r.name ?? 'Unknown',
+    subtitle: r.first_air_date ? r.first_air_date.slice(0, 4) : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.first_air_date ?? undefined
+  }));
+}
+
+export async function tmdbSearchPeople(query: string, signal?: AbortSignal): Promise<TmdbMultiResult[]> {
+  const url = new URL(`${TMDB_BASE}/search/person`);
+  url.searchParams.set('query', query);
+  url.searchParams.set('include_adult', 'false');
+  url.searchParams.set('language', 'en-US');
+  url.searchParams.set('page', '1');
+
+  const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
+  }
+  const data = (await res.json()) as { results?: any[] };
+  const list = data.results ?? [];
+  return list.map(r => {
+    const known = r.known_for?.[0];
+    const subtitle = known?.title ?? known?.name ?? 'Actor';
+    return {
+      media_type: 'person' as const,
+      id: r.id,
+      title: r.name ?? 'Unknown',
+      subtitle,
+      profile_path: r.profile_path ?? undefined,
+      popularity: r.popularity
+    };
+  });
 }
 
 /** Multi search (movies + TV + people). Returns results in TMDB order (relevance/popularity). */

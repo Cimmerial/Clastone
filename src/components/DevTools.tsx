@@ -13,9 +13,11 @@ import { usePeopleStore } from '../state/peopleStore';
 import { tmdbPersonDetailsFull } from '../lib/tmdb';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { ClassKey } from './RankedList';
+import { useAuth } from '../context/AuthContext';
 import './DevTools.css';
 
 export function DevTools() {
+  const { isAdmin } = useAuth();
   const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache } = useMoviesStore();
   const { byClass: tvByClass, classOrder: tvClassOrder, updateBatchShowCache } = useTvStore();
   const { byClass: peopleByClass, forceRefreshPerson } = usePeopleStore();
@@ -163,7 +165,7 @@ export function DevTools() {
     }
   };
 
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env.DEV || !isAdmin) return null;
 
   return (
     <>

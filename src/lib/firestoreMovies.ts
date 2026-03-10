@@ -115,7 +115,7 @@ export async function loadMovies(db: Firestore, userId: string): Promise<{
     };
   }
 
-  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: false };
+  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: true };
 }
 
 export async function saveMovies(

@@ -14,6 +14,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -24,6 +25,24 @@ export function SearchPage() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>([]);
+
+  const [showMovies, setShowMovies] = useState(() => {
+    const s = sessionStorage.getItem('search_movies');
+    return s ? JSON.parse(s) : true;
+  });
+  const [showTv, setShowTv] = useState(() => {
+    const s = sessionStorage.getItem('search_tv');
+    return s ? JSON.parse(s) : true;
+  });
+  const [showPeople, setShowPeople] = useState(() => {
+    const s = sessionStorage.getItem('search_people');
+    return s ? JSON.parse(s) : true;
+  });
+
+  useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
+  useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
+  useEffect(() => { sessionStorage.setItem('search_people', JSON.stringify(showPeople)); }, [showPeople]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -92,7 +111,22 @@ export function SearchPage() {
     const t = window.setTimeout(async () => {
       try {
         setIsLoading(true);
-        const results = await tmdbSearchMulti(trimmed, controller.signal);
+
+        let results: any[] = [];
+        if (showMovies && showTv && showPeople) {
+          results = await tmdbSearchMulti(trimmed, controller.signal);
+        } else {
+          // If toggles are off, individually fetch the ones that are ON
+          const promises = [];
+          if (showMovies) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchMovies(trimmed, controller.signal)));
+          if (showTv) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchTv(trimmed, controller.signal)));
+          if (showPeople) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchPeople(trimmed, controller.signal)));
+
+          const responses = await Promise.all(promises);
+          // Flatten results and sort by popularity
+          results = responses.flat().sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        }
+
         setRemoteResults(results);
       } catch (e) {
         if (controller.signal.aborted) return;
@@ -410,6 +444,26 @@ export function SearchPage() {
     };
   }, [recordTarget, recordDetails]);
 
+  const filteredResults = useMemo(() => {
+    return remoteResults.filter(r => {
+      if (r.media_type === 'movie') return showMovies;
+      if (r.media_type === 'tv') return showTv;
+      if (r.media_type === 'person') return showPeople;
+      return false;
+    });
+  }, [remoteResults, showMovies, showTv, showPeople]);
+
+  const placeholderText = useMemo(() => {
+    if (showMovies && showTv && showPeople) return 'Try “Arcane”, “La La Land”, “Emma Stone”…';
+    if (showMovies && !showTv && !showPeople) return 'Try “La La Land”, “The Matrix”…';
+    if (!showMovies && showTv && !showPeople) return 'Try “Arcane”, “Game of Thrones”…';
+    if (!showMovies && !showTv && showPeople) return 'Try “Emma Stone”, “Steven Spielberg”…';
+    if (showMovies && showTv && !showPeople) return 'Try “La La Land”, “Arcane”…';
+    if (showMovies && !showTv && showPeople) return 'Try “La La Land”, “Emma Stone”…';
+    if (!showMovies && showTv && showPeople) return 'Try “Arcane”, “Emma Stone”…';
+    return 'Search for something…';
+  }, [showMovies, showTv, showPeople]);
+
   return (
     <section>
       <header className="page-heading">
@@ -428,16 +482,39 @@ export function SearchPage() {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Try “Arcane”, “La La Land”, “Emma Stone”…"
+              placeholder={placeholderText}
               className="search-input"
             />
           </label>
+          <div className="search-filters">
+            <button
+              type="button"
+              className={`search-filter-btn ${showMovies ? 'active' : ''}`}
+              onClick={() => setShowMovies(!showMovies)}
+            >
+              Movies
+            </button>
+            <button
+              type="button"
+              className={`search-filter-btn ${showTv ? 'active' : ''}`}
+              onClick={() => setShowTv(!showTv)}
+            >
+              TV Shows
+            </button>
+            <button
+              type="button"
+              className={`search-filter-btn ${showPeople ? 'active' : ''}`}
+              onClick={() => setShowPeople(!showPeople)}
+            >
+              People
+            </button>
+          </div>
         </div>
 
         {error && <div className="search-error">{error}</div>}
 
         <div className="search-results">
-          {remoteResults.map((r) => {
+          {filteredResults.map((r) => {
             const id = resultId(r);
             const isMovie = r.media_type === 'movie';
             const isTv = r.media_type === 'tv';
@@ -482,7 +559,12 @@ export function SearchPage() {
                         : 'PERSON'}
                   </div>
                   <div className="search-card-title">{r.title}</div>
-                  <div className="search-card-subtitle">{r.subtitle}</div>
+                  <div className="search-card-subtitle">
+                    {r.subtitle}
+                    {(isMovie || isTv) && (
+                      <SearchResultExtendedInfo id={r.id} mediaType={r.media_type as 'movie' | 'tv'} />
+                    )}
+                  </div>
                 </div>
                 {isMovie ? (
                   <div className="search-card-actions">

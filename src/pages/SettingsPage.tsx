@@ -655,21 +655,6 @@ export function SettingsPage() {
 
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Minimized Entries</span>
-              <span className="settings-toggle-description">Compact view for all movie and show rows.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.minimizedEntries}
-                onChange={(e) => updateSettings({ minimizedEntries: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
               <span className="settings-toggle-label">Show Cast Portraits</span>
               <span className="settings-toggle-description">Display top cast members in the entry row.</span>
             </div>
@@ -718,14 +703,12 @@ export function SettingsPage() {
         <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
           <p className="settings-muted">
-            {hasFirebaseConfig
-              ? 'Signed in with Admin (Cimmerial). Headshot-grid auth later.'
-              : 'Headshot-grid auth and account creation will be added after Firebase + TMDb are wired.'}
+            Manage your Clastone account and sync your watchlists across devices.
           </p>
           <div className="settings-account-row">
-            <span className="settings-account-label">Status</span>
+            <span className="settings-account-label">Signed in as</span>
             <span className="settings-account-value">
-              {signedIn ? `Signed in as ${user?.email ?? 'Cimmerial'}` : 'Not signed in (offline mode)'}
+              {signedIn ? (user?.displayName || user?.email || 'User') : 'Not signed in'}
             </span>
           </div>
           {signedIn && (

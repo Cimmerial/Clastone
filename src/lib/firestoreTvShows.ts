@@ -111,7 +111,7 @@ export async function loadTvShows(db: Firestore, userId: string): Promise<{
     };
   }
 
-  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: false };
+  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: true };
 }
 
 export async function saveTvShows(

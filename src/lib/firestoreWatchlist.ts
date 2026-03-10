@@ -76,7 +76,7 @@ export async function loadWatchlist(db: Firestore, userId: string): Promise<{
     };
   }
 
-  return { movies: [], tv: [], isMigrated: false };
+  return { movies: [], tv: [], isMigrated: true };
 }
 
 export async function saveWatchlist(

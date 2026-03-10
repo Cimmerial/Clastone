@@ -1,35 +1,32 @@
 .view-toggle-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    color: var(--text-dim);
+    justify-content: center;
+    background: rgba(26, 26, 26, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
     width: 36px;
     height: 36px;
     border-radius: 50%;
     cursor: pointer;
-    justify-content: center;
-    transition: all 0.2s ease;
-    white-space: nowrap;
+    transition: all 0.3s ease;
+    opacity: 0.75;
 }
 
 .view-toggle-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-main);
-    border-color: var(--accent-primary);
+    background: rgba(26, 26, 26, 0.8);
+    border-color: var(--accent-soft);
+    color: var(--text-primary);
+    opacity: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.view-toggle-btn:active svg {
+    transform: rotate(180deg);
 }
 
 .view-toggle-btn svg {
-    opacity: 0.7;
-}
-
-.view-toggle-btn:hover svg {
-    opacity: 1;
-}
-
-@media (max-width: 600px) {
-    .view-toggle-btn span {
-        display: none;
-    }
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

@@ -36,6 +36,14 @@ body {
   padding-top: 4rem;
 }
 
+.app-main-login {
+  flex: 1;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
 @media (min-width: 768px) {
   .app-main {
     padding: 0.75rem 0.5rem 1.75rem;
