@@ -2,12 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { pruneItem } from '../lib/firestoreTvShows';
 import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
-import type { TmdbMovieCache } from '../lib/tmdb';
+import type { TmdbMovieCache, TmdbTvCache } from '../lib/tmdb';
 import { tmdbMovieDetailsFull } from '../lib/tmdb';
 import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
 import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
 import { tvClasses, tvByClass as initialTvByClass } from '../mock/tvShows';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
+import { formatViewingFromRecords } from './moviesStore';
 
 type TvStore = {
   classes: MovieClassDef[];
@@ -27,6 +28,8 @@ type TvStore = {
   moveWithinClass: (itemId: string, direction: number) => void;
   reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
   moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
+  
+  // TV show methods
   addTvShowFromSearch: (incoming: {
     id: string;
     title: string;
@@ -41,6 +44,25 @@ type TvStore = {
   addWatchToTvShow: (itemId: string, watch: WatchRecord) => void;
   updateTvShowWatchRecords: (itemId: string, watches: WatchRecord[]) => void;
   setTvShowRuntime: (itemId: string, runtimeMinutes: number) => void;
+  
+  // Show methods (aliases for TV shows)
+  addShowFromSearch: (incoming: {
+    id: string;
+    title: string;
+    subtitle?: string;
+    classKey: ClassKey;
+    firstWatch?: WatchRecord;
+    cache?: TmdbTvCache;
+    toTop?: boolean;
+    toMiddle?: boolean;
+  }) => void;
+  updateShowCache: (itemId: string, cache: Partial<TmdbTvCache>) => void;
+  updateBatchShowCache: (updates: Record<string, Partial<TmdbTvCache>>) => void;
+  addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
+  updateShowWatchRecords: (itemId: string, records: WatchRecord[]) => void;
+  removeShowEntry: (itemId: string) => void;
+  getShowById: (id: string) => MovieShowItem | null;
+  
   forceSync: () => Promise<void>;
 };
 
@@ -367,6 +389,79 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     []
   );
 
+  const addTvShowFromSearch = useCallback(
+    (incoming: {
+      id: string;
+      title: string;
+      posterPath?: string;
+      classKey: ClassKey;
+      cache?: TmdbMovieCache;
+      position?: 'top' | 'middle' | 'bottom';
+    }) => {
+      setByClass((prev) => {
+        const alreadyExists = Object.values(prev).some((list) => list.some((m) => m.id === incoming.id));
+        if (alreadyExists) return prev;
+
+        const cache = incoming.cache;
+        const watchRecords: WatchRecord[] = [];
+        const { viewingDates, percentCompleted, watchTime } = formatViewingFromRecords(
+          watchRecords,
+          cache?.runtimeMinutes
+        );
+
+        const base: MovieShowItem = {
+          id: incoming.id,
+          classKey: incoming.classKey,
+          percentileRank: '—',
+          absoluteRank: '—',
+          rankInClass: `Unranked`,
+          title: cache?.title ?? incoming.title,
+          viewingDates: 'Saved',
+          percentCompleted,
+          watchTime: watchTime || undefined,
+          watchRecords,
+          runtimeMinutes: cache?.runtimeMinutes,
+          genres: cache?.genres,
+          posterPath: cache?.posterPath ?? incoming.posterPath,
+          topCastNames: cache?.cast?.map((c: any) => c.name) ?? [],
+          stickerTags: [],
+          tmdbId: cache?.tmdbId,
+          backdropPath: cache?.backdropPath,
+          overview: cache?.overview,
+          releaseDate: cache?.releaseDate,
+          cast: cache?.cast,
+          directors: cache?.directors
+        };
+
+        console.info('[Clastone] addTvShowFromSearch', {
+          id: incoming.id,
+          title: base.title,
+          classKey: incoming.classKey,
+          runtimeMinutes: base.runtimeMinutes
+        });
+
+        const targetList = prev[incoming.classKey] ?? [];
+        const position = incoming.position;
+
+        let newList: MovieShowItem[];
+        if (position === 'top') {
+          newList = [base, ...targetList];
+        } else if (position === 'middle') {
+          const mid = Math.ceil(targetList.length / 2);
+          newList = [...targetList.slice(0, mid), base, ...targetList.slice(mid)];
+        } else {
+          newList = [...targetList, base];
+        }
+
+        return {
+          ...prev,
+          [incoming.classKey]: newList
+        };
+      });
+    },
+    []
+  );
+
   const addShowFromSearch = useCallback(
     (
       incoming: Pick<MovieShowItem, 'id' | 'title'> & {
@@ -405,7 +500,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           runtimeMinutes: cache?.runtimeMinutes,
           genres: cache?.genres,
           posterPath: cache?.posterPath,
-          topCastNames: cache?.cast?.map((c) => c.name) ?? [],
+          topCastNames: cache?.cast?.map((c: any) => c.name) ?? [],
           stickerTags: [],
           tmdbId: cache?.tmdbId,
           backdropPath: cache?.backdropPath,
@@ -549,7 +644,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
             ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
             ...(cache.cast != null && {
               cast: cache.cast,
-              topCastNames: cache.cast.map((c) => c.name)
+              topCastNames: cache.cast.map((c: any) => c.name)
             }),
             ...(cache.creators != null && { directors: cache.creators }),
             ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
@@ -609,13 +704,23 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       reorderWithinClass,
       moveToOtherClass,
       moveItemToClass,
+      addTvShowFromSearch,
+      updateTvShowCache: updateShowCache,
+      removeTvShowEntry: removeShowEntry,
+      getTvShowById: getShowById,
+      addWatchToTvShow: addWatchToShow,
+      updateTvShowWatchRecords: updateShowWatchRecords,
+      setTvShowRuntime: (itemId: string, runtimeMinutes: number) => {
+        // Implementation can be added if needed
+        console.log('setTvShowRuntime called', itemId, runtimeMinutes);
+      },
       addShowFromSearch,
-      addWatchToShow,
-      updateShowWatchRecords,
       updateShowCache,
       updateBatchShowCache,
-      getShowById,
+      addWatchToShow,
+      updateShowWatchRecords,
       removeShowEntry,
+      getShowById,
       forceSync: async () => {
         if (onPersist) {
           const dirtyClasses: ClassKey[] = [];
@@ -653,6 +758,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       reorderWithinClass,
       moveToOtherClass,
       moveItemToClass,
+      addTvShowFromSearch,
       addShowFromSearch,
       addWatchToShow,
       updateShowWatchRecords,

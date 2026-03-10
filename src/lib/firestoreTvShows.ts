@@ -157,3 +157,5 @@ export async function saveTvShows(
 
   await batch.commit();
 }
+
+export { pruneItem };
