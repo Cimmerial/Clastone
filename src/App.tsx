@@ -6,6 +6,7 @@ import { FirestoreTvGate } from './components/FirestoreTvGate';
 import { FirestoreWatchlistGate } from './components/FirestoreWatchlistGate';
 import { FirestoreSettingsGate } from './components/FirestoreSettingsGate';
 import { LoginPage } from './pages/LoginPage';
+import { UsernameSetup } from './components/UsernameSetup';
 import { DevTools } from './components/DevTools';
 import { SyncStatusProvider } from './context/SyncStatusContext';
 import { FirestorePeopleGate } from './components/FirestorePeopleGate';
@@ -13,7 +14,7 @@ import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
 import { FilterProvider } from './state/filterStore';
 
 function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, needsUsername } = useAuth();
 
   if (loading) {
     return (
@@ -27,6 +28,14 @@ function App() {
     return (
       <main className="app-main-login">
         <LoginPage />
+      </main>
+    );
+  }
+
+  if (needsUsername) {
+    return (
+      <main className="app-main-login">
+        <UsernameSetup />
       </main>
     );
   }

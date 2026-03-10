@@ -350,8 +350,8 @@ export function ProfilePage() {
     return all.filter((w) => w.sortKey >= range.min && w.sortKey <= range.max);
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, recentRange]);
 
-  const top5Movies = rankedMovies.slice(0, 5);
-  const top5Shows = rankedShows.slice(0, 5);
+  const top10Movies = rankedMovies.slice(0, 10);
+  const top10Shows = rankedShows.slice(0, 10);
 
   // Custom tooltip for category charts
   const CategoryTooltip = ({ active, payload }: any) => {
@@ -634,12 +634,12 @@ export function ProfilePage() {
 
       <div className="profile-grid">
         <div className="profile-card card-surface">
-          <h2 className="profile-card-title">Top 5 Movies</h2>
+          <h2 className="profile-card-title">Top 10 Movies</h2>
           <Link to="/movies" className="profile-preview-link">
             View all movies →
           </Link>
           <div className="profile-top-grid">
-            {top5Movies.map((m, i) => (
+            {top10Movies.map((m: any, i: any) => (
               <div key={m.id} className="profile-top-item">
                 <div className="profile-top-poster">
                   {m.posterPath ? (
@@ -658,12 +658,12 @@ export function ProfilePage() {
         </div>
 
         <div className="profile-card card-surface">
-          <h2 className="profile-card-title">Top 5 Shows</h2>
+          <h2 className="profile-card-title">Top 10 Shows</h2>
           <Link to="/tv" className="profile-preview-link">
             View all shows →
           </Link>
           <div className="profile-top-grid">
-            {top5Shows.map((s, i) => (
+            {top10Shows.map((s: any, i: any) => (
               <div key={s.id} className="profile-top-item">
                 <div className="profile-top-poster">
                   {s.posterPath ? (

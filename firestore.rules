@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - allow read for search and login (including unauthenticated)
+    match /users/{userId} {
+      allow read: if true; // Allow reading for friend search and login (including unauthenticated)
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users subcollections - only owner can access (except for the specific data collections below)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow friends to read all data subcollections
+    match /users/{userId}/movieData/{docId} {
+      allow read: if request.auth != null && 
+        (userId == request.auth.uid || 
+         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+      allow write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    match /users/{userId}/tvData/{docId} {
+      allow read: if request.auth != null && 
+        (userId == request.auth.uid || 
+         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+      allow write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    match /users/{userId}/peopleData/{docId} {
+      allow read: if request.auth != null && 
+        (userId == request.auth.uid || 
+         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+      allow write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    match /users/{userId}/directorsData/{docId} {
+      allow read: if request.auth != null && 
+        (userId == request.auth.uid || 
+         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+      allow write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    // Allow friends to read legacy data subcollections (for backwards compatibility)
+    match /users/{userId}/data/{docId} {
+      allow read: if request.auth != null && 
+        (userId == request.auth.uid || 
+         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+      allow write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    // Friends collection - more permissive reading
+    match /friends/{friendId} {
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || resource.data.friendUid == request.auth.uid);
+      allow write: if request.auth != null && 
+        (request.resource.data.userId == request.auth.uid || request.resource.data.friendUid == request.auth.uid);
+    }
+    
+    // Friend requests collection
+    match /friendRequests/{requestId} {
+      // Users can read requests sent to them or by them
+      allow read: if request.auth != null && 
+        (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      
+      // Users can create requests they send
+      allow create: if request.auth != null && 
+        request.resource.data.from == request.auth.uid &&
+        request.resource.data.from != request.resource.data.to;
+      
+      // Users can delete requests sent to them (accept/reject) or by them (cancel)
+      allow delete: if request.auth != null && 
+        (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+    }
+    
+    // Movies collection - users can read their own and friends' rankings
+    match /movies/{movieId} {
+      allow read: if request.auth != null; // Temporarily allow all authenticated users to read
+      allow write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // TV collection - users can read their own and friends' rankings
+    match /tv/{tvId} {
+      allow read: if request.auth != null; // Temporarily allow all authenticated users to read
+      allow write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // People (actors) collection - users can read their own and friends' rankings
+    match /people/{personId} {
+      allow read: if request.auth != null; // Temporarily allow all authenticated users to read
+      allow write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Directors collection - users can read their own and friends' rankings
+    match /directors/{directorId} {
+      allow read: if request.auth != null; // Temporarily allow all authenticated users to read
+      allow write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Watchlist collection - users can read/write their own watchlist
+    match /watchlist/{watchlistId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Settings collection - users can read/write their own settings
+    match /settings/{settingsId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

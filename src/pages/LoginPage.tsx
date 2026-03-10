@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { FcGoogle } from 'react-icons/fc';
-import { Mail, Lock, LogIn, UserPlus } from 'lucide-react';
+import { Mail, Lock, LogIn, UserPlus, User } from 'lucide-react';
 import './LoginPage.css';
 
 export function LoginPage() {
-  const { loginWithGoogle, loginWithEmail, signUpWithEmail, loginError } = useAuth();
+  const { loginWithGoogle, loginWithUsername, signUpWithEmail, loginError } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [glowElements, setGlowElements] = useState<Array<{ id: number; x: number; y: number; color: string; size: number; speedX: number; speedY: number }>>([]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -16,9 +17,10 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSignUp) {
-      await signUpWithEmail(email, password);
+      await signUpWithEmail(email, password, username);
     } else {
-      await loginWithEmail(email, password);
+      // Use the unified login function that handles both email and username
+      await loginWithUsername(email, password);
     }
   };
 
@@ -143,17 +145,42 @@ export function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
+            {isSignUp && (
+              <div className="login-input-group">
+                <User size={18} className="login-input-icon" />
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={20}
+                  pattern="[a-zA-Z0-9_]+"
+                  className="login-input"
+                />
+              </div>
+            )}
+
             <div className="login-input-group">
               <Mail size={18} className="login-input-icon" />
               <input
-                type="email"
-                placeholder="Email address"
-                value={email}
+                type="text"
+                placeholder={isSignUp ? "Email address" : "Username or Email"}
+                value={isSignUp ? email : email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                minLength={isSignUp ? undefined : 3}
+                maxLength={isSignUp ? undefined : 20}
+                pattern={isSignUp ? undefined : "[a-zA-Z0-9_@.]+"}
                 className="login-input"
               />
             </div>
+
+            {!isSignUp && (
+              <div className="login-hint">
+              </div>
+            )}
 
             <div className="login-input-group">
               <Lock size={18} className="login-input-icon" />
@@ -204,6 +231,7 @@ export function LoginPage() {
                   setIsSignUp(!isSignUp);
                   setEmail('');
                   setPassword('');
+                  setUsername('');
                 }}
               >
                 {isSignUp ? 'Sign In' : 'Create one'}

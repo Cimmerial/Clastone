@@ -6,6 +6,8 @@ import { DirectorsPage } from './pages/DirectorsPage';
 import { WatchlistPage } from './pages/WatchlistPage';
 import { SearchPage } from './pages/SearchPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { FriendsPage } from './pages/FriendsPage';
+import { FriendProfilePage } from './pages/FriendProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 
@@ -19,6 +21,8 @@ export function AppRoutes() {
       <Route path="/directors" element={<DirectorsPage />} />
       <Route path="/watchlist" element={<WatchlistPage />} />
       <Route path="/search" element={<SearchPage />} />
+      <Route path="/friends" element={<FriendsPage />} />
+      <Route path="/friends/:friendId" element={<FriendProfilePage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />

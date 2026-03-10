@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, User, Settings, RefreshCw } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import './NavBar.css';
 
@@ -13,7 +13,8 @@ const mainLinks = [
 
 const iconLinks = [
   { to: '/search', label: 'Search', icon: Search as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/profile', label: 'Profile', icon: User as React.ComponentType<{ size?: number; className?: string }> },
+  { to: '/friends', label: 'Friends', icon: Users as React.ComponentType<{ size?: number; className?: string }> },
+  { to: '/profile', label: 'Profile', icon: Home as React.ComponentType<{ size?: number; className?: string }> },
   { to: '/settings', label: 'Settings', icon: Settings as React.ComponentType<{ size?: number; className?: string }> },
   { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw as React.ComponentType<{ size?: number; className?: string }> },
 ];
