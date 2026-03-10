@@ -14,8 +14,8 @@
   width: 50vw;
   height: 50vw;
   border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.15;
+  filter: blur(60px);
+  opacity: 0.3;
   z-index: 0;
   pointer-events: none;
 }
@@ -31,6 +31,27 @@
   right: -10%;
   background: #a855f7;
   /* A complementary purple glow */
+}
+
+.login-background-glow.animated-glow {
+  animation: float 20s infinite ease-in-out;
+  transition: left 0.5s ease-out, top 0.5s ease-out;
+}
+
+.login-background-glow.cursor-glow {
+  width: 30vw;
+  height: 30vw;
+  background: linear-gradient(135deg, #FFE5E5 0%, #E5F3FF 50%, #F0E5FF 100%);
+  opacity: 0.1;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  25% { transform: translate(-50%, -50%) scale(1.1); }
+  50% { transform: translate(-50%, -50%) scale(0.95); }
+  75% { transform: translate(-50%, -50%) scale(1.05); }
 }
 
 .login-container {
