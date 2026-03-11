@@ -5,9 +5,8 @@ export type GlobalSettings = {
     topRoleCount: number;
     personProjectsLimit: number;
     viewMode: 'minimized' | 'detailed' | 'tile';
-    showCast: boolean;
-    showDirectors: boolean;
     boycottTalkShows: boolean;
+    excludeSimpsons: boolean;
 };
 
 type SettingsStore = {
@@ -24,9 +23,8 @@ function getInitialSettings(): GlobalSettings {
         const ppl = localStorage.getItem('clastone-personProjectsLimit');
         const vm = localStorage.getItem('clastone-viewMode');
         const min = localStorage.getItem('clastone-minimizedEntries');
-        const sc = localStorage.getItem('clastone-showCast');
-        const sd = localStorage.getItem('clastone-showDirectors');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
+        const es = localStorage.getItem('clastone-excludeSimpsons');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -42,9 +40,8 @@ function getInitialSettings(): GlobalSettings {
             topRoleCount: role ? Number(role) : 5,
             personProjectsLimit: ppl ? Number(ppl) : 12,
             viewMode,
-            showCast: sc !== 'false', // Default to true
-            showDirectors: sd !== 'false', // Default to true
-            boycottTalkShows: bts === 'true'
+            boycottTalkShows: bts === 'true',
+            excludeSimpsons: es === 'true'
         };
     } catch {
         return {
@@ -52,9 +49,8 @@ function getInitialSettings(): GlobalSettings {
             topRoleCount: 5,
             personProjectsLimit: 12,
             viewMode: 'minimized',
-            showCast: true,
-            showDirectors: true,
-            boycottTalkShows: false
+            boycottTalkShows: false,
+            excludeSimpsons: false
         };
     }
 }
@@ -118,9 +114,8 @@ export function SettingsProvider({
                 if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
                 if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
-                if (updates.showCast !== undefined) localStorage.setItem('clastone-showCast', String(next.showCast));
-                if (updates.showDirectors !== undefined) localStorage.setItem('clastone-showDirectors', String(next.showDirectors));
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
+                if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
 
             } catch { /* ignore */ }
             return next;

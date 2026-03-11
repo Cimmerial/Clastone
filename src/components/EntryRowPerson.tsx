@@ -70,7 +70,23 @@ export function EntryRowPerson({
     if (settings.boycottTalkShows) {
       all = all.filter(r => {
         const title = r.title.toLowerCase();
-        return !title.includes('the tonight show') && !title.includes('the late night show');
+        return !title.includes('the tonight show') && 
+               !title.includes('the late night show') && 
+               !title.includes('jimmy kimmel live') && 
+               !title.includes('the graham norton show') &&
+               !title.includes('golden globe awards') &&
+               !title.includes('live with kelly') &&
+               !title.includes('the one show') &&
+               !title.includes('late night with seth meyers') &&
+               !title.includes('the late late show with james corden');
+      });
+    }
+
+    // Exclude The Simpsons if enabled
+    if (settings.excludeSimpsons) {
+      all = all.filter(r => {
+        const title = r.title.toLowerCase();
+        return !title.includes('the simpsons');
       });
     }
 
@@ -112,7 +128,7 @@ export function EntryRowPerson({
     });
 
     return { seenRoles: seen, knownFor: unseen };
-  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, moviesGlobalRanks, tvGlobalRanks]);
+  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, settings.excludeSimpsons, moviesGlobalRanks, tvGlobalRanks]);
 
 
   // Combine and apply limit from settings
@@ -151,6 +167,7 @@ export function EntryRowPerson({
 
   const viewMode = settings.viewMode;
   const isTile = viewMode === 'tile';
+  const isMinimized = viewMode === 'minimized';
 
   if (isTile) {
     const age = calculateAge(item.birthday, item.deathday);
@@ -177,7 +194,7 @@ export function EntryRowPerson({
   }
 
   return (
-    <article className="entry-row" ref={rowRef}>
+    <article className={`entry-row ${isMinimized ? 'entry-row-minimized' : ''}`} ref={rowRef}>
       <div className="entry-poster" data-item-id={item.id}>
         {item.profilePath ? (
           <img src={tmdbImagePath(item.profilePath) ?? ''} alt="" loading="lazy" />
@@ -188,102 +205,116 @@ export function EntryRowPerson({
       <div className="entry-content">
         <div className="entry-left-col">
           <h3 className="entry-title">{item.title}</h3>
-          <div className="entry-subtitle">
-            {[
-              age != null && `Age: ${age}${item.deathday ? ' (Deceased)' : ''}`,
-              item.knownForDepartment && <span key="dept" className="entry-dept-badge">{item.knownForDepartment}</span>,
-              item.firstSeenDate && `First seen: ${item.firstSeenDate.slice(0, 4)}`,
-              item.lastSeenDate && `Most recently seen: ${item.lastSeenDate.slice(0, 4)}`,
-            ].filter(Boolean).map((x, i, arr) => (
-              <span key={i}>
-                {x}
-                {i < arr.length - 1 && ' · '}
-              </span>
-            ))}
-          </div>
+          {!isMinimized && (
+            <>
+              <div className="entry-subtitle">
+                {[
+                  age != null && `Age: ${age}${item.deathday ? ' (Deceased)' : ''}`,
+                  item.knownForDepartment && <span key="dept" className="entry-dept-badge">{item.knownForDepartment}</span>,
+                  item.firstSeenDate && `First seen: ${item.firstSeenDate.slice(0, 4)}`,
+                  item.lastSeenDate && `Most recently seen: ${item.lastSeenDate.slice(0, 4)}`,
+                ].filter(Boolean).map((x, i, arr) => (
+                  <span key={i}>
+                    {x}
+                    {i < arr.length - 1 && ' · '}
+                  </span>
+                ))}
+              </div>
 
-          <div className="entry-stats-row">
-            {totalWatchTime > 0 && <span className="entry-stat-pill">{formatDuration(totalWatchTime)} total</span>}
-            {item.moviesSeen.length > 0 && <span className="entry-stat-pill">{item.moviesSeen.length} {item.moviesSeen.length === 1 ? 'Movie' : 'Movies'}</span>}
-            {item.showsSeen.length > 0 && <span className="entry-stat-pill">{item.showsSeen.length} {item.showsSeen.length === 1 ? 'Show' : 'Shows'}</span>}
-          </div>
-        </div>
-
-        <div className="entry-right-col">
-          {isUnranked ? (
-            <button
-              type="button"
-              className="entry-config-btn entry-record-first"
-              onClick={() => onOpenSettings?.(item)}
-            >
-              Add to List
-            </button>
-          ) : (
-            <div className="entry-controls-column">
-              <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp}>⇡</button>
-              <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown}>⇣</button>
-              <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp}>↑</button>
-              <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown}>↓</button>
-              <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)}>⚙</button>
-            </div>
+              <div className="entry-stats-row">
+                {totalWatchTime > 0 && <span className="entry-stat-pill">{formatDuration(totalWatchTime)} total</span>}
+                {item.moviesSeen.length > 0 && <span className="entry-stat-pill">{item.moviesSeen.length} {item.moviesSeen.length === 1 ? 'Movie' : 'Movies'}</span>}
+                {item.showsSeen.length > 0 && <span className="entry-stat-pill">{item.showsSeen.length} {item.showsSeen.length === 1 ? 'Show' : 'Shows'}</span>}
+              </div>
+            </>
           )}
-
-          <div className="entry-cast-strip">
-            {rolesWithMetadata.map((role, idx) => {
-              const id = role.mediaType === 'movie' ? `tmdb-movie-${role.id}` : `tmdb-tv-${role.id}`;
-              const isSeen = (role.mediaType === 'movie' && seenMovies.has(id)) ||
-                (role.mediaType === 'tv' && seenShows.has(id));
-
-              const elements = [];
-
-              elements.push(
-                <div
-                  key={`${role.mediaType}-${role.id}`}
-                  className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : ''} ${isSeen ? 'clickable' : ''}`}
-                  onMouseEnter={() => setHoveredRoleId(role.id)}
-                  onMouseLeave={() => setHoveredRoleId(null)}
-                  onClick={() => {
-                    if (isSeen) {
-                      navigate(role.mediaType === 'movie' ? '/movies' : '/tv', { state: { scrollToId: id } });
-                    }
-                  }}
-                >
-                  {role.posterPath ? (
-                    <img src={tmdbImagePath(role.posterPath, 'w92') ?? ''} alt="" loading="lazy" />
-                  ) : (
-                    <span className="entry-cast-fallback">{role.mediaType === 'movie' ? '🎬' : '📺'}</span>
-                  )}
-                  {hoveredRoleId === role.id && (
-                    <div className="entry-cast-tooltip">
-                      <span className="entry-cast-tooltip-name">{role.title}</span>
-                      {role.job && <span className="entry-cast-tooltip-job">{role.job}</span>}
-                      {role.character && <span className="entry-cast-tooltip-char">{role.character}</span>}
-                      {isSeen && (
-                        <>
-                          <span className="entry-cast-tooltip-rank">
-                            {(() => {
-                              const ranks = role.mediaType === 'movie' ? moviesGlobalRanks : tvGlobalRanks;
-                              const info = ranks.get(id);
-                              return info?.percentileRank ? `Rank: ${info.percentileRank}` : 'Seen';
-                            })()}
-                          </span>
-                          <span className="entry-cast-tooltip-nav">Click to goto {role.title} in list</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-
-              // Add vertical bar after the last seen item if there are more items
-              if (idx === lastSeenIndex && idx < rolesWithMetadata.length - 1) {
-                elements.push(<div key="separator" className="entry-cast-separator" />);
-              }
-
-              return elements;
-            })}
-          </div>
         </div>
+
+        {isMinimized ? (
+          <div className="entry-controls-column">
+            <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class">⇡</button>
+            <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
+            <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
+            <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
+            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings">⚙</button>
+          </div>
+        ) : (
+          <div className="entry-right-col">
+            {isUnranked ? (
+              <button
+                type="button"
+                className="entry-config-btn entry-record-first"
+                onClick={() => onOpenSettings?.(item)}
+              >
+                Add to List
+              </button>
+            ) : (
+              <div className="entry-controls-column">
+                <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp}>⇡</button>
+                <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown}>⇣</button>
+                <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp}>↑</button>
+                <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown}>↓</button>
+                <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)}>⚙</button>
+              </div>
+            )}
+
+            <div className="entry-cast-strip">
+              {rolesWithMetadata.map((role, idx) => {
+                const id = role.mediaType === 'movie' ? `tmdb-movie-${role.id}` : `tmdb-tv-${role.id}`;
+                const isSeen = (role.mediaType === 'movie' && seenMovies.has(id)) ||
+                  (role.mediaType === 'tv' && seenShows.has(id));
+
+                const elements = [];
+
+                elements.push(
+                  <div
+                    key={`${role.mediaType}-${role.id}`}
+                    className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : ''} ${isSeen ? 'clickable' : ''}`}
+                    onMouseEnter={() => setHoveredRoleId(role.id)}
+                    onMouseLeave={() => setHoveredRoleId(null)}
+                    onClick={() => {
+                      if (isSeen) {
+                        navigate(role.mediaType === 'movie' ? '/movies' : '/tv', { state: { scrollToId: id } });
+                      }
+                    }}
+                  >
+                    {role.posterPath ? (
+                      <img src={tmdbImagePath(role.posterPath, 'w92') ?? ''} alt="" loading="lazy" />
+                    ) : (
+                      <span className="entry-cast-fallback">{role.mediaType === 'movie' ? '🎬' : '📺'}</span>
+                    )}
+                    {hoveredRoleId === role.id && (
+                      <div className="entry-cast-tooltip">
+                        <span className="entry-cast-tooltip-name">{role.title}</span>
+                        {role.job && <span className="entry-cast-tooltip-job">{role.job}</span>}
+                        {role.character && <span className="entry-cast-tooltip-char">{role.character}</span>}
+                        {isSeen && (
+                          <>
+                            <span className="entry-cast-tooltip-rank">
+                              {(() => {
+                                const ranks = role.mediaType === 'movie' ? moviesGlobalRanks : tvGlobalRanks;
+                                const info = ranks.get(id);
+                                return info?.percentileRank ? `Rank: ${info.percentileRank}` : 'Seen';
+                              })()}
+                            </span>
+                            <span className="entry-cast-tooltip-nav">Click to goto {role.title} in list</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+
+                // Add vertical bar after the last seen item if there are more items
+                if (idx === lastSeenIndex && idx < rolesWithMetadata.length - 1) {
+                  elements.push(<div key="separator" className="entry-cast-separator" />);
+                }
+
+                return elements;
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </article>
   );

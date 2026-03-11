@@ -671,44 +671,29 @@ export function SettingsPage() {
 
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Show Cast Portraits</span>
-              <span className="settings-toggle-description">Display top cast members in the entry row.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.showCast}
-                onChange={(e) => updateSettings({ showCast: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Show Director/Creator Portraits</span>
-              <span className="settings-toggle-description">Display directors (movies) or creators (TV) in the entry row.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.showDirectors}
-                onChange={(e) => updateSettings({ showDirectors: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
               <span className="settings-toggle-label">Boycott certain shows/movies from actor lists</span>
-              <span className="settings-toggle-description">Hides variety/talk shows like 'The Tonight Show' or 'The Late Night Show'.</span>
+              <span className="settings-toggle-description">Hides variety/talk shows and awards like 'The Tonight Show', 'Jimmy Kimmel Live!', 'The Graham Norton Show', 'Golden Globe Awards', 'LIVE with Kelly and Mark', 'The One Show', 'Late Night with Seth Meyers', and 'The Late Late Show with James Corden'.</span>
             </div>
             <label className="settings-switch">
               <input
                 type="checkbox"
                 checked={settings.boycottTalkShows}
                 onChange={(e) => updateSettings({ boycottTalkShows: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Exclude The Simpsons from actor projects</span>
+              <span className="settings-toggle-description">Hides The Simpsons TV show from actor filmographies to reduce clutter.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.excludeSimpsons}
+                onChange={(e) => updateSettings({ excludeSimpsons: e.target.checked })}
               />
               <span className="settings-switch-slider"></span>
             </label>

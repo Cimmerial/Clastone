@@ -165,7 +165,14 @@ export function RecordWatchModal({
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
     if (initialRecords?.length) return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
-    return [{ id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord];
+    const today = new Date();
+    return [{ 
+      id: crypto.randomUUID(), 
+      type: 'DATE', 
+      year: today.getFullYear(),
+      month: today.getMonth() + 1,
+      day: today.getDate()
+    } as WatchRecord];
   });
   const [recordClassKey, setRecordClassKey] = useState('');
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
@@ -194,7 +201,14 @@ export function RecordWatchModal({
   }, [removeClickCount]);
 
   const addRecord = () => {
-    setRecords(prev => [...prev, { id: crypto.randomUUID(), type: 'DATE', year: new Date().getFullYear() } as WatchRecord]);
+    const today = new Date();
+    setRecords(prev => [...prev, { 
+      id: crypto.randomUUID(), 
+      type: 'DATE', 
+      year: today.getFullYear(),
+      month: today.getMonth() + 1,
+      day: today.getDate()
+    } as WatchRecord]);
     setTimeout(() => entriesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
   };
   const removeRecord = (id: string | number) => {
@@ -219,15 +233,34 @@ export function RecordWatchModal({
 
   const monthOptsFor = (yearStr: string): ThemedDropdownOption[] => {
     const y = parseInt(yearStr, 10);
-    if (!y || !releaseYear || !releaseMonth || y > releaseYear) return MONTH_OPTIONS;
-    return MONTH_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseMonth);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    
+    // If year is not current year, no months available
+    if (!y || y > currentYear) return [{ value: '', label: '—' }]; // Only show empty option
+    if (y < currentYear) return MONTH_OPTIONS; // Show all months for past years
+    
+    // For current year, only show current month and empty option
+    const currentMonthOption = MONTH_OPTIONS.find(m => m.value === String(currentMonth));
+    return currentMonthOption ? [{ value: '', label: '—' }, currentMonthOption] : [{ value: '', label: '—' }];
   };
   const dayOptsFor = (yearStr: string, monthStr: string): ThemedDropdownOption[] => {
-    const y = parseInt(yearStr, 10), m = parseInt(monthStr, 10);
-    if (!y || !m || !releaseYear || !releaseMonth || !releaseDay) return DAY_OPTIONS;
-    if (y > releaseYear) return DAY_OPTIONS;
-    if (y === releaseYear && m > releaseMonth) return DAY_OPTIONS;
-    return DAY_OPTIONS.filter(o => !o.value || parseInt(o.value, 10) >= releaseDay);
+    const y = parseInt(yearStr, 10);
+    const m = parseInt(monthStr, 10);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+    
+    // If not current year/month, no days available
+    if (!y || !m || y > currentYear || (y === currentYear && m !== currentMonth)) {
+      return [{ value: '', label: '—' }]; // Only show empty option
+    }
+    
+    // For current year/month, only show current day and empty option
+    const currentDayOption = DAY_OPTIONS.find(d => d.value === String(currentDay));
+    return currentDayOption ? [{ value: '', label: '—' }, currentDayOption] : [{ value: '', label: '—' }];
   };
 
   const applyPreset = (id: string, preset: DatePreset | 'reset') => {

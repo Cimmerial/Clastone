@@ -139,6 +139,10 @@ export function EntryRowMovieShow({
   const castSlice = (item.cast ?? []).slice(0, topCastCount);
   const [hoveredCastId, setHoveredCastId] = useState<number | null>(null);
 
+  // Hardcoded to true since toggles are removed
+  const showCast = true;
+  const showDirectors = true;
+
   const castWithSavedStatus = useMemo(() => {
     return castSlice.map(c => {
       const person = getPersonById(`tmdb-person-${c.id}`);
@@ -302,7 +306,7 @@ export function EntryRowMovieShow({
                   Record First Watch
                 </button>
                 <div className="entry-cast-strip">
-                  {settings.showDirectors && directorsWithSavedStatus.length > 0 && (
+                  {showDirectors && directorsWithSavedStatus.length > 0 && (
                     <>
                       {directorsWithSavedStatus.map((d) => (
                         <div
@@ -331,12 +335,12 @@ export function EntryRowMovieShow({
                           )}
                         </div>
                       ))}
-                      {settings.showCast && castWithSavedStatus.length > 0 && (
+                      {showCast && castWithSavedStatus.length > 0 && (
                         <div className="entry-cast-separator" />
                       )}
                     </>
                   )}
-                  {settings.showCast && castWithSavedStatus.map((c) => (
+                  {showCast && castWithSavedStatus.map((c) => (
                     <div
                       key={c.id}
                       className={`entry-cast-thumb ${c.isSaved ? 'entry-role-seen' : ''} clickable`}
@@ -383,7 +387,7 @@ export function EntryRowMovieShow({
             )}
             {!isUnranked && (
               <div className="entry-cast-strip">
-                {settings.showDirectors && directorsWithSavedStatus.length > 0 && (
+                {showDirectors && directorsWithSavedStatus.length > 0 && (
                   <>
                     {directorsWithSavedStatus.map((d) => (
                       <div
@@ -412,12 +416,12 @@ export function EntryRowMovieShow({
                         )}
                       </div>
                     ))}
-                    {settings.showCast && castWithSavedStatus.length > 0 && (
+                    {showCast && castWithSavedStatus.length > 0 && (
                       <div className="entry-cast-separator" />
                     )}
                   </>
                 )}
-                {settings.showCast && castWithSavedStatus.map((c) => (
+                {showCast && castWithSavedStatus.map((c) => (
                   <div
                     key={c.id}
                     className={`entry-cast-thumb ${c.isSaved ? 'entry-role-seen' : ''} clickable`}
