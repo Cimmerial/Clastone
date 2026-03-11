@@ -91,7 +91,7 @@ function WatchlistRow({
         <div className="watchlist-row-poster">
           {entry.posterPath && (
             <img
-              src={tmdbImagePath(entry.posterPath, 'w154')}
+              src={tmdbImagePath(entry.posterPath, 'w154') || undefined}
               alt={entry.title}
               className="watchlist-row-poster-img"
               loading="lazy"
@@ -108,7 +108,7 @@ function WatchlistRow({
               {providers?.slice(0, 3).map((provider, idx) => (
                 <div key={idx} className="watchlist-provider-item">
                   <img
-                    src={tmdbImagePath(provider.logo_path, 'w45')}
+                    src={tmdbImagePath(provider.logo_path, 'w45') || undefined}
                     alt={provider.provider_name}
                     title={provider.provider_name}
                     className="watchlist-row-provider-img"
