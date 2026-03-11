@@ -7,6 +7,8 @@ export type GlobalSettings = {
     viewMode: 'minimized' | 'detailed' | 'tile';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
+    showGuideFlag: boolean;
+    useSpotlightBackground: boolean;
 };
 
 type SettingsStore = {
@@ -25,6 +27,8 @@ function getInitialSettings(): GlobalSettings {
         const min = localStorage.getItem('clastone-minimizedEntries');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
         const es = localStorage.getItem('clastone-excludeSimpsons');
+        const sgf = localStorage.getItem('clastone-showGuideFlag');
+        const usb = localStorage.getItem('clastone-useSpotlightBackground');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -41,7 +45,9 @@ function getInitialSettings(): GlobalSettings {
             personProjectsLimit: ppl ? Number(ppl) : 12,
             viewMode,
             boycottTalkShows: bts === 'true',
-            excludeSimpsons: es === 'true'
+            excludeSimpsons: es === 'true',
+            showGuideFlag: sgf !== 'false',
+            useSpotlightBackground: usb === 'true'
         };
     } catch {
         return {
@@ -50,7 +56,9 @@ function getInitialSettings(): GlobalSettings {
             personProjectsLimit: 12,
             viewMode: 'minimized',
             boycottTalkShows: false,
-            excludeSimpsons: false
+            excludeSimpsons: false,
+            showGuideFlag: true,
+            useSpotlightBackground: false
         };
     }
 }
@@ -116,6 +124,8 @@ export function SettingsProvider({
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
+                if (updates.showGuideFlag !== undefined) localStorage.setItem('clastone-showGuideFlag', String(next.showGuideFlag));
+                if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
 
             } catch { /* ignore */ }
             return next;

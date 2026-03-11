@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
@@ -699,13 +700,41 @@ export function SettingsPage() {
             </label>
           </div>
 
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Use spotlight background</span>
+              <span className="settings-toggle-description">Adds animated colored dots background effect (like login screen) to all pages.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.useSpotlightBackground}
+                onChange={(e) => updateSettings({ useSpotlightBackground: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+        </div>
+
+        <div className="settings-card card-surface settings-card-wide">
+          <h2 className="settings-title">Help & Resources</h2>
+          <p className="settings-muted">
+            Learn how to use Clastone and access helpful resources.
+          </p>
+          <div className="settings-links-grid">
+            <NavLink to="/guide" className="settings-link-card">
+              <div className="settings-link-icon">📖</div>
+              <div className="settings-link-content">
+                <h4>User Guide</h4>
+                <p>Complete guide to Clastone 1.0 features and usage</p>
+              </div>
+            </NavLink>
+          </div>
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
-          <p className="settings-muted">
-            Manage your Clastone account and sync your watchlists across devices.
-          </p>
           <div className="settings-account-row">
             <span className="settings-account-label">Signed in as</span>
             <span className="settings-account-value">

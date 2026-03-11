@@ -12,6 +12,8 @@ import { SyncStatusProvider } from './context/SyncStatusContext';
 import { FirestorePeopleGate } from './components/FirestorePeopleGate';
 import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
 import { FilterProvider } from './state/filterStore';
+import { SpotlightBackground } from './components/SpotlightBackground';
+import './components/SpotlightBackground.css';
 
 function App() {
   const { user, loading, needsUsername } = useAuth();
@@ -49,6 +51,7 @@ function App() {
               <FirestoreDirectorsGate>
                 <FirestoreWatchlistGate>
                   <FilterProvider>
+                    <SpotlightBackground />
                     <NavBar />
                     <main className="app-main">
                       <AppRoutes />

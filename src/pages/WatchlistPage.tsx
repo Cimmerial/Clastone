@@ -48,11 +48,37 @@ function WatchlistRow({
   canMoveDown: boolean;
   providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
 }) {
+  const [clickCount, setClickCount] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+    
+    if (newCount === 1) {
+      // First click - show confirmation
+      setShowConfirm(true);
+      // Reset after 2 seconds
+      setTimeout(() => {
+        setClickCount(0);
+        setShowConfirm(false);
+      }, 2000);
+    } else if (newCount === 2) {
+      // Double click - remove immediately
+      onRemove();
+      setClickCount(0);
+      setShowConfirm(false);
+    }
+  };
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
     data: { type }
   });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
+
   return (
     <div
       ref={setNodeRef}
@@ -61,30 +87,36 @@ function WatchlistRow({
       {...attributes}
       {...listeners}
     >
-      <div className="watchlist-row-poster">
-        {entry.posterPath ? (
-          <img src={tmdbImagePath(entry.posterPath) ?? ''} alt="" loading="lazy" />
-        ) : (
-          <span>🎬</span>
-        )}
-      </div>
       <div className="watchlist-row-main">
-        <div className="watchlist-row-title">{entry.title}</div>
-        <div className="watchlist-row-year">
-          {formatYear(entry.releaseDate)}
+        <div className="watchlist-row-poster">
+          {entry.posterPath && (
+            <img
+              src={tmdbImagePath(entry.posterPath, 'w154')}
+              alt={entry.title}
+              className="watchlist-row-poster-img"
+              loading="lazy"
+            />
+          )}
+        </div>
+        <div className="watchlist-row-info">
+          <h3 className="watchlist-row-title">{entry.title}</h3>
+          <p className="watchlist-row-meta">
+            {formatYear(entry.releaseDate || undefined)}
+          </p>
           {providers && providers.length > 0 && (
             <div className="watchlist-row-providers">
-              {providers.slice(0, 4).map((p) => (
-                <div key={`${p.provider_id}-${p.type}`} className="watchlist-provider-wrapper">
+              {providers?.slice(0, 3).map((provider, idx) => (
+                <div key={idx} className="watchlist-provider-item">
                   <img
-                    src={tmdbImagePath(p.logo_path, 'w45') ?? ''}
-                    alt={p.provider_name}
-                    title={`${p.provider_name} (${p.type.toUpperCase()})`}
-                    className="watchlist-provider-icon"
+                    src={tmdbImagePath(provider.logo_path, 'w45')}
+                    alt={provider.provider_name}
+                    title={provider.provider_name}
+                    className="watchlist-row-provider-img"
+                    loading="lazy"
                   />
-                  <span className={`watchlist-provider-badge watchlist-provider-badge--${p.type}`}>
-                    {p.type === 'subs' ? 'Subs' : p.type === 'rent' ? 'Rent' : 'Ads'}
-                  </span>
+                  {provider.type === 'subs' && (
+                    <span className="watchlist-provider-badge watchlist-provider-badge--subs">SUBS</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -94,14 +126,11 @@ function WatchlistRow({
       <div className="watchlist-row-actions">
         <button
           type="button"
-          className="watchlist-row-remove-btn"
+          className={`watchlist-row-remove-btn ${showConfirm ? 'confirming' : ''}`}
           aria-label="Remove from watchlist"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
+          onClick={handleClick}
         >
-          ✕
+          {showConfirm ? '✓ Confirm Remove' : '✕'}
         </button>
         <button
           type="button"

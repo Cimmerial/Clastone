@@ -1,0 +1,41 @@
+.spotlight-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.spotlight-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.spotlight-glow.animated-glow {
+  transition: all 0.3s ease;
+}
+
+.spotlight-glow.cursor-glow {
+  opacity: 0.8;
+}
+
+/* Ensure content stays above spotlight background */
+.main-content,
+.page-content,
+.guide-page,
+.settings-page,
+.movies-page,
+.tv-shows-page,
+.actors-page,
+.directors-page,
+.friends-page,
+.profile-page,
+.search-page,
+.watchlist-page {
+  position: relative;
+  z-index: 1;
+}

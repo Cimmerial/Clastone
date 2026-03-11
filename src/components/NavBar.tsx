@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Menu, X } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Menu, X, Flag } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useSettingsStore } from '../state/settingsStore';
+import { useAuth } from '../context/AuthContext';
 import './NavBar.css';
 
 const mainLinks = [
@@ -21,6 +23,13 @@ const iconLinks = [
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { settings } = useSettingsStore();
+  const { isAdmin } = useAuth();
+
+  // Filter icon links based on admin status
+  const filteredIconLinks = useMemo(() => {
+    return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
+  }, [isAdmin]);
 
   return (
     <header className="nav-root">
@@ -28,6 +37,12 @@ export function NavBar() {
         <div className="nav-left">
           <div className="nav-logo-wrapper">
             <span className="nav-logo-mark">CLASTONE</span>
+            {settings.showGuideFlag !== false && (
+              <NavLink to="/guide" className="nav-guide-flag">
+                <Flag size={14} />
+                <span>1.0</span>
+              </NavLink>
+            )}
             <div className="nav-logo-dropdown">
               <nav className="nav-menu nav-menu-left">
                 {mainLinks.map((link) => (
@@ -35,7 +50,7 @@ export function NavBar() {
                 ))}
               </nav>
               <nav className="nav-menu nav-menu-right">
-                {iconLinks.map((link) => (
+                {filteredIconLinks.map((link) => (
                   <NavItem key={link.to} to={link.to} label={link.label} />
                 ))}
               </nav>
@@ -79,7 +94,7 @@ export function NavBar() {
                 />
               ))}
               <span className="nav-sep" aria-hidden role="separator" />
-              {iconLinks.map((link) => (
+              {filteredIconLinks.map((link) => (
                 <NavItem
                   key={link.to}
                   to={link.to}
