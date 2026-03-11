@@ -207,7 +207,7 @@ export function PeopleProvider({
 
             return changed ? next : prev;
         });
-    }, [moviesByClass, tvByClass, byClass]);
+    }, [moviesByClass, tvByClass]);
 
 
     // Debounced persistence logic
