@@ -241,9 +241,8 @@ export function RecordWatchModal({
     if (!y || y > currentYear) return [{ value: '', label: '—' }]; // Only show empty option
     if (y < currentYear) return MONTH_OPTIONS; // Show all months for past years
     
-    // For current year, only show current month and empty option
-    const currentMonthOption = MONTH_OPTIONS.find(m => m.value === String(currentMonth));
-    return currentMonthOption ? [{ value: '', label: '—' }, currentMonthOption] : [{ value: '', label: '—' }];
+    // For current year, show all months up to current month
+    return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
   };
   const dayOptsFor = (yearStr: string, monthStr: string): ThemedDropdownOption[] => {
     const y = parseInt(yearStr, 10);
@@ -254,13 +253,23 @@ export function RecordWatchModal({
     const currentDay = today.getDate();
     
     // If not current year/month, no days available
-    if (!y || !m || y > currentYear || (y === currentYear && m !== currentMonth)) {
+    if (!y || !m || y > currentYear) {
       return [{ value: '', label: '—' }]; // Only show empty option
     }
-    
-    // For current year/month, only show current day and empty option
-    const currentDayOption = DAY_OPTIONS.find(d => d.value === String(currentDay));
-    return currentDayOption ? [{ value: '', label: '—' }, currentDayOption] : [{ value: '', label: '—' }];
+    if (y < currentYear) {
+      // For past years, show all days
+      return DAY_OPTIONS;
+    }
+    if (m < currentMonth) {
+      // For past months in current year, show all days
+      return DAY_OPTIONS;
+    }
+    if (m === currentMonth) {
+      // For current month, show days up to current day
+      return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+    }
+    // For future months in current year, no days available
+    return [{ value: '', label: '—' }];
   };
 
   const applyPreset = (id: string, preset: DatePreset | 'reset') => {
