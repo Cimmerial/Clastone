@@ -148,18 +148,26 @@ export function EntryRowMovieShow({
       const person = getPersonById(`tmdb-person-${c.id}`);
       const isSaved = !!person;
       const classLabel = person ? (peopleClasses.find(cl => cl.key === person.classKey)?.label ?? person.classKey.replace(/_/g, ' ')) : undefined;
-      return { ...c, isSaved, classLabel };
+      
+      // Check if actor has been seen in any watched movies/shows
+      const hasBeenSeen = (item.watchRecords && item.watchRecords.length > 0);
+      
+      return { ...c, isSaved: isSaved || hasBeenSeen, classLabel };
     });
-  }, [castSlice, getPersonById, peopleClasses]);
+  }, [castSlice, getPersonById, peopleClasses, item.watchRecords]);
 
   const directorsWithSavedStatus = useMemo(() => {
     return (item.directors || []).slice(0, 2).map(d => {
       const director = getDirectorById(`tmdb-person-${d.id}`);
       const isSaved = !!director;
       const classLabel = director ? (directorsClasses.find(cl => cl.key === director.classKey)?.label ?? director.classKey.replace(/_/g, ' ')) : undefined;
-      return { ...d, isSaved, classLabel };
+      
+      // Check if director has been seen in any watched movies/shows
+      const hasBeenSeen = (item.watchRecords && item.watchRecords.length > 0);
+      
+      return { ...d, isSaved: isSaved || hasBeenSeen, classLabel };
     });
-  }, [item.directors, getDirectorById, directorsClasses]);
+  }, [item.directors, getDirectorById, directorsClasses, item.watchRecords]);
 
   const handlePersonClick = (id: number, type: 'actor' | 'director', name: string, profilePath?: string) => {
     const stringId = `tmdb-person-${id}`;
@@ -375,14 +383,16 @@ export function EntryRowMovieShow({
                 <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
                 <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
                 <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
-                <button
-                  type="button"
-                  className="entry-config-btn"
-                  data-tooltip="Edit watches"
-                  onClick={() => onOpenSettings?.(item)}
-                >
-                  ⚙
-                </button>
+                {!isUnranked && (
+                  <button
+                    type="button"
+                    className="entry-config-btn"
+                    data-tooltip="Edit watches"
+                    onClick={() => onOpenSettings?.(item)}
+                  >
+                    ⚙
+                  </button>
+                )}
               </div>
             )}
             {!isUnranked && (

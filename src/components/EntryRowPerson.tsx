@@ -16,6 +16,7 @@ type Props = {
   onClassUp?: () => void;
   onClassDown?: () => void;
   onUpdateCache?: (id: string, cache: TmdbPersonCache) => void;
+  onRecordMedia?: (media: { id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string }) => void;
 };
 
 export function EntryRowPerson({
@@ -25,7 +26,8 @@ export function EntryRowPerson({
   onMoveDown,
   onClassUp,
   onClassDown,
-  onUpdateCache
+  onUpdateCache,
+  onRecordMedia
 }: Props) {
   const { settings } = useSettingsStore();
   // We'll use the passed in update function if available, otherwise fallback to peopleStore
@@ -269,12 +271,20 @@ export function EntryRowPerson({
                 elements.push(
                   <div
                     key={`${role.mediaType}-${role.id}`}
-                    className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : ''} ${isSeen ? 'clickable' : ''}`}
+                    className={`entry-cast-thumb ${isSeen ? 'entry-role-seen' : 'entry-role-unseen'} clickable`}
                     onMouseEnter={() => setHoveredRoleId(role.id)}
                     onMouseLeave={() => setHoveredRoleId(null)}
                     onClick={() => {
                       if (isSeen) {
                         navigate(role.mediaType === 'movie' ? '/movies' : '/tv', { state: { scrollToId: id } });
+                      } else {
+                        onRecordMedia?.({
+                          id: role.id,
+                          title: role.title,
+                          posterPath: role.posterPath,
+                          mediaType: role.mediaType,
+                          releaseDate: role.releaseDate
+                        });
                       }
                     }}
                   >
@@ -299,6 +309,9 @@ export function EntryRowPerson({
                             </span>
                             <span className="entry-cast-tooltip-nav">Click to goto {role.title} in list</span>
                           </>
+                        )}
+                        {!isSeen && (
+                          <span className="entry-cast-tooltip-nav">Click to record {role.title}</span>
                         )}
                       </div>
                     )}

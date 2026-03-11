@@ -232,6 +232,16 @@
   box-shadow: 0 0 8px rgba(0, 210, 255, 0.4);
 }
 
+.entry-role-unseen {
+  border: 2px solid rgba(244, 162, 97, 0.6);
+  box-shadow: 0 0 6px rgba(244, 162, 97, 0.2);
+}
+
+.entry-role-unseen:hover {
+  border-color: rgba(244, 162, 97, 0.9);
+  box-shadow: 0 0 10px rgba(244, 162, 97, 0.3);
+}
+
 .entry-config-btn,
 .entry-move-btn {
   border-radius: 999px;

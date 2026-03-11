@@ -96,7 +96,7 @@ export function ProfilePage() {
 
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
-  const [watchGraphMode, setWatchGraphMode] = useState<'count' | 'time'>('count');
+  const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
 
   const rankedMovies = useMemo(() => {
     const list: MovieShowItem[] = [];
@@ -390,7 +390,7 @@ export function ProfilePage() {
         <div className="profile-chart-tooltip">
           <p className="profile-chart-tooltip-year">{data.year}</p>
           <p className="profile-chart-tooltip-count">{data.count} watches</p>
-          {watchGraphMode === 'time' && (
+          {chartMode === 'time' && (
             <p className="profile-chart-tooltip-watchtime">{formatDuration(data.watchTime)}</p>
           )}
         </div>
@@ -512,15 +512,15 @@ export function ProfilePage() {
                   <div className="profile-chart-toggle">
                     <button
                       type="button"
-                      className={`profile-chart-toggle-btn ${watchGraphMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setWatchGraphMode('count')}
+                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setChartMode('count')}
                     >
                       Count
                     </button>
                     <button
                       type="button"
-                      className={`profile-chart-toggle-btn ${watchGraphMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setWatchGraphMode('time')}
+                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setChartMode('time')}
                     >
                       Time
                     </button>
@@ -532,7 +532,7 @@ export function ProfilePage() {
                     <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={watchGraphMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -543,15 +543,15 @@ export function ProfilePage() {
                   <div className="profile-chart-toggle">
                     <button
                       type="button"
-                      className={`profile-chart-toggle-btn ${watchGraphMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setWatchGraphMode('count')}
+                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setChartMode('count')}
                     >
                       Count
                     </button>
                     <button
                       type="button"
-                      className={`profile-chart-toggle-btn ${watchGraphMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setWatchGraphMode('time')}
+                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setChartMode('time')}
                     >
                       Time
                     </button>
@@ -563,20 +563,38 @@ export function ProfilePage() {
                     <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={watchGraphMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Movies by Ranked Category</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Movies by Ranked Category</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setChartMode('count')}
+                    >
+                      Count
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setChartMode('time')}
+                    >
+                      Time
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieRankedCategories}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                     <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent)">
+                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)">
                       {stats.movieRankedCategories.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={`hsl(${30 + index * 40}, 70%, 60%)`} />
                       ))}
@@ -586,14 +604,32 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Shows by Ranked Category</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Shows by Ranked Category</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                      onClick={() => setChartMode('count')}
+                    >
+                      Count
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                      onClick={() => setChartMode('time')}
+                    >
+                      Time
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.tvRankedCategories}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                     <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent)">
+                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)">
                       {stats.tvRankedCategories.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={`hsl(${200 + index * 40}, 70%, 60%)`} />
                       ))}

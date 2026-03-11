@@ -126,7 +126,15 @@ export function DirectorsProvider({
     const currentStateRef = useRef({ byClass, classes });
     currentStateRef.current = { byClass, classes };
 
-    // Watchtime calculation logic
+    // Watchtime calculation logic - only trigger when watch records actually change, not just positions
+    const watchRecordsHash = useMemo(() => {
+        const allMovieRecords = Object.values(moviesByClass).flat().flatMap(m => m.watchRecords ?? []);
+        const allTvRecords = Object.values(tvByClass).flat().flatMap(s => s.watchRecords ?? []);
+        const allRecords = [...allMovieRecords, ...allTvRecords];
+        return JSON.stringify(allRecords.map(r => ({ id: r.id, year: r.year, month: r.month, day: r.day, type: r.type })));
+    }, [JSON.stringify(Object.values(moviesByClass).flat().map(m => m.watchRecords)), 
+             JSON.stringify(Object.values(tvByClass).flat().map(s => s.watchRecords))]);
+
     useEffect(() => {
         setByClass(prev => {
             const next = { ...prev };
@@ -207,7 +215,7 @@ export function DirectorsProvider({
 
             return changed ? next : prev;
         });
-    }, [moviesByClass, tvByClass]);
+    }, [watchRecordsHash]);
 
 
     // Debounced persistence logic
