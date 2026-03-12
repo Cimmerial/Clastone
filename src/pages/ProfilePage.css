@@ -362,6 +362,55 @@
   display: none;
 }
 
+/* Hover overlay for top 10 items */
+.profile-top-item--clickable {
+  cursor: pointer;
+}
+
+.profile-top-poster {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-top-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.profile-top-item:hover .profile-top-overlay {
+  opacity: 1;
+}
+
+.profile-top-overlay-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #fff;
+  text-transform: uppercase;
+  padding: 0.4rem 0.8rem;
+  border: 2px solid #fff;
+  border-radius: var(--radius-sm);
+}
+
+.profile-top-overlay-text--seen {
+  color: #4ade80;
+  border-color: #4ade80;
+}
+
 .profile-recent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

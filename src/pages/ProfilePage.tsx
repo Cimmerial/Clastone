@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import {
@@ -13,6 +13,7 @@ import { useTvStore } from '../state/tvStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
+import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { tmdbImagePath } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './ProfilePage.css';
@@ -75,15 +76,30 @@ function getDateRangeFilter(
 }
 
 export function ProfilePage() {
+  const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
+  const [isRankingSaving, setIsRankingSaving] = useState(false);
+
   const {
     byClass: moviesByClass,
     classOrder: movieClassOrder,
-    isRankedClass: isRankedMovieClass
+    isRankedClass: isRankedMovieClass,
+    getClassLabel: getMovieClassLabel,
+    classes: movieClasses,
+    addMovieFromSearch,
+    updateMovieWatchRecords,
+    moveItemToClass: moveMovieToClass,
+    removeMovieEntry,
   } = useMoviesStore();
   const {
     byClass: tvByClass,
     classOrder: tvClassOrder,
-    isRankedClass: isRankedTvClass
+    isRankedClass: isRankedTvClass,
+    getClassLabel: getTvClassLabel,
+    classes: tvClasses,
+    addTvShowFromSearch,
+    updateTvShowWatchRecords,
+    moveItemToClass: moveTvToClass,
+    removeTvShowEntry,
   } = useTvStore();
   const {
     byClass: peopleByClass,
@@ -352,6 +368,180 @@ export function ProfilePage() {
 
   const top10Movies = rankedMovies.slice(0, 10);
   const top10Shows = rankedShows.slice(0, 10);
+
+  // Helper to check if current user has a movie ranked
+  const getUserMovieStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
+    if (!tmdbId) return { isRanked: false };
+    for (const classKey of movieClassOrder) {
+      const items = moviesByClass[classKey] ?? [];
+      const found = items.find(item => item.tmdbId === tmdbId || item.id === `movie-${tmdbId}`);
+      if (found) {
+        return { isRanked: true, classKey, watchRecords: found.watchRecords };
+      }
+    }
+    return { isRanked: false };
+  }, [moviesByClass, movieClassOrder]);
+
+  // Helper to check if current user has a show ranked
+  const getUserShowStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
+    if (!tmdbId) return { isRanked: false };
+    for (const classKey of tvClassOrder) {
+      const items = tvByClass[classKey] ?? [];
+      const found = items.find(item => item.tmdbId === tmdbId || item.id === `tv-${tmdbId}`);
+      if (found) {
+        return { isRanked: true, classKey, watchRecords: found.watchRecords };
+      }
+    }
+    return { isRanked: false };
+  }, [tvByClass, tvClassOrder]);
+
+  // Handle clicking a top 10 movie
+  const handleMovieClick = (movie: MovieShowItem) => {
+    const tmdbId = (movie.tmdbId ?? parseInt(movie.id.replace(/\D/g, ''), 10)) || 0;
+    const status = getUserMovieStatus(tmdbId);
+    const target: UniversalEditTarget = {
+      id: movie.id,
+      tmdbId,
+      title: movie.title,
+      posterPath: movie.posterPath,
+      mediaType: 'movie',
+      subtitle: movie.releaseDate ? String(movie.releaseDate.slice(0, 4)) : undefined,
+      releaseDate: movie.releaseDate,
+      runtimeMinutes: movie.runtimeMinutes,
+      existingClassKey: status.classKey,
+      watchlistStatus: 'not_in_watchlist',
+    };
+    setRankingTarget(target);
+  };
+
+  // Handle clicking a top 10 show
+  const handleShowClick = (show: MovieShowItem) => {
+    const tmdbId = (show.tmdbId ?? parseInt(show.id.replace(/\D/g, ''), 10)) || 0;
+    const status = getUserShowStatus(tmdbId);
+    const target: UniversalEditTarget = {
+      id: show.id,
+      tmdbId,
+      title: show.title,
+      posterPath: show.posterPath,
+      mediaType: 'tv',
+      subtitle: show.releaseDate ? String(show.releaseDate.slice(0, 4)) : undefined,
+      releaseDate: show.releaseDate,
+      runtimeMinutes: show.runtimeMinutes,
+      totalEpisodes: show.totalEpisodes,
+      totalSeasons: show.totalSeasons,
+      existingClassKey: status.classKey,
+      watchlistStatus: 'not_in_watchlist',
+    };
+    setRankingTarget(target);
+  };
+
+  // Handle saving from the ranking modal
+  const handleRankingSave = async (params: any, goToMedia: boolean) => {
+    if (!rankingTarget) return;
+    setIsRankingSaving(true);
+    try {
+      const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
+      
+      if (rankingTarget.mediaType === 'movie') {
+        const status = getUserMovieStatus(tmdbId);
+        
+        // Convert WatchMatrixEntry[] to WatchRecord[]
+        const records: WatchRecord[] = params.watches.map((w: any) => ({
+          id: w.id || crypto.randomUUID(),
+          type: w.watchType === 'LONG_AGO' ? 'LONG_AGO' : w.watchType === 'DATE_RANGE' ? 'RANGE' : w.watchStatus === 'WATCHING' ? 'CURRENT' : w.watchStatus === 'DNF' ? 'DNF' : 'DATE',
+          year: w.year,
+          month: w.month,
+          day: w.day,
+          endYear: w.endYear,
+          endMonth: w.endMonth,
+          endDay: w.endDay,
+          dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+        }));
+
+        if (status.isRanked && rankingTarget.id) {
+          // Update existing
+          await updateMovieWatchRecords(rankingTarget.id, records);
+          
+          // Move class if needed
+          if (params.classKey && params.classKey !== status.classKey) {
+            await moveMovieToClass(rankingTarget.id, params.classKey, {
+              toTop: params.position === 'top',
+              toMiddle: params.position === 'middle',
+            });
+          }
+        } else {
+          // Add new from search
+          await addMovieFromSearch({
+            id: rankingTarget.id,
+            title: rankingTarget.title,
+            posterPath: rankingTarget.posterPath,
+            classKey: params.classKey || 'UNRANKED',
+            toTop: params.position === 'top',
+            toMiddle: params.position === 'middle',
+          });
+          // Add watches after adding
+          if (records.length > 0 && rankingTarget.id) {
+            await updateMovieWatchRecords(rankingTarget.id, records);
+          }
+        }
+      } else {
+        // TV show
+        const status = getUserShowStatus(tmdbId);
+        
+        const records: WatchRecord[] = params.watches.map((w: any) => ({
+          id: w.id || crypto.randomUUID(),
+          type: w.watchType === 'LONG_AGO' ? 'LONG_AGO' : w.watchType === 'DATE_RANGE' ? 'RANGE' : w.watchStatus === 'WATCHING' ? 'CURRENT' : w.watchStatus === 'DNF' ? 'DNF' : 'DATE',
+          year: w.year,
+          month: w.month,
+          day: w.day,
+          endYear: w.endYear,
+          endMonth: w.endMonth,
+          endDay: w.endDay,
+          dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+        }));
+
+        if (status.isRanked && rankingTarget.id) {
+          await updateTvShowWatchRecords(rankingTarget.id, records);
+          
+          if (params.classKey && params.classKey !== status.classKey) {
+            await moveTvToClass(rankingTarget.id, params.classKey, {
+              toTop: params.position === 'top',
+              toMiddle: params.position === 'middle',
+            });
+          }
+        } else {
+          await addTvShowFromSearch({
+            id: rankingTarget.id,
+            title: rankingTarget.title,
+            posterPath: rankingTarget.posterPath,
+            classKey: params.classKey || 'UNRANKED',
+            position: params.position,
+          });
+          if (records.length > 0 && rankingTarget.id) {
+            await updateTvShowWatchRecords(rankingTarget.id, records);
+          }
+        }
+      }
+      
+      if (goToMedia) {
+        // Navigate to movies or tv page
+        window.location.href = rankingTarget.mediaType === 'movie' ? '/movies' : '/tv';
+      }
+    } finally {
+      setIsRankingSaving(false);
+      setRankingTarget(null);
+    }
+  };
+
+  // Handle removing entry
+  const handleRemoveEntry = async (itemId: string) => {
+    if (!rankingTarget) return;
+    if (rankingTarget.mediaType === 'movie') {
+      await removeMovieEntry(itemId);
+    } else {
+      await removeTvShowEntry(itemId);
+    }
+  };
 
   // Custom tooltip for category charts
   const CategoryTooltip = ({ active, payload }: any) => {
@@ -675,21 +865,34 @@ export function ProfilePage() {
             View all movies →
           </Link>
           <div className="profile-top-grid">
-            {top10Movies.map((m: any, i: any) => (
-              <div key={m.id} className="profile-top-item">
-                <div className="profile-top-poster">
-                  {m.posterPath ? (
-                    <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
-                  ) : (
-                    <span className="profile-top-poster-placeholder">🎬</span>
-                  )}
-                  <span className="profile-top-rank">#{i + 1}</span>
+            {top10Movies.map((m: any, i: any) => {
+              const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+              const userStatus = getUserMovieStatus(tmdbId);
+              return (
+                <div 
+                  key={m.id} 
+                  className="profile-top-item profile-top-item--clickable"
+                  onClick={() => handleMovieClick(m)}
+                >
+                  <div className="profile-top-poster">
+                    {m.posterPath ? (
+                      <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
+                    ) : (
+                      <span className="profile-top-poster-placeholder">🎬</span>
+                    )}
+                    <span className="profile-top-rank">#{i + 1}</span>
+                    <div className="profile-top-overlay">
+                      <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                        {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="profile-top-info">
+                    <span className="profile-top-title">{m.title}</span>
+                  </div>
                 </div>
-                <div className="profile-top-info">
-                  <span className="profile-top-title">{m.title}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -699,21 +902,34 @@ export function ProfilePage() {
             View all shows →
           </Link>
           <div className="profile-top-grid">
-            {top10Shows.map((s: any, i: any) => (
-              <div key={s.id} className="profile-top-item">
-                <div className="profile-top-poster">
-                  {s.posterPath ? (
-                    <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
-                  ) : (
-                    <span className="profile-top-poster-placeholder">📺</span>
-                  )}
-                  <span className="profile-top-rank">#{i + 1}</span>
+            {top10Shows.map((s: any, i: any) => {
+              const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+              const userStatus = getUserShowStatus(tmdbId);
+              return (
+                <div 
+                  key={s.id} 
+                  className="profile-top-item profile-top-item--clickable"
+                  onClick={() => handleShowClick(s)}
+                >
+                  <div className="profile-top-poster">
+                    {s.posterPath ? (
+                      <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                    ) : (
+                      <span className="profile-top-poster-placeholder">📺</span>
+                    )}
+                    <span className="profile-top-rank">#{i + 1}</span>
+                    <div className="profile-top-overlay">
+                      <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                        {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="profile-top-info">
+                    <span className="profile-top-title">{s.title}</span>
+                  </div>
                 </div>
-                <div className="profile-top-info">
-                  <span className="profile-top-title">{s.title}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -769,6 +985,36 @@ export function ProfilePage() {
           )}
         </div>
       </div>
+
+      {rankingTarget && (
+        <UniversalEditModal
+          target={rankingTarget}
+          rankedClasses={rankingTarget.mediaType === 'movie' ? movieClasses : tvClasses}
+          initialWatches={
+            rankingTarget.mediaType === 'movie'
+              ? (() => {
+                  const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
+                  const status = getUserMovieStatus(tmdbId);
+                  return status.watchRecords;
+                })()
+              : (() => {
+                  const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
+                  const status = getUserShowStatus(tmdbId);
+                  return status.watchRecords;
+                })()
+          }
+          currentClassKey={rankingTarget.existingClassKey}
+          currentClassLabel={
+            rankingTarget.mediaType === 'movie'
+              ? (rankingTarget.existingClassKey ? getMovieClassLabel(rankingTarget.existingClassKey) : undefined)
+              : (rankingTarget.existingClassKey ? getTvClassLabel(rankingTarget.existingClassKey) : undefined)
+          }
+          onSave={handleRankingSave}
+          onClose={() => setRankingTarget(null)}
+          onRemoveEntry={handleRemoveEntry}
+          isSaving={isRankingSaving}
+        />
+      )}
     </section>
   );
 }

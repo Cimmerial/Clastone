@@ -422,16 +422,8 @@ export function UniversalEditModal({
   // Convert WatchRecord[] to WatchMatrixEntry[] for initial state
   const convertRecordsToMatrix = useCallback((records?: WatchRecord[]): WatchMatrixEntry[] => {
     if (!records?.length) {
-      const today = new Date();
-      return [{
-        id: crypto.randomUUID(),
-        watchType: 'SINGLE_DATE',
-        year: today.getFullYear(),
-        month: today.getMonth() + 1,
-        day: today.getDate(),
-        watchPercent: 100,
-        watchStatus: 'NONE',
-      }];
+      // For new items with no watches, return empty array - force user to click "+Add Watch"
+      return [];
     }
 
     const entries = records.map(r => {
@@ -444,7 +436,7 @@ export function UniversalEditModal({
       else if (r.type === 'DNF' || r.type === 'DNF_LONG_AGO') watchStatus = 'DNF';
 
       return {
-        id: r.id || crypto.randomUUID(),
+        id: r.id || crypto.randomUUID(), // Ensure unique ID even if r.id exists
         watchType,
         year: r.year,
         month: r.month,
@@ -539,13 +531,10 @@ export function UniversalEditModal({
   }, []);
 
   const addEntry = () => {
-    const today = new Date();
+    // Default new entries to LONG_AGO with 100% watched
     const newEntry: WatchMatrixEntry = {
       id: crypto.randomUUID(),
-      watchType: 'SINGLE_DATE',
-      year: today.getFullYear(),
-      month: today.getMonth() + 1,
-      day: today.getDate(),
+      watchType: 'LONG_AGO',
       watchPercent: 100,
       watchStatus: 'NONE',
     };
@@ -602,24 +591,36 @@ export function UniversalEditModal({
     }
   };
 
-  const validateAndSave = async (goToMedia: boolean) => {
+  const validateAndSave = async (goToMedia: boolean): Promise<boolean> => {
     setError(null);
+
+    // Must have at least one watch entry
+    if (entries.length === 0) {
+      setError('Please add at least one watch record using the "+ Add Watch" button.');
+      return false;
+    }
 
     // Validate entries
     for (const entry of entries) {
       if (entry.watchType !== 'LONG_AGO' && !entry.year) {
         setError('All entries must have at least a year set.');
-        return;
+        return false;
       }
     }
 
+    // Validate class selection
+    if (hasNeverBeenRanked && !selectedClassKey) {
+      setError('Please select a ranking class.');
+      return false;
+    }
+    
     // Validate class selection if showing override
     if (showClassOverride && (!selectedClassKey || !rankedClasses.some(c => c.key === selectedClassKey))) {
       setError('Please select a class or cancel the class override.');
-      return;
+      return false;
     }
 
-    const effectiveClassKey = showClassOverride ? selectedClassKey : undefined;
+    const effectiveClassKey = hasNeverBeenRanked ? selectedClassKey : (showClassOverride ? selectedClassKey : undefined);
 
     await onSave(
       {
@@ -629,7 +630,13 @@ export function UniversalEditModal({
       },
       goToMedia,
     );
-    onClose();
+    
+    // Only close modal if not going to media (let parent handle closing when navigating)
+    if (!goToMedia) {
+      onClose();
+    }
+    
+    return true;
   };
 
   const PlacementButtons = ({ classKey }: { classKey: string }) => (
@@ -639,7 +646,11 @@ export function UniversalEditModal({
           key={pos}
           type="button"
           className={`uem-place-btn${selectedClassKey === classKey && selectedPosition === pos ? ' uem-place-btn--on' : ''}`}
-          onClick={() => { setSelectedClassKey(classKey); setSelectedPosition(pos); }}
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            setSelectedClassKey(classKey); 
+            setSelectedPosition(pos); 
+          }}
           title={pos === 'top' ? 'Add to top' : pos === 'bottom' ? 'Add to bottom' : 'Add to middle'}
         >
           {pos === 'top' ? <ArrowUp size={10} /> : pos === 'bottom' ? <ArrowDown size={10} /> : '•'}
@@ -654,6 +665,13 @@ export function UniversalEditModal({
         <div
           key={c.key}
           className={`uem-class-row${selectedClassKey === c.key ? ' uem-class-row--on' : ''}`}
+          onClick={() => { 
+            setSelectedClassKey(c.key); 
+            if (selectedPosition === undefined || selectedClassKey !== c.key) {
+              setSelectedPosition('top');
+            }
+          }}
+          style={{ cursor: 'pointer' }}
         >
           <div className="uem-class-info">
             <span className="uem-class-name">{c.label}</span>
@@ -807,7 +825,7 @@ export function UniversalEditModal({
         <div className="uem-footer">
           {error && <div className="uem-error">{error}</div>}
           <div className="uem-footer-inner">
-            {onRemoveEntry && (
+            {onRemoveEntry && (isRankedItem || currentClassKey === 'UNRANKED') && (
               <button
                 type="button"
                 className={`uem-delete-btn${removeClickCount === 1 ? ' uem-delete-btn--confirm' : ''}`}
@@ -817,34 +835,65 @@ export function UniversalEditModal({
               </button>
             )}
             <div className="uem-save-btns">
-              <button
-                type="button"
-                className="uem-btn uem-btn--secondary"
-                onClick={() => void validateAndSave(false)}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving…' : 'Save and Exit'}
-              </button>
-              <button
-                type="button"
-                className="uem-btn uem-btn--primary"
-                onClick={() => void validateAndSave(true)}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving…' : 'Save and Go To'}
-              </button>
-              {hasNeverBeenRanked && (
-                <button
-                  type="button"
-                  className="uem-btn uem-btn--ghost"
-                  onClick={() => {
-                    onSave({ watches: entries, classKey: 'UNRANKED' }, false);
-                    onClose();
-                  }}
-                  disabled={isSaving}
-                >
-                  Add as Unranked & Exit
-                </button>
+              {/* For new items: Save buttons disabled until class selected and watch added */}
+              {hasNeverBeenRanked ? (
+                <>
+                  <button
+                    type="button"
+                    className={`uem-btn uem-btn--secondary${entries.length === 0 || !selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    onClick={async () => {
+                      await validateAndSave(false);
+                    }}
+                    disabled={isSaving || entries.length === 0 || !selectedClassKey}
+                    title={entries.length === 0 ? 'Add a watch record first' : !selectedClassKey ? 'Select a ranking class first' : ''}
+                  >
+                    {isSaving ? 'Saving…' : entries.length === 0 || !selectedClassKey ? 'Save and Exit (Select class & add watch)' : 'Save and Exit'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`uem-btn uem-btn--primary${entries.length === 0 || !selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    onClick={async () => {
+                      await validateAndSave(true);
+                    }}
+                    disabled={isSaving || entries.length === 0 || !selectedClassKey}
+                    title={entries.length === 0 ? 'Add a watch record first' : !selectedClassKey ? 'Select a ranking class first' : ''}
+                  >
+                    {isSaving ? 'Saving…' : entries.length === 0 || !selectedClassKey ? 'Save and Go To (Select class & add watch)' : 'Save and Go To'}
+                  </button>
+                  <button
+                    type="button"
+                    className="uem-btn uem-btn--ghost"
+                    onClick={async () => {
+                      await onSave({ watches: entries.length > 0 ? entries : [], classKey: 'UNRANKED' }, false);
+                    }}
+                    disabled={isSaving}
+                  >
+                    Add as Unranked & Exit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="uem-btn uem-btn--secondary"
+                    onClick={async () => {
+                      await validateAndSave(false);
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving…' : 'Save and Exit'}
+                  </button>
+                  <button
+                    type="button"
+                    className="uem-btn uem-btn--primary"
+                    onClick={async () => {
+                      await validateAndSave(true);
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving…' : 'Save and Go To'}
+                  </button>
+                </>
               )}
             </div>
           </div>

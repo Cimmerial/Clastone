@@ -305,6 +305,7 @@ export function MoviesPage() {
             setRecordWatchFor(null);
             
             if (goToMedia) {
+              // Close modal first, then navigate
               setTimeout(() => {
                 const el = document.getElementById(`entry-${targetItem.id}`);
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -914,6 +914,19 @@
   color: #999;
 }
 
+/* Disabled button state - red styling for required actions */
+.uem-btn--disabled {
+  background: rgba(180, 60, 60, 0.15) !important;
+  color: #a05050 !important;
+  border-color: rgba(180, 60, 60, 0.3) !important;
+  cursor: not-allowed;
+}
+
+.uem-btn--disabled:hover {
+  background: rgba(180, 60, 60, 0.15) !important;
+  color: #a05050 !important;
+}
+
 /* Delete Button */
 .uem-delete-btn {
   height: 38px;
