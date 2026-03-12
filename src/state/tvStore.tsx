@@ -27,7 +27,7 @@ type TvStore = {
   moveToOtherClass: (itemId: string, deltaClass: number) => void;
   moveWithinClass: (itemId: string, direction: number) => void;
   reorderWithinClass: (classKey: ClassKey, orderedIds: string[]) => void;
-  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
+  moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => void;
   
   // TV show methods
   addTvShowFromSearch: (incoming: {
@@ -356,7 +356,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
   );
 
   const moveItemToClass = useCallback(
-    (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean }) => {
+    (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => {
       setByClass((prev) => {
         const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
         let item: MovieShowItem | null = null;
@@ -373,7 +373,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         if (!item) return prev;
         const updated = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
         const targetList = next[toClassKey] ?? [];
-        if (options?.toTop) {
+
+        if (options?.atIndex !== undefined) {
+          const insertIdx = Math.min(options.atIndex, targetList.length);
+          const copy = [...targetList];
+          copy.splice(insertIdx, 0, updated);
+          next[toClassKey] = copy;
+        } else if (options?.toTop) {
           next[toClassKey] = [updated, ...targetList];
         } else if (options?.toMiddle) {
           const mid = Math.ceil(targetList.length / 2);

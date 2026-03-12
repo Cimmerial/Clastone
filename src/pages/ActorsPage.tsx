@@ -194,6 +194,7 @@ export function ActorsPage() {
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
         getClassTagline={(key) => classes.find(c => c.key === key)?.tagline}
         onReorderWithinClass={reorderWithinClass}
+        onMoveBetweenClasses={moveItemToClass}
         renderRow={(item) => (
           <EntryRowPerson
             item={item}

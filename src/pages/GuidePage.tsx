@@ -4,6 +4,8 @@ import { X, Star, Users, Film, Tv, User, Settings, Search, ChevronRight, Chevron
 import { useSettingsStore } from '../state/settingsStore';
 import './GuidePage.css';
 
+// "Respect!" - Geun-se
+
 interface SectionProps {
   title: string;
   icon: React.ComponentType<any>;

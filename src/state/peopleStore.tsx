@@ -73,7 +73,7 @@ type PeopleStore = {
         position?: 'top' | 'middle' | 'bottom';
     }) => void;
 
-    moveItemToClass: (itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean }) => void;
+    moveItemToClass: (itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => void;
     updatePersonCache: (itemId: string, cache: Partial<TmdbPersonCache>) => void;
     removePersonEntry: (itemId: string) => void;
     getPersonById: (id: string) => PersonItem | null;
@@ -458,27 +458,38 @@ export function PeopleProvider({
     }, []);
 
 
-    const moveItemToClass = useCallback((itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean }) => {
-        setByClass(prev => {
-            const next = { ...prev };
+    const moveItemToClass = useCallback((itemId: string, toClassKey: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => {
+        setByClass((prev) => {
+            const next: Record<ClassKey, PersonItem[]> = { ...prev };
             let item: PersonItem | null = null;
-            for (const k of Object.keys(next)) {
-                const idx = next[k]?.findIndex(p => p.id === itemId) ?? -1;
-                if (idx !== -1) {
-                    [item] = next[k].splice(idx, 1);
-                    break;
-                }
+
+            for (const classKey of Object.keys(next)) {
+                const list = next[classKey] ?? [];
+                const idx = list.findIndex((m) => m.id === itemId);
+                if (idx === -1) continue;
+                const copy = [...list];
+                [item] = copy.splice(idx, 1);
+                next[classKey] = copy;
+                break;
             }
             if (!item) return prev;
-            item.classKey = toClassKey as any;
-            const target = next[toClassKey] ?? [];
-            if (options?.toTop) {
-                next[toClassKey] = [item, ...target];
+            const updated = { ...item, classKey: toClassKey };
+            const targetList = next[toClassKey] ?? [];
+
+            if (options?.atIndex !== undefined) {
+                const insertIdx = Math.min(options.atIndex, targetList.length);
+                const copy = [...targetList];
+                copy.splice(insertIdx, 0, updated);
+                next[toClassKey] = copy;
+            } else if (options?.toTop) {
+                next[toClassKey] = [updated, ...targetList];
             } else if (options?.toMiddle) {
-                const mid = Math.ceil(target.length / 2);
-                next[toClassKey] = [...target.slice(0, mid), item, ...target.slice(mid)];
+                const mid = Math.ceil(targetList.length / 2);
+                const copy = [...targetList];
+                copy.splice(mid, 0, updated);
+                next[toClassKey] = copy;
             } else {
-                next[toClassKey] = [...target, item];
+                next[toClassKey] = [...targetList, updated];
             }
             return next;
         });

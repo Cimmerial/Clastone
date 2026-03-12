@@ -162,6 +162,7 @@ export function TvShowsPage() {
           return totalMins > 0 ? formatDuration(totalMins) : '';
         }}
         onReorderWithinClass={reorderWithinClass}
+        onMoveBetweenClasses={moveItemToClass}
         renderRow={(item) => {
           const list = computedByClass[item.classKey] ?? [];
           const idx = list.findIndex((m) => m.id === item.id);

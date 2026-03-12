@@ -29,11 +29,54 @@
   gap: 0.75rem;
 }
 
+/* Droppable class section styles */
+.class-section-droppable {
+  position: relative;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.class-section-droppable--over {
+  background: rgba(244, 162, 97, 0.08);
+  border-radius: var(--radius-md);
+  padding: 4px;
+}
+
+.class-section-droppable--over .class-section {
+  background: rgba(244, 162, 97, 0.15);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 20px rgba(244, 162, 97, 0.3), inset 0 0 20px rgba(244, 162, 97, 0.1);
+  transform: scale(1.02);
+}
+
 .class-section {
   border-radius: var(--radius-md);
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   padding: 0.6rem 0.6rem 0.7rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.class-section--drag-over::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--accent-primary);
+  pointer-events: none;
+  animation: dragPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dragPulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
 }
 
 .class-divider {
@@ -112,16 +155,23 @@
 }
 
 .entry-row-wrapper--dragging {
-  opacity: 0.85;
-  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
 }
 
 .entry-row-wrapper[style*="transform"] {
   cursor: grabbing;
+  transition: none !important;
 }
 
 .ranked-list--sortable .entry-row-wrapper {
   cursor: grab;
+  transition: all 0.15s ease;
+}
+
+.ranked-list--sortable .entry-row-wrapper:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .entry-row {
@@ -712,6 +762,82 @@
   justify-content: center;
   cursor: pointer;
   font-size: 0.75rem;
+}
+
+/* Placeholder styles for cross-class drag */
+.entry-row-wrapper--placeholder {
+  opacity: 0.6;
+  border: 2px dashed var(--accent-primary);
+  border-radius: var(--radius-md);
+  margin: 0.25rem 0;
+  background: rgba(244, 162, 97, 0.1);
+}
+
+.entry-row--placeholder {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  min-height: 60px;
+}
+
+.placeholder-text {
+  color: var(--accent-primary);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mode-tile .entry-row-wrapper--placeholder {
+  width: 130px;
+  aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Drag overlay styles */
+.drag-overlay {
+  opacity: 0.95;
+  transform: rotate(3deg) scale(1.05);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 2px solid var(--accent-primary);
+  max-width: 400px;
+}
+
+.drag-overlay .entry-row {
+  background: linear-gradient(90deg, rgba(244, 162, 97, 0.15), rgba(0, 0, 0, 0.25));
+  border-color: var(--accent-primary);
+}
+
+/* Enhanced drag feedback for class sections */
+.class-section--drag-over .class-section-header {
+  color: var(--accent-primary);
+}
+
+.class-section--drag-over .class-section-title {
+  color: var(--accent-primary);
+  text-shadow: 0 0 10px rgba(244, 162, 97, 0.5);
+}
+
+/* Prevent text selection during drag */
+.ranked-list--sortable.dragging-active {
+  user-select: none;
+}
+
+/* Mobile drag optimizations */
+@media (max-width: 767px) {
+  .class-section--drag-over {
+    transform: scale(1.01);
+  }
+  
+  .drag-overlay {
+    max-width: 90vw;
+  }
 }
 
 .entry-tile-quick-actions button:hover {
