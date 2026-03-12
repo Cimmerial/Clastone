@@ -9,7 +9,7 @@ import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
-import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import { 
   useMoviesStore,
   getTotalMinutesFromRecords, 
@@ -19,8 +19,12 @@ import {
   formatWatchLabel 
 } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
+import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
+import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './FriendProfilePage.css';
 
 interface FriendProfile {
@@ -96,6 +100,8 @@ export function FriendProfilePage() {
   // Ranking modal state
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
+  const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
+  const [isPersonRankingSaving, setIsPersonRankingSaving] = useState(false);
 
   // Current user's stores (to check SEEN vs SAVE status)
   const {
@@ -118,6 +124,20 @@ export function FriendProfilePage() {
     moveItemToClass: moveTvToClass,
     removeTvShowEntry,
   } = useTvStore();
+  const {
+    addPersonFromSearch,
+    removePersonEntry,
+    byClass: myPeopleByClass,
+    classOrder: myPeopleClassOrder,
+    classes: myPeopleClasses
+  } = usePeopleStore();
+  const {
+    addDirectorFromSearch,
+    removeDirectorEntry,
+    byClass: myDirectorsByClass,
+    classOrder: myDirectorsClassOrder,
+    classes: myDirectorsClasses
+  } = useDirectorsStore();
 
   // Friend data states
   const [friendMoviesData, setFriendMoviesData] = useState<any>(null);
@@ -129,6 +149,8 @@ export function FriendProfilePage() {
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [showAllMoviesWithClasses, setShowAllMoviesWithClasses] = useState(false);
   const [showAllShowsWithClasses, setShowAllShowsWithClasses] = useState(false);
+  const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
+  const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
@@ -251,6 +273,35 @@ export function FriendProfilePage() {
     }
     return list;
   }, [friendTvData]);
+
+  const rankedActors = useMemo(() => {
+    if (!friendPeopleData || !friendPeopleData.byClass || !friendPeopleData.classes) return [];
+    const list: any[] = [];
+    for (const classDef of friendPeopleData.classes) {
+      if (classDef.isRanked) {
+        const classKey = classDef.key;
+        for (const item of friendPeopleData.byClass[classKey] ?? []) list.push(item);
+      }
+    }
+    // Only return actual ranked actors, don't pad with random ones
+    return list.slice(0, 5);
+  }, [friendPeopleData]);
+
+  const rankedDirectors = useMemo(() => {
+    if (!friendDirectorsData || !friendDirectorsData.byClass || !friendDirectorsData.classes) return [];
+    const list: any[] = [];
+    for (const classDef of friendDirectorsData.classes) {
+      if (classDef.isRanked) {
+        const classKey = classDef.key;
+        for (const item of friendDirectorsData.byClass[classKey] ?? []) list.push(item);
+      }
+    }
+    // Only return actual ranked directors, don't pad with random ones
+    return list.slice(0, 5);
+  }, [friendDirectorsData]);
+
+  const hasActors = rankedActors.length > 0;
+  const hasDirectors = rankedDirectors.length > 0;
 
   const stats = useMemo(() => {
     console.log('📊 Computing stats from friend data...');
@@ -413,6 +464,46 @@ export function FriendProfilePage() {
     return { isRanked: false };
   }, [myTvByClass, myTvClassOrder]);
 
+  // Helper to check if current user has an actor ranked
+  const getUserActorStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string } => {
+    if (!tmdbId) return { isRanked: false };
+    
+    // Check current user's actors from people store
+    for (const classKey of myPeopleClassOrder) {
+      const items = myPeopleByClass[classKey] ?? [];
+      const found = items.find(item => 
+        item.tmdbId === tmdbId || 
+        item.id === `person-${tmdbId}` ||
+        item.id === `tmdb-person-${tmdbId}`
+      );
+      if (found) {
+        return { isRanked: true, classKey };
+      }
+    }
+    
+    return { isRanked: false };
+  }, [myPeopleByClass, myPeopleClassOrder]);
+
+  // Helper to check if current user has a director ranked
+  const getUserDirectorStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string } => {
+    if (!tmdbId) return { isRanked: false };
+    
+    // Check current user's directors
+    for (const classKey of myDirectorsClassOrder) {
+      const items = myDirectorsByClass[classKey] ?? [];
+      const found = items.find(item => 
+        item.tmdbId === tmdbId || 
+        item.id === `director-${tmdbId}` ||
+        item.id === `tmdb-director-${tmdbId}`
+      );
+      if (found) {
+        return { isRanked: true, classKey };
+      }
+    }
+    
+    return { isRanked: false };
+  }, [myDirectorsByClass, myDirectorsClassOrder]);
+
   // Handle clicking a top 10 movie
   const handleMovieClick = (movie: MovieShowItem) => {
     const tmdbId = (movie.tmdbId ?? parseInt(movie.id.replace(/\D/g, ''), 10)) || 0;
@@ -451,6 +542,105 @@ export function FriendProfilePage() {
       watchlistStatus: 'not_in_watchlist',
     };
     setRankingTarget(target);
+  };
+
+  // Handle clicking a top 5 actor
+  const handleActorClick = (actor: any) => {
+    const tmdbId = (actor.tmdbId ?? parseInt(actor.id.replace(/\D/g, ''), 10)) || 0;
+    const status = getUserActorStatus(tmdbId);
+    const target: PersonRankingTarget = {
+      id: actor.id,
+      tmdbId,
+      name: actor.title,
+      profilePath: actor.profilePath,
+      mediaType: 'actor',
+      existingClassKey: status.classKey,
+    };
+    setPersonRankingTarget(target);
+  };
+
+  // Handle clicking a top 5 director
+  const handleDirectorClick = (director: any) => {
+    const tmdbId = (director.tmdbId ?? parseInt(director.id.replace(/\D/g, ''), 10)) || 0;
+    const status = getUserDirectorStatus(tmdbId);
+    const target: PersonRankingTarget = {
+      id: director.id,
+      tmdbId,
+      name: director.title,
+      profilePath: director.profilePath,
+      mediaType: 'director',
+      existingClassKey: status.classKey,
+    };
+    setPersonRankingTarget(target);
+  };
+
+  // Handle saving from the person ranking modal
+  const handlePersonRankingSave = async (params: PersonRankingSaveParams, goToList: boolean) => {
+    if (!personRankingTarget) return;
+    setIsPersonRankingSaving(true);
+    try {
+      if (personRankingTarget.mediaType === 'actor') {
+        if (params.classKey) {
+          addPersonFromSearch({
+            id: personRankingTarget.id,
+            title: personRankingTarget.name,
+            profilePath: personRankingTarget.profilePath,
+            classKey: params.classKey,
+            position: params.position ?? 'top'
+          });
+        }
+      } else if (personRankingTarget.mediaType === 'director') {
+        if (params.classKey) {
+          addDirectorFromSearch({
+            id: personRankingTarget.id,
+            title: personRankingTarget.name,
+            profilePath: personRankingTarget.profilePath,
+            classKey: params.classKey,
+            position: params.position ?? 'top'
+          });
+        }
+      }
+      
+      setPersonRankingTarget(null);
+      if (goToList) {
+        // Navigate without page reload and scroll to the specific entry
+        const targetUrl = personRankingTarget.mediaType === 'actor' ? '/actors' : '/directors';
+        const entryId = personRankingTarget.id;
+        
+        window.history.pushState({}, '', targetUrl);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        
+        // Wait a bit for the page to render, then scroll to the entry
+        setTimeout(() => {
+          const element = document.getElementById(`entry-${entryId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add a highlight effect
+            element.classList.add('highlighted-entry');
+            setTimeout(() => {
+              element.classList.remove('highlighted-entry');
+            }, 2000);
+          } else {
+            // Fallback to top if entry not found
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 100);
+      }
+    } catch (err) {
+      console.error('Failed to save person ranking:', err);
+    } finally {
+      setIsPersonRankingSaving(false);
+    }
+  };
+
+  // Handle removing person entry
+  const handleRemovePersonEntry = (itemId: string) => {
+    if (personRankingTarget?.mediaType === 'actor') {
+      removePersonEntry(itemId);
+    } else if (personRankingTarget?.mediaType === 'director') {
+      removeDirectorEntry(itemId);
+    }
+    setPersonRankingTarget(null);
   };
 
   // Handle saving from the ranking modal
@@ -696,10 +886,10 @@ export function FriendProfilePage() {
                           onClick={() => handleMovieClick(m)}
                         >
                           <div className="profile-top-poster">
-                            {m.posterPath ? (
-                              <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
+                            {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
+                              <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
                             ) : (
-                              <span className="profile-top-poster-placeholder">🎬</span>
+                              <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
                             )}
                             <div className="profile-top-overlay">
                               <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
@@ -729,10 +919,10 @@ export function FriendProfilePage() {
                     onClick={() => handleMovieClick(m)}
                   >
                     <div className="profile-top-poster">
-                      {m.posterPath ? (
-                        <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
+                      {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
+                        <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
                       ) : (
-                        <span className="profile-top-poster-placeholder">🎬</span>
+                        <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
                       )}
                       <span className="profile-top-rank">#{i + 1}</span>
                       <div className="profile-top-overlay">
@@ -834,6 +1024,178 @@ export function FriendProfilePage() {
         </div>
       </div>
 
+      {(hasActors || hasDirectors) && (
+        <div className="profile-grid">
+          {hasActors && (
+            <div className="profile-card card-surface">
+              <div className="profile-card-header">
+                <h2 className="profile-card-title">Top 5 Actors</h2>
+                <button
+                  type="button"
+                  className="profile-show-all-toggle"
+                  onClick={() => setShowAllActorsWithClasses(!showAllActorsWithClasses)}
+                >
+                  {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
+                </button>
+              </div>
+              {showAllActorsWithClasses ? (
+                <div className="profile-classes-view">
+                  {friendPeopleData?.classes?.filter((c: any) => c.isRanked && friendPeopleData.byClass[c.key]?.length > 0).map((classDef: any) => (
+                    <div key={classDef.key} className="profile-class-section">
+                      <h3 className="profile-class-title">{classDef.label}</h3>
+                      <div className="profile-class-grid">
+                        {friendPeopleData.byClass[classDef.key].map((a: any, i: number) => {
+                          const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
+                          const userStatus = getUserActorStatus(tmdbId);
+                          return (
+                            <div 
+                              key={a.id} 
+                              className="profile-top-item profile-top-item--clickable"
+                              onClick={() => handleActorClick(a)}
+                            >
+                              <div className="profile-top-poster">
+                                {a.profilePath ? (
+                                  <img src={tmdbImagePath(a.profilePath) ?? ''} alt={a.title} loading="lazy" />
+                                ) : (
+                                  <span className="profile-top-poster-placeholder">🎭</span>
+                                )}
+                                <div className="profile-top-overlay">
+                                  <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                    {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="profile-top-info">
+                                <span className="profile-top-title">{a.title}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="profile-top-grid">
+                  {rankedActors.map((a: any, i: number) => {
+                    const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
+                    const userStatus = getUserActorStatus(tmdbId);
+                    return (
+                      <div 
+                        key={a.id} 
+                        className="profile-top-item profile-top-item--clickable"
+                        onClick={() => handleActorClick(a)}
+                      >
+                        <div className="profile-top-poster">
+                          {a.profilePath ? (
+                            <img src={tmdbImagePath(a.profilePath) ?? ''} alt={a.title} loading="lazy" />
+                          ) : (
+                            <span className="profile-top-poster-placeholder">🎭</span>
+                          )}
+                          <span className="profile-top-rank">#{i + 1}</span>
+                          <div className="profile-top-overlay">
+                            <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                              {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="profile-top-info">
+                          <span className="profile-top-title">{a.title}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasDirectors && (
+            <div className="profile-card card-surface">
+              <div className="profile-card-header">
+                <h2 className="profile-card-title">Top 5 Directors</h2>
+                <button
+                  type="button"
+                  className="profile-show-all-toggle"
+                  onClick={() => setShowAllDirectorsWithClasses(!showAllDirectorsWithClasses)}
+                >
+                  {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
+                </button>
+              </div>
+              {showAllDirectorsWithClasses ? (
+                <div className="profile-classes-view">
+                  {friendDirectorsData?.classes?.filter((c: any) => c.isRanked && friendDirectorsData.byClass[c.key]?.length > 0).map((classDef: any) => (
+                    <div key={classDef.key} className="profile-class-section">
+                      <h3 className="profile-class-title">{classDef.label}</h3>
+                      <div className="profile-class-grid">
+                        {friendDirectorsData.byClass[classDef.key].map((d: any, i: number) => {
+                          const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
+                          const userStatus = getUserDirectorStatus(tmdbId);
+                          return (
+                            <div 
+                              key={d.id} 
+                              className="profile-top-item profile-top-item--clickable"
+                              onClick={() => handleDirectorClick(d)}
+                            >
+                              <div className="profile-top-poster">
+                                {d.profilePath ? (
+                                  <img src={tmdbImagePath(d.profilePath) ?? ''} alt={d.title} loading="lazy" />
+                                ) : (
+                                  <span className="profile-top-poster-placeholder">🎬</span>
+                                )}
+                                <div className="profile-top-overlay">
+                                  <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                    {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="profile-top-info">
+                                <span className="profile-top-title">{d.title}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="profile-top-grid">
+                  {rankedDirectors.map((d: any, i: number) => {
+                    const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
+                    const userStatus = getUserDirectorStatus(tmdbId);
+                    return (
+                      <div 
+                        key={d.id} 
+                        className="profile-top-item profile-top-item--clickable"
+                        onClick={() => handleDirectorClick(d)}
+                      >
+                        <div className="profile-top-poster">
+                          {d.profilePath ? (
+                            <img src={tmdbImagePath(d.profilePath) ?? ''} alt={d.title} loading="lazy" />
+                          ) : (
+                            <span className="profile-top-poster-placeholder">🎬</span>
+                          )}
+                          <span className="profile-top-rank">#{i + 1}</span>
+                          <div className="profile-top-overlay">
+                            <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                              {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="profile-top-info">
+                          <span className="profile-top-title">{d.title}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="profile-recent profile-card card-surface profile-card-wide">
         <div className="profile-recent-header">
           <h2 className="profile-card-title">Recently watched</h2>
@@ -867,10 +1229,10 @@ export function FriendProfilePage() {
               {filteredRecentWatches.map((w, i) => (
                 <div key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`} className="profile-recent-tile">
                   <div className="profile-recent-tile-poster">
-                    {w.item.posterPath ? (
-                      <img src={tmdbImagePath(w.item.posterPath) ?? ''} alt="" loading="lazy" />
+                    {getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ? (
+                      <img src={getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ?? ''} alt="" loading="lazy" />
                     ) : (
-                      <span>{w.isMovie ? '🎬' : '📺'}</span>
+                      <span>{isBigMovie(w.item.title, w.item.tmdbId) ? 'B' : (w.isMovie ? '🎬' : '📺')}</span>
                     )}
                   </div>
                   <div className="profile-recent-tile-info">
@@ -913,6 +1275,25 @@ export function FriendProfilePage() {
           onClose={() => setRankingTarget(null)}
           onRemoveEntry={handleRemoveEntry}
           isSaving={isRankingSaving}
+        />
+      )}
+
+      {/* Person Ranking Modal for Actors/Directors */}
+      {personRankingTarget && (
+        <PersonRankingModal
+          target={personRankingTarget}
+          rankedClasses={personRankingTarget.mediaType === 'actor' ? myPeopleClasses : myDirectorsClasses}
+          currentClassKey={personRankingTarget.existingClassKey}
+          currentClassLabel={personRankingTarget.existingClassKey ? 
+            (personRankingTarget.mediaType === 'actor' ? 
+              myPeopleClasses.find(c => c.key === personRankingTarget.existingClassKey)?.label :
+              myDirectorsClasses.find(c => c.key === personRankingTarget.existingClassKey)?.label
+            ) : undefined
+          }
+          onSave={handlePersonRankingSave}
+          onClose={() => setPersonRankingTarget(null)}
+          onRemoveEntry={handleRemovePersonEntry}
+          isSaving={isPersonRankingSaving}
         />
       )}
     </section>

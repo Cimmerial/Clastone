@@ -126,7 +126,42 @@ async function tmdbGet<T>(path: string, signal?: AbortSignal): Promise<T> {
 /** Poster or profile image URL (w200 for list thumbnails). */
 export function tmdbImagePath(path: string | null | undefined, size: TmdbImageSize = 'w185'): string | null {
   if (!path) return null;
+  
+  // Check if this is the Big movie poster and censoring is enabled
+  if (path === '/b4cU9liiA0Ld5jgrPj1WlaMY5s.jpg') {
+    try {
+      const censorBigMovie = localStorage.getItem('clastone-censorBigMovie') === 'true';
+      if (censorBigMovie) {
+        return 'CENSORED_BIG_MOVIE'; // Special marker for Big movie
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+  
   return `${IMAGE_BASE}/${size}${path}`;
+}
+
+/** Check if a movie is the Big (1988) movie */
+export function isBigMovie(title: string, tmdbId?: number): boolean {
+  return title.toLowerCase() === 'big' || tmdbId === 137;
+}
+
+/** Get image source for movie poster, handling Big movie censoring */
+export function getMovieImageSrc(posterPath: string | null | undefined, title: string, tmdbId?: number, size: TmdbImageSize = 'w185'): string | null {
+  // Check if this is the Big movie and censoring is enabled
+  if (isBigMovie(title, tmdbId)) {
+    try {
+      const censorBigMovie = localStorage.getItem('clastone-censorBigMovie') === 'true';
+      if (censorBigMovie) {
+        return null; // Return null to trigger placeholder
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+  
+  return tmdbImagePath(posterPath, size);
 }
 
 export async function tmdbSearchMovies(query: string, signal?: AbortSignal) {

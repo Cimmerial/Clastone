@@ -708,3 +708,23 @@
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
   }
 }
+
+/* Highlight effect for scrolled-to entries */
+.highlighted-entry {
+  animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.3);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0);
+    transform: scale(1);
+  }
+}

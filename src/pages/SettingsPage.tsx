@@ -715,6 +715,21 @@ export function SettingsPage() {
             </label>
           </div>
 
+          <div className="settings-toggle">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-title">Censor "Big" movie poster</span>
+              <span className="settings-toggle-description">Replaces the poster for the movie "Big" (1988) with a simple "B" placeholder.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.censorBigMovie}
+                onChange={(e) => updateSettings({ censorBigMovie: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
         </div>
 
         <div className="settings-card card-surface settings-card-wide">

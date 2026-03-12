@@ -9,6 +9,7 @@ export type GlobalSettings = {
     excludeSimpsons: boolean;
     showGuideFlag: boolean;
     useSpotlightBackground: boolean;
+    censorBigMovie: boolean;
 };
 
 type SettingsStore = {
@@ -29,6 +30,7 @@ function getInitialSettings(): GlobalSettings {
         const es = localStorage.getItem('clastone-excludeSimpsons');
         const sgf = localStorage.getItem('clastone-showGuideFlag');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
+        const cbm = localStorage.getItem('clastone-censorBigMovie');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -47,7 +49,8 @@ function getInitialSettings(): GlobalSettings {
             boycottTalkShows: bts === 'true',
             excludeSimpsons: es === 'true',
             showGuideFlag: sgf !== 'false',
-            useSpotlightBackground: usb === 'true'
+            useSpotlightBackground: usb === 'true',
+            censorBigMovie: cbm === 'true'
         };
     } catch {
         return {
@@ -58,7 +61,8 @@ function getInitialSettings(): GlobalSettings {
             boycottTalkShows: false,
             excludeSimpsons: false,
             showGuideFlag: true,
-            useSpotlightBackground: false
+            useSpotlightBackground: false,
+            censorBigMovie: false
         };
     }
 }
@@ -126,6 +130,7 @@ export function SettingsProvider({
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
                 if (updates.showGuideFlag !== undefined) localStorage.setItem('clastone-showGuideFlag', String(next.showGuideFlag));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
+                if (updates.censorBigMovie !== undefined) localStorage.setItem('clastone-censorBigMovie', String(next.censorBigMovie));
 
             } catch { /* ignore */ }
             return next;
