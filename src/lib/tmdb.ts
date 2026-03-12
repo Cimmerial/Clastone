@@ -405,10 +405,6 @@ export async function tmdbMovieDetailsFull(
     cast,
     directors
   };
-  console.info('[Clastone] TMDB cache fetched', {
-    tmdbId: cache.tmdbId,
-    title: cache.title
-  });
   return cache;
 }
 
@@ -482,13 +478,6 @@ export async function tmdbTvDetailsFull(
     creators,
     seasons
   };
-  console.info('[Clastone] TMDB TV cache fetched', {
-    tmdbId: cache.tmdbId,
-    title: cache.title,
-    episodeRuntimeMinutes: cache.episodeRuntimeMinutes,
-    totalEpisodes: cache.totalEpisodes,
-    runtimeMinutes: cache.runtimeMinutes
-  });
   return cache;
 }
 
@@ -577,12 +566,6 @@ export async function tmdbPersonDetailsFull(
     roles
   };
 
-  console.info('[Clastone] TMDB person cache fetched', {
-    tmdbId: cache.tmdbId,
-    name: cache.name,
-    knownForDepartment: cache.knownForDepartment,
-    rolesCount: cache.roles.length
-  });
   return cache;
 }
 

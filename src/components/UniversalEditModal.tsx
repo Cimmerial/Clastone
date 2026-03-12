@@ -104,7 +104,10 @@ function DPCol({
           key={i}
           data-sel={item.val === selected ? '1' : undefined}
           className={`uem-dp-item${item.val === selected ? ' uem-dp-item--on' : ''}`}
-          onMouseDown={e => { e.preventDefault(); onSelect(item.val); }}
+          onMouseDown={e => { 
+            e.preventDefault(); 
+            onSelect(item.val); 
+          }}
         >
           {item.label}
         </div>
@@ -127,19 +130,37 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Stable callback to prevent re-renders from closing the dropdown
+  const stableOnChange = useCallback((updates: { year?: number; month?: number; day?: number }) => {
+    onChange(updates);
+  }, [onChange]);
+  
+  const handleClick = () => {
+    setOpen(p => !p);
+  };
 
   useEffect(() => {
     if (!open) return;
     // Calculate position based on trigger element
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPopoverPos({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      });
+      // Don't use window.scrollY - getBoundingClientRect already accounts for scroll
+      const pos = {
+        top: rect.bottom + 4,
+        left: rect.left,
+      };
+      setPopoverPos(pos);
     }
     const h = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      const isClickInsideTrigger = wrapRef.current?.contains(target);
+      const isClickInsidePopover = popoverRef.current?.contains(target);
+      
+      if (!isClickInsideTrigger && !isClickInsidePopover) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -161,7 +182,7 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
   ];
   const dayItems: DPItem[] = [
     { val: undefined, label: '—' },
-    ...dayOptsFor(yStr, mStr).filter(o => o.value).map(o => ({ val: parseInt(o.value, 10), label: o.value })),
+    ...dayOptsFor(yStr, mStr).map(o => ({ val: o.value ? parseInt(o.value, 10) : undefined, label: o.value })),
   ];
 
   const yPart = year ? String(year) : '—';
@@ -174,7 +195,8 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
         ref={triggerRef}
         type="button"
         className={`uem-dp-trigger${open ? ' uem-dp-trigger--open' : ''}`}
-        onClick={() => setOpen(p => !p)}
+        onClick={handleClick}
+        style={{ pointerEvents: 'auto', zIndex: 1 }}
       >
         <span className={year ? 'uem-dp-set' : 'uem-dp-null'}>{yPart}</span>
         <span className="uem-dp-sep">/</span>
@@ -185,6 +207,8 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
 
       {open && popoverPos && createPortal(
         <div 
+          key="date-picker-popover"
+          ref={popoverRef}
           className="uem-dp-popover" 
           onClick={e => e.stopPropagation()}
           style={{
@@ -194,11 +218,11 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
             zIndex: 10000,
           }}
         >
-          <DPCol items={yearItems} selected={year} onSelect={v => onChange({ year: v, month, day })} />
+          <DPCol items={yearItems} selected={year} onSelect={v => stableOnChange({ year: v, month, day })} />
           <div className="uem-dp-div" />
-          <DPCol items={monthItems} selected={month} onSelect={v => onChange({ year, month: v, day })} />
+          <DPCol items={monthItems} selected={month} onSelect={v => stableOnChange({ year, month: v, day })} />
           <div className="uem-dp-div" />
-          <DPCol items={dayItems} selected={day} onSelect={v => onChange({ year, month, day: v })} />
+          <DPCol items={dayItems} selected={day} onSelect={v => stableOnChange({ year, month, day: v })} />
         </div>,
         document.body
       )}
@@ -511,9 +535,27 @@ export function UniversalEditModal({
     const currentMonth = today.getMonth() + 1;
 
     if (!y || y > currentYear) return [{ value: '', label: '—' }];
-    if (y < currentYear) return MONTH_OPTIONS;
-    return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
-  }, []);
+    
+    // If year is after release year, show all months up to current month
+    if (y > (releaseYear ?? 0)) {
+      return y < currentYear ? MONTH_OPTIONS : MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
+    }
+    
+    // If year is the release year, only show months from release month onwards
+    if (y === (releaseYear ?? 0)) {
+      const releaseMonth = target.releaseDate ? parseInt(target.releaseDate.split('-')[1], 10) : 1;
+      if (y < currentYear) {
+        // Release year is in the past, show months from release month onwards
+        return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) >= releaseMonth);
+      } else if (y === currentYear) {
+        // Release year is current year, show months from release month to current month
+        return MONTH_OPTIONS.filter(m => !m.value || (parseInt(m.value, 10) >= releaseMonth && parseInt(m.value, 10) <= currentMonth));
+      }
+    }
+    
+    // Past years (before release year shouldn't be selectable, but just in case)
+    return MONTH_OPTIONS;
+  }, [releaseYear, target.releaseDate]);
 
   const dayOptsFor = useCallback((yearStr: string, monthStr: string): ThemedDropdownOption[] => {
     const y = parseInt(yearStr, 10);
@@ -524,11 +566,56 @@ export function UniversalEditModal({
     const currentDay = today.getDate();
 
     if (!y || !m || y > currentYear) return [{ value: '', label: '—' }];
-    if (y < currentYear) return DAY_OPTIONS;
-    if (m < currentMonth) return DAY_OPTIONS;
-    if (m === currentMonth) return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+    
+    // Get release day for comparison
+    const releaseDay = target.releaseDate ? parseInt(target.releaseDate.split('-')[2], 10) : 1;
+    const releaseMonth = target.releaseDate ? parseInt(target.releaseDate.split('-')[1], 10) : 1;
+    
+    if (y < currentYear) {
+      if (y > (releaseYear ?? 0)) {
+        // Years after release year but before current year - show all days
+        return DAY_OPTIONS;
+      } else if (y === (releaseYear ?? 0)) {
+        // Release year - check month
+        if (m > releaseMonth) {
+          return DAY_OPTIONS; // Months after release month
+        } else if (m === releaseMonth) {
+          // Release month - show days from release day onwards
+          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) >= releaseDay);
+        }
+      }
+    }
+    
+    if (y === currentYear) {
+      if (m > (releaseYear ?? 0)) {
+        // Current year, months after release year
+        if (m < currentMonth) {
+          return DAY_OPTIONS; // Past months in current year
+        } else if (m === currentMonth) {
+          // Current month - show days up to current day
+          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+        }
+      } else if (m === (releaseYear ?? 0)) {
+        // Current year is release year
+        if (m === releaseMonth && m === currentMonth) {
+          // Release month is current month - show days from release day to current day
+          return DAY_OPTIONS.filter(d => !d.value || (parseInt(d.value, 10) >= releaseDay && parseInt(d.value, 10) <= currentDay));
+        } else if (m === releaseMonth) {
+          // Release month but not current month - show days from release day onwards
+          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) >= releaseDay);
+        } else if (m > releaseMonth && m < currentMonth) {
+          // Months after release month but before current month - show all days
+          return DAY_OPTIONS;
+        } else if (m === currentMonth) {
+          // Current month after release month - show days up to current day
+          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+        }
+      }
+    }
+    
+    // For future months in current year or invalid combinations, no days available
     return [{ value: '', label: '—' }];
-  }, []);
+  }, [releaseYear, target.releaseDate]);
 
   const addEntry = () => {
     // Default new entries to LONG_AGO with 100% watched

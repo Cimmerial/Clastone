@@ -34,6 +34,8 @@ function DPCol({
 }: { items: DPItem[]; selected: number | undefined; onSelect: (v: number | undefined) => void }) {
   const listRef = useRef<HTMLDivElement>(null);
 
+  console.log('DPCol render:', { items, selected });
+
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>('[data-sel="1"]');
     if (el) el.scrollIntoView({ block: 'nearest' });
@@ -46,7 +48,11 @@ function DPCol({
           key={i}
           data-sel={item.val === selected ? '1' : undefined}
           className={`dp-item${item.val === selected ? ' dp-item--on' : ''}`}
-          onMouseDown={e => { e.preventDefault(); onSelect(item.val); }}
+          onMouseDown={e => { 
+            console.log('DPCol item clicked:', item);
+            e.preventDefault(); 
+            onSelect(item.val); 
+          }}
         >
           {item.label}
         </div>
@@ -67,10 +73,33 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  // Debug logging
+  console.log('DatePicker render:', { year, month, day, open });
+  
+  // Log when component mounts
+  useEffect(() => {
+    console.log('DatePicker component mounted');
+  }, []);
+  
+  const handleClick = () => {
+    console.log('DatePicker clicked, current open state:', open);
+    console.log('DatePicker props:', { year, month, day });
+    console.log('monthOptsFor result:', monthOptsFor(String(year ?? '')));
+    console.log('dayOptsFor result:', dayOptsFor(String(year ?? ''), String(month ?? '')));
+    setOpen(p => {
+      console.log('Setting open to:', !p);
+      return !p;
+    });
+  };
+
   useEffect(() => {
     if (!open) return;
+    console.log('DatePicker opened, setting up outside click handler');
     const h = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        console.log('Outside click detected, closing DatePicker');
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -85,14 +114,14 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
   ];
   const monthItems: DPItem[] = [
     { val: undefined, label: '—' },
-    ...monthOptsFor(yStr).filter(o => o.value).map(o => ({
-      val: parseInt(o.value, 10),
-      label: MONTH_SHORT[parseInt(o.value, 10) - 1] ?? o.label,
+    ...monthOptsFor(yStr).map(o => ({
+      val: o.value ? parseInt(o.value, 10) : undefined,
+      label: o.value ? (MONTH_SHORT[parseInt(o.value, 10) - 1] ?? o.label) : o.label,
     })),
   ];
   const dayItems: DPItem[] = [
     { val: undefined, label: '—' },
-    ...dayOptsFor(yStr, mStr).filter(o => o.value).map(o => ({ val: parseInt(o.value, 10), label: o.value })),
+    ...dayOptsFor(yStr, mStr).map(o => ({ val: o.value ? parseInt(o.value, 10) : undefined, label: o.value })),
   ];
 
   const yPart = year ? String(year) : '—';
@@ -101,10 +130,21 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
 
   return (
     <div className="dp-wrap" ref={wrapRef}>
+      {/* Debug: Always render this test button */}
+      <button 
+        onClick={() => console.log('TEST BUTTON CLICKED!')}
+        style={{ background: 'red', color: 'white', margin: '5px' }}
+      >
+        TEST CLICK
+      </button>
+      
       <button
         type="button"
         className={`dp-trigger${open ? ' dp-trigger--open' : ''}`}
-        onClick={() => setOpen(p => !p)}
+        onClick={handleClick}
+        onMouseEnter={() => console.log('DatePicker button mouse enter')}
+        onMouseLeave={() => console.log('DatePicker button mouse leave')}
+        style={{ pointerEvents: 'auto', zIndex: 1 }} // Force clickable
       >
         <span className={year ? 'dp-set' : 'dp-null'}>{yPart}</span>
         <span className="dp-sep">/</span>
@@ -164,16 +204,30 @@ export function RecordWatchModal({
   currentClassKey, currentClassLabel,
   onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked, onAddToWatchlist,
 }: Props) {
+  // Debug logging for modal state
+  console.log('RecordWatchModal render:', { 
+    mode, 
+    target: target.title, 
+    initialRecords: initialRecords?.length || 0,
+    currentClassKey,
+    currentClassLabel 
+  });
+
   const [records, setRecords] = useState<WatchRecord[]>(() => {
-    if (initialRecords?.length) return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
+    if (initialRecords?.length) {
+      console.log('Using initial records:', initialRecords);
+      return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
+    }
     const today = new Date();
-    return [{ 
+    const defaultRecord = { 
       id: crypto.randomUUID(), 
       type: 'DATE', 
       year: today.getFullYear(),
       month: today.getMonth() + 1,
       day: today.getDate()
-    } as WatchRecord];
+    } as WatchRecord;
+    console.log('Using default record:', defaultRecord);
+    return [defaultRecord];
   });
   const [recordClassKey, setRecordClassKey] = useState('');
   const [recordPosition, setRecordPosition] = useState<'top' | 'middle' | 'bottom'>('top');
@@ -238,12 +292,24 @@ export function RecordWatchModal({
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
     
+    console.log('monthOptsFor called:', { yearStr, y, currentYear, currentMonth });
+    
     // If year is not current year, no months available
-    if (!y || y > currentYear) return [{ value: '', label: '—' }]; // Only show empty option
-    if (y < currentYear) return MONTH_OPTIONS; // Show all months for past years
+    if (!y || y > currentYear) {
+      const result = [{ value: '', label: '—' }];
+      console.log('monthOptsFor returning empty only:', result);
+      return result;
+    }
+    if (y < currentYear) {
+      const result = MONTH_OPTIONS;
+      console.log('monthOptsFor returning all months for past year:', result);
+      return result;
+    }
     
     // For current year, show all months up to current month
-    return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
+    const result = MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
+    console.log('monthOptsFor returning filtered months for current year:', result);
+    return result;
   };
   const dayOptsFor = (yearStr: string, monthStr: string): ThemedDropdownOption[] => {
     const y = parseInt(yearStr, 10);
@@ -253,24 +319,36 @@ export function RecordWatchModal({
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
     
+    console.log('dayOptsFor called:', { yearStr, monthStr, y, m, currentYear, currentMonth, currentDay });
+    
     // If not current year/month, no days available
     if (!y || !m || y > currentYear) {
-      return [{ value: '', label: '—' }]; // Only show empty option
+      const result = [{ value: '', label: '—' }];
+      console.log('dayOptsFor returning empty only:', result);
+      return result;
     }
     if (y < currentYear) {
       // For past years, show all days
-      return DAY_OPTIONS;
+      const result = DAY_OPTIONS;
+      console.log('dayOptsFor returning all days for past year:', result);
+      return result;
     }
     if (m < currentMonth) {
       // For past months in current year, show all days
-      return DAY_OPTIONS;
+      const result = DAY_OPTIONS;
+      console.log('dayOptsFor returning all days for past month:', result);
+      return result;
     }
     if (m === currentMonth) {
       // For current month, show days up to current day
-      return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+      const result = DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
+      console.log('dayOptsFor returning filtered days for current month:', result);
+      return result;
     }
     // For future months in current year, no days available
-    return [{ value: '', label: '—' }];
+    const result = [{ value: '', label: '—' }];
+    console.log('dayOptsFor returning empty for future month:', result);
+    return result;
   };
 
   const applyPreset = (id: string, preset: DatePreset | 'reset') => {
