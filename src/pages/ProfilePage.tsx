@@ -113,6 +113,8 @@ export function ProfilePage() {
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
+  const [showAllMoviesWithClasses, setShowAllMoviesWithClasses] = useState(false);
+  const [showAllShowsWithClasses, setShowAllShowsWithClasses] = useState(false);
 
   const rankedMovies = useMemo(() => {
     const list: MovieShowItem[] = [];
@@ -860,77 +862,177 @@ export function ProfilePage() {
 
       <div className="profile-grid">
         <div className="profile-card card-surface">
-          <h2 className="profile-card-title">Top 10 Movies</h2>
-          <Link to="/movies" className="profile-preview-link">
-            View all movies →
-          </Link>
-          <div className="profile-top-grid">
-            {top10Movies.map((m: any, i: any) => {
-              const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
-              const userStatus = getUserMovieStatus(tmdbId);
-              return (
-                <div 
-                  key={m.id} 
-                  className="profile-top-item profile-top-item--clickable"
-                  onClick={() => handleMovieClick(m)}
-                >
-                  <div className="profile-top-poster">
-                    {m.posterPath ? (
-                      <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
-                    ) : (
-                      <span className="profile-top-poster-placeholder">🎬</span>
-                    )}
-                    <span className="profile-top-rank">#{i + 1}</span>
-                    <div className="profile-top-overlay">
-                      <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                        {userStatus.isRanked ? 'SEEN' : 'SAVE'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="profile-top-info">
-                    <span className="profile-top-title">{m.title}</span>
+          <div className="profile-card-header">
+            <h2 className="profile-card-title">Top 10 Movies</h2>
+            <button
+              type="button"
+              className="profile-show-all-toggle"
+              onClick={() => setShowAllMoviesWithClasses(!showAllMoviesWithClasses)}
+            >
+              {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
+            </button>
+          </div>
+          {!showAllMoviesWithClasses && (
+            <Link to="/movies" className="profile-preview-link">
+              View all movies →
+            </Link>
+          )}
+          {showAllMoviesWithClasses ? (
+            <div className="profile-classes-view">
+              {movieClassOrder.filter(k => isRankedMovieClass(k) && moviesByClass[k]?.length > 0).map((classKey) => (
+                <div key={classKey} className="profile-class-section">
+                  <h3 className="profile-class-title">{getMovieClassLabel(classKey)}</h3>
+                  <div className="profile-class-grid">
+                    {moviesByClass[classKey].map((m, i) => {
+                      const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserMovieStatus(tmdbId);
+                      return (
+                        <div 
+                          key={m.id} 
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleMovieClick(m)}
+                        >
+                          <div className="profile-top-poster">
+                            {m.posterPath ? (
+                              <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">🎬</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{m.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="profile-top-grid">
+              {top10Movies.map((m: any, i: any) => {
+                const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                const userStatus = getUserMovieStatus(tmdbId);
+                return (
+                  <div 
+                    key={m.id} 
+                    className="profile-top-item profile-top-item--clickable"
+                    onClick={() => handleMovieClick(m)}
+                  >
+                    <div className="profile-top-poster">
+                      {m.posterPath ? (
+                        <img src={tmdbImagePath(m.posterPath) ?? ''} alt={m.title} loading="lazy" />
+                      ) : (
+                        <span className="profile-top-poster-placeholder">🎬</span>
+                      )}
+                      <span className="profile-top-rank">#{i + 1}</span>
+                      <div className="profile-top-overlay">
+                        <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="profile-top-info">
+                      <span className="profile-top-title">{m.title}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="profile-card card-surface">
-          <h2 className="profile-card-title">Top 10 Shows</h2>
-          <Link to="/tv" className="profile-preview-link">
-            View all shows →
-          </Link>
-          <div className="profile-top-grid">
-            {top10Shows.map((s: any, i: any) => {
-              const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
-              const userStatus = getUserShowStatus(tmdbId);
-              return (
-                <div 
-                  key={s.id} 
-                  className="profile-top-item profile-top-item--clickable"
-                  onClick={() => handleShowClick(s)}
-                >
-                  <div className="profile-top-poster">
-                    {s.posterPath ? (
-                      <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
-                    ) : (
-                      <span className="profile-top-poster-placeholder">📺</span>
-                    )}
-                    <span className="profile-top-rank">#{i + 1}</span>
-                    <div className="profile-top-overlay">
-                      <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                        {userStatus.isRanked ? 'SEEN' : 'SAVE'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="profile-top-info">
-                    <span className="profile-top-title">{s.title}</span>
+          <div className="profile-card-header">
+            <h2 className="profile-card-title">Top 10 Shows</h2>
+            <button
+              type="button"
+              className="profile-show-all-toggle"
+              onClick={() => setShowAllShowsWithClasses(!showAllShowsWithClasses)}
+            >
+              {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
+            </button>
+          </div>
+          {!showAllShowsWithClasses && (
+            <Link to="/tv" className="profile-preview-link">
+              View all shows →
+            </Link>
+          )}
+          {showAllShowsWithClasses ? (
+            <div className="profile-classes-view">
+              {tvClassOrder.filter(k => isRankedTvClass(k) && tvByClass[k]?.length > 0).map((classKey) => (
+                <div key={classKey} className="profile-class-section">
+                  <h3 className="profile-class-title">{getTvClassLabel(classKey)}</h3>
+                  <div className="profile-class-grid">
+                    {tvByClass[classKey].map((s, i) => {
+                      const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserShowStatus(tmdbId);
+                      return (
+                        <div 
+                          key={s.id} 
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleShowClick(s)}
+                        >
+                          <div className="profile-top-poster">
+                            {s.posterPath ? (
+                              <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">📺</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{s.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="profile-top-grid">
+              {top10Shows.map((s: any, i: any) => {
+                const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                const userStatus = getUserShowStatus(tmdbId);
+                return (
+                  <div 
+                    key={s.id} 
+                    className="profile-top-item profile-top-item--clickable"
+                    onClick={() => handleShowClick(s)}
+                  >
+                    <div className="profile-top-poster">
+                      {s.posterPath ? (
+                        <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                      ) : (
+                        <span className="profile-top-poster-placeholder">📺</span>
+                      )}
+                      <span className="profile-top-rank">#{i + 1}</span>
+                      <div className="profile-top-overlay">
+                        <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="profile-top-info">
+                      <span className="profile-top-title">{s.title}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
