@@ -70,6 +70,7 @@ export function MoviesPage() {
   const { settings } = useSettingsStore();
   const mobileViewMode = useMobileViewMode();
   const location = useLocation();
+  const watchlist = useWatchlistStore();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
@@ -224,7 +225,7 @@ export function MoviesPage() {
           initialWatches={(settingsFor || recordWatchFor!)?.watchRecords}
           currentClassKey={(settingsFor || recordWatchFor!)?.classKey}
           currentClassLabel={getClassLabel((settingsFor || recordWatchFor!)?.classKey || '')}
-          isWatchlistItem={false}
+          isWatchlistItem={watchlist.isInWatchlist((settingsFor || recordWatchFor!)?.id || '')}
           rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
           isSaving={isSavingRecord}
           onClose={() => {
@@ -235,6 +236,29 @@ export function MoviesPage() {
             removeMovieEntry(id);
             setSettingsFor(null);
             setRecordWatchFor(null);
+          }}
+          onAddToWatchlist={() => {
+            const target = settingsFor || recordWatchFor;
+            if (!target) return;
+            watchlist.addToWatchlist(
+              {
+                id: target.id,
+                title: target.title,
+                posterPath: target.posterPath,
+                releaseDate: target.releaseDate,
+              },
+              'movies'
+            );
+          }}
+          onRemoveFromWatchlist={() => {
+            const target = settingsFor || recordWatchFor;
+            if (!target) return;
+            watchlist.removeFromWatchlist(target.id);
+          }}
+          onGoToWatchlist={() => {
+            const target = settingsFor || recordWatchFor;
+            if (!target) return;
+            navigate('/watchlist', { state: { scrollToId: target.id } });
           }}
           onSave={async (params, goToMedia) => {
             const targetItem = settingsFor || recordWatchFor;

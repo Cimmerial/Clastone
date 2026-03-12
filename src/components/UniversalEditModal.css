@@ -130,10 +130,11 @@
 }
 
 .uem-watchlist-btn--remove {
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-color: rgba(220, 60, 60, 0.4);
   background: rgba(220, 60, 60, 0.1);
   color: #c06060;
+  gap: 4px;
 }
 
 .uem-watchlist-btn--remove:hover {
@@ -191,10 +192,10 @@
   flex-direction: column;
 }
 
-/* Updated column widths: narrower time, wider details */
+/* Updated column widths: wider time (320px), wider details (200px) */
 .uem-matrix-header {
   display: grid;
-  grid-template-columns: 130px 160px 140px 180px 50px;
+  grid-template-columns: 130px 320px 140px 200px 50px;
   gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.03);
@@ -223,7 +224,7 @@
 
 .uem-matrix-row {
   display: grid;
-  grid-template-columns: 130px 160px 140px 180px 50px;
+  grid-template-columns: 130px 320px 140px 200px 50px;
   gap: 8px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.02);
@@ -248,7 +249,7 @@
   font-size: 0.75rem;
 }
 
-/* Watch Time Cell - now with preset inside */
+/* Watch Time Cell - wider with preset right-aligned */
 .uem-matrix-cell--time {
   gap: 6px;
 }
@@ -256,15 +257,17 @@
 .uem-time-with-preset {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .uem-date-group {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .uem-range-arrow {
@@ -459,6 +462,7 @@
 .uem-matrix-cell--actions {
   gap: 6px;
   justify-content: flex-end;
+  padding-right: 4px;
 }
 
 /* Preset moved into time column, now just delete */
@@ -501,9 +505,9 @@
 }
 
 .uem-remove-btn--confirm {
-  background: rgba(220, 60, 60, 0.25);
-  border-color: rgba(220, 60, 60, 0.5);
-  color: #e07070;
+  background: rgba(220, 60, 60, 0.4);
+  border-color: rgba(220, 60, 60, 0.8);
+  color: #ff8080;
   animation: uem-pulse 0.25s ease;
 }
 
@@ -531,6 +535,7 @@
 /* ── DatePicker (Matrix version) ── */
 .uem-dp-wrap {
   position: relative;
+  display: inline-block;
   flex-shrink: 0;
 }
 

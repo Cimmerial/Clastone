@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
@@ -124,9 +125,19 @@ interface DatePickerProps {
 function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, onChange, compact }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    // Calculate position based on trigger element
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPopoverPos({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+      });
+    }
     const h = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -160,6 +171,7 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
   return (
     <div className={`uem-dp-wrap ${compact ? 'uem-dp-wrap--compact' : ''}`} ref={wrapRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={`uem-dp-trigger${open ? ' uem-dp-trigger--open' : ''}`}
         onClick={() => setOpen(p => !p)}
@@ -171,14 +183,24 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
         <span className={day ? 'uem-dp-set' : 'uem-dp-null'}>{dPart}</span>
       </button>
 
-      {open && (
-        <div className="uem-dp-popover" onClick={e => e.stopPropagation()}>
+      {open && popoverPos && createPortal(
+        <div 
+          className="uem-dp-popover" 
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: popoverPos.top,
+            left: popoverPos.left,
+            zIndex: 10000,
+          }}
+        >
           <DPCol items={yearItems} selected={year} onSelect={v => onChange({ year: v, month, day })} />
           <div className="uem-dp-div" />
           <DPCol items={monthItems} selected={month} onSelect={v => onChange({ year, month: v, day })} />
           <div className="uem-dp-div" />
           <DPCol items={dayItems} selected={day} onSelect={v => onChange({ year, month, day: v })} />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -196,11 +218,12 @@ interface MatrixRowProps {
   canRemove: boolean;
   runtimeMinutes?: number;
   totalEpisodes?: number;
+  totalSeasons?: number;
   mediaType: MediaType;
   applyPreset: (preset: DatePreset | 'reset') => void;
 }
 
-function getWatchAmountLabel(percent: number, mediaType: MediaType, runtimeMinutes?: number, totalEpisodes?: number): string {
+function getWatchAmountLabel(percent: number, mediaType: MediaType, runtimeMinutes?: number, totalEpisodes?: number, totalSeasons?: number): string {
   if (mediaType === 'movie' && runtimeMinutes && runtimeMinutes > 0) {
     const mins = Math.round((percent / 100) * runtimeMinutes);
     const h = Math.floor(mins / 60);
@@ -209,14 +232,14 @@ function getWatchAmountLabel(percent: number, mediaType: MediaType, runtimeMinut
     if (h > 0) return `${h}h`;
     return `${m}m`;
   }
-  if (mediaType === 'tv' && totalEpisodes && totalEpisodes > 0) {
+  if (mediaType === 'tv' && totalEpisodes && totalEpisodes > 0 && totalSeasons && totalSeasons > 0) {
     const ep = Math.round((percent / 100) * totalEpisodes);
-    // Rough season/episode calculation (assume ~10-13 eps per season)
-    const epsPerSeason = 10;
-    const season = Math.floor(ep / epsPerSeason) + 1;
-    const episodeInSeason = (ep % epsPerSeason) || epsPerSeason;
-    if (ep === 0) return 'S1 E1';
-    return `S${season} E${episodeInSeason}`;
+    // Calculate average episodes per season dynamically
+    const epsPerSeason = Math.ceil(totalEpisodes / totalSeasons);
+    const season = Math.floor((ep - 1) / epsPerSeason) + 1;
+    const episodeInSeason = ((ep - 1) % epsPerSeason) + 1;
+    if (ep === 0) return `S1 E1`;
+    return `S${Math.min(season, totalSeasons)} E${episodeInSeason}`;
   }
   return `${percent}%`;
 }
@@ -231,6 +254,7 @@ function MatrixRow({
   canRemove,
   runtimeMinutes,
   totalEpisodes,
+  totalSeasons,
   mediaType,
   applyPreset,
 }: MatrixRowProps) {
@@ -242,7 +266,7 @@ function MatrixRow({
   const showSlider = true; // Always show slider
   const showStatusToggle = watchPercent < 100;
 
-  const amountLabel = getWatchAmountLabel(watchPercent, mediaType, runtimeMinutes, totalEpisodes);
+  const amountLabel = getWatchAmountLabel(watchPercent, mediaType, runtimeMinutes, totalEpisodes, totalSeasons);
 
   // Handle double-click delete
   const handleDeleteClick = () => {
@@ -370,7 +394,7 @@ function MatrixRow({
             aria-label={pendingDelete ? 'Click again to confirm delete' : 'Remove'}
             title={pendingDelete ? 'Click again to confirm delete' : 'Double-click to delete'}
           >
-            <Trash2 size={12} />
+            {pendingDelete ? 'Delete?' : <Trash2 size={12} />}
           </button>
         )}
       </div>
@@ -537,17 +561,35 @@ export function UniversalEditModal({
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
   };
 
-  const applyPresetToEntry = (id: string, preset: DatePreset | 'reset') => {
+  const applyPresetToEntry = (id: string, preset: DatePreset | 'reset', isDateRange: boolean) => {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    
     if (preset === 'reset') {
-      updateEntry(id, { year: undefined, month: undefined, day: undefined });
+      if (isDateRange) {
+        updateEntry(id, { year: undefined, month: undefined, day: undefined, endYear: undefined, endMonth: undefined, endDay: undefined });
+      } else {
+        updateEntry(id, { year: undefined, month: undefined, day: undefined });
+      }
       return;
     }
+    
     const { year, month, day } = applyDatePreset(preset);
-    updateEntry(id, {
-      year: parseInt(year, 10) || undefined,
-      month: parseInt(month, 10) || undefined,
-      day: parseInt(day, 10) || undefined,
-    });
+    const yearNum = parseInt(year, 10) || undefined;
+    const monthNum = parseInt(month, 10) || undefined;
+    const dayNum = parseInt(day, 10) || undefined;
+    
+    if (isDateRange) {
+      // For date range, set both start and end dates to the preset date
+      updateEntry(id, {
+        year: yearNum, month: monthNum, day: dayNum,
+        endYear: yearNum, endMonth: monthNum, endDay: dayNum,
+      });
+    } else {
+      updateEntry(id, {
+        year: yearNum, month: monthNum, day: dayNum,
+      });
+    }
   };
 
   const handleRemoveClick = () => {
@@ -633,7 +675,7 @@ export function UniversalEditModal({
             {target.subtitle && <span className="uem-subtitle">{target.subtitle}</span>}
           </div>
           <div className="uem-header-actions">
-            {/* Watchlist Actions */}
+            {/* Watchlist Actions - always show if handlers provided */}
             {isWatchlistItem ? (
               <div className="uem-watchlist-actions">
                 <button
@@ -642,14 +684,15 @@ export function UniversalEditModal({
                   onClick={() => { onGoToWatchlist?.(); onClose(); }}
                 >
                   <BookmarkCheck size={14} />
-                  Go to Watchlist
+                  Go to in Watchlist
                 </button>
                 <button
                   type="button"
                   className="uem-watchlist-btn uem-watchlist-btn--remove"
-                  onClick={() => onRemoveFromWatchlist?.()}
+                  onClick={() => { onRemoveFromWatchlist?.(); }}
                 >
                   <Trash2 size={14} />
+                  Remove from Watchlist
                 </button>
               </div>
             ) : onAddToWatchlist ? (
@@ -700,8 +743,9 @@ export function UniversalEditModal({
                   canRemove={entries.length > 1}
                   runtimeMinutes={target.runtimeMinutes}
                   totalEpisodes={target.totalEpisodes}
+                  totalSeasons={target.totalSeasons}
                   mediaType={target.mediaType}
-                  applyPreset={preset => applyPresetToEntry(entry.id, preset)}
+                  applyPreset={preset => applyPresetToEntry(entry.id, preset, entry.watchType === 'DATE_RANGE')}
                 />
               ))}
               <div ref={entriesEndRef} />
