@@ -22,9 +22,16 @@ function resultId(r: TmdbMultiResult): string {
 }
 
 export function SearchPage() {
-  const [query, setQuery] = useState('');
+  // Persist search query and results
+  const [query, setQuery] = useState(() => {
+    const saved = sessionStorage.getItem('search_query');
+    return saved || '';
+  });
+  const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>(() => {
+    const saved = sessionStorage.getItem('search_results');
+    return saved ? JSON.parse(saved) : [];
+  });
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>([]);
 
   const [showMovies, setShowMovies] = useState(() => {
     const s = sessionStorage.getItem('search_movies');
@@ -94,6 +101,23 @@ export function SearchPage() {
   const { addToWatchlist, isInWatchlist } = useWatchlistStore();
 
   const trimmed = useMemo(() => query.trim(), [query]);
+
+  // Save query and results to sessionStorage when they change
+  useEffect(() => {
+    sessionStorage.setItem('search_query', query);
+  }, [query]);
+
+  useEffect(() => {
+    sessionStorage.setItem('search_results', JSON.stringify(remoteResults));
+  }, [remoteResults]);
+
+  // Clear search function
+  const clearSearch = () => {
+    setQuery('');
+    setRemoteResults([]);
+    sessionStorage.removeItem('search_query');
+    sessionStorage.removeItem('search_results');
+  };
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -482,14 +506,26 @@ export function SearchPage() {
         <div className="search-controls">
           <label className="search-label">
             <span>Search</span>
-            <input
-              ref={inputRef}
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={placeholderText}
-              className="search-input"
-            />
+            <div className="search-input-wrapper">
+              <input
+                ref={inputRef}
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={placeholderText}
+                className="search-input"
+              />
+              {query && (
+                <button 
+                  type="button" 
+                  className="search-clear-btn"
+                  onClick={clearSearch}
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </label>
           <div className="search-filters">
             <button

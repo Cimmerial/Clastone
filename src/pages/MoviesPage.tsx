@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
+import { usePageState } from '../hooks/usePageState';
 
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
@@ -37,6 +38,7 @@ function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
 }
 
 export function MoviesPage() {
+  const { scrollContainerRef } = usePageState<HTMLDivElement>('movies');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
@@ -159,9 +161,11 @@ export function MoviesPage() {
           }}
           placeholder="Search movies..."
           className="page-search-locked"
+          pageKey="movies"
         />
       )}
       <RankedList<MovieShowItem>
+        ref={scrollContainerRef}
         viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={computedByClass}

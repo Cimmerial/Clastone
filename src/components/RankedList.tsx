@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { forwardRef } from 'react';
 import './RankedList.css';
 
 export type ClassKey = string;
@@ -64,16 +65,19 @@ function SortableRow<T extends RankedItemBase>({
   );
 }
 
-export function RankedList<T extends RankedItemBase>({
-  classOrder,
-  itemsByClass,
-  renderRow,
-  getClassSubtitle,
-  getClassLabel,
-  getClassTagline,
-  onReorderWithinClass,
-  viewMode = 'detailed'
-}: RankedListProps<T>) {
+function RankedListInner<T extends RankedItemBase>(
+  {
+    classOrder,
+    itemsByClass,
+    renderRow,
+    getClassSubtitle,
+    getClassLabel,
+    getClassTagline,
+    onReorderWithinClass,
+    viewMode = 'detailed'
+  }: RankedListProps<T>,
+  ref: React.Ref<HTMLDivElement>
+) {
   const isTile = viewMode === 'tile';
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -162,7 +166,7 @@ export function RankedList<T extends RankedItemBase>({
 
   if (onReorderWithinClass) {
     return (
-      <div className={`ranked-list ranked-list--sortable mode-${viewMode}`}>
+      <div className={`ranked-list ranked-list--sortable mode-${viewMode}`} ref={ref}>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -174,6 +178,10 @@ export function RankedList<T extends RankedItemBase>({
     );
   }
 
-  return <div className={`ranked-list mode-${viewMode}`}>{content}</div>;
+  return <div className={`ranked-list mode-${viewMode}`} ref={ref}>{content}</div>;
 }
+
+export const RankedList = forwardRef(RankedListInner) as <T extends RankedItemBase>(
+  props: RankedListProps<T> & { ref?: React.Ref<HTMLDivElement> }
+) => JSX.Element;
 

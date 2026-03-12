@@ -4,6 +4,7 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
+import { usePageState } from '../hooks/usePageState';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
@@ -15,6 +16,7 @@ import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 
 export function DirectorsPage() {
+  const { scrollContainerRef } = usePageState<HTMLDivElement>('directors');
   const {
     byClass,
     classOrder,
@@ -183,6 +185,7 @@ export function DirectorsPage() {
       </header>
 
       <RankedList<DirectorItem>
+        ref={scrollContainerRef}
         viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
@@ -288,6 +291,8 @@ export function DirectorsPage() {
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }}
         placeholder="Search directors..."
+        className="page-search-locked"
+        pageKey="directors"
       />
     </section>
   );

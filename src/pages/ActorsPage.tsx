@@ -4,6 +4,7 @@ import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowPerson } from '../components/EntryRowPerson';
 import { usePeopleStore, PersonItem } from '../state/peopleStore';
+import { usePageState } from '../hooks/usePageState';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
@@ -15,6 +16,7 @@ import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 
 export function ActorsPage() {
+  const { scrollContainerRef } = usePageState<HTMLDivElement>('actors');
   const {
     byClass,
     classOrder,
@@ -185,6 +187,7 @@ export function ActorsPage() {
       </header>
 
       <RankedList<PersonItem>
+        ref={scrollContainerRef}
         viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
@@ -290,6 +293,8 @@ export function ActorsPage() {
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }}
         placeholder="Search actors..."
+        className="page-search-locked"
+        pageKey="actors"
       />
     </section>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
+import { usePageState } from '../hooks/usePageState';
 import './PageSearch.css';
 
 export interface SearchableItem {
@@ -13,12 +14,30 @@ interface PageSearchProps {
     offsetRight?: string;
     placeholder?: string;
     className?: string;
+    pageKey?: string; // Add pageKey for state persistence
 }
 
-export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholder = 'Search page...', className = '' }: PageSearchProps) {
-    const [query, setQuery] = useState('');
+export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholder = 'Search page...', className = '', pageKey }: PageSearchProps) {
+    // Use page state if pageKey is provided, otherwise use local state
+    const pageState = pageKey ? usePageState(pageKey) : null;
+    const [query, setQuery] = useState(pageState?.searchQuery || '');
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Update local query when page state changes
+    useEffect(() => {
+        if (pageState) {
+            setQuery(pageState.searchQuery);
+        }
+    }, [pageState?.searchQuery]);
+
+    // Update page state when local query changes
+    const handleQueryChange = (newQuery: string) => {
+        setQuery(newQuery);
+        if (pageState) {
+            pageState.setSearchQuery(newQuery);
+        }
+    };
 
     const results = useMemo(() => {
         if (!query.trim()) return [];
@@ -50,12 +69,12 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
 
     const handleSelect = (id: string) => {
         onSelect(id);
-        setQuery('');
+        handleQueryChange(''); // Clear search after selection
         setIsOpen(false);
     };
 
     const handleClear = () => {
-        setQuery('');
+        handleQueryChange('');
         setIsOpen(false);
     };
 
@@ -72,7 +91,7 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
                     placeholder={placeholder}
                     value={query}
                     onChange={(e) => {
-                        setQuery(e.target.value);
+                        handleQueryChange(e.target.value);
                         setIsOpen(true);
                     }}
                     onFocus={() => setIsOpen(true)}

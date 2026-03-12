@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
+import { usePageState } from '../hooks/usePageState';
 
 import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
@@ -36,6 +37,7 @@ function tvItemToTarget(item: MovieShowItem): RecordWatchTarget {
 }
 
 export function TvShowsPage() {
+  const { scrollContainerRef } = usePageState<HTMLDivElement>('tv');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [recordWatchFor, setRecordWatchFor] = useState<MovieShowItem | null>(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
@@ -141,10 +143,12 @@ export function TvShowsPage() {
           }}
           placeholder="Search TV shows..."
           className="page-search-locked"
+          pageKey="tv"
         />
       )}
 
       <RankedList<MovieShowItem>
+        ref={scrollContainerRef}
         viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={computedByClass}
