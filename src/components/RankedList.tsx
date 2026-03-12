@@ -324,7 +324,7 @@ function RankedListInner<T extends RankedItemBase>(
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
-    // Reset drag states
+    // Reset drag states immediately and synchronously
     setActiveId(null);
     setDraggedItem(null);
     setDraggedFromClass(null);
@@ -332,7 +332,16 @@ function RankedListInner<T extends RankedItemBase>(
     setDragOverItemId(null);
     setInsertAfter(false);
     setProgrammaticDrag(null);
+    
+    // Reset hover state ref
     lastHoverState.current = { classKey: null, itemId: null, insertAfter: false };
+    
+    // Force a cleanup timeout to ensure no lingering states
+    setTimeout(() => {
+      setDragOverClass(null);
+      setDragOverItemId(null);
+      setInsertAfter(false);
+    }, 50);
     
     if (!over) {
       return;

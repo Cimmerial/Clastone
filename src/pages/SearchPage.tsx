@@ -36,22 +36,30 @@ export function SearchPage() {
   });
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // Query type toggles (allow multiple)
   const [showMovies, setShowMovies] = useState(() => {
-    const s = sessionStorage.getItem('search_movies');
-    return s ? JSON.parse(s) : true;
+    const saved = sessionStorage.getItem('search_movies');
+    return saved ? JSON.parse(saved) : true;
   });
   const [showTv, setShowTv] = useState(() => {
-    const s = sessionStorage.getItem('search_tv');
-    return s ? JSON.parse(s) : true;
+    const saved = sessionStorage.getItem('search_tv');
+    return saved ? JSON.parse(saved) : true;
   });
   const [showPeople, setShowPeople] = useState(() => {
-    const s = sessionStorage.getItem('search_people');
-    return s ? JSON.parse(s) : true;
+    const saved = sessionStorage.getItem('search_people');
+    return saved ? JSON.parse(saved) : true;
+  });
+  
+  // Search depth toggle
+  const [searchDepth, setSearchDepth] = useState<'simple' | 'extensive'>(() => {
+    const saved = sessionStorage.getItem('search_depth');
+    return (saved as any) || 'simple';
   });
 
   useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
   useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
   useEffect(() => { sessionStorage.setItem('search_people', JSON.stringify(showPeople)); }, [showPeople]);
+  useEffect(() => { sessionStorage.setItem('search_depth', searchDepth); }, [searchDepth]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +111,7 @@ export function SearchPage() {
   const [recordDetails, setRecordDetails] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
-  const { addToWatchlist, isInWatchlist } = useWatchlistStore();
+  const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
 
   const trimmed = useMemo(() => query.trim(), [query]);
 
@@ -493,13 +501,13 @@ export function SearchPage() {
   }, [remoteResults, showMovies, showTv, showPeople]);
 
   const placeholderText = useMemo(() => {
-    if (showMovies && showTv && showPeople) return 'Try “Arcane”, “La La Land”, “Emma Stone”…';
-    if (showMovies && !showTv && !showPeople) return 'Try “La La Land”, “The Matrix”…';
-    if (!showMovies && showTv && !showPeople) return 'Try “Arcane”, “Game of Thrones”…';
-    if (!showMovies && !showTv && showPeople) return 'Try “Emma Stone”, “Steven Spielberg”…';
-    if (showMovies && showTv && !showPeople) return 'Try “La La Land”, “Arcane”…';
-    if (showMovies && !showTv && showPeople) return 'Try “La La Land”, “Emma Stone”…';
-    if (!showMovies && showTv && showPeople) return 'Try “Arcane”, “Emma Stone”…';
+    if (showMovies && showTv && showPeople) return 'Try "Arcane", "La La Land", "Emma Stone"…';
+    if (showMovies && !showTv && !showPeople) return 'Try "La La Land", "The Matrix"…';
+    if (!showMovies && showTv && !showPeople) return 'Try "Arcane", "Game of Thrones"…';
+    if (!showMovies && !showTv && showPeople) return 'Try "Emma Stone", "Steven Spielberg"…';
+    if (showMovies && showTv && !showPeople) return 'Try "La La Land", "Arcane"…';
+    if (showMovies && !showTv && showPeople) return 'Try "La La Land", "Emma Stone"…';
+    if (!showMovies && showTv && showPeople) return 'Try "Arcane", "Emma Stone"…';
     return 'Search for something…';
   }, [showMovies, showTv, showPeople]);
 
@@ -537,28 +545,52 @@ export function SearchPage() {
               )}
             </div>
           </label>
-          <div className="search-filters">
-            <button
-              type="button"
-              className={`search-filter-btn ${showMovies ? 'active' : ''}`}
-              onClick={() => setShowMovies(!showMovies)}
-            >
-              Movies
-            </button>
-            <button
-              type="button"
-              className={`search-filter-btn ${showTv ? 'active' : ''}`}
-              onClick={() => setShowTv(!showTv)}
-            >
-              TV Shows
-            </button>
-            <button
-              type="button"
-              className={`search-filter-btn ${showPeople ? 'active' : ''}`}
-              onClick={() => setShowPeople(!showPeople)}
-            >
-              People
-            </button>
+          <div className="search-toggles">
+            <div className="search-toggle-group">
+              <span className="search-toggle-label">Query</span>
+              <div className="search-toggle-buttons">
+                <button
+                  type="button"
+                  className={`search-toggle-btn ${showMovies ? 'active' : ''}`}
+                  onClick={() => setShowMovies(!showMovies)}
+                >
+                  Movies
+                </button>
+                <button
+                  type="button"
+                  className={`search-toggle-btn ${showTv ? 'active' : ''}`}
+                  onClick={() => setShowTv(!showTv)}
+                >
+                  TV Shows
+                </button>
+                <button
+                  type="button"
+                  className={`search-toggle-btn ${showPeople ? 'active' : ''}`}
+                  onClick={() => setShowPeople(!showPeople)}
+                >
+                  People
+                </button>
+              </div>
+            </div>
+            <div className="search-toggle-group">
+              <span className="search-toggle-label">Depth</span>
+              <div className="search-toggle-buttons">
+                <button
+                  type="button"
+                  className={`search-toggle-btn ${searchDepth === 'simple' ? 'active' : ''}`}
+                  onClick={() => setSearchDepth('simple')}
+                >
+                  Simple
+                </button>
+                <button
+                  type="button"
+                  className={`search-toggle-btn ${searchDepth === 'extensive' ? 'active' : ''}`}
+                  onClick={() => setSearchDepth('extensive')}
+                >
+                  Extensive
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -613,12 +645,12 @@ export function SearchPage() {
                     <div className="search-card-title">{r.title}</div>
                     <div className="search-card-subtitle">
                       {r.subtitle}
-                      {(isMovie || isTv) && (
+                      {(isMovie || isTv) && searchDepth === 'extensive' && (
                         <SearchResultExtendedInfo id={r.id} mediaType={r.media_type as 'movie' | 'tv'} />
                       )}
                     </div>
                   </div>
-                  {r.media_type === 'person' && (
+                  {r.media_type === 'person' && searchDepth === 'extensive' && (
                     <SearchPersonProjects 
                       personId={r.id} 
                       onRecordMedia={(media) => {
@@ -662,43 +694,55 @@ export function SearchPage() {
                   <div className="search-card-actions">
                     <button
                       type="button"
-                      className="search-card-action"
+                      className={`search-card-action ${existingMovie && !inUnrankedMovie ? 'search-card-action-blue' : 'search-card-action-green'}`}
                       disabled={isSaving}
                       onClick={() => handleOpenRecord(r)}
                     >
-                      {existingMovie && !inUnrankedMovie ? 'Record another watch' : 'Record Watch'}
+                      {existingMovie && !inUnrankedMovie ? 'EDIT WATCHES' : 'RANK'}
                     </button>
                     {!existingMovie && (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
+                        className="search-card-action search-card-action-dim-green"
                         disabled={isSaving}
                         onClick={() => void handleAddToUnranked(r)}
                       >
-                        Add to unranked
+                        ADD UNRANKED
                       </button>
                     )}
-                    {inUnrankedMovie && (
+                    {existingMovie && existingMovie.classKey === 'UNRANKED' && (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
-                        disabled
+                        className="search-card-action search-card-action-red"
+                        disabled={isSaving}
+                        onClick={() => {
+                          console.log('Removing movie from unranked:', id);
+                          removeMovieEntry(id);
+                        }}
                       >
-                        IN UNRANKED
+                        REMOVE UNRANKED
                       </button>
                     )}
                     {inWatchlist ? (
-                      <button type="button" className="search-card-action search-card-action-subtle" disabled>
-                        In watchlist
+                      <button 
+                        type="button" 
+                        className="search-card-action search-card-action-red"
+                        disabled={isSaving}
+                        onClick={() => {
+                          console.log('Removing from watchlist:', id);
+                          removeFromWatchlist(id);
+                        }}
+                      >
+                        REMOVE WATCHLIST
                       </button>
                     ) : (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
+                        className="search-card-action search-card-action-dim-yellow"
                         disabled={isSaving}
                         onClick={handleAddToWatchlist}
                       >
-                        Add to watchlist
+                        ADD WATCHLIST
                       </button>
                     )}
                   </div>
@@ -706,45 +750,55 @@ export function SearchPage() {
                   <div className="search-card-actions">
                     <button
                       type="button"
-                      className="search-card-action"
+                      className={`search-card-action ${existingTv && existingTv.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green'}`}
                       disabled={isSaving}
                       onClick={() => handleOpenRecord(r)}
                     >
-                      {existingTv && existingTv.classKey !== 'UNRANKED'
-                        ? 'Record another watch'
-                        : 'Record Watch'}
+                      {existingTv && existingTv.classKey !== 'UNRANKED' ? 'EDIT WATCHES' : 'RANK'}
                     </button>
                     {!existingTv && (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
+                        className="search-card-action search-card-action-dim-green"
                         disabled={isSaving}
                         onClick={() => void handleAddTvToUnranked(r)}
                       >
-                        Add to unranked
+                        ADD UNRANKED
                       </button>
                     )}
-                    {existingTv?.classKey === 'UNRANKED' && (
+                    {existingTv && existingTv.classKey === 'UNRANKED' && (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
-                        disabled
+                        className="search-card-action search-card-action-red"
+                        disabled={isSaving}
+                        onClick={() => {
+                          console.log('Removing TV show from unranked:', `tmdb-tv-${r.id}`);
+                          removeShowEntry(`tmdb-tv-${r.id}`);
+                        }}
                       >
-                        IN UNRANKED
+                        REMOVE UNRANKED
                       </button>
                     )}
                     {inWatchlist ? (
-                      <button type="button" className="search-card-action search-card-action-subtle" disabled>
-                        In watchlist
+                      <button 
+                        type="button" 
+                        className="search-card-action search-card-action-red"
+                        disabled={isSaving}
+                        onClick={() => {
+                          console.log('Removing TV show from watchlist:', `tmdb-tv-${r.id}`);
+                          removeFromWatchlist(`tmdb-tv-${r.id}`);
+                        }}
+                      >
+                        REMOVE WATCHLIST
                       </button>
                     ) : (
                       <button
                         type="button"
-                        className="search-card-action search-card-action-subtle"
+                        className="search-card-action search-card-action-dim-yellow"
                         disabled={isSaving}
                         onClick={handleAddToWatchlist}
                       >
-                        Add to watchlist
+                        ADD WATCHLIST
                       </button>
                     )}
                   </div>
@@ -754,24 +808,34 @@ export function SearchPage() {
                       <span className="search-card-action-label">Actor</span>
                       <button
                         type="button"
-                        className="search-card-action"
+                        className={`search-card-action ${getPersonById(id) && getPersonById(id)?.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green'}`}
                         disabled={isSaving}
                         onClick={() => handleOpenRecord(r, 'actor')}
                       >
-                        {getPersonById(id) && getPersonById(id)?.classKey !== 'UNRANKED' ? 'Edit' : 'Add'}
+                        {getPersonById(id) && getPersonById(id)?.classKey !== 'UNRANKED' ? 'MOVE' : 'ADD'}
                       </button>
                       {!getPersonById(id) && (
                         <button
                           type="button"
-                          className="search-card-action search-card-action-subtle"
+                          className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
                           onClick={() => void handleAddPersonToUnranked(r, 'actor')}
                         >
-                          Unranked
+                          ADD UNRANKED
                         </button>
                       )}
-                      {getPersonById(id)?.classKey === 'UNRANKED' && (
-                        <span className="search-card-status">IN UNRANKED</span>
+                      {getPersonById(id) && getPersonById(id)?.classKey === 'UNRANKED' && (
+                        <button
+                          type="button"
+                          className="search-card-action search-card-action-red"
+                          disabled={isSaving}
+                          onClick={() => {
+                            console.log('Removing person from unranked:', id);
+                            removePersonEntry(id);
+                          }}
+                        >
+                          REMOVE UNRANKED
+                        </button>
                       )}
                     </div>
 
@@ -779,24 +843,34 @@ export function SearchPage() {
                       <span className="search-card-action-label">Director</span>
                       <button
                         type="button"
-                        className="search-card-action"
+                        className={`search-card-action ${getDirectorById(id) && getDirectorById(id)?.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green'}`}
                         disabled={isSaving}
                         onClick={() => handleOpenRecord(r, 'director')}
                       >
-                        {getDirectorById(id) && getDirectorById(id)?.classKey !== 'UNRANKED' ? 'Edit' : 'Add'}
+                        {getDirectorById(id) && getDirectorById(id)?.classKey !== 'UNRANKED' ? 'MOVE' : 'ADD'}
                       </button>
                       {!getDirectorById(id) && (
                         <button
                           type="button"
-                          className="search-card-action search-card-action-subtle"
+                          className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
                           onClick={() => void handleAddPersonToUnranked(r, 'director')}
                         >
-                          Unranked
+                          ADD UNRANKED
                         </button>
                       )}
-                      {getDirectorById(id)?.classKey === 'UNRANKED' && (
-                        <span className="search-card-status">IN UNRANKED</span>
+                      {getDirectorById(id) && getDirectorById(id)?.classKey === 'UNRANKED' && (
+                        <button
+                          type="button"
+                          className="search-card-action search-card-action-red"
+                          disabled={isSaving}
+                          onClick={() => {
+                            console.log('Removing director from unranked:', id);
+                            removeDirectorEntry(id);
+                          }}
+                        >
+                          REMOVE UNRANKED
+                        </button>
                       )}
                     </div>
                   </div>

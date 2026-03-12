@@ -15,6 +15,7 @@ import { UniversalEditModal, type UniversalEditSaveParams } from '../components/
 import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 
 export function ActorsPage() {
@@ -348,6 +349,9 @@ export function ActorsPage() {
         className="page-search-locked"
         pageKey="actors"
       />
+      <div className="class-jump-buttons-mobile-hidden">
+        <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: classes.find(c => c.key === k)?.label ?? k }))} />
+      </div>
     </section>
   );
 }

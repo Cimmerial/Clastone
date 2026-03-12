@@ -4,6 +4,7 @@ import { tmdbImagePath, tmdbPersonDetailsFull } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 
 type Props = {
   personId: number;
@@ -14,6 +15,7 @@ export function SearchPersonProjects({ personId, onRecordMedia }: Props) {
   const { settings } = useSettingsStore();
   const { byClass: moviesByClass, globalRanks: moviesGlobalRanks } = useMoviesStore();
   const { byClass: tvByClass, globalRanks: tvGlobalRanks } = useTvStore();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
   const [personCache, setPersonCache] = useState<TmdbPersonCache | null>(null);
   const [isExpanded, setIsExpanded] = useState(() => {
     const saved = sessionStorage.getItem(`search_person_expanded_${personId}`);
@@ -134,21 +136,38 @@ export function SearchPersonProjects({ personId, onRecordMedia }: Props) {
           const id = role.mediaType === 'movie' ? `tmdb-movie-${role.id}` : `tmdb-tv-${role.id}`;
           const isSeen = (role.mediaType === 'movie' && seenMoviesSet.has(id)) ||
             (role.mediaType === 'tv' && seenShowsSet.has(id));
+          const inWatchlist = isInWatchlist(id);
+          
+          const handleProjectClick = () => {
+            if (isSeen) {
+              // If already seen, open edit modal
+              onRecordMedia?.({
+                id: role.id,
+                title: role.title,
+                posterPath: role.posterPath,
+                mediaType: role.mediaType,
+                releaseDate: role.releaseDate
+              });
+            } else if (inWatchlist) {
+              // If in watchlist but not seen, remove from watchlist
+              removeFromWatchlist(id);
+            } else {
+              // If not seen and not in watchlist, add to watchlist
+              addToWatchlist({
+                id,
+                title: role.title,
+                posterPath: role.posterPath,
+                releaseDate: role.releaseDate
+              }, role.mediaType === 'movie' ? 'movies' : 'tv');
+            }
+          };
           
           return (
             <div
               key={`${role.mediaType}-${role.id}`}
-              className={`search-person-project-thumb clickable ${isSeen ? 'search-person-project-seen' : 'search-person-project-unseen'}`}
-              data-hover-text={isSeen ? 'Edit' : 'Save'}
-              onClick={() => {
-                onRecordMedia?.({
-                  id: role.id,
-                  title: role.title,
-                  posterPath: role.posterPath,
-                  mediaType: role.mediaType,
-                  releaseDate: role.releaseDate
-                });
-              }}
+              className={`search-person-project-thumb clickable ${isSeen ? 'search-person-project-seen' : inWatchlist ? 'search-person-project-watchlist' : 'search-person-project-unseen'}`}
+              data-hover-text={isSeen ? 'Edit' : inWatchlist ? 'Remove' : 'Add to Watchlist'}
+              onClick={handleProjectClick}
             >
               {role.posterPath ? (
                 <img src={tmdbImagePath(role.posterPath, 'w92') ?? ''} alt="" loading="lazy" />
