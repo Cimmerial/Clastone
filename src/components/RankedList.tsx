@@ -235,42 +235,114 @@ function RankedListInner<T extends RankedItemBase>(
       const itemsInClass = allItems.filter(item => item.data.classKey === targetClass);
       
       if (itemsInClass.length > 0) {
-        // Find closest item by distance from pointer to item center
-        // For tile view, use Euclidean distance (both X and Y)
-        // For list view, use vertical distance only
-        const sorted = itemsInClass.sort((a, b) => {
-          const aCenterX = a.rect.left + a.rect.width / 2;
-          const aCenterY = a.rect.top + a.rect.height / 2;
-          const bCenterX = b.rect.left + b.rect.width / 2;
-          const bCenterY = b.rect.top + b.rect.height / 2;
-          
-          if (isTile) {
-            // Euclidean distance for tile/grid view
-            const distA = Math.sqrt(Math.pow(x - aCenterX, 2) + Math.pow(y - aCenterY, 2));
-            const distB = Math.sqrt(Math.pow(x - bCenterX, 2) + Math.pow(y - bCenterY, 2));
-            return distA - distB;
-          } else {
-            // Vertical distance only for list view
-            return Math.abs(y - aCenterY) - Math.abs(y - bCenterY);
-          }
-        });
-        
-        const closestItem = sorted[0];
-        targetItemId = closestItem.id;
-        
-        // Determine if we should insert before or after based on pointer position
-        const itemCenterX = closestItem.rect.left + closestItem.rect.width / 2;
-        const itemCenterY = closestItem.rect.top + closestItem.rect.height / 2;
-        
+        // Check if hovering in empty space past the last item (bottom-right area)
         if (isTile) {
-          // For tile view: use whichever axis has more variance
-          // If pointer is more to the right, insert after (to the right)
-          // If pointer is more below, insert after (below)
-          const xDiff = x - itemCenterX;
-          const yDiff = y - itemCenterY;
-          shouldInsertAfter = Math.abs(xDiff) > Math.abs(yDiff) ? xDiff > 0 : yDiff > 0;
+          // For tile view, group items by rows and find the nearest row first
+          const itemRows: Array<{items: typeof itemsInClass, rowTop: number, rowBottom: number}> = [];
+          
+          // Group items by rows (items with similar top positions are in the same row)
+          const rowThreshold = 20; // pixels tolerance for same row
+          const processedItems = new Set();
+          
+          for (const item of itemsInClass) {
+            if (processedItems.has(item.id)) continue;
+            
+            const itemTop = item.rect.top;
+            const rowItems = itemsInClass.filter(other => 
+              Math.abs(other.rect.top - itemTop) <= rowThreshold
+            );
+            
+            rowItems.forEach(rowItem => processedItems.add(rowItem.id));
+            
+            const rowTop = Math.min(...rowItems.map(i => i.rect.top));
+            const rowBottom = Math.max(...rowItems.map(i => i.rect.bottom));
+            
+            itemRows.push({
+              items: rowItems,
+              rowTop,
+              rowBottom
+            });
+          }
+          
+          // Sort rows by top position
+          itemRows.sort((a, b) => a.rowTop - b.rowTop);
+          
+          // Find the nearest row to the pointer
+          let targetRow: typeof itemRows[0] | null = null;
+          let minRowDistance = Infinity;
+          
+          for (const row of itemRows) {
+            const rowCenterY = (row.rowTop + row.rowBottom) / 2;
+            const rowDistance = Math.abs(y - rowCenterY);
+            
+            if (rowDistance < minRowDistance) {
+              minRowDistance = rowDistance;
+              targetRow = row;
+            }
+          }
+          
+          if (targetRow) {
+            // Check if we're below this row (should insert after this row)
+            const isBelowRow = y > targetRow.rowBottom;
+            
+            if (isBelowRow) {
+              // We're below the nearest row, so insert after the last item in that row
+              const lastItemInRow = targetRow.items.sort((a, b) => b.rect.left - a.rect.left)[0];
+              targetItemId = lastItemInRow.id;
+              shouldInsertAfter = true;
+            } else {
+              // We're within or above the row, use horizontal position within this row
+              const sortedRowItems = targetRow.items.sort((a, b) => a.rect.left - b.rect.left);
+              
+              // Find insertion point within the row based on X position
+              let insertAfterItem = null;
+              
+              for (let i = 0; i < sortedRowItems.length; i++) {
+                const item = sortedRowItems[i];
+                const itemCenterX = item.rect.left + item.rect.width / 2;
+                
+                if (x < itemCenterX) {
+                  // Insert before this item
+                  if (i > 0) {
+                    insertAfterItem = sortedRowItems[i - 1];
+                    shouldInsertAfter = true;
+                  } else {
+                    // Insert at start of row - find the item in the row above
+                    const currentRowIndex = itemRows.findIndex(r => r === targetRow);
+                    if (currentRowIndex > 0) {
+                      const rowAbove = itemRows[currentRowIndex - 1];
+                      insertAfterItem = rowAbove.items.sort((a, b) => b.rect.left - a.rect.left)[0];
+                      shouldInsertAfter = true;
+                    } else {
+                      // First row, insert at very beginning
+                      insertAfterItem = sortedRowItems[0];
+                      shouldInsertAfter = false;
+                    }
+                  }
+                  break;
+                }
+              }
+              
+              // If we didn't find an insertion point (X is past all items), insert after last in row
+              if (!insertAfterItem) {
+                insertAfterItem = sortedRowItems[sortedRowItems.length - 1];
+                shouldInsertAfter = true;
+              }
+              
+              targetItemId = insertAfterItem.id;
+            }
+          }
         } else {
-          // For list view: just check vertical
+          // List view: find closest item by vertical distance
+          const sorted = itemsInClass.sort((a, b) => {
+            const aCenterY = a.rect.top + a.rect.height / 2;
+            const bCenterY = b.rect.top + b.rect.height / 2;
+            return Math.abs(y - aCenterY) - Math.abs(y - bCenterY);
+          });
+          
+          const closestItem = sorted[0];
+          targetItemId = closestItem.id;
+          const itemCenterY = closestItem.rect.top + closestItem.rect.height / 2;
           shouldInsertAfter = y > itemCenterY;
         }
       }
