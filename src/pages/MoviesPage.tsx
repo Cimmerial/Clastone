@@ -5,35 +5,38 @@ import { RankedList } from '../components/RankedList';
 import { EntryRowMovieShow, MovieShowItem } from '../components/EntryRowMovieShow';
 import { usePageState } from '../hooks/usePageState';
 
-import { RecordWatchModal, type RecordWatchTarget } from '../components/RecordWatchModal';
+import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
+import { PersonRankingModal, type PersonRankingTarget } from '../components/PersonRankingModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
+import type { WatchRecord } from '../components/EntryRowMovieShow';
 import {
   useMoviesStore,
   getTotalMinutesFromRecords,
   formatDuration,
-  getWatchRecordSortKey
 } from '../state/moviesStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useFilterStore } from '../state/filterStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { FilterModal } from '../components/FilterModal';
 import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
-function movieItemToTarget(item: MovieShowItem): RecordWatchTarget {
+function movieItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
   return {
-    id,
-    stringId: item.id,
+    id: item.id,
+    tmdbId: id,
     title: item.title,
-    poster_path: item.posterPath,
-    media_type: 'movie',
+    posterPath: item.posterPath,
+    mediaType: 'movie',
     subtitle: item.releaseDate ? String(item.releaseDate.slice(0, 4)) : undefined,
     releaseDate: item.releaseDate,
-    runtimeMinutes: item.runtimeMinutes
+    runtimeMinutes: item.runtimeMinutes,
+    existingClassKey: item.classKey,
   };
 }
 
@@ -214,92 +217,101 @@ export function MoviesPage() {
           );
         }}
       />
-      {settingsFor && (
-        <RecordWatchModal
-          target={movieItemToTarget(settingsFor)}
-          initialRecords={settingsFor.watchRecords}
-          mode="edit-watch"
-          currentClassKey={settingsFor.classKey}
-          currentClassLabel={getClassLabel(settingsFor.classKey)}
-          rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline }))}
-          isSaving={false}
-          onClose={() => setSettingsFor(null)}
-          onRemoveEntry={(id) => {
+      {/* Universal Edit Modal - handles both edit and first watch for movies */}
+      {(settingsFor || recordWatchFor) && (
+        <UniversalEditModal
+          target={movieItemToTarget(settingsFor || recordWatchFor!)}
+          initialWatches={(settingsFor || recordWatchFor!)?.watchRecords}
+          currentClassKey={(settingsFor || recordWatchFor!)?.classKey}
+          currentClassLabel={getClassLabel((settingsFor || recordWatchFor!)?.classKey || '')}
+          isWatchlistItem={false}
+          rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
+          isSaving={isSavingRecord}
+          onClose={() => {
+            setSettingsFor(null);
+            setRecordWatchFor(null);
+          }}
+          onRemoveEntry={(id: string) => {
             removeMovieEntry(id);
             setSettingsFor(null);
+            setRecordWatchFor(null);
           }}
-          onSave={(params) => {
-            updateMovieWatchRecords(settingsFor.id, params.watches);
+          onSave={async (params, goToMedia) => {
+            const targetItem = settingsFor || recordWatchFor;
+            if (!targetItem) return;
+            
+            // Convert WatchMatrixEntry[] to WatchRecord[]
+            const watches = params.watches.map((w) => {
+              let type: WatchRecord['type'] = 'DATE';
+              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
+              else if (w.watchType === 'LONG_AGO') {
+                type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
+              }
+              
+              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
+              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
+              
+              return {
+                id: w.id,
+                type,
+                year: w.year,
+                month: w.month,
+                day: w.day,
+                endYear: w.endYear,
+                endMonth: w.endMonth,
+                endDay: w.endDay,
+                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+              };
+            });
+            
+            if (recordWatchFor && watches.length > 0) {
+              addWatchToMovie(targetItem.id, watches[0]);
+            } else if (settingsFor) {
+              updateMovieWatchRecords(targetItem.id, watches);
+            }
+            
             if (params.classKey) {
-              moveItemToClass(settingsFor.id, params.classKey, {
+              moveItemToClass(targetItem.id, params.classKey, {
                 toTop: params.position === 'top',
                 toMiddle: params.position === 'middle'
               });
             }
+            
             setSettingsFor(null);
-          }}
-        />
-      )}
-      {recordWatchFor && (
-        <RecordWatchModal
-          target={movieItemToTarget(recordWatchFor)}
-          initialRecords={[]}
-          mode="first-watch"
-          rankedClasses={classes.map((c) => ({
-            key: c.key,
-            label: c.label,
-            tagline: c.tagline,
-            isRanked: c.isRanked
-          }))}
-          isSaving={false}
-          onClose={() => setRecordWatchFor(null)}
-          onRemoveEntry={(id) => {
-            removeMovieEntry(id);
             setRecordWatchFor(null);
-          }}
-          onAddToUnranked={() => {
-            moveItemToClass(recordWatchFor.id, 'UNRANKED');
-            setRecordWatchFor(null);
-          }}
-          onSave={(params, goToMedia) => {
-            addWatchToMovie(recordWatchFor.id, params.watches[0]);
-            if (params.classKey) {
-              moveItemToClass(recordWatchFor.id, params.classKey, {
-                toTop: params.position === 'top',
-                toMiddle: params.position === 'middle'
-              });
-            }
-            setRecordWatchFor(null);
+            
             if (goToMedia) {
               setTimeout(() => {
-                const el = document.getElementById(`entry-${recordWatchFor.id}`);
+                const el = document.getElementById(`entry-${targetItem.id}`);
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }, 100);
             }
           }}
         />
       )}
+      {/* Person Ranking Modal - for actors/directors */}
       {recordPersonTarget && (
-        <RecordWatchModal
+        <PersonRankingModal
           target={{
-            id: recordPersonTarget.id,
-            title: recordPersonTarget.name,
-            poster_path: recordPersonTarget.profilePath,
-            media_type: 'person'
+            id: `tmdb-person-${recordPersonTarget.id}`,
+            tmdbId: recordPersonTarget.id,
+            name: recordPersonTarget.name,
+            profilePath: recordPersonTarget.profilePath,
+            mediaType: recordPersonTarget.type,
           }}
+          currentClassKey={undefined}
+          currentClassLabel={undefined}
           rankedClasses={
             recordPersonTarget.type === 'director'
-              ? directorsClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
-              : peopleClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline }))
+              ? directorsClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))
+              : peopleClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))
           }
-          mode='person'
           isSaving={isSavingRecord}
-          primaryButtonLabel={recordPersonTarget.type === 'director' ? 'Add to Directors' : 'Add to Actors'}
           onClose={() => {
             setRecordPersonTarget(null);
             setRecordPersonDetails(null);
           }}
-          onSave={async (params, goToPerson) => {
+          onSave={async (params, goToList) => {
             const isActor = recordPersonTarget.type === 'actor';
             const id = `tmdb-person-${recordPersonTarget.id}`;
             setIsSavingRecord(true);
@@ -325,35 +337,7 @@ export function MoviesPage() {
               }
               setRecordPersonTarget(null);
               setRecordPersonDetails(null);
-              if (goToPerson) navigate(isActor ? '/actors' : '/directors', { state: { scrollToId: id } });
-            } finally {
-              setIsSavingRecord(false);
-            }
-          }}
-          onAddToUnranked={async () => {
-            const isActor = recordPersonTarget.type === 'actor';
-            const id = `tmdb-person-${recordPersonTarget.id}`;
-            setIsSavingRecord(true);
-            try {
-              if (isActor) {
-                addPersonFromSearch({
-                  id,
-                  title: recordPersonTarget.name,
-                  profilePath: recordPersonTarget.profilePath,
-                  classKey: 'UNRANKED',
-                  cache: recordPersonDetails
-                });
-              } else {
-                addDirectorFromSearch({
-                  id,
-                  title: recordPersonTarget.name,
-                  profilePath: recordPersonTarget.profilePath,
-                  classKey: 'UNRANKED',
-                  cache: recordPersonDetails
-                });
-              }
-              setRecordPersonTarget(null);
-              setRecordPersonDetails(null);
+              if (goToList) navigate(isActor ? '/actors' : '/directors', { state: { scrollToId: id } });
             } finally {
               setIsSavingRecord(false);
             }

@@ -1,0 +1,1028 @@
+/* ═══════════════════════════════════════════════════
+   UniversalEditModal
+   ═══════════════════════════════════════════════════ */
+
+/* ── Backdrop ── */
+.uem-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+/* ── Modal shell ── */
+.uem-modal {
+  background: #161618;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, 95vw);
+  max-height: min(90vh, 900px);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.uem-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.uem-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.uem-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #f0f0f0;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.uem-subtitle {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.uem-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.uem-close-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.uem-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ddd;
+}
+
+/* Watchlist Actions */
+.uem-watchlist-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.uem-watchlist-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove) {
+  border-color: rgba(76, 175, 80, 0.5);
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+}
+
+.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove):hover {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.7);
+}
+
+.uem-watchlist-btn--goto {
+  border-color: rgba(100, 181, 246, 0.5);
+  background: rgba(100, 181, 246, 0.12);
+  color: #64B5F6;
+}
+
+.uem-watchlist-btn--goto:hover {
+  background: rgba(100, 181, 246, 0.2);
+  border-color: rgba(100, 181, 246, 0.7);
+}
+
+.uem-watchlist-btn--remove {
+  padding: 6px 8px;
+  border-color: rgba(220, 60, 60, 0.4);
+  background: rgba(220, 60, 60, 0.1);
+  color: #c06060;
+}
+
+.uem-watchlist-btn--remove:hover {
+  background: rgba(220, 60, 60, 0.18);
+  border-color: rgba(220, 60, 60, 0.6);
+}
+
+/* ── Body ── */
+.uem-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.uem-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.uem-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+/* ── Section Headers ── */
+.uem-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.uem-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+  margin: 0;
+}
+
+.uem-section-subtitle {
+  font-size: 0.7rem;
+  color: #555;
+  font-style: italic;
+}
+
+/* ── Watch Matrix ── */
+.uem-watch-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Updated column widths: narrower time, wider details */
+.uem-matrix-header {
+  display: grid;
+  grid-template-columns: 130px 160px 140px 180px 50px;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px 8px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+}
+
+.uem-matrix-header-cell {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+}
+
+.uem-matrix-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.uem-matrix-row {
+  display: grid;
+  grid-template-columns: 130px 160px 140px 180px 50px;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.uem-matrix-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.uem-matrix-cell {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+/* Watch Type Cell */
+.uem-matrix-cell--type .uem-type-dd .themed-dropdown-trigger {
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+
+/* Watch Time Cell - now with preset inside */
+.uem-matrix-cell--time {
+  gap: 6px;
+}
+
+.uem-time-with-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.uem-date-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.uem-range-arrow {
+  font-size: 0.7rem;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.uem-time-placeholder {
+  font-size: 0.85rem;
+  color: #444;
+  font-style: italic;
+}
+
+/* Watch Amount Cell */
+.uem-matrix-cell--amount {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.uem-amount-display {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #b89840;
+  min-width: 60px;
+}
+
+.uem-amount-display--complete {
+  color: #4CAF50;
+}
+
+/* Slider with dynamic colors */
+.uem-amount-slider {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Complete (100%) - green */
+.uem-amount-slider--complete {
+  background: linear-gradient(to right, #4CAF50 0%, #4CAF50 100%);
+}
+
+.uem-amount-slider--complete::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4CAF50;
+  border: 2px solid #161618;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+/* DNF - red */
+.uem-amount-slider--dnf::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #c06060;
+  border: 2px solid #161618;
+  box-shadow: 0 0 0 1px rgba(192, 60, 60, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+/* Watching - yellow */
+.uem-amount-slider--watching::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f5c542;
+  border: 2px solid #161618;
+  box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+/* Default - gold */
+.uem-amount-slider--default::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #b89840;
+  border: 2px solid #161618;
+  box-shadow: 0 0 0 1px rgba(184, 152, 64, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.uem-amount-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Firefox styles */
+.uem-amount-slider--complete::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4CAF50;
+  border: 2px solid #161618;
+  cursor: pointer;
+}
+
+.uem-amount-slider--dnf::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #c06060;
+  border: 2px solid #161618;
+  cursor: pointer;
+}
+
+.uem-amount-slider--watching::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f5c542;
+  border: 2px solid #161618;
+  cursor: pointer;
+}
+
+.uem-amount-slider--default::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #b89840;
+  border: 2px solid #161618;
+  cursor: pointer;
+}
+
+/* Watch Details Cell - wider for "CURRENTLY WATCHING" */
+.uem-matrix-cell--details {
+  justify-content: center;
+}
+
+.uem-details-placeholder {
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.uem-status-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.uem-status-btn {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.uem-status-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #888;
+}
+
+/* Watching button - yellow */
+.uem-status-btn--watching.uem-status-btn--active {
+  background: rgba(245, 197, 66, 0.15);
+  border-color: rgba(245, 197, 66, 0.4);
+  color: #f5c542;
+}
+
+/* DNF button - red */
+.uem-status-btn--dnf.uem-status-btn--active {
+  background: rgba(220, 60, 60, 0.15);
+  border-color: rgba(220, 60, 60, 0.4);
+  color: #d86060;
+}
+
+/* Actions Cell */
+.uem-matrix-cell--actions {
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Preset moved into time column, now just delete */
+.uem-preset-dd .themed-dropdown-trigger {
+  width: auto;
+  min-width: unset;
+  padding: 4px 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.uem-preset-dd .themed-dropdown-trigger:hover {
+  color: #777;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.uem-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #555;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.uem-remove-btn:hover {
+  background: rgba(220, 60, 60, 0.15);
+  border-color: rgba(220, 60, 60, 0.3);
+  color: #d06060;
+}
+
+.uem-remove-btn--confirm {
+  background: rgba(220, 60, 60, 0.25);
+  border-color: rgba(220, 60, 60, 0.5);
+  color: #e07070;
+  animation: uem-pulse 0.25s ease;
+}
+
+/* Add Watch Button */
+.uem-add-btn {
+  align-self: flex-start;
+  margin-top: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #777;
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.uem-add-btn:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── DatePicker (Matrix version) ── */
+.uem-dp-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.uem-dp-wrap--compact .uem-dp-trigger {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  gap: 2px;
+}
+
+.uem-dp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  color: #bbb;
+}
+
+.uem-dp-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.uem-dp-trigger--open {
+  border-color: rgba(184, 152, 64, 0.5);
+  background: rgba(184, 152, 64, 0.08);
+}
+
+.uem-dp-set {
+  color: #d8d8d8;
+  font-variant-numeric: tabular-nums;
+}
+
+.uem-dp-null {
+  color: #444;
+}
+
+.uem-dp-sep {
+  color: #444;
+  font-size: 0.65rem;
+}
+
+.uem-dp-popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 10000;
+  display: flex;
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  max-width: calc(100vw - 40px);
+}
+
+.uem-dp-div {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.uem-dp-col {
+  width: 68px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 4px 0;
+}
+
+.uem-dp-col::-webkit-scrollbar {
+  display: none;
+}
+
+.uem-dp-item {
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  color: #888;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s ease;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.uem-dp-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+}
+
+.uem-dp-item--on {
+  color: #c0a050;
+  font-weight: 600;
+  background: rgba(192, 160, 80, 0.12);
+}
+
+.uem-dp-item--on:hover {
+  background: rgba(192, 160, 80, 0.18);
+}
+
+/* ── Rank Section ── */
+.uem-rank-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.uem-current-rank {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.uem-current-rank-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.uem-current-rank-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+
+.uem-current-rank-value {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.uem-override-btn {
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.uem-override-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+}
+
+.uem-rank-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uem-cancel-override {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  color: #b06060;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.uem-cancel-override:hover {
+  color: #d07060;
+}
+
+/* Class List */
+.uem-class-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uem-class-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.12s ease;
+  cursor: pointer;
+}
+
+.uem-class-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.uem-class-row--on {
+  background: rgba(192, 160, 80, 0.1);
+  border-color: rgba(192, 160, 80, 0.35);
+}
+
+.uem-class-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.uem-class-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #d0d0d0;
+}
+
+.uem-class-tagline {
+  font-size: 0.7rem;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uem-class-row--on .uem-class-name {
+  color: #c0a050;
+}
+
+/* Placement Buttons */
+.uem-placement-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.uem-place-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #606060;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.uem-place-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #999;
+}
+
+.uem-place-btn--on {
+  background: rgba(192, 160, 80, 0.2);
+  border-color: rgba(192, 160, 80, 0.45);
+  color: #c0a050;
+}
+
+/* ── Tag Section ── */
+.uem-tag-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.uem-tag-placeholder {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.uem-tag-placeholder span {
+  font-size: 0.75rem;
+  color: #555;
+  font-style: italic;
+}
+
+/* ── Footer ── */
+.uem-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 26px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.uem-error {
+  font-size: 0.8rem;
+  color: #d86060;
+  background: rgba(220, 60, 60, 0.1);
+  border: 1px solid rgba(220, 60, 60, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.uem-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.uem-save-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Buttons */
+.uem-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.uem-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.uem-btn--primary {
+  background: #b89840;
+  color: #0e0d0b;
+  border-color: #b89840;
+}
+
+.uem-btn--primary:hover:not(:disabled) {
+  background: #cead54;
+  border-color: #cead54;
+}
+
+.uem-btn--secondary {
+  background: rgba(255, 255, 255, 0.07);
+  color: #aaa;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.uem-btn--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #d0d0d0;
+}
+
+.uem-btn--ghost {
+  background: transparent;
+  color: #707070;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.uem-btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #999;
+}
+
+/* Delete Button */
+.uem-delete-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(220, 60, 60, 0.25);
+  background: rgba(220, 60, 60, 0.08);
+  color: #a05050;
+  transition: all 0.15s ease;
+}
+
+.uem-delete-btn:hover {
+  background: rgba(220, 60, 60, 0.15);
+  border-color: rgba(220, 60, 60, 0.4);
+  color: #c06060;
+}
+
+.uem-delete-btn--confirm {
+  background: rgba(220, 60, 60, 0.2);
+  border-color: rgba(220, 60, 60, 0.55);
+  color: #d86060;
+  animation: uem-pulse 0.25s ease;
+}
+
+@keyframes uem-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .uem-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .uem-matrix-header {
+    display: none;
+  }
+
+  .uem-matrix-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .uem-matrix-cell {
+    width: 100%;
+  }
+
+  .uem-matrix-cell--type::before { content: 'Type: '; color: #666; font-size: 0.7rem; }
+  .uem-matrix-cell--time::before { content: 'Date: '; color: #666; font-size: 0.7rem; }
+  .uem-matrix-cell--amount::before { content: 'Progress: '; color: #666; font-size: 0.7rem; }
+  .uem-matrix-cell--details::before { content: 'Status: '; color: #666; font-size: 0.7rem; }
+
+  .uem-time-with-preset {
+    flex-wrap: wrap;
+  }
+
+  .uem-date-group {
+    flex-wrap: wrap;
+  }
+
+  .uem-footer-inner {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .uem-save-btns {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .uem-save-btns .uem-btn {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .uem-delete-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .uem-header {
+    padding: 16px 18px;
+  }
+
+  .uem-body {
+    padding: 18px;
+  }
+
+  .uem-title {
+    font-size: 1rem;
+  }
+
+  .uem-class-row {
+    padding: 8px 12px;
+  }
+
+  .uem-placement-btns {
+    gap: 2px;
+  }
+
+  .uem-place-btn {
+    width: 22px;
+    height: 22px;
+  }
+}

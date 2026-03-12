@@ -58,6 +58,7 @@
 - Bigger creator/director/actor portaits in detailed view due to button removal
 - Move EDIT WATCHES modal access button
 - Add filtering back
+- Class splitting, Class combining
 
 #### Profile Viewer++
 - Being able to scroll through ALL of a users ranked items, and having a quick access to RANK or ADD UNRANKED buttons to easily save based on another users lists.

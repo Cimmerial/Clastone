@@ -10,7 +10,9 @@ import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { getTotalMinutesFromRecords } from '../state/moviesStore';
 import { PageSearch } from '../components/PageSearch';
-import { RecordWatchModal, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { PersonRankingModal, type PersonRankingSaveParams } from '../components/PersonRankingModal';
+import { UniversalEditModal, type UniversalEditSaveParams } from '../components/UniversalEditModal';
+import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
@@ -141,7 +143,7 @@ export function DirectorsPage() {
     }
   };
 
-  const handleSaveRanking = (params: RecordWatchSaveParams, goToDirectors: boolean) => {
+  const handleSaveRanking = (params: PersonRankingSaveParams, goToDirectors: boolean) => {
     if (!recordTarget) return;
     const { classKey, position } = params;
     if (classKey) {
@@ -213,47 +215,44 @@ export function DirectorsPage() {
         )}
       />
 
+      {/* Person Ranking Modal for Director */}
       {recordTarget && (
-        <RecordWatchModal
+        <PersonRankingModal
           target={{
-            id: Number(recordTarget.tmdbId) || 0,
-            stringId: recordTarget.id,
-            title: recordTarget.title,
-            poster_path: recordTarget.profilePath,
-            media_type: 'person'
+            id: recordTarget.id,
+            tmdbId: recordTarget.tmdbId,
+            name: recordTarget.title,
+            profilePath: recordTarget.profilePath,
+            mediaType: 'director',
           }}
-          rankedClasses={rankedClassesForModal}
           currentClassKey={recordTarget.classKey}
           currentClassLabel={classes.find(c => c.key === recordTarget.classKey)?.label ?? recordTarget.classKey}
-          mode='person'
+          rankedClasses={rankedClassesForModal}
+          isSaving={false}
           onSave={handleSaveRanking}
           onClose={handleCloseModal}
-          primaryButtonLabel="Save and go to Directors"
-          onRemoveEntry={(id) => {
+          onRemoveEntry={(id: string) => {
             removeDirectorEntry(id);
             handleCloseModal();
-          }}
-          isSaving={false}
-          onAddToUnranked={() => {
-            moveItemToClass(recordTarget.id, 'UNRANKED');
-            setRecordTarget(null);
           }}
         />
       )}
 
+      {/* Universal Edit Modal for Media */}
       {recordMediaTarget && (
-        <RecordWatchModal
+        <UniversalEditModal
           target={{
-            id: recordMediaTarget.id,
-            stringId: recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`,
+            id: recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`,
+            tmdbId: recordMediaTarget.id,
             title: recordMediaTarget.title,
-            poster_path: recordMediaTarget.posterPath,
-            media_type: recordMediaTarget.mediaType,
+            posterPath: recordMediaTarget.posterPath,
+            mediaType: recordMediaTarget.mediaType,
             subtitle: recordMediaTarget.releaseDate ? String(recordMediaTarget.releaseDate.slice(0, 4)) : undefined,
-            releaseDate: recordMediaTarget.releaseDate
+            releaseDate: recordMediaTarget.releaseDate,
           }}
-          initialRecords={[]}
-          mode="first-watch"
+          currentClassKey="UNRANKED"
+          currentClassLabel="Unranked"
+          isWatchlistItem={false}
           rankedClasses={
             recordMediaTarget.mediaType === 'movie'
               ? movieClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))
@@ -261,28 +260,80 @@ export function DirectorsPage() {
           }
           isSaving={isSavingMedia}
           onClose={() => setRecordMediaTarget(null)}
-          onAddToUnranked={() => {
+          onSave={async (params, goToMedia) => {
+            // Convert matrix entries to watch records
+            const watchRecords = params.watches.map((w) => {
+              let type: WatchRecord['type'] = 'DATE';
+              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
+              else if (w.watchType === 'LONG_AGO') {
+                type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
+              }
+              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
+              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
+              
+              return {
+                id: w.id,
+                type,
+                year: w.year,
+                month: w.month,
+                day: w.day,
+                endYear: w.endYear,
+                endMonth: w.endMonth,
+                endDay: w.endDay,
+                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+              };
+            });
+
+            const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            
             if (recordMediaTarget.mediaType === 'movie') {
-              const id = `tmdb-movie-${recordMediaTarget.id}`;
+              const cache = await tmdbMovieDetailsFull(recordMediaTarget.id);
               addMovieFromSearch({
                 id,
                 title: recordMediaTarget.title,
                 subtitle: 'Saved',
-                classKey: 'UNRANKED',
-                posterPath: recordMediaTarget.posterPath
+                classKey: params.classKey || 'UNRANKED',
+                posterPath: recordMediaTarget.posterPath,
+                cache: cache || undefined,
+                toTop: params.position === 'top',
+                toMiddle: params.position === 'middle'
               });
+              if (watchRecords.length > 0) addWatchToMovie(id, watchRecords[0]);
+              if (params.classKey && params.classKey !== 'UNRANKED') {
+                moveMovieToClass(id, params.classKey, {
+                  toTop: params.position === 'top',
+                  toMiddle: params.position === 'middle'
+                });
+              }
             } else {
-              const id = `tmdb-tv-${recordMediaTarget.id}`;
+              const cache = await tmdbTvDetailsFull(recordMediaTarget.id);
               addShowFromSearch({
                 id,
                 title: recordMediaTarget.title,
                 subtitle: 'Saved',
-                classKey: 'UNRANKED'
+                classKey: params.classKey || 'UNRANKED',
+                cache: cache || undefined,
+                toTop: params.position === 'top',
+                toMiddle: params.position === 'middle'
               });
+              if (watchRecords.length > 0) addWatchToShow(id, watchRecords[0]);
+              if (params.classKey && params.classKey !== 'UNRANKED') {
+                moveTvToClass(id, params.classKey, {
+                  toTop: params.position === 'top',
+                  toMiddle: params.position === 'middle'
+                });
+              }
             }
+            
             setRecordMediaTarget(null);
+            
+            if (goToMedia) {
+              const page = recordMediaTarget.mediaType === 'movie' ? '/movies' : '/tv';
+              setTimeout(() => {
+                navigate(page, { state: { scrollToId: id } });
+              }, 100);
+            }
           }}
-          onSave={handleSaveMedia}
         />
       )}
       <PageSearch

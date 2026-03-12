@@ -13,7 +13,9 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
-import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
+import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
+import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import './SearchPage.css';
@@ -323,158 +325,163 @@ export function SearchPage() {
     [directorsClassOrder, directorsClasses]
   );
 
-  const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
-    if (!recordTarget) return;
+  // Handle save from UniversalEditModal for movies/TV
+  const handleMediaSave = async (params: UniversalEditSaveParams, goToMedia: boolean, targetId: string, mediaType: 'movie' | 'tv') => {
     const { watches, classKey: recordClassKey, position } = params;
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
-    const id = resultId(recordTarget);
 
-    if (recordTarget.media_type === 'movie') {
-      const existing = getMovieById(id);
-      const existingIsUnranked = existing?.classKey === 'UNRANKED';
+    // Convert WatchMatrixEntry[] to WatchRecord[]
+    const watchRecords = watches.map((w) => {
+      let type: WatchRecord['type'] = 'DATE';
+      if (w.watchType === 'DATE_RANGE') type = 'RANGE';
+      else if (w.watchType === 'LONG_AGO') {
+        type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
+      }
+      
+      if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
+      else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
+      
+      return {
+        id: w.id,
+        type,
+        year: w.year,
+        month: w.month,
+        day: w.day,
+        endYear: w.endYear,
+        endMonth: w.endMonth,
+        endDay: w.endDay,
+        dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+      };
+    });
 
+    if (mediaType === 'movie') {
+      const existing = getMovieById(targetId);
       if (existing) {
         if (existing.tmdbId == null || existing.overview == null) {
           try {
-            const cache = await tmdbMovieDetailsFull(recordTarget.id);
-            if (cache) updateMovieCache(id, cache);
+            const tmdbId = parseInt(targetId.replace(/\D/g, ''), 10);
+            const cache = await tmdbMovieDetailsFull(tmdbId);
+            if (cache) updateMovieCache(targetId, cache);
           } catch { /* ignore */ }
         }
-        // Update existing watch records instead of adding duplicates
-        updateMovieWatchRecords(id, watches);
-        // Move item if class changed or if position is specified for the same class
+        updateMovieWatchRecords(targetId, watchRecords);
         if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
-          moveItemToClass(id, recordClassKey, { toTop, toMiddle });
+          moveItemToClass(targetId, recordClassKey, { toTop, toMiddle });
         }
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;
         setIsSaving(true);
         let cache = null;
         try {
-          cache = await tmdbMovieDetailsFull(recordTarget.id);
+          const tmdbId = parseInt(targetId.replace(/\D/g, ''), 10);
+          cache = await tmdbMovieDetailsFull(tmdbId);
         } catch { /* ignore */ }
         addMovieFromSearch({
-          id,
-          title: recordTarget.title,
-          subtitle: recordTarget.subtitle,
+          id: targetId,
+          title: recordTarget?.title ?? '',
+          subtitle: recordTarget?.subtitle,
           classKey: recordClassKey,
-          firstWatch: watches[0],
+          firstWatch: watchRecords[0],
           runtimeMinutes: cache?.runtimeMinutes,
-          posterPath: recordTarget.poster_path ?? cache?.posterPath,
+          posterPath: recordTarget?.poster_path ?? cache?.posterPath,
           cache: cache ?? undefined,
           toTop,
           toMiddle
         });
-        for (let i = 1; i < watches.length; i++) addWatchToMovie(id, watches[i]);
+        for (let i = 1; i < watchRecords.length; i++) addWatchToMovie(targetId, watchRecords[i]);
         setIsSaving(false);
       }
       setRecordTarget(null);
-      if (goToMovie) navigate('/movies', { replace: true, state: { scrollToId: id } });
-      return;
-    }
-
-    if (recordTarget.media_type === 'tv') {
-      const tvId = recordTarget.id;
-      const existing = getShowById(id);
-      const existingIsUnranked = existing?.classKey === 'UNRANKED';
-
+      if (goToMedia) navigate('/movies', { replace: true, state: { scrollToId: targetId } });
+    } else {
+      const existing = getShowById(targetId);
       setIsSaving(true);
       let cache = null;
       try {
-        cache = await tmdbTvDetailsFull(tvId);
+        const tmdbId = parseInt(targetId.replace(/\D/g, ''), 10);
+        cache = await tmdbTvDetailsFull(tmdbId);
       } catch { /* ignore */ }
       setIsSaving(false);
       if (!cache) return;
 
       if (existing) {
-        if (existing.tmdbId == null || existing.overview == null) updateShowCache(id, cache);
-        // Update existing watch records instead of adding duplicates
-        updateShowWatchRecords(id, watches);
-        // Move item if class changed or if position is specified for the same class
+        if (existing.tmdbId == null || existing.overview == null) updateShowCache(targetId, cache);
+        updateShowWatchRecords(targetId, watchRecords);
         if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
-          moveShowToClass(id, recordClassKey, { toTop, toMiddle });
+          moveShowToClass(targetId, recordClassKey, { toTop, toMiddle });
         }
       } else {
         if (!recordClassKey || recordClassKey === 'UNRANKED') return;
         addShowFromSearch({
-          id,
+          id: targetId,
           title: cache.title,
-          subtitle: recordTarget.subtitle,
+          subtitle: recordTarget?.subtitle,
           classKey: recordClassKey,
-          firstWatch: watches[0],
+          firstWatch: watchRecords[0],
           cache,
           toTop,
           toMiddle
         });
-        for (let i = 1; i < watches.length; i++) addWatchToShow(id, watches[i]);
+        for (let i = 1; i < watchRecords.length; i++) addWatchToShow(targetId, watchRecords[i]);
       }
       setRecordTarget(null);
-      if (goToMovie) navigate('/tv', { replace: true, state: { scrollToId: id } });
-      return;
-    }
-
-    if (recordTarget.media_type === 'person') {
-      const type = personSaveType || 'actor';
-      const isActor = type === 'actor';
-      const existing = isActor ? getPersonById(id) : getDirectorById(id);
-
-      if (existing) {
-        // Move person if class changed or if position is specified for the same class
-        if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
-          if (isActor) movePersonToClass(id, recordClassKey, { toTop, toMiddle });
-          else moveDirectorToClass(id, recordClassKey, { toTop, toMiddle });
-        }
-      } else {
-        if (!recordClassKey || recordClassKey === 'UNRANKED') return;
-        setIsSaving(true);
-        let cache = null;
-        try {
-          cache = await import('../lib/tmdb').then(m => m.tmdbPersonDetailsFull(recordTarget.id));
-        } catch { /* ignore */ }
-
-        if (isActor) {
-          addPersonFromSearch({
-            id,
-            title: recordTarget.title,
-            profilePath: recordTarget.poster_path,
-            classKey: recordClassKey,
-            cache: cache ?? undefined,
-            position
-          });
-        } else {
-          addDirectorFromSearch({
-            id,
-            title: recordTarget.title,
-            profilePath: recordTarget.poster_path,
-            classKey: recordClassKey,
-            cache: cache ?? undefined,
-            position
-          });
-        }
-
-        setIsSaving(false);
-      }
-      setRecordTarget(null);
-      setPersonSaveType(null);
-      if (goToMovie) navigate(isActor ? '/actors' : '/directors', { replace: true, state: { scrollToId: id } });
-      return;
+      if (goToMedia) navigate('/tv', { replace: true, state: { scrollToId: targetId } });
     }
   };
 
-  const recordWatchTarget = useMemo<RecordWatchTarget | null>(() => {
-    if (!recordTarget) return null;
-    return {
-      id: recordTarget.id,
-      title: recordTarget.title,
-      poster_path: recordTarget.poster_path,
-      media_type: recordTarget.media_type as 'movie' | 'tv' | 'person',
-      subtitle: recordTarget.subtitle,
-      releaseDate: recordTarget.release_date,
-      runtimeMinutes: recordDetails?.runtimeMinutes,
-      totalEpisodes: recordDetails?.totalEpisodes
-    };
-  }, [recordTarget, recordDetails]);
+  // Handle save from PersonRankingModal
+  const handlePersonSave = async (params: PersonRankingSaveParams, goToList: boolean) => {
+    if (!recordTarget || recordTarget.media_type !== 'person') return;
+    
+    const type = personSaveType || 'actor';
+    const isActor = type === 'actor';
+    const id = resultId(recordTarget);
+    const { classKey: recordClassKey, position } = params;
+    const toTop = position === 'top';
+    const toMiddle = position === 'middle';
+
+    const existing = isActor ? getPersonById(id) : getDirectorById(id);
+
+    if (existing) {
+      if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
+        if (isActor) movePersonToClass(id, recordClassKey, { toTop, toMiddle });
+        else moveDirectorToClass(id, recordClassKey, { toTop, toMiddle });
+      }
+    } else {
+      if (!recordClassKey || recordClassKey === 'UNRANKED') return;
+      setIsSaving(true);
+      let cache = null;
+      try {
+        cache = await import('../lib/tmdb').then(m => m.tmdbPersonDetailsFull(recordTarget.id));
+      } catch { /* ignore */ }
+
+      if (isActor) {
+        addPersonFromSearch({
+          id,
+          title: recordTarget.title,
+          profilePath: recordTarget.poster_path,
+          classKey: recordClassKey,
+          cache: cache ?? undefined,
+          position
+        });
+      } else {
+        addDirectorFromSearch({
+          id,
+          title: recordTarget.title,
+          profilePath: recordTarget.poster_path,
+          classKey: recordClassKey,
+          cache: cache ?? undefined,
+          position
+        });
+      }
+      setIsSaving(false);
+    }
+    setRecordTarget(null);
+    setPersonSaveType(null);
+    if (goToList) navigate(isActor ? '/actors' : '/directors', { replace: true, state: { scrollToId: id } });
+  };
+
 
   const filteredResults = useMemo(() => {
     return remoteResults.filter(r => {
@@ -802,89 +809,108 @@ export function SearchPage() {
         </div>
       </div>
 
-      {recordWatchTarget && recordTarget && (
-        <RecordWatchModal
-          target={recordWatchTarget}
-          rankedClasses={
+      {/* Universal Edit Modal for Movies/TV */}
+      {recordTarget && (recordTarget.media_type === 'movie' || recordTarget.media_type === 'tv') && (
+        <UniversalEditModal
+          target={{
+            id: resultId(recordTarget),
+            tmdbId: recordTarget.id,
+            title: recordTarget.title,
+            posterPath: recordTarget.poster_path,
+            mediaType: recordTarget.media_type,
+            subtitle: recordTarget.subtitle,
+            releaseDate: recordTarget.release_date,
+            runtimeMinutes: recordDetails?.runtimeMinutes,
+            totalEpisodes: recordDetails?.totalEpisodes,
+            existingClassKey: recordTarget.media_type === 'movie' 
+              ? getMovieById(resultId(recordTarget))?.classKey 
+              : getShowById(resultId(recordTarget))?.classKey,
+          }}
+          initialWatches={
             recordTarget.media_type === 'movie'
-              ? movieRankedClasses
-              : recordTarget.media_type === 'tv'
-                ? tvRankedClasses
-                : personSaveType === 'director'
-                  ? directorsRankedClasses
-                  : peopleRankedClasses
-          }
-          mode={
-            recordTarget.media_type === 'person'
-              ? 'person'
-              : recordTarget.media_type === 'movie'
-                ? (getMovieById(resultId(recordTarget)) && getMovieById(resultId(recordTarget))?.classKey !== 'UNRANKED'
-                  ? 'edit-watch'
-                  : 'first-watch')
-                : (getShowById(`tmdb-tv-${recordTarget.id}`) && getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey !== 'UNRANKED'
-                  ? 'edit-watch'
-                  : 'first-watch')
+              ? getMovieById(resultId(recordTarget))?.watchRecords
+              : getShowById(resultId(recordTarget))?.watchRecords
           }
           currentClassKey={
             recordTarget.media_type === 'movie'
               ? getMovieById(resultId(recordTarget))?.classKey
-              : recordTarget.media_type === 'tv'
-                ? getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey
-                : undefined
+              : getShowById(resultId(recordTarget))?.classKey
           }
           currentClassLabel={
             recordTarget.media_type === 'movie'
               ? getClassLabel(getMovieById(resultId(recordTarget))?.classKey ?? '')
-              : recordTarget.media_type === 'tv'
-                ? getTvClassLabel(getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey ?? '')
-                : undefined
+              : getTvClassLabel(getShowById(resultId(recordTarget))?.classKey ?? '')
           }
-          initialRecords={
+          isWatchlistItem={isInWatchlist(resultId(recordTarget))}
+          rankedClasses={
             recordTarget.media_type === 'movie'
-              ? getMovieById(resultId(recordTarget))?.watchRecords
-              : recordTarget.media_type === 'tv'
-                ? getShowById(`tmdb-tv-${recordTarget.id}`)?.watchRecords
-                : undefined
+              ? movieRankedClasses
+              : tvRankedClasses
           }
-          onSave={handleRecordSave}
+          isSaving={isSaving}
           onClose={handleCloseRecord}
-          onRemoveEntry={(id) => {
+          onRemoveEntry={(id: string) => {
             if (recordTarget.media_type === 'movie') removeMovieEntry(id);
-            else if (recordTarget.media_type === 'tv') removeShowEntry(id);
-            else if (personSaveType === 'director') removeDirectorEntry(id);
+            else removeShowEntry(id);
+            handleCloseRecord();
+          }}
+          onSave={(params, goToMedia) => handleMediaSave(params, goToMedia, resultId(recordTarget), recordTarget.media_type as 'movie' | 'tv')}
+          onAddToWatchlist={() => {
+            addToWatchlist(
+              { 
+                id: resultId(recordTarget), 
+                title: recordTarget.title, 
+                posterPath: recordTarget.poster_path, 
+                releaseDate: recordTarget.release_date 
+              },
+              recordTarget.media_type as 'movies' | 'tv'
+            );
+          }}
+          onRemoveFromWatchlist={() => {
+            // TODO: Implement remove from watchlist
+          }}
+          onGoToWatchlist={() => {
+            navigate('/watchlist');
+          }}
+        />
+      )}
+
+      {/* Person Ranking Modal */}
+      {recordTarget && recordTarget.media_type === 'person' && (
+        <PersonRankingModal
+          target={{
+            id: resultId(recordTarget),
+            tmdbId: recordTarget.id,
+            name: recordTarget.title,
+            profilePath: recordTarget.poster_path,
+            mediaType: (personSaveType || 'actor') as 'actor' | 'director',
+            existingClassKey: (personSaveType || 'actor') === 'actor'
+              ? getPersonById(resultId(recordTarget))?.classKey
+              : getDirectorById(resultId(recordTarget))?.classKey,
+          }}
+          currentClassKey={
+            (personSaveType || 'actor') === 'actor'
+              ? getPersonById(resultId(recordTarget))?.classKey
+              : getDirectorById(resultId(recordTarget))?.classKey
+          }
+          currentClassLabel={
+            (personSaveType || 'actor') === 'actor'
+              ? peopleClasses.find(c => c.key === getPersonById(resultId(recordTarget))?.classKey)?.label
+              : directorsClasses.find(c => c.key === getDirectorById(resultId(recordTarget))?.classKey)?.label
+          }
+          rankedClasses={
+            (personSaveType || 'actor') === 'director'
+              ? directorsRankedClasses
+              : peopleRankedClasses
+          }
+          isSaving={isSaving}
+          onClose={handleCloseRecord}
+          onRemoveEntry={(id: string) => {
+            if (personSaveType === 'director') removeDirectorEntry(id);
             else removePersonEntry(id);
             handleCloseRecord();
           }}
-          isSaving={isSaving}
-          onAddToWatchlist={() => {
-            if (recordTarget.media_type === 'movie') {
-              addToWatchlist(
-                { 
-                  id: resultId(recordTarget), 
-                  title: recordTarget.title, 
-                  posterPath: recordTarget.poster_path, 
-                  releaseDate: recordTarget.release_date 
-                },
-                'movies'
-              );
-            } else if (recordTarget.media_type === 'tv') {
-              addToWatchlist(
-                { 
-                  id: resultId(recordTarget), 
-                  title: recordTarget.title, 
-                  posterPath: recordTarget.poster_path, 
-                  releaseDate: recordTarget.release_date 
-                },
-                'tv'
-              );
-            }
-          }}
-          onAddToUnranked={() => {
-            const id = resultId(recordTarget);
-            if (recordTarget.media_type === 'movie') moveItemToClass(id, 'UNRANKED');
-            else if (recordTarget.media_type === 'tv') moveShowToClass(id, 'UNRANKED');
-            handleCloseRecord();
-          }}
+          onSave={handlePersonSave}
         />
       )}
     </section>
