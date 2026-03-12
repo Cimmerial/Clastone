@@ -9,7 +9,7 @@ import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
-import { tmdbImagePath } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { 
   useMoviesStore,
   getTotalMinutesFromRecords, 
@@ -366,9 +366,20 @@ export function FriendProfilePage() {
   // Helper to check if current user has a movie ranked (using MY stores, not friend's)
   const getUserMovieStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
     if (!tmdbId) return { isRanked: false };
+    
+    // Try multiple ID formats that might be used
+    const possibleIds = [
+      `tmdb-movie-${tmdbId}`,
+      `movie-${tmdbId}`,
+      `${tmdbId}`
+    ];
+    
     for (const classKey of myMovieClassOrder) {
       const items = myMoviesByClass[classKey] ?? [];
-      const found = items.find(item => item.tmdbId === tmdbId || item.id === `movie-${tmdbId}`);
+      const found = items.find(item => 
+        possibleIds.includes(item.id) || 
+        item.tmdbId === tmdbId
+      );
       if (found) {
         return { isRanked: true, classKey, watchRecords: found.watchRecords };
       }
@@ -379,9 +390,20 @@ export function FriendProfilePage() {
   // Helper to check if current user has a show ranked
   const getUserShowStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
     if (!tmdbId) return { isRanked: false };
+    
+    // Try multiple ID formats that might be used
+    const possibleIds = [
+      `tmdb-tv-${tmdbId}`,
+      `tv-${tmdbId}`,
+      `${tmdbId}`
+    ];
+    
     for (const classKey of myTvClassOrder) {
       const items = myTvByClass[classKey] ?? [];
-      const found = items.find(item => item.tmdbId === tmdbId || item.id === `tv-${tmdbId}`);
+      const found = items.find(item => 
+        possibleIds.includes(item.id) || 
+        item.tmdbId === tmdbId
+      );
       if (found) {
         return { isRanked: true, classKey, watchRecords: found.watchRecords };
       }
@@ -461,6 +483,13 @@ export function FriendProfilePage() {
             });
           }
         } else {
+          // Fetch full TMDB data before adding
+          let movieCache: any = null;
+          try {
+            const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
+            movieCache = await tmdbMovieDetailsFull(tmdbId);
+          } catch { /* ignore */ }
+          
           await addMovieFromSearch({
             id: rankingTarget.id,
             title: rankingTarget.title,
@@ -468,6 +497,8 @@ export function FriendProfilePage() {
             classKey: params.classKey || 'UNRANKED',
             toTop: params.position === 'top',
             toMiddle: params.position === 'middle',
+            runtimeMinutes: movieCache?.runtimeMinutes,
+            cache: movieCache ?? undefined
           });
           if (records.length > 0 && rankingTarget.id) {
             await updateMovieWatchRecords(rankingTarget.id, records);
@@ -498,12 +529,20 @@ export function FriendProfilePage() {
             });
           }
         } else {
+          // Fetch full TMDB data before adding
+          let tvCache: any = null;
+          try {
+            const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
+            tvCache = await tmdbTvDetailsFull(tmdbId);
+          } catch { /* ignore */ }
+          
           await addTvShowFromSearch({
             id: rankingTarget.id,
             title: rankingTarget.title,
             posterPath: rankingTarget.posterPath,
             classKey: params.classKey || 'UNRANKED',
             position: params.position,
+            cache: tvCache ?? undefined
           });
           if (records.length > 0 && rankingTarget.id) {
             await updateTvShowWatchRecords(rankingTarget.id, records);
@@ -512,7 +551,9 @@ export function FriendProfilePage() {
       }
       
       if (goToMedia) {
-        navigate(rankingTarget.mediaType === 'movie' ? '/movies' : '/tv');
+        // Navigate and then scroll to the item
+        const targetPath = rankingTarget.mediaType === 'movie' ? '/movies' : '/tv';
+        navigate(targetPath, { state: { scrollToId: rankingTarget.id } });
       }
     } finally {
       setIsRankingSaving(false);

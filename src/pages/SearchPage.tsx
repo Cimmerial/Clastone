@@ -370,7 +370,7 @@ export function SearchPage() {
           moveItemToClass(targetId, recordClassKey, { toTop, toMiddle });
         }
       } else {
-        if (!recordClassKey || recordClassKey === 'UNRANKED') return;
+        // Add new movie (including UNRANKED)
         setIsSaving(true);
         let cache = null;
         try {
@@ -381,7 +381,7 @@ export function SearchPage() {
           id: targetId,
           title: recordTarget?.title ?? '',
           subtitle: recordTarget?.subtitle,
-          classKey: recordClassKey,
+          classKey: recordClassKey || 'UNRANKED',
           firstWatch: watchRecords[0],
           runtimeMinutes: cache?.runtimeMinutes,
           posterPath: recordTarget?.poster_path ?? cache?.posterPath,
@@ -412,12 +412,12 @@ export function SearchPage() {
           moveShowToClass(targetId, recordClassKey, { toTop, toMiddle });
         }
       } else {
-        if (!recordClassKey || recordClassKey === 'UNRANKED') return;
+        // Add new TV show (including UNRANKED)
         addShowFromSearch({
           id: targetId,
           title: cache.title,
           subtitle: recordTarget?.subtitle,
-          classKey: recordClassKey,
+          classKey: recordClassKey || 'UNRANKED',
           firstWatch: watchRecords[0],
           cache,
           toTop,
