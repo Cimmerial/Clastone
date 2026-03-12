@@ -15,6 +15,7 @@ import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
+import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -58,6 +59,7 @@ export function SearchPage() {
     addWatchToMovie,
     getMovieById,
     updateMovieCache,
+    updateMovieWatchRecords,
     moveItemToClass,
     classOrder,
     getClassLabel,
@@ -69,6 +71,7 @@ export function SearchPage() {
     addWatchToShow,
     getShowById,
     updateShowCache,
+    updateShowWatchRecords,
     moveItemToClass: moveShowToClass,
     classOrder: tvClassOrder,
     getClassLabel: getTvClassLabel,
@@ -338,11 +341,10 @@ export function SearchPage() {
             if (cache) updateMovieCache(id, cache);
           } catch { /* ignore */ }
         }
-        for (const w of watches) {
-          addWatchToMovie(id, w, { posterPath: recordTarget.poster_path ?? existing.posterPath });
-        }
+        // Update existing watch records instead of adding duplicates
+        updateMovieWatchRecords(id, watches);
         // Move item if class changed or if position is specified for the same class
-        if (recordClassKey && (existingIsUnranked || existing.classKey !== recordClassKey || position)) {
+        if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
           moveItemToClass(id, recordClassKey, { toTop, toMiddle });
         }
       } else {
@@ -387,9 +389,10 @@ export function SearchPage() {
 
       if (existing) {
         if (existing.tmdbId == null || existing.overview == null) updateShowCache(id, cache);
-        for (const w of watches) addWatchToShow(id, w, { posterPath: cache.posterPath ?? existing.posterPath });
+        // Update existing watch records instead of adding duplicates
+        updateShowWatchRecords(id, watches);
         // Move item if class changed or if position is specified for the same class
-        if (recordClassKey && (existingIsUnranked || existing.classKey !== recordClassKey || position)) {
+        if (recordClassKey && (existing.classKey !== recordClassKey || position)) {
           moveShowToClass(id, recordClassKey, { toTop, toMiddle });
         }
       } else {
@@ -581,7 +584,7 @@ export function SearchPage() {
             };
 
             return (
-              <article key={`${r.media_type}-${r.id}`} className="search-card">
+              <article key={`${r.media_type}-${r.id}`} className={`search-card ${r.media_type === 'person' ? 'search-card-person' : ''}`}>
                 <div className="search-card-poster">
                   {imgUrl ? (
                     <img src={imgUrl} alt={r.title} />
@@ -592,20 +595,61 @@ export function SearchPage() {
                   )}
                 </div>
                 <div className="search-card-main">
-                  <div className="search-card-badge">
-                    {r.media_type === 'movie'
-                      ? 'MOVIE'
-                      : r.media_type === 'tv'
-                        ? 'TV'
-                        : 'PERSON'}
+                  <div className="search-card-info">
+                    <div className="search-card-badge">
+                      {r.media_type === 'movie'
+                        ? 'MOVIE'
+                        : r.media_type === 'tv'
+                          ? 'TV'
+                          : 'PERSON'}
+                    </div>
+                    <div className="search-card-title">{r.title}</div>
+                    <div className="search-card-subtitle">
+                      {r.subtitle}
+                      {(isMovie || isTv) && (
+                        <SearchResultExtendedInfo id={r.id} mediaType={r.media_type as 'movie' | 'tv'} />
+                      )}
+                    </div>
                   </div>
-                  <div className="search-card-title">{r.title}</div>
-                  <div className="search-card-subtitle">
-                    {r.subtitle}
-                    {(isMovie || isTv) && (
-                      <SearchResultExtendedInfo id={r.id} mediaType={r.media_type as 'movie' | 'tv'} />
-                    )}
-                  </div>
+                  {r.media_type === 'person' && (
+                    <SearchPersonProjects 
+                      personId={r.id} 
+                      onRecordMedia={(media) => {
+                        // Create a TmdbMultiResult from the media to reuse existing handlers
+                        const mediaResult: TmdbMultiResult = {
+                          id: media.id,
+                          title: media.title,
+                          subtitle: media.releaseDate ? String(media.releaseDate.slice(0, 4)) : '',
+                          poster_path: media.posterPath,
+                          media_type: media.mediaType,
+                          release_date: media.releaseDate,
+                          popularity: 0
+                        };
+                        
+                        // Check if item exists and open appropriate modal
+                        const checkId = resultId(mediaResult);
+                        const existing = media.mediaType === 'movie' ? getMovieById(checkId) : getShowById(checkId);
+                        
+                        if (existing) {
+                          // Open edit modal - convert to TmdbMultiResult format
+                          const editTarget: TmdbMultiResult = {
+                            id: media.id,
+                            title: media.title,
+                            subtitle: media.releaseDate ? String(media.releaseDate.slice(0, 4)) : '',
+                            poster_path: media.posterPath,
+                            media_type: media.mediaType,
+                            release_date: media.releaseDate,
+                            popularity: 0
+                          };
+                          setRecordTarget(editTarget);
+                          setRecordDetails(existing);
+                        } else {
+                          // Open regular add modal
+                          handleOpenRecord(mediaResult);
+                        }
+                      }}
+                    />
+                  )}
                 </div>
                 {isMovie ? (
                   <div className="search-card-actions">
@@ -795,6 +839,13 @@ export function SearchPage() {
                 ? getTvClassLabel(getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey ?? '')
                 : undefined
           }
+          initialRecords={
+            recordTarget.media_type === 'movie'
+              ? getMovieById(resultId(recordTarget))?.watchRecords
+              : recordTarget.media_type === 'tv'
+                ? getShowById(`tmdb-tv-${recordTarget.id}`)?.watchRecords
+                : undefined
+          }
           onSave={handleRecordSave}
           onClose={handleCloseRecord}
           onRemoveEntry={(id) => {
@@ -805,6 +856,29 @@ export function SearchPage() {
             handleCloseRecord();
           }}
           isSaving={isSaving}
+          onAddToWatchlist={() => {
+            if (recordTarget.media_type === 'movie') {
+              addToWatchlist(
+                { 
+                  id: resultId(recordTarget), 
+                  title: recordTarget.title, 
+                  posterPath: recordTarget.poster_path, 
+                  releaseDate: recordTarget.release_date 
+                },
+                'movies'
+              );
+            } else if (recordTarget.media_type === 'tv') {
+              addToWatchlist(
+                { 
+                  id: resultId(recordTarget), 
+                  title: recordTarget.title, 
+                  posterPath: recordTarget.poster_path, 
+                  releaseDate: recordTarget.release_date 
+                },
+                'tv'
+              );
+            }
+          }}
           onAddToUnranked={() => {
             const id = resultId(recordTarget);
             if (recordTarget.media_type === 'movie') moveItemToClass(id, 'UNRANKED');

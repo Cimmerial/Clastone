@@ -120,12 +120,28 @@
 .search-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  align-items: center;
+  align-items: start;
   gap: 0.85rem;
   padding: 0.75rem 0.85rem;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(0, 0, 0, 0.22);
+}
+
+.search-card-person {
+  align-items: stretch;
+}
+
+.search-card-person .search-card-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.search-card-person .search-card-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .search-card-actions {
@@ -307,4 +323,132 @@
   100% {
     background-position: 0 50%;
   }
+}
+
+/* Search Person Projects Styles */
+.search-person-projects {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 300px;
+  flex-shrink: 0;
+}
+
+.search-person-projects-grid {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  flex-wrap: nowrap;
+}
+
+.search-person-projects-grid.expanded {
+  flex-wrap: wrap;
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 600px;
+  max-width: none;
+}
+
+.search-person-project-thumb {
+  position: relative;
+  width: 45px;
+  height: 68px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 162, 97, 0.4);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.2), transparent 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.search-person-project-seen {
+  border-color: rgba(76, 175, 80, 0.6);
+  background: radial-gradient(circle at top left, rgba(76, 175, 80, 0.2), transparent 70%);
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+}
+
+.search-person-project-unseen {
+  border-color: rgba(244, 162, 97, 0.4);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.2), transparent 70%);
+}
+
+.search-person-project-thumb::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s ease;
+  z-index: 1;
+}
+
+.search-person-project-thumb:hover::before {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.search-person-project-thumb::after {
+  content: attr(data-hover-text);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.search-person-project-thumb:hover::after {
+  opacity: 1;
+}
+
+.search-person-project-thumb:hover {
+  border-color: rgba(232, 93, 4, 0.8);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.search-person-project-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.search-person-project-fallback {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+.search-person-projects-expand {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+  margin-top: 0.2rem;
+}
+
+.search-person-projects-expand:hover {
+  background: rgba(244, 162, 97, 0.15);
+  border-color: rgba(244, 162, 97, 0.5);
+  color: var(--text-primary);
 }

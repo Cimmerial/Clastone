@@ -154,6 +154,7 @@ type Props = {
   isSaving: boolean;
   primaryButtonLabel?: string;
   onAddToUnranked?: () => void | Promise<void>;
+  onAddToWatchlist?: () => void;
 };
 
 /* ─── Main Modal ─────────────────────────────────────── */
@@ -161,7 +162,7 @@ type Props = {
 export function RecordWatchModal({
   target, rankedClasses, mode, initialRecords,
   currentClassKey, currentClassLabel,
-  onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked,
+  onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked, onAddToWatchlist,
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
     if (initialRecords?.length) return initialRecords.map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
@@ -394,9 +395,24 @@ export function RecordWatchModal({
             <h2 className="rwm-title">{target.title}</h2>
             {target.subtitle && <span className="rwm-subtitle">{target.subtitle}</span>}
           </div>
-          <button type="button" className="rwm-close-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
+          <div className="rwm-header-actions">
+            {onAddToWatchlist && (
+              <button 
+                type="button" 
+                className="rwm-watchlist-btn" 
+                onClick={() => {
+                  onAddToWatchlist();
+                  onClose();
+                }}
+                aria-label="Add to watchlist"
+              >
+                Add to watchlist
+              </button>
+            )}
+            <button type="button" className="rwm-close-btn" onClick={onClose} aria-label="Close">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
