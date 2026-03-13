@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect, useRef } from 'react';
+import { useFriends } from '../context/FriendsContext';
 import { Search, UserPlus, Check, X, Eye, Loader, RefreshCw } from 'lucide-react';
-import { collection, query, where, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { Link } from 'react-router-dom';
 import './FriendsPage.css';
 
@@ -13,218 +11,60 @@ interface UserProfile {
   createdAt: string;
 }
 
-interface FriendRequest {
-  id: string;
-  from: string;
-  to: string;
-  fromUsername: string;
-  createdAt: string;
-}
-
-interface Friend {
-  uid: string;
-  username: string;
-  email: string;
-  addedAt: string;
-}
-
 export function FriendsPage() {
-  const { user, username } = useAuth();
+  const { 
+    friends, 
+    sentRequests, 
+    receivedRequests, 
+    loading, 
+    refreshFriends, 
+    sendFriendRequest, 
+    acceptFriendRequest, 
+    rejectFriendRequest, 
+    searchUsers, 
+    isDataLoaded 
+  } = useFriends();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [sentRequests, setSentRequests] = useState<string[]>([]);
-  const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Load friends and requests
-  const loadData = async () => {
-    if (!user || !db) return;
-    
-    try {
-      // Debug: Check if user exists in users collection
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      console.log('Current user in users collection:', userDoc.exists());
-      if (userDoc.exists()) {
-        console.log('User data:', userDoc.data());
-      }
-      
-      // Debug: Check total users in database
-      const allUsersQuery = query(collection(db, 'users'));
-      const allUsersSnapshot = await getDocs(allUsersQuery);
-      console.log('Total users in database:', allUsersSnapshot.size);
-      
-      // Load friends
-      const friendsQuery = query(
-        collection(db!, 'friends'),
-        where('userId', '==', user.uid)
-      );
-      const friendsSnapshot = await getDocs(friendsQuery);
-      const friendsData = friendsSnapshot.docs.map(doc => ({
-        uid: doc.data().friendUid,
-        username: doc.data().friendUsername,
-        email: doc.data().friendEmail,
-        addedAt: doc.data().addedAt
-      }));
-      setFriends(friendsData);
-
-      // Load sent requests
-      const sentRequestsQuery = query(
-        collection(db!, 'friendRequests'),
-        where('from', '==', user.uid)
-      );
-      const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
-      const sentToUids = sentRequestsSnapshot.docs.map(doc => doc.data().to);
-      setSentRequests(sentToUids);
-
-      // Load received requests
-      const receivedRequestsQuery = query(
-        collection(db!, 'friendRequests'),
-        where('to', '==', user.uid)
-      );
-      const receivedRequestsSnapshot = await getDocs(receivedRequestsQuery);
-      const requestsData = receivedRequestsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        from: doc.data().from,
-        to: doc.data().to,
-        fromUsername: doc.data().fromUsername,
-        createdAt: doc.data().createdAt
-      }));
-      setReceivedRequests(requestsData);
-    } catch (error) {
-      console.error('Error loading friends data:', error);
-    }
-  };
-
+  // Search users with debouncing
   useEffect(() => {
-    if (!user || !db) return;
-
-    loadData();
-
-    // Set up periodic refresh instead of real-time listeners to avoid Firestore issues
-    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [user, db]);
-
-  // Search users
-  useEffect(() => {
-    if (!searchQuery.trim() || !db) {
+    if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const searchUsers = async () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        // Use a simpler approach - get all users and filter client-side
-        const usersQuery = query(collection(db!, 'users'));
-        const snapshot = await getDocs(usersQuery);
-        
-        const users = snapshot.docs
-          .map(doc => ({
-            uid: doc.id,
-            username: doc.data().username,
-            email: doc.data().email,
-            createdAt: doc.data().createdAt
-          }))
-          .filter(u => u.uid !== user?.uid)
-          .filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase()));
-        
-        setSearchResults(users);
+        const results = await searchUsers(searchQuery);
+        setSearchResults(results);
       } catch (error) {
         console.error('Error searching users:', error);
       } finally {
         setSearchLoading(false);
       }
-    };
+    }, 300);
 
-    const timeoutId = setTimeout(searchUsers, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, user, db]);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, searchUsers]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await refreshFriends();
     setRefreshing(false);
-  };
-
-  const sendFriendRequest = async (targetUser: UserProfile) => {
-    if (!user || !db) return;
-    
-    setLoading(true);
-    try {
-      await setDoc(doc(collection(db!, 'friendRequests')), {
-        from: user.uid,
-        to: targetUser.uid,
-        fromUsername: username,
-        createdAt: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Error sending friend request:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const acceptFriendRequest = async (request: FriendRequest) => {
-    if (!user || !db) return;
-    
-    setLoading(true);
-    try {
-      // Get the requester's user data
-      const requesterDoc = await getDocs(
-        query(collection(db!, 'users'), where('username', '==', request.fromUsername))
-      );
-      const requesterData = requesterDoc.docs[0]?.data();
-      
-      if (requesterData) {
-        // Add to both users' friends lists
-        await setDoc(doc(db!, 'friends', `${user.uid}_${request.from}`), {
-          userId: user.uid,
-          friendUid: request.from,
-          friendUsername: request.fromUsername,
-          friendEmail: requesterData.email,
-          addedAt: new Date().toISOString()
-        });
-        
-        await setDoc(doc(db!, 'friends', `${request.from}_${user.uid}`), {
-          userId: request.from,
-          friendUid: user.uid,
-          friendUsername: username,
-          friendEmail: user.email,
-          addedAt: new Date().toISOString()
-        });
-      }
-      
-      // Delete the request
-      await deleteDoc(doc(db!, 'friendRequests', request.id));
-      
-      // Refresh data after accepting
-      await loadData();
-    } catch (error) {
-      console.error('Error accepting friend request:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const rejectFriendRequest = async (requestId: string) => {
-    if (!db) return;
-    
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db!, 'friendRequests', requestId));
-      
-      // Refresh data after rejecting
-      await loadData();
-    } catch (error) {
-      console.error('Error rejecting friend request:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (

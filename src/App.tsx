@@ -13,6 +13,7 @@ import { FirestorePeopleGate } from './components/FirestorePeopleGate';
 import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
 import { FilterProvider } from './state/filterStore';
 import { SpotlightBackground } from './components/SpotlightBackground';
+import { FriendsProvider } from './context/FriendsContext';
 import './components/SpotlightBackground.css';
 
 function App() {
@@ -43,28 +44,30 @@ function App() {
   }
 
   return (
-    <SyncStatusProvider>
-      <FirestoreSettingsGate>
-        <FirestoreMoviesGate>
-          <FirestoreTvGate>
-            <FirestorePeopleGate>
-              <FirestoreDirectorsGate>
-                <FirestoreWatchlistGate>
-                  <FilterProvider>
-                    <SpotlightBackground />
-                    <NavBar />
-                    <main className="app-main">
-                      <AppRoutes />
-                    </main>
-                    <DevTools />
-                  </FilterProvider>
-                </FirestoreWatchlistGate>
-              </FirestoreDirectorsGate>
-            </FirestorePeopleGate>
-          </FirestoreTvGate>
-        </FirestoreMoviesGate>
-      </FirestoreSettingsGate>
-    </SyncStatusProvider>
+    <FriendsProvider>
+      <SyncStatusProvider>
+        <FirestoreSettingsGate>
+          <FirestoreMoviesGate>
+            <FirestoreTvGate>
+              <FirestorePeopleGate>
+                <FirestoreDirectorsGate>
+                  <FirestoreWatchlistGate>
+                    <FilterProvider>
+                      <SpotlightBackground />
+                      <NavBar />
+                      <main className="app-main">
+                        <AppRoutes />
+                      </main>
+                      <DevTools />
+                    </FilterProvider>
+                  </FirestoreWatchlistGate>
+                </FirestoreDirectorsGate>
+              </FirestorePeopleGate>
+            </FirestoreTvGate>
+          </FirestoreMoviesGate>
+        </FirestoreSettingsGate>
+      </SyncStatusProvider>
+    </FriendsProvider>
   );
 }
 
