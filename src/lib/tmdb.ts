@@ -615,3 +615,57 @@ export async function tmdbWatchProviders(
   );
 }
 
+/** Discover top movies by year */
+export async function tmdbDiscoverMoviesByYear(
+  year: number,
+  page: number = 1,
+  signal?: AbortSignal
+): Promise<TmdbMultiResult[]> {
+  const url = new URL(`${TMDB_BASE}/discover/movie`);
+  url.searchParams.set('sort_by', 'popularity.desc');
+  url.searchParams.set('primary_release_year', year.toString());
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+  
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+  
+  return (data.results || []).map((r: any) => ({
+    media_type: 'movie' as const,
+    id: r.id,
+    title: r.title ?? 'Unknown',
+    subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.release_date ?? undefined
+  }));
+}
+
+/** Discover top TV shows by year */
+export async function tmdbDiscoverTvByYear(
+  year: number,
+  page: number = 1,
+  signal?: AbortSignal
+): Promise<TmdbMultiResult[]> {
+  const url = new URL(`${TMDB_BASE}/discover/tv`);
+  url.searchParams.set('sort_by', 'popularity.desc');
+  url.searchParams.set('first_air_date_year', year.toString());
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+  
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+  
+  return (data.results || []).map((r: any) => ({
+    media_type: 'tv' as const,
+    id: r.id,
+    title: r.name ?? 'Unknown',
+    subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.first_air_date ?? undefined
+  }));
+}
+
