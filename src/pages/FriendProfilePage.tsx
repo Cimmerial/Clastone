@@ -335,7 +335,17 @@ export function FriendProfilePage() {
         rankedShows: [],
         recentWatches: [],
         movieWatchYearData: [],
-        tvWatchYearData: []
+        tvWatchYearData: [],
+        movieTotalWatches: 0,
+        movieDNFCount: 0,
+        movieRewatchCount: 0,
+        tvTotalWatches: 0,
+        tvDNFCount: 0,
+        tvRewatchCount: 0,
+        avgWatchtimePerMovie: 0,
+        avgWatchtimePerShow: 0,
+        movieAvgRuntimeByCategory: [],
+        showAvgRuntimeByCategory: []
       };
     }
 
@@ -528,6 +538,41 @@ export function FriendProfilePage() {
       });
     tvWatchYearData.sort((a, b) => a.year - b.year);
 
+    // Calculate DNF and rewatch stats
+    let movieTotalWatches = 0;
+    let movieDNFCount = 0;
+    let movieRewatchCount = 0;
+    if (friendMoviesData.classes) {
+      for (const classDef of friendMoviesData.classes) {
+        const classKey = classDef.key;
+        for (const item of friendMoviesData.byClass[classKey] ?? []) {
+          const watches = item.watchRecords ?? [];
+          movieTotalWatches += watches.length;
+          movieDNFCount += watches.filter((r: any) => (r.type ?? 'DATE') === 'DNF').length;
+          if (watches.length > 1) {
+            movieRewatchCount += watches.length - 1;
+          }
+        }
+      }
+    }
+
+    let tvTotalWatches = 0;
+    let tvDNFCount = 0;
+    let tvRewatchCount = 0;
+    if (friendTvData.classes) {
+      for (const classDef of friendTvData.classes) {
+        const classKey = classDef.key;
+        for (const item of friendTvData.byClass[classKey] ?? []) {
+          const watches = item.watchRecords ?? [];
+          tvTotalWatches += watches.length;
+          tvDNFCount += watches.filter((r: any) => (r.type ?? 'DATE') === 'DNF').length;
+          if (watches.length > 1) {
+            tvRewatchCount += watches.length - 1;
+          }
+        }
+      }
+    }
+
     // Calculate average watchtime per movie and show (including rewatches)
     let totalMovieWatches = 0;
     let totalShowWatches = 0;
@@ -603,6 +648,12 @@ export function FriendProfilePage() {
       tvReleaseYearData,
       movieWatchYearData,
       tvWatchYearData,
+      movieTotalWatches,
+      movieDNFCount,
+      movieRewatchCount,
+      tvTotalWatches,
+      tvDNFCount,
+      tvRewatchCount,
       avgWatchtimePerMovie,
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
@@ -1113,6 +1164,26 @@ export function FriendProfilePage() {
                 <span className="profile-stat-value">{stats.episodesWatched || 0}</span>
                 <span className="profile-stat-label">Episodes watched</span>
               </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{stats.movieTotalWatches ?? 0}</span>
+                <span className="profile-stat-label">Total movie watches</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{(stats.movieTotalWatches ?? 0) > 0 ? Math.round((stats.movieDNFCount ?? 0) / (stats.movieTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-label">Movie DNF rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{(stats.movieTotalWatches ?? 0) > 0 ? Math.round((stats.movieRewatchCount ?? 0) / (stats.movieTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-label">Movie rewatch rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{(stats.tvTotalWatches ?? 0) > 0 ? Math.round((stats.tvDNFCount ?? 0) / (stats.tvTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-label">Show DNF rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{(stats.tvTotalWatches ?? 0) > 0 ? Math.round((stats.tvRewatchCount ?? 0) / (stats.tvTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-label">Show rewatch rate</span>
+              </div>
             </div>
 
             <div className="profile-stats-charts">
@@ -1275,7 +1346,7 @@ export function FriendProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Runtime per Movie Category</h3>
+                <h3 className="profile-chart-title">Avg Total Runtime per Movie Category</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -1304,7 +1375,7 @@ export function FriendProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Runtime per Show Category</h3>
+                <h3 className="profile-chart-title">Avg Total Runtime per Show Category</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.showAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />

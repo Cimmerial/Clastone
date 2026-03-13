@@ -1102,7 +1102,7 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Runtime per Movie Category</h3>
+                <h3 className="profile-chart-title">Avg Total Runtime per Movie Category</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -1131,7 +1131,7 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Runtime per Show Category</h3>
+                <h3 className="profile-chart-title">Avg Total Runtime per Show Category</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.showAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
