@@ -528,6 +528,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
       let item: MovieShowItem | null = null;
+      let fromClassKey: ClassKey | null = null;
 
       for (const classKey of Object.keys(next)) {
         const list = next[classKey] ?? [];
@@ -536,31 +537,53 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         const copy = [...list];
         [item] = copy.splice(idx, 1);
         next[classKey] = copy;
+        fromClassKey = classKey;
         break;
       }
       if (!item) return prev;
-      const updated = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
+      
+      // Auto-add a long ago 100% watch when moving from UNRANKED to any other class and item has no watches
+      let updatedItem = { ...item, classKey: toClassKey as MovieShowItem['classKey'] };
+      if (fromClassKey === 'UNRANKED' && fromClassKey !== toClassKey && (!item.watchRecords || item.watchRecords.length === 0)) {
+        const autoWatch: WatchRecord = {
+          id: crypto.randomUUID(),
+          type: 'LONG_AGO',
+        };
+        updatedItem = {
+          ...updatedItem,
+          watchRecords: [autoWatch]
+        };
+        // Update viewing dates and completion percentage
+        const { viewingDates, percentCompleted, watchTime } = formatViewingFromRecords(
+          [autoWatch],
+          updatedItem.runtimeMinutes
+        );
+        updatedItem.viewingDates = viewingDates;
+        updatedItem.percentCompleted = percentCompleted;
+        updatedItem.watchTime = watchTime || undefined;
+      }
+      
       const targetList = next[toClassKey] ?? [];
       
       if (options?.atIndex !== undefined) {
         // Insert at specific index
         const insertIdx = Math.min(options.atIndex, targetList.length);
         const copy = [...targetList];
-        copy.splice(insertIdx, 0, updated);
+        copy.splice(insertIdx, 0, updatedItem);
         next[toClassKey] = copy;
       } else if (options?.toTop) {
-        next[toClassKey] = [updated, ...targetList];
+        next[toClassKey] = [updatedItem, ...targetList];
       } else if (options?.toMiddle) {
         const mid = Math.ceil(targetList.length / 2);
         const copy = [...targetList];
-        copy.splice(mid, 0, updated);
+        copy.splice(mid, 0, updatedItem);
         next[toClassKey] = copy;
       } else {
-        next[toClassKey] = [...targetList, updated];
+        next[toClassKey] = [...targetList, updatedItem];
       }
       return next;
     });
-  }, []);
+  }, [isRankedClass]);
 
   const addMovieFromSearch = useCallback(
     (
