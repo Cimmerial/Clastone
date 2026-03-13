@@ -698,11 +698,22 @@ export function UniversalEditModal({
     }
   };
 
-  const validateAndSave = async (goToMedia: boolean): Promise<boolean> => {
+  const validateAndSave = async (goToMedia: boolean, saveWithoutWatch: boolean = false): Promise<boolean> => {
     setError(null);
 
-    // Must have at least one watch entry
-    if (entries.length === 0) {
+    // If saving without watch, automatically add a long ago 100% watch entry
+    let finalEntries = entries;
+    if (saveWithoutWatch && entries.length === 0) {
+      const autoWatchEntry: WatchMatrixEntry = {
+        id: crypto.randomUUID(),
+        watchType: 'LONG_AGO',
+        watchPercent: 100,
+        watchStatus: 'NONE',
+      };
+      finalEntries = [autoWatchEntry];
+    }
+    // Otherwise, must have at least one watch entry
+    else if (entries.length === 0) {
       setError('Please add at least one watch record using the "+ Add Watch" button.');
       return false;
     }
@@ -731,7 +742,7 @@ export function UniversalEditModal({
 
     await onSave(
       {
-        watches: entries,
+        watches: finalEntries,
         classKey: effectiveClassKey,
         position: effectiveClassKey ? selectedPosition : undefined,
       },
@@ -947,31 +958,37 @@ export function UniversalEditModal({
                 <>
                   <button
                     type="button"
-                    className={`uem-btn uem-btn--secondary${entries.length === 0 || !selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    className={`uem-btn uem-btn--secondary${!selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
-                      await validateAndSave(false);
+                      await validateAndSave(false, entries.length === 0);
                     }}
-                    disabled={isSaving || entries.length === 0 || !selectedClassKey}
-                    title={entries.length === 0 ? 'Add a watch record first' : !selectedClassKey ? 'Select a ranking class first' : ''}
+                    disabled={isSaving || !selectedClassKey}
+                    title={!selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : entries.length === 0 || !selectedClassKey ? 'Save and Exit (Select class & add watch)' : 'Save and Exit'}
+                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (no watch)' : 'Save and Exit'}
                   </button>
                   <button
                     type="button"
-                    className={`uem-btn uem-btn--primary${entries.length === 0 || !selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    className={`uem-btn uem-btn--primary${!selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
-                      await validateAndSave(true);
+                      await validateAndSave(true, entries.length === 0);
                     }}
-                    disabled={isSaving || entries.length === 0 || !selectedClassKey}
-                    title={entries.length === 0 ? 'Add a watch record first' : !selectedClassKey ? 'Select a ranking class first' : ''}
+                    disabled={isSaving || !selectedClassKey}
+                    title={!selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : entries.length === 0 || !selectedClassKey ? 'Save and Go To (Select class & add watch)' : 'Save and Go To'}
+                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (no watch)' : 'Save and Go To'}
                   </button>
                   <button
                     type="button"
                     className="uem-btn uem-btn--ghost"
                     onClick={async () => {
-                      await onSave({ watches: entries.length > 0 ? entries : [], classKey: 'UNRANKED' }, false);
+                      const finalEntries = entries.length > 0 ? entries : [{
+                        id: crypto.randomUUID(),
+                        watchType: 'LONG_AGO' as const,
+                        watchPercent: 100,
+                        watchStatus: 'NONE' as const,
+                      }];
+                      await onSave({ watches: finalEntries, classKey: 'UNRANKED' }, false);
                     }}
                     disabled={isSaving}
                   >
