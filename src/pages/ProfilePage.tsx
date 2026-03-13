@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
 import {
   useMoviesStore,
@@ -10,6 +10,7 @@ import {
   formatWatchLabel
 } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore, type PersonItem } from '../state/peopleStore';
 import { useDirectorsStore, type DirectorItem } from '../state/directorsStore';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
@@ -77,6 +78,7 @@ function getDateRangeFilter(
 }
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
   const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
@@ -104,6 +106,7 @@ export function ProfilePage() {
     moveItemToClass: moveTvToClass,
     removeTvShowEntry,
   } = useTvStore();
+  const watchlist = useWatchlistStore();
   const {
     byClass: peopleByClass,
     classOrder: peopleClassOrder,
@@ -1463,6 +1466,24 @@ export function ProfilePage() {
           onSave={handleRankingSave}
           onClose={() => setRankingTarget(null)}
           onRemoveEntry={handleRemoveEntry}
+          isWatchlistItem={watchlist.isInWatchlist(rankingTarget.id)}
+          onAddToWatchlist={() => {
+            watchlist.addToWatchlist(
+              {
+                id: rankingTarget.id,
+                title: rankingTarget.title,
+                posterPath: rankingTarget.posterPath,
+                releaseDate: rankingTarget.releaseDate,
+              },
+              rankingTarget.mediaType === 'movie' ? 'movies' : 'tv'
+            );
+          }}
+          onRemoveFromWatchlist={() => {
+            watchlist.removeFromWatchlist(rankingTarget.id);
+          }}
+          onGoToWatchlist={() => {
+            navigate('/watchlist', { state: { scrollToId: rankingTarget.id } });
+          }}
           isSaving={isRankingSaving}
         />
       )}

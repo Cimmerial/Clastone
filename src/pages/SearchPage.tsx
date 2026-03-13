@@ -941,7 +941,7 @@ export function SearchPage() {
             );
           }}
           onRemoveFromWatchlist={() => {
-            // TODO: Implement remove from watchlist
+            removeFromWatchlist(resultId(recordTarget));
           }}
           onGoToWatchlist={() => {
             navigate('/watchlist');

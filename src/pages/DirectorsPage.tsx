@@ -7,6 +7,7 @@ import { useDirectorsStore, DirectorItem } from '../state/directorsStore';
 import { usePageState } from '../hooks/usePageState';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { getTotalMinutesFromRecords } from '../state/moviesStore';
 import { PageSearch } from '../components/PageSearch';
@@ -32,6 +33,7 @@ export function DirectorsPage() {
   } = useDirectorsStore();
   const { byClass: moviesByClass, addWatchToMovie, moveItemToClass: moveMovieToClass, classes: movieClasses, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, addWatchToShow, moveItemToClass: moveTvToClass, classes: tvClasses, addShowFromSearch } = useTvStore();
+  const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
   const mobileViewMode = useMobileViewMode();
   const navigate = useNavigate();
@@ -253,7 +255,7 @@ export function DirectorsPage() {
           }}
           currentClassKey="UNRANKED"
           currentClassLabel="Unranked"
-          isWatchlistItem={false}
+          isWatchlistItem={watchlist.isInWatchlist(recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`)}
           rankedClasses={
             recordMediaTarget.mediaType === 'movie'
               ? movieClasses.map(c => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))
@@ -334,6 +336,26 @@ export function DirectorsPage() {
                 navigate(page, { state: { scrollToId: id } });
               }, 100);
             }
+          }}
+          onAddToWatchlist={() => {
+            const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            watchlist.addToWatchlist(
+              {
+                id,
+                title: recordMediaTarget.title,
+                posterPath: recordMediaTarget.posterPath,
+                releaseDate: recordMediaTarget.releaseDate,
+              },
+              recordMediaTarget.mediaType === 'movie' ? 'movies' : 'tv'
+            );
+          }}
+          onRemoveFromWatchlist={() => {
+            const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            watchlist.removeFromWatchlist(id);
+          }}
+          onGoToWatchlist={() => {
+            const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            navigate('/watchlist', { state: { scrollToId: id } });
           }}
         />
       )}
