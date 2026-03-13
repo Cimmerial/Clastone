@@ -13,7 +13,6 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore, type PersonItem } from '../state/peopleStore';
 import { useDirectorsStore, type DirectorItem } from '../state/directorsStore';
-import { useWatchlistStore } from '../state/watchlistStore';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
@@ -1537,24 +1536,6 @@ export function ProfilePage() {
           onSave={handleRankingSave}
           onClose={() => setRankingTarget(null)}
           onRemoveEntry={handleRemoveEntry}
-          isWatchlistItem={watchlist.isInWatchlist(rankingTarget.id)}
-          onAddToWatchlist={() => {
-            watchlist.addToWatchlist(
-              {
-                id: rankingTarget.id,
-                title: rankingTarget.title,
-                posterPath: rankingTarget.posterPath,
-                releaseDate: rankingTarget.releaseDate,
-              },
-              rankingTarget.mediaType === 'movie' ? 'movies' : 'tv'
-            );
-          }}
-          onRemoveFromWatchlist={() => {
-            watchlist.removeFromWatchlist(rankingTarget.id);
-          }}
-          onGoToWatchlist={() => {
-            navigate('/watchlist', { state: { scrollToId: rankingTarget.id } });
-          }}
           isSaving={isRankingSaving}
         />
       )}
