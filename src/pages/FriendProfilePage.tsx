@@ -277,12 +277,34 @@ export function FriendProfilePage() {
     return list;
   }, [friendMoviesData]);
 
+  const allMoviesExceptUnranked = useMemo(() => {
+    if (!friendMoviesData || !friendMoviesData.byClass || !friendMoviesData.classes) return [];
+    const list: MovieShowItem[] = [];
+    for (const classDef of friendMoviesData.classes) {
+      const classKey = classDef.key;
+      if (classKey === 'UNRANKED') continue;
+      for (const item of friendMoviesData.byClass[classKey] ?? []) list.push(item);
+    }
+    return list;
+  }, [friendMoviesData]);
+
   const rankedShows = useMemo(() => {
     if (!friendTvData || !friendTvData.byClass || !friendTvData.classes) return [];
     const list: MovieShowItem[] = [];
     for (const classDef of friendTvData.classes) {
       const classKey = classDef.key;
       if (!classDef.isRanked) continue;
+      for (const item of friendTvData.byClass[classKey] ?? []) list.push(item);
+    }
+    return list;
+  }, [friendTvData]);
+
+  const allShowsExceptUnranked = useMemo(() => {
+    if (!friendTvData || !friendTvData.byClass || !friendTvData.classes) return [];
+    const list: MovieShowItem[] = [];
+    for (const classDef of friendTvData.classes) {
+      const classKey = classDef.key;
+      if (classKey === 'UNRANKED') continue;
       for (const item of friendTvData.byClass[classKey] ?? []) list.push(item);
     }
     return list;
@@ -1421,7 +1443,7 @@ export function FriendProfilePage() {
           </div>
           {showAllMoviesWithClasses ? (
             <div className="profile-classes-view">
-              {friendMoviesData?.classes?.filter((c: any) => c.isRanked && friendMoviesData.byClass[c.key]?.length > 0).map((classDef: any) => (
+              {friendMoviesData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendMoviesData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
                   <h3 className="profile-class-title">{classDef.label}</h3>
                   <div className="profile-class-grid">
@@ -1458,7 +1480,7 @@ export function FriendProfilePage() {
             </div>
           ) : (
             <div className="profile-top-grid">
-              {rankedMovies.slice(0, 10).map((m, i) => {
+              {allMoviesExceptUnranked.slice(0, 10).map((m, i) => {
                 const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
                 const userStatus = getUserMovieStatus(tmdbId);
                 return (
@@ -1503,7 +1525,7 @@ export function FriendProfilePage() {
           </div>
           {showAllShowsWithClasses ? (
             <div className="profile-classes-view">
-              {friendTvData?.classes?.filter((c: any) => c.isRanked && friendTvData.byClass[c.key]?.length > 0).map((classDef: any) => (
+              {friendTvData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendTvData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
                   <h3 className="profile-class-title">{classDef.label}</h3>
                   <div className="profile-class-grid">
@@ -1540,7 +1562,7 @@ export function FriendProfilePage() {
             </div>
           ) : (
             <div className="profile-top-grid">
-              {rankedShows.slice(0, 10).map((s, i) => {
+              {allShowsExceptUnranked.slice(0, 10).map((s, i) => {
                 const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
                 const userStatus = getUserShowStatus(tmdbId);
                 return (

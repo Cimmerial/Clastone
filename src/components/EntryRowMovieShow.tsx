@@ -337,7 +337,7 @@ export function EntryRowMovieShow({
                               {d.isSaved ? (
                                 <span className="entry-cast-tooltip-nav">Click to goto {d.name} in list</span>
                               ) : (
-                                <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                                <span className="entry-cast-tooltip-nav">Click to rank {listType === 'shows' ? 'creator' : 'director'}</span>
                               )}
                             </div>
                           )}
@@ -369,7 +369,7 @@ export function EntryRowMovieShow({
                           {c.isSaved ? (
                             <span className="entry-cast-tooltip-nav">Click to goto {c.name} in list</span>
                           ) : (
-                            <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                            <span className="entry-cast-tooltip-nav">Click to rank actor</span>
                           )}
                         </div>
                       )}
@@ -420,7 +420,7 @@ export function EntryRowMovieShow({
                             {d.isSaved ? (
                               <span className="entry-cast-tooltip-nav">Click to goto {d.name} in list</span>
                             ) : (
-                              <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                              <span className="entry-cast-tooltip-nav">Click to rank {listType === 'shows' ? 'creator' : 'director'}</span>
                             )}
                           </div>
                         )}
@@ -452,7 +452,7 @@ export function EntryRowMovieShow({
                         {c.isSaved ? (
                           <span className="entry-cast-tooltip-nav">Click to goto {c.name} in list</span>
                         ) : (
-                          <span className="entry-cast-tooltip-nav">Click to add/rank</span>
+                          <span className="entry-cast-tooltip-nav">Click to rank actor</span>
                         )}
                       </div>
                     )}

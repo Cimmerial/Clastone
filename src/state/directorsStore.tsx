@@ -127,14 +127,6 @@ export function DirectorsProvider({
     currentStateRef.current = { byClass, classes };
 
     // Watchtime calculation logic - only trigger when watch records actually change, not just positions
-    const watchRecordsHash = useMemo(() => {
-        const allMovieRecords = Object.values(moviesByClass).flat().flatMap(m => m.watchRecords ?? []);
-        const allTvRecords = Object.values(tvByClass).flat().flatMap(s => s.watchRecords ?? []);
-        const allRecords = [...allMovieRecords, ...allTvRecords];
-        return JSON.stringify(allRecords.map(r => ({ id: r.id, year: r.year, month: r.month, day: r.day, type: r.type })));
-    }, [JSON.stringify(Object.values(moviesByClass).flat().map(m => m.watchRecords)), 
-             JSON.stringify(Object.values(tvByClass).flat().map(s => s.watchRecords))]);
-
     useEffect(() => {
         setByClass(prev => {
             const next = { ...prev };
@@ -215,7 +207,7 @@ export function DirectorsProvider({
 
             return changed ? next : prev;
         });
-    }, [watchRecordsHash]);
+    }, [moviesByClass, tvByClass]);
 
 
     // Debounced persistence logic
@@ -254,6 +246,16 @@ export function DirectorsProvider({
 
         persistTimeoutRef.current = setTimeout(() => {
             console.info(`[DirectorsStore] Debounce finished. Executing onPersist...`);
+
+            // 1. Calculate the pruned version of the data that will be saved
+            const prunedByClass = { ...savedByClass };
+            dirtyClasses.forEach(key => {
+                if (prunedByClass[key]) {
+                    prunedByClass[key] = prunedByClass[key].map(pruneItem);
+                }
+            });
+
+            // 2. Persist to Firestore
             onPersist({
                 byClass: savedByClass,
                 classes: savedClasses,
@@ -262,18 +264,11 @@ export function DirectorsProvider({
                 classesMetadataChanged
             });
 
-            // Update local state to the pruned version so StorageVisualizer reflects "true" size
-            setByClass(prev => {
-                const updated = { ...prev };
-                dirtyClasses.forEach(key => {
-                    if (updated[key]) {
-                        updated[key] = updated[key].map(pruneItem);
-                    }
-                });
-                return updated;
-            });
+            // 3. Update local state to the pruned version so StorageVisualizer reflects "true" size
+            // AND update the ref with the exact pruned version so the next diff check finds NO changes.
+            setByClass(prunedByClass);
+            lastSavedStateRef.current = { byClass: prunedByClass, classes: savedClasses };
 
-            lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
             setPendingChanges(0);
             persistTimeoutRef.current = null;
         }, 10000); // 10s debounce
@@ -368,6 +363,57 @@ export function DirectorsProvider({
     }, [classOrder, classes]);
 
 
+    // Helper function to calculate initial watchtime stats for a director
+    const calculateDirectorStats = useCallback((director: DirectorItem, allMovies: any[], allShows: any[]) => {
+        if (!director.tmdbId) return director;
+
+        const roles = director.roles ?? [];
+        const movieCredits = allMovies.filter(m =>
+            roles.some(r => r.mediaType === 'movie' && `tmdb-movie-${r.id}` === m.id) &&
+            (m.watchRecords?.length ?? 0) > 0
+        );
+        const showCredits = allShows.filter(s =>
+            roles.some(r => r.mediaType === 'tv' && `tmdb-tv-${r.id}` === s.id) &&
+            (s.watchRecords?.length ?? 0) > 0
+        );
+
+        const movieMinutes = movieCredits.reduce((sum, m) => sum + getTotalMinutesFromRecords(m.watchRecords ?? [], m.runtimeMinutes), 0);
+        const showMinutes = showCredits.reduce((sum, s) => {
+            return sum + getTotalMinutesFromRecords(s.watchRecords ?? [], s.runtimeMinutes);
+        }, 0);
+
+        const moviesSeen = movieCredits.map(m => m.id);
+        const showsSeen = showCredits.map(s => s.id);
+
+        const allRecords = [
+            ...movieCredits.flatMap(m => m.watchRecords ?? []),
+            ...showCredits.flatMap(s => s.watchRecords ?? [])
+        ].filter(r => (r.year ?? 0) > 0);
+
+        // Sort chronologically
+        allRecords.sort((a, b) => {
+            const aVal = (a.year || 0) * 10000 + (a.month || 0) * 100 + (a.day || 0);
+            const bVal = (b.year || 0) * 10000 + (b.month || 0) * 100 + (b.day || 0);
+            return aVal - bVal;
+        });
+
+        const first = allRecords[0];
+        const last = allRecords[allRecords.length - 1];
+
+        const firstSeenDate = first ? `${first.year}-${String(first.month || 1).padStart(2, '0')}-${String(first.day || 1).padStart(2, '0')}` : undefined;
+        const lastSeenDate = last ? `${last.year}-${String(last.month || 1).padStart(2, '0')}-${String(last.day || 1).padStart(2, '0')}` : undefined;
+
+        return {
+            ...director,
+            movieMinutes,
+            showMinutes,
+            moviesSeen,
+            showsSeen,
+            firstSeenDate,
+            lastSeenDate
+        };
+    }, []);
+
     const addDirectorFromSearch = useCallback((incoming: {
         id: string;
         title: string;
@@ -379,6 +425,10 @@ export function DirectorsProvider({
         setByClass(prev => {
             const rankedKeys = new Set(classes.filter(c => c.isRanked).map(c => c.key));
             const isTargetRanked = rankedKeys.has(incoming.classKey);
+
+            // Extract all movies and shows the user has seen for initial calculation
+            const allMovies = Object.values(moviesByClass).flat();
+            const allShows = Object.values(tvByClass).flat();
 
             // Find existing
             let existingItem: DirectorItem | null = null;
@@ -448,19 +498,22 @@ export function DirectorsProvider({
                 rankInClass: 'Unranked'
             };
 
+            // Calculate initial stats based on existing watch records
+            const directorWithStats = calculateDirectorStats(base, allMovies, allShows);
+
             const next = { ...prev };
             const target = next[incoming.classKey] ?? [];
             if (incoming.position === 'top') {
-                next[incoming.classKey] = [base, ...target];
+                next[incoming.classKey] = [directorWithStats, ...target];
             } else if (incoming.position === 'middle') {
                 const mid = Math.ceil(target.length / 2);
-                next[incoming.classKey] = [...target.slice(0, mid), base, ...target.slice(mid)];
+                next[incoming.classKey] = [...target.slice(0, mid), directorWithStats, ...target.slice(mid)];
             } else {
-                next[incoming.classKey] = [...target, base];
+                next[incoming.classKey] = [...target, directorWithStats];
             }
             return next;
         });
-    }, []);
+    }, [classes, classOrder, moviesByClass, tvByClass, calculateDirectorStats]);
 
 
     const moveItemToClass = useCallback((itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => {
