@@ -25,12 +25,20 @@ export function FilterModal({ isOpen, onClose, items, type }: Props) {
 
     // Derived data for wordcloud and timeline
     const { allGenres, dateRange } = useMemo(() => {
+        // Comprehensive list of all possible genres
+        const allPossibleGenres = [
+            'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 
+            'Drama', 'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 
+            'Romance', 'Science Fiction', 'TV Movie', 'Thriller', 'War', 'Western',
+            'Kids', 'News', 'Reality', 'Sci-Fi & Fantasy', 'Soap', 'Talk', 'War & Politics'
+        ];
+
         const genresMap: Record<string, number> = {};
         let minYear = Infinity;
         let maxYear = -Infinity;
 
+        // Count genres from items
         items.forEach(item => {
-            // Genres
             (item.genres || []).forEach(g => {
                 genresMap[g] = (genresMap[g] || 0) + 1;
             });
@@ -45,13 +53,17 @@ export function FilterModal({ isOpen, onClose, items, type }: Props) {
             });
         });
 
-        const sortedGenres = Object.entries(genresMap)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 12)
-            .map(([name, count]) => ({ name, count }));
+        // Only show genres that have at least 1 entry
+        const allGenresList = allPossibleGenres
+            .map(name => ({
+                name,
+                count: genresMap[name] || 0
+            }))
+            .filter(g => g.count > 0) // Only show genres with items
+            .sort((a, b) => b.count - a.count); // Sort by count, highest first
 
         return {
-            allGenres: sortedGenres,
+            allGenres: allGenresList,
             dateRange: minYear === Infinity ? null : [minYear, maxYear] as [number, number]
         };
     }, [items]);
@@ -176,7 +188,7 @@ export function FilterModal({ isOpen, onClose, items, type }: Props) {
                                         checked={currentFilters.includeLongAgo}
                                         onChange={e => setFilters({ ...currentFilters, includeLongAgo: e.target.checked })}
                                     />
-                                    <span>Include "Long Ago" / Unknown dates</span>
+                                    <span>Include "Long Ago" watches</span>
                                 </label>
                             </div>
                         ) : (
@@ -227,13 +239,43 @@ export function FilterModal({ isOpen, onClose, items, type }: Props) {
                 </div>
 
                 <footer className="filter-footer">
-                    <button className="filter-reset-btn" onClick={resetFilters}>
-                        <RotateCcw size={16} />
-                        Reset Filters
-                    </button>
-                    <button className="filter-apply-btn" onClick={onClose}>
-                        Close
-                    </button>
+                    <div className="filter-footer-left">
+                        <div className="shown-entries">
+                            {items.filter(item => {
+                                // Apply same filter logic as in pages
+                                if (currentFilters.genres.length > 0) {
+                                    const itemGenres = item.genres || [];
+                                    if (!currentFilters.genres.some(g => itemGenres.includes(g))) return false;
+                                }
+                                if (currentFilters.actorIds.length > 0) {
+                                    const itemActorIds = (item.cast || []).map(c => c.id);
+                                    if (!currentFilters.actorIds.every(id => itemActorIds.includes(id))) return false;
+                                }
+                                if (currentFilters.watchTimeRange) {
+                                    const records = item.watchRecords || [];
+                                    const hasInRange = records.some(r => {
+                                        const t = r.type ?? 'DATE';
+                                        if (t === 'LONG_AGO' || t === 'UNKNOWN' || t === 'DNF_LONG_AGO') {
+                                            return currentFilters.includeLongAgo;
+                                        }
+                                        const year = r.year;
+                                        return year && year >= currentFilters.watchTimeRange![0] && year <= currentFilters.watchTimeRange![1];
+                                    });
+                                    if (!hasInRange && records.length > 0) return false;
+                                }
+                                return true;
+                            }).length} entries shown
+                        </div>
+                    </div>
+                    <div className="filter-footer-right">
+                        <button className="filter-reset-btn" onClick={resetFilters}>
+                            <RotateCcw size={16} />
+                            Reset Filters
+                        </button>
+                        <button className="filter-apply-btn" onClick={onClose}>
+                            Close
+                        </button>
+                    </div>
                 </footer>
             </div>
         </div>

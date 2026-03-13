@@ -18,7 +18,7 @@
     border: 1px solid #333;
     border-radius: 16px;
     width: 100%;
-    max-width: 500px;
+    max-width: 700px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -267,7 +267,24 @@
     border-top: 1px solid #333;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 12px;
+}
+
+.filter-footer-left {
+    display: flex;
+    align-items: center;
+}
+
+.filter-footer-right {
+    display: flex;
+    gap: 12px;
+}
+
+.shown-entries {
+    font-size: 0.875rem;
+    color: #888;
+    font-weight: 500;
 }
 
 .filter-reset-btn {

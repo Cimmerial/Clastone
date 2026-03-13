@@ -153,6 +153,13 @@ export function MoviesPage() {
         {!hasActiveModal && (
           <div className="page-actions-row">
             <ViewToggle />
+            <button
+              className="filter-button"
+              onClick={() => setIsFilterModalOpen(true)}
+              title="Filter movies"
+            >
+              <FilterIcon size={18} />
+            </button>
           </div>
         )}
       </header>

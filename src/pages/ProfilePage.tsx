@@ -354,6 +354,55 @@ export function ProfilePage() {
           (movieReleaseYears.length + showReleaseYears.length)
         );
 
+    // Calculate average watchtime per movie and show (including rewatches)
+    let totalMovieWatches = 0;
+    let totalShowWatches = 0;
+    for (const k of movieClassOrder) {
+      for (const item of moviesByClass[k] ?? []) {
+        totalMovieWatches += (item.watchRecords ?? []).filter((r) => (r.type ?? 'DATE') !== 'DNF').length;
+      }
+    }
+    for (const k of tvClassOrder) {
+      for (const item of tvByClass[k] ?? []) {
+        totalShowWatches += (item.watchRecords ?? []).filter((r) => (r.type ?? 'DATE') !== 'DNF').length;
+      }
+    }
+
+    const avgWatchtimePerMovie = totalMovieWatches > 0 ? Math.round(moviesMinutes / totalMovieWatches) : 0;
+    const avgWatchtimePerShow = totalShowWatches > 0 ? Math.round(showsMinutes / totalShowWatches) : 0;
+
+    // Calculate average runtime per ranked category for movies
+    const movieAvgRuntimeByCategory = movieClassOrder
+      .filter(k => isRankedMovieClass(k))
+      .map(k => {
+        const items = moviesByClass[k] ?? [];
+        const runtimes = items
+          .filter(item => item.runtimeMinutes && item.runtimeMinutes > 0)
+          .map(item => item.runtimeMinutes!);
+        const avgRuntime = runtimes.length > 0 ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : 0;
+        return {
+          key: k,
+          avgRuntime,
+          count: items.length
+        };
+      });
+
+    // Calculate average runtime per ranked category for shows
+    const showAvgRuntimeByCategory = tvClassOrder
+      .filter(k => isRankedTvClass(k))
+      .map(k => {
+        const items = tvByClass[k] ?? [];
+        const runtimes = items
+          .filter(item => item.runtimeMinutes && item.runtimeMinutes > 0)
+          .map(item => item.runtimeMinutes!);
+        const avgRuntime = runtimes.length > 0 ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : 0;
+        return {
+          key: k,
+          avgRuntime,
+          count: items.length
+        };
+      });
+
     return {
       totalMinutes,
       moviesMinutes,
@@ -375,7 +424,11 @@ export function ProfilePage() {
       movieRewatchCount,
       tvTotalWatches,
       tvDNFCount,
-      tvRewatchCount
+      tvRewatchCount,
+      avgWatchtimePerMovie,
+      avgWatchtimePerShow,
+      movieAvgRuntimeByCategory,
+      showAvgRuntimeByCategory
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass]);
 
@@ -852,6 +905,14 @@ export function ProfilePage() {
                 <span className="profile-stat-value profile-stat-value--sub">{formatDuration(stats.showsMinutes)}</span>
                 <span className="profile-stat-label">Shows</span>
               </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value profile-stat-value--sub">{formatDuration(stats.avgWatchtimePerMovie)}</span>
+                <span className="profile-stat-label">Avg per movie</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value profile-stat-value--sub">{formatDuration(stats.avgWatchtimePerShow)}</span>
+                <span className="profile-stat-label">Avg per show</span>
+              </div>
             </div>
             
             <div className="profile-stats-grid">
@@ -1036,6 +1097,64 @@ export function ProfilePage() {
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<YearTooltip />} />
                     <Bar dataKey="count" fill="var(--accent-soft)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">Avg Runtime per Movie Category</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.movieAvgRuntimeByCategory}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="rgba(255,255,255,0.5)" />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="profile-chart-tooltip">
+                            <p className="profile-chart-tooltip-category">{data.key}</p>
+                            <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                            <p className="profile-chart-tooltip-count">{data.count} movies</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Bar dataKey="avgRuntime" fill="var(--accent)">
+                      {stats.movieAvgRuntimeByCategory.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={`hsl(${30 + index * 40}, 70%, 60%)`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">Avg Runtime per Show Category</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.showAvgRuntimeByCategory}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="rgba(255,255,255,0.5)" />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="profile-chart-tooltip">
+                            <p className="profile-chart-tooltip-category">{data.key}</p>
+                            <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                            <p className="profile-chart-tooltip-count">{data.count} shows</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Bar dataKey="avgRuntime" fill="var(--accent)">
+                      {stats.showAvgRuntimeByCategory.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={`hsl(${200 + index * 40}, 70%, 60%)`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
