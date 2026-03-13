@@ -5,7 +5,7 @@
 #### Design Questions:
 - Should we allow for not recording watch date or any watches but still ranking the movie? If people dont want to do that? I think we should.
 
-#### Ranking Modal REWORK 
+#### Ranking Modal DONE
 - Universalize it:
     - ONE EDITING MODAL (for tv and movies):
         - Watch History
@@ -53,10 +53,10 @@
 
 
 #### The List Rankings++
-- Dragging Between Sections
+- **DONE** Dragging Between Sections 
 - Removing the movement arrows (as we have dragging and the rank change override within the new modal)
 - Bigger creator/director/actor portaits in detailed view due to button removal
-- Move EDIT WATCHES modal access button
+- **DONE** Move EDIT WATCHES modal access button
 - Add filtering back
 - Class splitting, Class combining
 

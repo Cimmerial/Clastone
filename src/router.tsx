@@ -11,6 +11,7 @@ import { FriendProfilePage } from './pages/FriendProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { GuidePage } from './pages/GuidePage';
+import { PatchNotesPage } from './pages/PatchNotesPage';
 
 export function AppRoutes() {
   return (
@@ -27,6 +28,7 @@ export function AppRoutes() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/guide" element={<GuidePage />} />
+      <Route path="/patchnotes" element={<PatchNotesPage />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="*" element={<Navigate to="/movies" replace />} />
     </Routes>

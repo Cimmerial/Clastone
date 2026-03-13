@@ -1,0 +1,28 @@
+/* Profile layout with recently watched on left, watchlist on right */
+.profile-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.profile-split-layout .profile-recent {
+  margin-top: 0;
+}
+
+.profile-split-layout .profile-watchlist {
+  margin-top: 0;
+}
+
+/* Mobile responsiveness - stack vertically */
+@media (max-width: 1024px) {
+  .profile-split-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .profile-split-layout .profile-recent,
+  .profile-split-layout .profile-watchlist {
+    margin-top: 24px;
+  }
+}

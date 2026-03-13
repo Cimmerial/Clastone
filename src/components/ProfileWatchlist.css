@@ -1,0 +1,187 @@
+.profile-watchlist {
+  margin-top: 24px;
+}
+
+.profile-watchlist-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.profile-watchlist-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-watchlist-count {
+  margin-left: 0;
+}
+
+.profile-watchlist-empty {
+  text-align: center;
+  padding: 32px;
+}
+
+/* Use existing profile-recent classes for consistent styling */
+.profile-recent-controls {
+  margin-bottom: 16px;
+}
+
+.profile-recent-label {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-right: 8px;
+}
+
+.profile-recent-btn {
+  padding: 4px 8px;
+  margin-right: 4px;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.profile-recent-btn:hover {
+  background: var(--color-surface-secondary);
+}
+
+.profile-recent-btn--active {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary);
+}
+
+.profile-recent-list {
+  min-height: 120px;
+}
+
+.profile-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.profile-recent-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.profile-recent-tile:hover {
+  background: var(--color-surface-secondary);
+}
+
+.profile-recent-tile:hover .profile-top-overlay {
+  opacity: 1;
+}
+
+.profile-recent-tile-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.profile-top-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border-radius: var(--radius-sm);
+}
+
+.profile-top-overlay-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: white;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.profile-top-overlay-text--seen {
+  color: #4ade80;
+  border-color: #4ade80;
+}
+
+.profile-recent-tile-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-recent-tile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.profile-recent-tile-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.profile-recent-tile-date {
+  font-size: 0.625rem;
+  color: var(--color-text-secondary);
+}
+
+.profile-watchlist-overlap-info {
+  margin-top: 12px;
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.profile-watchlist-overlap-info p {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .profile-recent-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+  
+  .profile-recent-tile-title {
+    font-size: 0.7rem;
+  }
+  
+  .profile-recent-tile-date {
+    font-size: 0.6rem;
+  }
+}
