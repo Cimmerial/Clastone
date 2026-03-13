@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
@@ -125,12 +125,15 @@ interface DatePickerProps {
   compact?: boolean;
 }
 
-function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, onChange, compact }: DatePickerProps) {
+const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, onChange, compact }, ref) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Forward the external ref to the internal triggerRef
+  React.useImperativeHandle(ref, () => triggerRef.current!, []);
 
   // Stable callback to prevent re-renders from closing the dropdown
   const stableOnChange = useCallback((updates: { year?: number; month?: number; day?: number }) => {
@@ -228,7 +231,7 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
       )}
     </div>
   );
-}
+});
 
 /* ─── Matrix Entry Row ──────────────────────────────── */
 
@@ -284,6 +287,7 @@ function MatrixRow({
 }: MatrixRowProps) {
   const { watchType, year, month, day, endYear, endMonth, endDay, watchPercent, watchStatus } = entry;
   const [pendingDelete, setPendingDelete] = useState(false);
+  const datePickerRef = useRef<HTMLButtonElement>(null);
 
   const showDate = watchType !== 'LONG_AGO';
   const showEndDate = watchType === 'DATE_RANGE';
@@ -302,6 +306,21 @@ function MatrixRow({
     }
   };
 
+  // Handle watch type change with auto-open date picker
+  const handleWatchTypeChange = (newWatchType: WatchMatrixType) => {
+    onUpdate({ watchType: newWatchType });
+    
+    // If changing to SINGLE_DATE, open the date picker
+    if (newWatchType === 'SINGLE_DATE') {
+      // Use setTimeout to ensure the DatePicker is rendered before we try to click it
+      setTimeout(() => {
+        if (datePickerRef.current) {
+          datePickerRef.current.click();
+        }
+      }, 0);
+    }
+  };
+
   return (
     <div className="uem-matrix-row">
       {/* Watch Type Column */}
@@ -309,7 +328,7 @@ function MatrixRow({
         <ThemedDropdown
           value={watchType}
           options={WATCH_TYPE_OPTIONS}
-          onChange={v => onUpdate({ watchType: v as WatchMatrixType })}
+          onChange={v => handleWatchTypeChange(v as WatchMatrixType)}
           className="uem-type-dd"
         />
       </div>
@@ -333,6 +352,7 @@ function MatrixRow({
           <div className="uem-time-with-preset">
             <div className="uem-date-group">
               <DatePicker
+                ref={datePickerRef}
                 year={year} month={month} day={day}
                 allYearOpts={yearOptions}
                 monthOptsFor={monthOptsFor}

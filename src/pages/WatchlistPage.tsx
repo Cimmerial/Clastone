@@ -1,6 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RandomQuote } from '../components/RandomQuote';
+import { PageSearch, type SearchableItem } from '../components/PageSearch';
+import { ViewToggle } from '../components/ViewToggle';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { useSettingsStore } from '../state/settingsStore';
 import {
   DndContext,
   type DragEndEvent,
@@ -10,19 +14,118 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { arrayMove, SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
-import { RecordWatchModal, type RecordWatchTarget, type RecordWatchSaveParams } from '../components/RecordWatchModal';
+import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import './WatchlistPage.css';
 
 function formatYear(releaseDate?: string): string {
   if (!releaseDate) return '—';
   const y = releaseDate.slice(0, 4);
   return /^\d{4}$/.test(y) ? y : releaseDate;
+}
+
+function WatchlistTile({
+  entry,
+  type,
+  onRecordWatch,
+  onRemove,
+  hasWatched,
+  providers
+}: {
+  entry: WatchlistEntry;
+  type: WatchlistType;
+  onRecordWatch: () => void;
+  onRemove: () => void;
+  hasWatched: boolean;
+  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
+}) {
+  const [clickCount, setClickCount] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: entry.id,
+    data: { type }
+  });
+  const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+    
+    if (newCount === 1) {
+      // First click - show confirmation
+      setShowConfirm(true);
+      // Reset after 2 seconds
+      setTimeout(() => {
+        setClickCount(0);
+        setShowConfirm(false);
+      }, 2000);
+    } else if (newCount === 2) {
+      // Double click - remove immediately
+      onRemove();
+      setClickCount(0);
+      setShowConfirm(false);
+    }
+  };
+
+  return (
+    <div 
+      className={`watchlist-tile ${hasWatched ? 'watched' : ''} ${isDragging ? 'watchlist-tile--dragging' : ''}`}
+      data-watchlist-id={entry.id}
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+    >
+      <div className="watchlist-tile-poster">
+        {entry.posterPath ? (
+          <img
+            src={tmdbImagePath(entry.posterPath, 'w154') || undefined}
+            alt={entry.title}
+            className="watchlist-tile-poster-img"
+            loading="lazy"
+          />
+        ) : (
+          <div className="watchlist-tile-poster-placeholder">
+            {type === 'movies' ? '🎬' : '📺'}
+          </div>
+        )}
+        <div className="watchlist-tile-overlay">
+          <button
+            type="button"
+            className={`watchlist-tile-remove-btn ${showConfirm ? 'confirming' : ''}`}
+            aria-label="Remove from watchlist"
+            onClick={handleClick}
+          >
+            {showConfirm ? '✓' : '✕'}
+          </button>
+          <button
+            type="button"
+            className="watchlist-tile-rw-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRecordWatch();
+            }}
+          >
+            RW
+          </button>
+        </div>
+      </div>
+      <div className="watchlist-tile-info">
+        <h3 className="watchlist-tile-title">{entry.title}</h3>
+        <p className="watchlist-tile-meta">
+          {formatYear(entry.releaseDate || undefined)}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function WatchlistRow({
@@ -84,6 +187,7 @@ function WatchlistRow({
       ref={setNodeRef}
       className={`watchlist-row ${isDragging ? 'watchlist-row--dragging' : ''}`}
       style={style}
+      data-watchlist-id={entry.id}
       {...attributes}
       {...listeners}
     >
@@ -164,7 +268,7 @@ function WatchlistRow({
             onRecordWatch();
           }}
         >
-          {hasWatched ? 'Record another watch' : 'Record watch'}
+          Record watch
         </button>
       </div>
     </div>
@@ -174,6 +278,8 @@ function WatchlistRow({
 export function WatchlistPage() {
   const navigate = useNavigate();
   const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
+  const { settings } = useSettingsStore();
+  const mobileViewMode = useMobileViewMode();
   const {
     getMovieById,
     addMovieFromSearch,
@@ -196,7 +302,7 @@ export function WatchlistPage() {
     getClassTagline: getTvClassTagline,
     removeShowEntry
   } = useTvStore();
-  const [recordTarget, setRecordTarget] = useState<RecordWatchTarget | null>(null);
+  const [recordTarget, setRecordTarget] = useState<UniversalEditTarget | null>(null);
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>>>({});
@@ -236,6 +342,9 @@ export function WatchlistPage() {
     };
     fetchAllProviders();
   }, [movies, tv]);
+
+  // Track modal state
+  const hasActiveModal = !!recordTarget;
 
   const movieRankedClasses = useMemo(
     () => classOrder.map((k) => ({
@@ -292,15 +401,18 @@ export function WatchlistPage() {
         setRecordWatchlistId(null);
         return;
       }
-      const target: RecordWatchTarget = {
-        id: tmdbId,
+      const target: UniversalEditTarget = {
+        id: entry.id,
+        tmdbId,
         title: cache.title ?? entry.title,
-        poster_path: cache.posterPath ?? entry.posterPath,
-        media_type: isMovie ? 'movie' : 'tv',
+        posterPath: cache.posterPath ?? entry.posterPath,
+        mediaType: isMovie ? 'movie' : 'tv',
         subtitle: cache.releaseDate ?? entry.releaseDate,
         releaseDate: cache.releaseDate ?? entry.releaseDate,
         runtimeMinutes: 'runtimeMinutes' in cache ? cache.runtimeMinutes as number : undefined,
-        totalEpisodes: 'totalEpisodes' in cache ? cache.totalEpisodes as number : undefined
+        totalEpisodes: 'totalEpisodes' in cache ? cache.totalEpisodes as number : undefined,
+        existingClassKey: undefined,
+        watchlistStatus: 'in_watchlist',
       };
       setRecordTarget(target);
     } catch {
@@ -308,22 +420,22 @@ export function WatchlistPage() {
     }
   };
 
-  const handleRecordSave = async (params: RecordWatchSaveParams, goToMovie: boolean) => {
+  const handleRecordSave = async (params: UniversalEditSaveParams, goToMovie: boolean) => {
     if (!recordTarget) return;
     const { watches, classKey: recordClassKey, position } = params;
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
-    const isMovie = recordTarget.media_type === 'movie';
-    const id = isMovie ? `tmdb-movie-${recordTarget.id}` : `tmdb-tv-${recordTarget.id}`;
+    const isMovie = recordTarget.mediaType === 'movie';
+    const id = recordTarget.id;
     const existing = isMovie ? getMovieById(id) : getShowById(id);
     const existingIsUnranked = existing?.classKey === 'UNRANKED';
 
     if (isMovie) {
       if (existing) {
         const needsCache = existing.tmdbId == null || existing.overview == null;
-        if (needsCache) {
+        if (needsCache && recordTarget.tmdbId) {
           try {
-            const cache = await tmdbMovieDetailsFull(recordTarget.id);
+            const cache = await tmdbMovieDetailsFull(recordTarget.tmdbId);
             if (cache) updateMovieCache(id, cache);
           } catch {
             /* ignore */
@@ -331,7 +443,7 @@ export function WatchlistPage() {
         }
         for (const w of watches) {
           addWatchToMovie(id, w, {
-            posterPath: recordTarget.poster_path ?? existing.posterPath
+            posterPath: recordTarget.posterPath ?? existing.posterPath
           });
         }
         if (existingIsUnranked && recordClassKey) {
@@ -342,7 +454,9 @@ export function WatchlistPage() {
         setIsSaving(true);
         let cache = null;
         try {
-          cache = await tmdbMovieDetailsFull(recordTarget.id);
+          if (recordTarget.tmdbId) {
+            cache = await tmdbMovieDetailsFull(recordTarget.tmdbId);
+          }
         } catch {
           /* ignore */
         }
@@ -353,7 +467,7 @@ export function WatchlistPage() {
           classKey: recordClassKey,
           firstWatch: watches[0],
           runtimeMinutes: cache?.runtimeMinutes,
-          posterPath: recordTarget.poster_path ?? cache?.posterPath,
+          posterPath: recordTarget.posterPath ?? cache?.posterPath,
           cache: cache ?? undefined,
           toTop
         });
@@ -367,7 +481,9 @@ export function WatchlistPage() {
       setIsSaving(true);
       let cache = null;
       try {
-        cache = await tmdbTvDetailsFull(recordTarget.id);
+        if (recordTarget.tmdbId) {
+          cache = await tmdbTvDetailsFull(recordTarget.tmdbId);
+        }
       } catch {
         /* ignore */
       }
@@ -426,6 +542,24 @@ export function WatchlistPage() {
     return !!(show?.watchRecords && show.watchRecords.length > 0);
   };
 
+  // Prepare search items
+  const searchItems: SearchableItem[] = useMemo(() => [
+    ...movies.map(entry => ({ id: entry.id, title: entry.title })),
+    ...tv.map(entry => ({ id: entry.id, title: entry.title }))
+  ], [movies, tv]);
+
+  const handleSearchSelect = (id: string) => {
+    const el = document.querySelector(`[data-watchlist-id="${id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add highlight effect
+      (el as HTMLElement).classList.add('highlighted-entry');
+      setTimeout(() => {
+        (el as HTMLElement).classList.remove('highlighted-entry');
+      }, 2000);
+    }
+  };
+
   return (
     <section>
       <header className="page-heading">
@@ -433,7 +567,21 @@ export function WatchlistPage() {
           <h1 className="page-title">Watchlist</h1>
           <RandomQuote />
         </div>
+        {!hasActiveModal && (
+          <div className="page-actions-row">
+            <ViewToggle />
+          </div>
+        )}
       </header>
+
+      {!hasActiveModal && (
+        <PageSearch
+          items={searchItems}
+          onSelect={handleSearchSelect}
+          placeholder="Search watchlist..."
+          pageKey="watchlist"
+        />
+      )}
 
       <div className="watchlist-page ranked-list--sortable">
         <DndContext
@@ -447,25 +595,43 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">Movies</h3>
                 <p className="class-section-count">{movies.length} entries</p>
               </header>
-              <div className="class-section-rows">
-                <SortableContext items={movies.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {movies.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      type="movies"
-                      onRecordWatch={() => handleRecordWatch(entry, 'movies')}
-                      onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
-                      onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < movies.length - 1}
-                      providers={watchProviders[entry.id]}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
+              {mobileViewMode === 'tile' ? (
+                <div className="watchlist-tiles">
+                  <SortableContext items={movies.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
+                    {movies.map((entry, index) => (
+                      <WatchlistTile
+                        key={entry.id}
+                        entry={entry}
+                        type="movies"
+                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        providers={watchProviders[entry.id]}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              ) : (
+                <div className="class-section-rows">
+                  <SortableContext items={movies.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    {movies.map((entry, index) => (
+                      <WatchlistRow
+                        key={entry.id}
+                        entry={entry}
+                        type="movies"
+                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
+                        onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
+                        onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < movies.length - 1}
+                        providers={watchProviders[entry.id]}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              )}
             </section>
 
             <section className="watchlist-section class-section">
@@ -473,74 +639,89 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">TV Shows</h3>
                 <p className="class-section-count">{tv.length} entries</p>
               </header>
-              <div className="class-section-rows">
-                <SortableContext items={tv.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {tv.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      type="tv"
-                      onRecordWatch={() => handleRecordWatch(entry, 'tv')}
-                      onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
-                      onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < tv.length - 1}
-                      providers={watchProviders[entry.id]}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
+              {mobileViewMode === 'tile' ? (
+                <div className="watchlist-tiles">
+                  <SortableContext items={tv.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
+                    {tv.map((entry, index) => (
+                      <WatchlistTile
+                        key={entry.id}
+                        entry={entry}
+                        type="tv"
+                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        providers={watchProviders[entry.id]}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              ) : (
+                <div className="class-section-rows">
+                  <SortableContext items={tv.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    {tv.map((entry, index) => (
+                      <WatchlistRow
+                        key={entry.id}
+                        entry={entry}
+                        type="tv"
+                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
+                        onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
+                        onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < tv.length - 1}
+                        providers={watchProviders[entry.id]}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              )}
             </section>
           </div>
         </DndContext>
       </div>
 
       {recordTarget && (
-        <RecordWatchModal
+        <UniversalEditModal
           target={recordTarget}
-          rankedClasses={recordTarget.media_type === 'movie' ? movieRankedClasses : tvRankedClasses}
-          mode={
-            recordTarget.media_type === 'movie'
-              ? (!getMovieById(`tmdb-movie-${recordTarget.id}`) ||
-                getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey === 'UNRANKED'
-                ? 'first-watch' : 'edit-watch')
-              : (!getShowById(`tmdb-tv-${recordTarget.id}`) ||
-                getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey === 'UNRANKED'
-                ? 'first-watch' : 'edit-watch')
+          rankedClasses={recordTarget.mediaType === 'movie' ? movieRankedClasses : tvRankedClasses}
+          initialWatches={
+            recordTarget.mediaType === 'movie'
+              ? (() => {
+                  const tmdbId = recordTarget.tmdbId || 0;
+                  const status = getMovieById(recordTarget.id);
+                  return status?.watchRecords || [];
+                })()
+              : (() => {
+                  const tmdbId = recordTarget.tmdbId || 0;
+                  const status = getShowById(recordTarget.id);
+                  return status?.watchRecords || [];
+                })()
           }
           currentClassKey={
-            recordTarget.media_type === 'movie'
-              ? getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey
-              : getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey
+            recordTarget.mediaType === 'movie'
+              ? getMovieById(recordTarget.id)?.classKey
+              : getShowById(recordTarget.id)?.classKey
           }
           currentClassLabel={
-            recordTarget.media_type === 'movie'
-              ? getClassLabel(getMovieById(`tmdb-movie-${recordTarget.id}`)?.classKey ?? '')
-              : getTvClassLabel(getShowById(`tmdb-tv-${recordTarget.id}`)?.classKey ?? '')
+            recordTarget.mediaType === 'movie'
+              ? getClassLabel(getMovieById(recordTarget.id)?.classKey ?? '')
+              : getTvClassLabel(getShowById(recordTarget.id)?.classKey ?? '')
           }
+          isWatchlistItem={true}
           onSave={handleRecordSave}
           onClose={() => {
             setRecordTarget(null);
             setRecordWatchlistId(null);
           }}
-          onRemoveEntry={(id) => {
-            if (recordTarget.media_type === 'movie') removeMovieEntry(id);
+          onRemoveEntry={(id: string) => {
+            if (recordTarget.mediaType === 'movie') removeMovieEntry(id);
             else removeShowEntry(id);
             if (recordWatchlistId) removeFromWatchlist(recordWatchlistId);
             setRecordTarget(null);
             setRecordWatchlistId(null);
           }}
           isSaving={isSaving}
-          onAddToUnranked={() => {
-            const id = recordTarget.media_type === 'movie' ? `tmdb-movie-${recordTarget.id}` : `tmdb-tv-${recordTarget.id}`;
-            if (recordTarget.media_type === 'movie') moveItemToClass(id, 'UNRANKED');
-            else moveShowToClass(id, 'UNRANKED');
-            if (recordWatchlistId) removeFromWatchlist(recordWatchlistId);
-            setRecordTarget(null);
-            setRecordWatchlistId(null);
-          }}
         />
       )}
     </section>

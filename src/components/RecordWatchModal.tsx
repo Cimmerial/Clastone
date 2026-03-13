@@ -130,14 +130,6 @@ function DatePicker({ year, month, day, allYearOpts, monthOptsFor, dayOptsFor, o
 
   return (
     <div className="dp-wrap" ref={wrapRef}>
-      {/* Debug: Always render this test button */}
-      <button 
-        onClick={() => console.log('TEST BUTTON CLICKED!')}
-        style={{ background: 'red', color: 'white', margin: '5px' }}
-      >
-        TEST CLICK
-      </button>
-      
       <button
         type="button"
         className={`dp-trigger${open ? ' dp-trigger--open' : ''}`}
