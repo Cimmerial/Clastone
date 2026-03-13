@@ -43,6 +43,449 @@
   margin: 0 auto;
 }
 
+/* Profile Stats Header Actions */
+.profile-stats-header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.profile-view-friends-btn,
+.profile-unfriend-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  border: 1px solid;
+  opacity: 0.7;
+}
+
+.profile-view-friends-btn {
+  background: rgba(232, 93, 4, 0.05);
+  color: var(--accent-soft);
+  border-color: rgba(232, 93, 4, 0.2);
+}
+
+.profile-view-friends-btn:hover:not(:disabled) {
+  background: rgba(232, 93, 4, 0.1);
+  border-color: rgba(232, 93, 4, 0.3);
+  opacity: 1;
+}
+
+.profile-unfriend-btn {
+  background: rgba(220, 38, 38, 0.05);
+  color: #ef4444;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+.profile-unfriend-btn:hover {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.3);
+  opacity: 1;
+}
+
+.profile-stats-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  border: 1px solid var(--accent-soft);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.28), rgba(232, 93, 4, 0.12));
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(232, 93, 4, 0.2);
+}
+
+.profile-stats-expand-btn:hover {
+  border-color: var(--accent);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), rgba(232, 93, 4, 0.18));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(232, 93, 4, 0.3);
+}
+
+/* Friends of Friend Modal */
+.friends-of-friend-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.friends-of-friend-modal {
+  background: linear-gradient(135deg, rgba(26, 10, 0, 0.95) 0%, rgba(26, 10, 0, 0.98) 100%);
+  border: 1px solid rgba(232, 93, 4, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.friends-of-friend-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(232, 93, 4, 0.2);
+}
+
+.friends-of-friend-modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.friends-of-friend-modal-icon {
+  color: var(--accent-soft);
+}
+
+.friends-of-friend-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.friends-of-friend-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.friends-of-friend-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.friends-of-friend-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.friends-of-friend-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.friends-of-friend-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(26, 10, 0, 0.6);
+  border: 1px solid rgba(232, 93, 4, 0.2);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+}
+
+.friends-of-friend-item:hover {
+  background: rgba(26, 10, 0, 0.8);
+  border-color: rgba(232, 93, 4, 0.4);
+  transform: translateY(-1px);
+}
+
+.friends-of-friend-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at top left, var(--accent-soft), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg);
+  font-weight: 600;
+  font-size: 1.125rem;
+  flex-shrink: 0;
+}
+
+.friends-of-friend-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.friends-of-friend-info strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friends-of-friend-info span {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friends-of-friend-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.friends-of-friend-sent {
+  color: var(--accent-soft);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.friends-of-friend-self {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-style: italic;
+}
+
+.friends-of-friend-view-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  border: 1px solid rgba(232, 93, 4, 0.3);
+  background: rgba(232, 93, 4, 0.1);
+  color: var(--accent-soft);
+}
+
+.friends-of-friend-view-btn:hover {
+  border-color: var(--accent-soft);
+  background: rgba(232, 93, 4, 0.2);
+  transform: translateY(-1px);
+}
+
+.friends-of-friend-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  border: 1px solid rgba(244, 162, 97, 0.8);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.28), rgba(232, 93, 4, 0.12));
+  color: var(--text-primary);
+}
+
+.friends-of-friend-add-btn:hover {
+  border-color: var(--accent-soft);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), rgba(232, 93, 4, 0.18));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.friends-of-friend-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.friends-of-friend-empty svg {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: var(--accent-muted);
+}
+
+.friends-of-friend-empty p {
+  margin: 0;
+}
+
+/* Unfriend Modal */
+.unfriend-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.unfriend-modal {
+  background: linear-gradient(135deg, rgba(26, 10, 0, 0.95) 0%, rgba(26, 10, 0, 0.98) 100%);
+  border: 1px solid rgba(232, 93, 4, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.unfriend-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  color: #ef4444;
+}
+
+.unfriend-modal-icon {
+  flex-shrink: 0;
+}
+
+.unfriend-modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.unfriend-modal-content {
+  margin-bottom: 2rem;
+}
+
+.unfriend-modal-content p {
+  margin: 0 0 1.5rem 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.unfriend-modal-confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.unfriend-modal-confirmation label {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.unfriend-modal-input {
+  padding: 0.75rem 1rem;
+  background: rgba(26, 10, 0, 0.8);
+  border: 2px solid rgba(232, 93, 4, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.unfriend-modal-input:focus {
+  outline: none;
+  border-color: var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(232, 93, 4, 0.2);
+}
+
+.unfriend-modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.unfriend-modal-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  border: 1px solid;
+}
+
+.unfriend-modal-btn--cancel {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-muted);
+  border-color: var(--border-subtle);
+}
+
+.unfriend-modal-btn--cancel:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+.unfriend-modal-btn--confirm {
+  background: rgba(220, 38, 38, 0.1);
+  color: #ef4444;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.unfriend-modal-btn--confirm:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: #ef4444;
+}
+
+.unfriend-modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .loading, .error {
   text-align: center;
   padding: 3rem;

@@ -18,7 +18,7 @@ interface FriendRequest {
   createdAt: string;
 }
 
-interface UserProfile {
+export interface UserProfile {
   uid: string;
   username: string;
   email: string;
@@ -34,6 +34,7 @@ interface FriendsContextType {
   sendFriendRequest: (targetUser: UserProfile) => Promise<void>;
   acceptFriendRequest: (request: FriendRequest) => Promise<void>;
   rejectFriendRequest: (requestId: string) => Promise<void>;
+  unfriend: (friendUid: string) => Promise<void>;
   searchUsers: (query: string) => Promise<UserProfile[]>;
   isDataLoaded: boolean;
 }
@@ -225,6 +226,25 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user]);
 
+  const unfriend = useCallback(async (friendUid: string) => {
+    if (!user || !db) return;
+    
+    setLoading(true);
+    try {
+      // Delete both friendship records
+      await deleteDoc(doc(db!, 'friends', `${user.uid}_${friendUid}`));
+      await deleteDoc(doc(db!, 'friends', `${friendUid}_${user.uid}`));
+      
+      // Update local state
+      setFriends(prev => prev.filter(f => f.uid !== friendUid));
+    } catch (error) {
+      console.error('Error unfriending:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [user, db]);
+
   const value: FriendsContextType = {
     friends,
     sentRequests,
@@ -234,6 +254,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     sendFriendRequest,
     acceptFriendRequest,
     rejectFriendRequest,
+    unfriend,
     searchUsers,
     isDataLoaded
   };

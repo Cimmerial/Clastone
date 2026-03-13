@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { useFriends, type UserProfile } from '../context/FriendsContext';
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus } from 'lucide-react';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
@@ -36,6 +37,13 @@ interface FriendProfile {
   username: string;
   email: string;
   createdAt: string;
+}
+
+interface Friend {
+  uid: string;
+  username: string;
+  email: string;
+  addedAt: string;
 }
 
 function getRecentWatches(
@@ -97,9 +105,20 @@ export function FriendProfilePage() {
   const { friendId } = useParams<{ friendId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { unfriend, refreshFriends, sendFriendRequest, sentRequests, friends } = useFriends();
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Unfriend modal state
+  const [showUnfriendModal, setShowUnfriendModal] = useState(false);
+  const [unfriendConfirmation, setUnfriendConfirmation] = useState('');
+  const [unfriending, setUnfriending] = useState(false);
+
+  // Friend's friends modal state
+  const [showFriendsOfFriendModal, setShowFriendsOfFriendModal] = useState(false);
+  const [friendsOfFriend, setFriendsOfFriend] = useState<Friend[]>([]);
+  const [loadingFriendsOfFriend, setLoadingFriendsOfFriend] = useState(false);
 
   // Ranking modal state
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
@@ -265,6 +284,58 @@ export function FriendProfilePage() {
 
     loadFriendProfile();
   }, [friendId, user, db]);
+
+  // Load friends of friend
+  const loadFriendsOfFriend = useCallback(async () => {
+    if (!friendId || !db) return;
+    
+    setLoadingFriendsOfFriend(true);
+    try {
+      const friendsQuery = query(
+        collection(db!, 'friends'),
+        where('userId', '==', friendId)
+      );
+      const friendsSnapshot = await getDocs(friendsQuery);
+      const friendsData = friendsSnapshot.docs.map(doc => ({
+        uid: doc.data().friendUid,
+        username: doc.data().friendUsername,
+        email: doc.data().friendEmail,
+        addedAt: doc.data().addedAt
+      }));
+      setFriendsOfFriend(friendsData);
+    } catch (error) {
+      console.error('Error loading friends of friend:', error);
+    } finally {
+      setLoadingFriendsOfFriend(false);
+    }
+  }, [friendId, db]);
+
+  // Handle unfriend
+  const handleUnfriend = useCallback(async () => {
+    if (!user || !friendId || unfriendConfirmation !== 'UNFRIEND') return;
+    
+    setUnfriending(true);
+    try {
+      await unfriend(friendId);
+      
+      // Close modal and navigate back
+      setShowUnfriendModal(false);
+      setUnfriendConfirmation('');
+      navigate('/friends');
+    } catch (error) {
+      console.error('Error unfriending:', error);
+    } finally {
+      setUnfriending(false);
+    }
+  }, [user, friendId, unfriendConfirmation, unfriend, navigate]);
+
+  // Handle view friends of friend
+  const handleViewFriendsOfFriend = useCallback(() => {
+    if (!showFriendsOfFriendModal) {
+      loadFriendsOfFriend();
+    }
+    setShowFriendsOfFriendModal(!showFriendsOfFriendModal);
+  }, [showFriendsOfFriendModal, loadFriendsOfFriend]);
 
   const rankedMovies = useMemo(() => {
     if (!friendMoviesData || !friendMoviesData.byClass || !friendMoviesData.classes) return [];
@@ -1128,13 +1199,32 @@ export function FriendProfilePage() {
       <div className="profile-stats profile-card card-surface">
         <div className="profile-stats-header">
           <h2 className="profile-card-title">Quick stats</h2>
-          <button
-            type="button"
-            className="profile-stats-expand-btn"
-            onClick={() => setShowExpandedStats(!showExpandedStats)}
-          >
-            {showExpandedStats ? '▼' : '▶'} Detailed stats
-          </button>
+          <div className="profile-stats-header-actions">
+            <button
+              type="button"
+              className="profile-view-friends-btn"
+              onClick={handleViewFriendsOfFriend}
+              disabled={loadingFriendsOfFriend}
+            >
+              <Users2 size={16} />
+              {showFriendsOfFriendModal ? 'Hide Friends' : 'View Their Friends'}
+            </button>
+            <button
+              type="button"
+              className="profile-unfriend-btn"
+              onClick={() => setShowUnfriendModal(true)}
+            >
+              <UserX size={16} />
+              Unfriend
+            </button>
+            <button
+              type="button"
+              className="profile-stats-expand-btn"
+              onClick={() => setShowExpandedStats(!showExpandedStats)}
+            >
+              {showExpandedStats ? '▼' : '▶'} Detailed stats
+            </button>
+          </div>
         </div>
         
         <div className="profile-stats-top-row">
@@ -1933,6 +2023,136 @@ export function FriendProfilePage() {
           onRemoveEntry={handleRemovePersonEntry}
           isSaving={isPersonRankingSaving}
         />
+      )}
+
+      {/* Friends of Friend Modal */}
+      {showFriendsOfFriendModal && (
+        <div className="friends-of-friend-modal-overlay">
+          <div className="friends-of-friend-modal">
+            <div className="friends-of-friend-modal-header">
+              <Users2 size={24} className="friends-of-friend-modal-icon" />
+              <h2>{friendProfile?.username}'s Friends ({friendsOfFriend.length})</h2>
+              <button
+                type="button"
+                className="friends-of-friend-modal-close"
+                onClick={() => setShowFriendsOfFriendModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="friends-of-friend-modal-content">
+              {loadingFriendsOfFriend ? (
+                <div className="friends-of-friend-loading">Loading friends...</div>
+              ) : friendsOfFriend.length > 0 ? (
+                <div className="friends-of-friend-grid">
+                  {friendsOfFriend.map(friend => {
+                    const isCurrentUser = friend.uid === user?.uid;
+                    const isAlreadyFriend = friends.some(f => f.uid === friend.uid);
+                    const isRequestSent = sentRequests.includes(friend.uid);
+                    
+                    return (
+                      <div key={friend.uid} className="friends-of-friend-item">
+                        <div className="friends-of-friend-avatar">
+                          {friend.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="friends-of-friend-info">
+                          <strong>{friend.username}</strong>
+                          <span>{friend.email}</span>
+                        </div>
+                        <div className="friends-of-friend-actions">
+                          {isCurrentUser ? (
+                            <span className="friends-of-friend-self">Self</span>
+                          ) : isAlreadyFriend ? (
+                            <button
+                              type="button"
+                              className="friends-of-friend-view-btn"
+                              onClick={() => {
+                                setShowFriendsOfFriendModal(false);
+                                navigate(`/friends/${friend.uid}`);
+                              }}
+                            >
+                              View Profile
+                            </button>
+                          ) : isRequestSent ? (
+                            <span className="friends-of-friend-sent">Request Sent</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="friends-of-friend-add-btn"
+                              onClick={() => sendFriendRequest({
+                                uid: friend.uid,
+                                username: friend.username,
+                                email: friend.email,
+                                createdAt: friend.addedAt
+                              })}
+                            >
+                              <UserPlus size={14} />
+                              Add Friend
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="friends-of-friend-empty">
+                  <Users2 size={48} />
+                  <p>No friends found</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unfriend Modal */}
+      {showUnfriendModal && (
+        <div className="unfriend-modal-overlay">
+          <div className="unfriend-modal">
+            <div className="unfriend-modal-header">
+              <UserX size={24} className="unfriend-modal-icon" />
+              <h2>Unfriend {friendProfile?.username}?</h2>
+            </div>
+            <div className="unfriend-modal-content">
+              <p>This action cannot be undone. You will need to send a new friend request if you want to reconnect.</p>
+              <div className="unfriend-modal-confirmation">
+                <label htmlFor="unfriend-input">
+                  Type <strong>"UNFRIEND"</strong> to confirm:
+                </label>
+                <input
+                  id="unfriend-input"
+                  type="text"
+                  value={unfriendConfirmation}
+                  onChange={(e) => setUnfriendConfirmation(e.target.value)}
+                  placeholder="Type UNFRIEND"
+                  className="unfriend-modal-input"
+                />
+              </div>
+            </div>
+            <div className="unfriend-modal-actions">
+              <button
+                type="button"
+                className="unfriend-modal-btn unfriend-modal-btn--cancel"
+                onClick={() => {
+                  setShowUnfriendModal(false);
+                  setUnfriendConfirmation('');
+                }}
+                disabled={unfriending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="unfriend-modal-btn unfriend-modal-btn--confirm"
+                onClick={handleUnfriend}
+                disabled={unfriendConfirmation !== 'UNFRIEND' || unfriending}
+              >
+                {unfriending ? 'Unfriending...' : 'Unfriend'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );

@@ -1,7 +1,9 @@
 .friends-page {
   padding: 2rem;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a00 100%);
 }
 
 .friends-container {
@@ -12,15 +14,22 @@
 
 .friends-header {
   text-align: center;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   position: relative;
+  padding: 2rem;
+  background: radial-gradient(circle at center, rgba(232, 93, 4, 0.1) 0%, transparent 70%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(232, 93, 4, 0.2);
 }
 
 .friends-header-actions {
   position: absolute;
-  right: 0;
+  right: 2rem;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .refresh-btn {
@@ -54,12 +63,13 @@
 
 .friends-header h1 {
   font-family: var(--font-heading);
-  font-size: 2.5rem;
+  font-size: 3rem;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 0.5rem 0;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(232, 93, 4, 0.3);
 }
 
 .friends-header p {
@@ -69,11 +79,12 @@
 }
 
 .friend-requests {
-  background: radial-gradient(circle at top left, #3a1500 0, var(--surface) 45%, #1a0a00 100%);
-  border: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(232, 93, 4, 0.1) 0%, rgba(26, 10, 0, 0.8) 100%);
+  border: 1px solid rgba(232, 93, 4, 0.3);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-soft);
+  padding: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .friend-requests h2 {
@@ -96,10 +107,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: rgba(26, 10, 0, 0.5);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  padding: 1.5rem;
+  background: rgba(26, 10, 0, 0.6);
+  border: 1px solid rgba(232, 93, 4, 0.2);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+}
+
+.request-item:hover {
+  background: rgba(26, 10, 0, 0.8);
+  border-color: rgba(232, 93, 4, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(232, 93, 4, 0.2);
 }
 
 .request-info {
@@ -160,11 +180,12 @@
 }
 
 .search-section {
-  background: radial-gradient(circle at top left, #3a1500 0, var(--surface) 45%, #1a0a00 100%);
-  border: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(232, 93, 4, 0.1) 0%, rgba(26, 10, 0, 0.8) 100%);
+  border: 1px solid rgba(232, 93, 4, 0.3);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-soft);
+  padding: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .search-section h2 {
@@ -186,24 +207,27 @@
 
 .search-input {
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
   background: rgba(26, 10, 0, 0.8);
-  border: 2px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 2px solid rgba(232, 93, 4, 0.3);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .search-input::placeholder {
   color: var(--text-muted);
+  opacity: 0.7;
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--accent-soft);
-  box-shadow: 0 0 0 3px rgba(232, 93, 4, 0.1);
+  box-shadow: 0 0 0 3px rgba(232, 93, 4, 0.2), 0 4px 20px rgba(232, 93, 4, 0.1);
+  background: rgba(26, 10, 0, 0.9);
 }
 
 .search-loading {
@@ -363,33 +387,52 @@
 
 .friends-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
 }
 
 .friend-card {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(26, 10, 0, 0.5);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(26, 10, 0, 0.6) 0%, rgba(26, 10, 0, 0.8) 100%);
+  border: 1px solid rgba(232, 93, 4, 0.2);
+  border-radius: var(--radius-md);
   text-decoration: none;
   color: inherit;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  position: relative;
+  overflow: hidden;
+}
+
+.friend-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.friend-card:hover::before {
+  transform: translateX(100%);
 }
 
 .friend-card:hover {
-  background: rgba(26, 10, 0, 0.8);
+  background: linear-gradient(135deg, rgba(26, 10, 0, 0.8) 0%, rgba(26, 10, 0, 0.9) 100%);
   border-color: var(--accent-soft);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px rgba(232, 93, 4, 0.3);
 }
 
 .friend-avatar {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: radial-gradient(circle at top left, var(--accent-soft), var(--accent));
   display: flex;
@@ -397,7 +440,9 @@
   justify-content: center;
   color: var(--bg);
   font-weight: 600;
-  font-size: 1.125rem;
+  font-size: 1.25rem;
+  box-shadow: 0 4px 12px rgba(232, 93, 4, 0.3);
+  flex-shrink: 0;
 }
 
 .friend-info {
