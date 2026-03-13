@@ -10,124 +10,107 @@
     display: none !important;
   }
 
-  /* Force tile view only on mobile */
-  .ranked-list {
-    --view-mode: tile;
-  }
+  /* COMPLETE MOBILE OVERHAUL - Use watchlist pattern for main pages */
 
-  /* Force tile mode by adding mode-tile class to all ranked lists */
-  .ranked-list.mode-tile,
-  .ranked-list:not(.mode-detailed):not(.mode-minimized) {
-    --view-mode: tile !important;
-  }
+/* Hide the entire complex RankedList structure on mobile */
+.ranked-list {
+  display: none !important;
+}
 
-  /* Force all class sections to use tile layout - simplified approach */
-  .ranked-list .class-section-rows,
-  .class-section-rows {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
-    gap: 0.6rem !important;
-    justify-content: start !important;
-    padding: 0 0.5rem !important;
-  }
+/* Create simple mobile containers for main pages */
+.ranked-list-mobile {
+  display: block !important;
+  width: 100% !important;
+  padding: 0 0.5rem;
+}
 
-  /* Override any other view mode styles */
-  .ranked-list .entry-row-wrapper {
-    width: auto !important;
-    flex-shrink: 0 !important;
-  }
+/* Mobile tile grid using watchlist pattern */
+.main-page-tiles {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+  gap: 0.4rem !important;
+  padding: 0.5rem 0 !important;
+}
 
-  /* Hide detailed/row view on mobile */
-  .entry-row {
-    display: none !important;
-  }
+/* Mobile tile using watchlist styling */
+.main-page-tile {
+  display: flex !important;
+  flex-direction: column !important;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.1)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  cursor: pointer !important;
+}
 
-  /* Ensure tiles are visible */
-  .entry-tile {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: relative !important;
-    z-index: 1 !important;
-  }
+.main-page-tile:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
+}
 
-  .entry-tile-person {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: relative !important;
-    z-index: 1 !important;
-  }
+.main-page-tile-poster {
+  position: relative !important;
+  width: 100% !important;
+  aspect-ratio: 2/3 !important;
+  overflow: hidden !important;
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.35), transparent 70%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
 
-  /* Make sure poster images are visible */
-  .entry-tile-poster img {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-    height: 100% !important;
-  }
+.main-page-tile-poster img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
 
-  /* Make tiles larger for mobile using profile approach */
-  .entry-tile {
-    width: 100% !important;
-    gap: 0.5rem !important;
-    background: rgba(0, 0, 0, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    border-radius: var(--radius-md) !important;
-    padding: 0.5rem !important;
-    transition: all 0.2s ease !important;
-  }
+.main-page-tile-poster-placeholder {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.5rem !important;
+  color: var(--accent-soft) !important;
+}
 
-  .entry-tile:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-  }
+.main-page-tile-info {
+  padding: 0.3rem !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+}
 
-  .entry-tile-person {
-    width: 100% !important;
-    gap: 0.5rem !important;
-    background: rgba(0, 0, 0, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    border-radius: var(--radius-md) !important;
-    padding: 0.5rem !important;
-    transition: all 0.2s ease !important;
-  }
+.main-page-tile-title {
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  line-height: 1.3 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
 
-  .entry-tile-person:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-  }
+.main-page-tile-meta {
+  font-size: 0.6rem !important;
+  color: var(--text-muted) !important;
+  margin: 0 !important;
+}
 
-  .entry-tile-poster {
-    border-radius: var(--radius-sm) !important;
-    overflow: hidden !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    aspect-ratio: 2/3 !important;
-    position: relative !important;
-  }
+/* Force tile view only on mobile - simplified */
+.ranked-list {
+  --view-mode: tile;
+}
 
-  .entry-tile-poster img {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    object-position: center !important;
-    display: block !important;
-  }
-
-  .entry-tile-title {
-    font-size: 0.75rem !important;
-    line-height: 1.2 !important;
-    color: var(--text) !important;
-    font-weight: 500 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
+.ranked-list.mode-tile,
+.ranked-list:not(.mode-detailed):not(.mode-minimized) {
+  --view-mode: tile !important;
+}
 
   /* Make posters smaller */
   .entry-poster {
@@ -195,6 +178,11 @@
     display: none !important;
   }
 
+  /* Hide quotes on mobile */
+  .random-quote-text {
+    display: none !important;
+  }
+
   /* Make page search more compact */
   .page-search-locked {
     margin: 0.5rem 0 !important;
@@ -222,26 +210,21 @@
 
 @media (max-width: 480px) {
   /* Even more compact for very small screens - match profile recent grid */
-  .ranked-list .class-section-rows {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
-    gap: 0.5rem !important;
+  .main-page-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+    gap: 0.3rem !important;
   }
 
-  .class-section-rows {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
-    gap: 0.5rem !important;
+  .main-page-tile-title {
+    font-size: 0.65rem !important;
   }
 
-  .entry-tile {
-    padding: 0.4rem !important;
+  .main-page-tile-meta {
+    font-size: 0.55rem !important;
   }
 
-  .entry-tile-person {
-    padding: 0.4rem !important;
-  }
-
-  .entry-tile-title {
-    font-size: 0.7rem !important;
+  .main-page-tile-info {
+    padding: 0.25rem !important;
   }
 
   .nav-logo-dropdown {
