@@ -22,7 +22,22 @@
 
 
 
-
+## New Features
+- IMPROVED SEARCHING
+    - Better coloring, easier adding and removing from watchlist/unranked
+    - Depth option for faster/extensive searching
+- DRAG DROP
+    - You can now drag and drop between classes though this intruduced lag and I would not reccomend dragging in detail view, only in tile and simple view.
+    - FUTURE:
+        - Lag will be addressed at a later date.
+- NEW EDIT WATCHING MODAL
+    - More refined, cleaner, more obvious and faster ranking. Access to watchlist from here.
+    - FUTURE:
+        - Will make it so clicking on date auto opens date picker.
+- IMPROVED FRIEND PROFILE 
+    - Can view all their ranked movies/shows/actors/directors and save/edit them as you see them.
+    - FUTURE:
+        - Add feature where you can see the overlap of your watchlist with theirs.
 
 ## Notes
 ### Saving

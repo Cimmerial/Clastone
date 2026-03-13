@@ -8,6 +8,7 @@ import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
+import { loadWatchlist } from '../lib/firestoreWatchlist';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import { 
@@ -22,11 +23,14 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
+import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './FriendProfilePage.css';
+import '../components/ProfileSplitLayout.css';
 
 interface FriendProfile {
   uid: string;
@@ -140,12 +144,15 @@ export function FriendProfilePage() {
     classOrder: myDirectorsClassOrder,
     classes: myDirectorsClasses
   } = useDirectorsStore();
+  
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
 
   // Friend data states
   const [friendMoviesData, setFriendMoviesData] = useState<any>(null);
   const [friendTvData, setFriendTvData] = useState<any>(null);
   const [friendPeopleData, setFriendPeopleData] = useState<any>(null);
   const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
+  const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[], tv: any[] } | null>(null);
 
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
@@ -231,10 +238,15 @@ export function FriendProfilePage() {
         const directorsData = await loadDirectors(db!, friendId);
         console.log('✅ Directors loaded:', directorsData);
 
+        console.log('📝 Loading friend watchlist data...');
+        const watchlistData = await loadWatchlist(db!, friendId);
+        console.log('✅ Watchlist loaded:', watchlistData);
+
         setFriendMoviesData(moviesData);
         setFriendTvData(tvData);
         setFriendPeopleData(peopleData);
         setFriendDirectorsData(directorsData);
+        setFriendWatchlistData(watchlistData);
 
         console.log('🎉 All friend data loaded successfully!');
 
@@ -1198,56 +1210,110 @@ export function FriendProfilePage() {
         </div>
       )}
 
-      <div className="profile-recent profile-card card-surface profile-card-wide">
-        <div className="profile-recent-header">
-          <h2 className="profile-card-title">Recently watched</h2>
-          <span className="profile-recent-count">{filteredRecentWatches.length}</span>
+      <div className="profile-split-layout">
+        <div className="profile-recent profile-card card-surface">
+          <div className="profile-recent-header">
+            <h2 className="profile-card-title">Recently watched</h2>
+            <span className="profile-recent-count">{filteredRecentWatches.length}</span>
+          </div>
+          <div className="profile-recent-controls">
+            <span className="profile-recent-label">Show:</span>
+            {(
+              [
+                { value: 'this_year' as const, label: 'This year' },
+                { value: 'last_month' as const, label: 'In the last month' },
+                { value: 'last_year' as const, label: 'In the last year' },
+                { value: 'all_time' as const, label: 'All time' }
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`profile-recent-btn ${recentRange === opt.value ? 'profile-recent-btn--active' : ''}`}
+                onClick={() => setRecentRange(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="profile-recent-list">
+            {filteredRecentWatches.length === 0 ? (
+              <p className="profile-muted">No watches in this range.</p>
+            ) : (
+              <div className="profile-recent-grid">
+                {filteredRecentWatches.map((w, i) => {
+                  const userStatus = w.isMovie 
+                    ? getUserMovieStatus(w.item.tmdbId || 0)
+                    : getUserShowStatus(w.item.tmdbId || 0);
+                  const handleClick = () => {
+                    if (w.isMovie) {
+                      handleMovieClick(w.item);
+                    } else {
+                      handleShowClick(w.item);
+                    }
+                  };
+                  return (
+                    <div 
+                      key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`} 
+                      className="profile-recent-tile profile-top-item--clickable"
+                      onClick={handleClick}
+                    >
+                      <div className="profile-recent-tile-poster">
+                        {getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ? (
+                          <img src={getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ?? ''} alt="" loading="lazy" />
+                        ) : (
+                          <span>{isBigMovie(w.item.title, w.item.tmdbId) ? 'B' : (w.isMovie ? '🎬' : '📺')}</span>
+                        )}
+                        <div className="profile-top-overlay">
+                          <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                            {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="profile-recent-tile-info">
+                        <span className="profile-recent-tile-title">{w.item.title}</span>
+                        <span className="profile-recent-tile-date">
+                          {getWatchRecordSortKey(w.record)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="profile-recent-controls">
-          <span className="profile-recent-label">Show:</span>
-          {(
-            [
-              { value: 'this_year' as const, label: 'This year' },
-              { value: 'last_month' as const, label: 'In the last month' },
-              { value: 'last_year' as const, label: 'In the last year' },
-              { value: 'all_time' as const, label: 'All time' }
-            ]
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`profile-recent-btn ${recentRange === opt.value ? 'profile-recent-btn--active' : ''}`}
-              onClick={() => setRecentRange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="profile-recent-list">
-          {filteredRecentWatches.length === 0 ? (
-            <p className="profile-muted">No watches in this range.</p>
-          ) : (
-            <div className="profile-recent-grid">
-              {filteredRecentWatches.map((w, i) => (
-                <div key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`} className="profile-recent-tile">
-                  <div className="profile-recent-tile-poster">
-                    {getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ? (
-                      <img src={getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ?? ''} alt="" loading="lazy" />
-                    ) : (
-                      <span>{isBigMovie(w.item.title, w.item.tmdbId) ? 'B' : (w.isMovie ? '🎬' : '📺')}</span>
-                    )}
-                  </div>
-                  <div className="profile-recent-tile-info">
-                    <span className="profile-recent-tile-title">{w.item.title}</span>
-                    <span className="profile-recent-tile-date">
-                      {getWatchRecordSortKey(w.record)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+        <ProfileWatchlist 
+          isOwnProfile={false} 
+          friendWatchlistData={friendWatchlistData}
+          onMovieClick={(entry) => {
+            const tmdbId = (entry.id.includes('-') ? parseInt(entry.id.split('-').pop() || '0', 10) : parseInt(entry.id.replace(/\D/g, ''), 10)) || 0;
+            const movie = {
+              id: entry.id,
+              tmdbId,
+              title: entry.title,
+              posterPath: entry.posterPath,
+              releaseDate: entry.releaseDate,
+              classKey: '',
+            } as MovieShowItem;
+            handleMovieClick(movie);
+          }}
+          onShowClick={(entry) => {
+            const tmdbId = (entry.id.includes('-') ? parseInt(entry.id.split('-').pop() || '0', 10) : parseInt(entry.id.replace(/\D/g, ''), 10)) || 0;
+            const show = {
+              id: entry.id,
+              tmdbId,
+              title: entry.title,
+              posterPath: entry.posterPath,
+              releaseDate: entry.releaseDate,
+              classKey: '',
+            } as MovieShowItem;
+            handleShowClick(show);
+          }}
+          getUserMovieStatus={getUserMovieStatus}
+          getUserShowStatus={getUserShowStatus}
+        />
       </div>
 
       {rankingTarget && (
@@ -1273,6 +1339,19 @@ export function FriendProfilePage() {
               ? (rankingTarget.existingClassKey ? getMovieClassLabel(rankingTarget.existingClassKey) : undefined)
               : (rankingTarget.existingClassKey ? getTvClassLabel(rankingTarget.existingClassKey) : undefined)
           }
+          isWatchlistItem={isInWatchlist(rankingTarget.id)}
+          onAddToWatchlist={() => {
+            const entry = {
+              id: rankingTarget.id,
+              title: rankingTarget.title,
+              posterPath: rankingTarget.posterPath,
+              releaseDate: rankingTarget.releaseDate,
+            };
+            addToWatchlist(entry, rankingTarget.mediaType === 'movie' ? 'movies' : 'tv');
+          }}
+          onRemoveFromWatchlist={() => {
+            removeFromWatchlist(rankingTarget.id);
+          }}
           onSave={handleRankingSave}
           onClose={() => setRankingTarget(null)}
           onRemoveEntry={handleRemoveEntry}

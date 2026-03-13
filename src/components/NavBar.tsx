@@ -3,6 +3,7 @@ import { Search, Home, Settings, RefreshCw, Users, Menu, X, Flag } from 'lucide-
 import { useMemo, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
+import patchNotesData from '../data/patchNotes.json';
 import './NavBar.css';
 
 const mainLinks = [
@@ -26,6 +27,13 @@ export function NavBar() {
   const { settings } = useSettingsStore();
   const { isAdmin } = useAuth();
 
+  // Check if current version flag should be shown
+  const shouldShowFlag = useMemo(() => {
+    if (settings.showGuideFlag === false) return false;
+    const currentVersion = patchNotesData.currentVersion;
+    return !settings.dismissedVersionFlags.includes(currentVersion);
+  }, [settings]);
+
   // Filter icon links based on admin status
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
@@ -37,10 +45,10 @@ export function NavBar() {
         <div className="nav-left">
           <div className="nav-logo-wrapper">
             <span className="nav-logo-mark">CLASTONE</span>
-            {settings.showGuideFlag !== false && (
-              <NavLink to="/guide" className="nav-guide-flag">
+            {shouldShowFlag && (
+              <NavLink to="/patchnotes" className="nav-guide-flag">
                 <Flag size={14} />
-                <span>1.0</span>
+                <span>V2.0</span>
               </NavLink>
             )}
             <div className="nav-logo-dropdown">

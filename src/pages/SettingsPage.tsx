@@ -715,34 +715,19 @@ export function SettingsPage() {
             </label>
           </div>
 
-          <div className="settings-toggle">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-title">Censor "Big" movie poster</span>
-              <span className="settings-toggle-description">Replaces the poster for the movie "Big" (1988) with a simple "B" placeholder.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.censorBigMovie}
-                onChange={(e) => updateSettings({ censorBigMovie: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
-          <h2 className="settings-title">Help & Resources</h2>
+          <h2 className="settings-title">NEW VERSION V2.0</h2>
           <p className="settings-muted">
-            Learn how to use Clastone and access helpful resources.
+            Explore the latest features and improvements in Clastone V2.0.
           </p>
           <div className="settings-links-grid">
-            <NavLink to="/guide" className="settings-link-card">
-              <div className="settings-link-icon">📖</div>
+            <NavLink to="/patchnotes" className="settings-link-card">
+              <div className="settings-link-icon">�</div>
               <div className="settings-link-content">
-                <h4>User Guide</h4>
-                <p>Complete guide to Clastone 1.0 features and usage</p>
+                <h4>View Patch Notes</h4>
+                <p>See what's new in V2.0 and what's coming next</p>
               </div>
             </NavLink>
           </div>

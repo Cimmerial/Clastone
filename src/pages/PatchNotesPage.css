@@ -1,0 +1,580 @@
+/* Patch Notes Page - Clean Design Similar to Profile Page */
+
+.patch-notes-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-close-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Main Container Layout */
+.patch-notes-container {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Main Content Area */
+.patch-notes-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Version Sections */
+.patch-notes-version-section {
+  background: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-version-section:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.patch-notes-version-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.patch-notes-version-header:hover {
+  background: var(--color-surface-hover);
+}
+
+.patch-notes-version-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.patch-notes-version-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.patch-notes-version-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.patch-notes-version-date {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0.25rem 0 0 0;
+}
+
+.patch-notes-version-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.patch-notes-current-badge {
+  background: var(--color-primary);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.patch-notes-version-content {
+  padding: 1.5rem;
+}
+
+/* Content Sections */
+.patch-notes-content-section {
+  margin-bottom: 2rem;
+}
+
+.patch-notes-content-section:last-child {
+  margin-bottom: 0;
+}
+
+.patch-notes-content-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+}
+
+.patch-notes-content-icon {
+  flex-shrink: 0;
+}
+
+/* Features Grid */
+.patch-notes-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.patch-notes-feature-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-feature-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.patch-notes-feature-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.patch-notes-feature-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.patch-notes-feature-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.patch-notes-feature-description {
+  color: var(--color-text-muted);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.patch-notes-feature-details {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.patch-notes-feature-details li {
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.patch-notes-feature-details li:last-child {
+  margin-bottom: 0;
+}
+
+/* Guide Section */
+.patch-notes-guide-section {
+  background: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-guide-section:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.patch-notes-guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.patch-notes-guide-header:hover {
+  background: var(--color-surface-hover);
+}
+
+.patch-notes-guide-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.patch-notes-guide-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.patch-notes-guide-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.patch-notes-guide-subtitle {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0.25rem 0 0 0;
+}
+
+.patch-notes-guide-content {
+  padding: 1.5rem;
+}
+
+.patch-notes-guide-chapter {
+  margin-bottom: 2rem;
+}
+
+.patch-notes-guide-chapter:last-child {
+  margin-bottom: 0;
+}
+
+.patch-notes-guide-chapter-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+}
+
+.patch-notes-guide-chapter-text p {
+  margin: 0 0 1rem 0;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.patch-notes-guide-chapter-text p:last-child {
+  margin-bottom: 0;
+}
+
+/* Sidebar */
+.patch-notes-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.patch-notes-card {
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+}
+
+.patch-notes-sidebar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: var(--color-text);
+}
+
+.patch-notes-sidebar-description {
+  color: var(--color-text-muted);
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+/* Sidebar Links */
+.patch-notes-sidebar-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.patch-notes-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.patch-notes-sidebar-link:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+  transform: translateX(2px);
+}
+
+.patch-notes-sidebar-link span:last-child {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+/* Flag Controls */
+.patch-notes-flag-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.patch-notes-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.patch-notes-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.patch-notes-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.patch-notes-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-border);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.patch-notes-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.patch-notes-toggle input:checked + .patch-notes-toggle-slider {
+  background-color: var(--color-primary);
+}
+
+.patch-notes-toggle input:checked + .patch-notes-toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.patch-notes-dismiss-btn {
+  padding: 0.5rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-dismiss-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+}
+
+.patch-notes-confirm-dialog {
+  padding: 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.patch-notes-confirm-dialog p {
+  margin: 0 0 1rem 0;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.patch-notes-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.patch-notes-confirm-yes,
+.patch-notes-confirm-no {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.patch-notes-confirm-yes {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.patch-notes-confirm-yes:hover {
+  background: var(--color-primary-hover);
+}
+
+.patch-notes-confirm-no {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.patch-notes-confirm-no:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Version Info Card */
+.patch-notes-version-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.patch-notes-version-badge {
+  background: var(--color-primary);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.patch-notes-version-description {
+  color: var(--color-text-muted);
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* Back to Top Button */
+.patch-notes-back-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 48px;
+  height: 48px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+
+.patch-notes-back-to-top:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .patch-notes-container {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .patch-notes-sidebar {
+    order: -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .patch-notes-container {
+    padding: 0 1rem;
+  }
+
+  .patch-notes-features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patch-notes-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .patch-notes-version-header,
+  .patch-notes-guide-header {
+    padding: 1rem;
+  }
+
+  .patch-notes-version-content,
+  .patch-notes-guide-content {
+    padding: 1rem;
+  }
+
+  .patch-notes-card {
+    padding: 1rem;
+  }
+
+  .patch-notes-back-to-top {
+    bottom: 1rem;
+    right: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .patch-notes-version-info {
+    gap: 0.75rem;
+  }
+
+  .patch-notes-guide-info {
+    gap: 0.75rem;
+  }
+
+  .patch-notes-version-title,
+  .patch-notes-guide-title {
+    font-size: 1.1rem;
+  }
+
+  .patch-notes-feature-card {
+    padding: 1rem;
+  }
+}

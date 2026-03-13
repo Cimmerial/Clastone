@@ -9,7 +9,7 @@ export type GlobalSettings = {
     excludeSimpsons: boolean;
     showGuideFlag: boolean;
     useSpotlightBackground: boolean;
-    censorBigMovie: boolean;
+    dismissedVersionFlags: string[];
 };
 
 type SettingsStore = {
@@ -30,7 +30,7 @@ function getInitialSettings(): GlobalSettings {
         const es = localStorage.getItem('clastone-excludeSimpsons');
         const sgf = localStorage.getItem('clastone-showGuideFlag');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
-        const cbm = localStorage.getItem('clastone-censorBigMovie');
+        const dvf = localStorage.getItem('clastone-dismissedVersionFlags');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -39,6 +39,15 @@ function getInitialSettings(): GlobalSettings {
             viewMode = 'minimized';
         } else if (min === 'false') {
             viewMode = 'detailed';
+        }
+
+        let dismissedVersionFlags: string[] = [];
+        if (dvf) {
+            try {
+                dismissedVersionFlags = JSON.parse(dvf);
+            } catch {
+                dismissedVersionFlags = [];
+            }
         }
 
         return {
@@ -50,7 +59,7 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: es === 'true',
             showGuideFlag: sgf !== 'false',
             useSpotlightBackground: usb === 'true',
-            censorBigMovie: cbm === 'true'
+            dismissedVersionFlags
         };
     } catch {
         return {
@@ -62,7 +71,7 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: false,
             showGuideFlag: true,
             useSpotlightBackground: false,
-            censorBigMovie: false
+            dismissedVersionFlags: []
         };
     }
 }
@@ -130,7 +139,7 @@ export function SettingsProvider({
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
                 if (updates.showGuideFlag !== undefined) localStorage.setItem('clastone-showGuideFlag', String(next.showGuideFlag));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
-                if (updates.censorBigMovie !== undefined) localStorage.setItem('clastone-censorBigMovie', String(next.censorBigMovie));
+                if (updates.dismissedVersionFlags !== undefined) localStorage.setItem('clastone-dismissedVersionFlags', JSON.stringify(next.dismissedVersionFlags));
 
             } catch { /* ignore */ }
             return next;

@@ -1,0 +1,156 @@
+{
+  "currentVersion": "2.0",
+  "versions": {
+    "2.0": {
+      "title": "NEW VERSION V2.0",
+      "releaseDate": "2026-03-12",
+      "newFeatures": [
+        {
+          "title": "Universal Ranking Modal",
+          "description": "Completely redesigned ranking system for movies and TV shows with watch history matrix, date range tracking, and progress indicators.",
+          "details": [
+            "Watch history matrix with SINGLE DATE, DATE RANGE, and LONG AGO options",
+            "Visual progress indicators showing watch completion percentage",
+            "Currently watching and DNF (Did Not Finish) status options",
+            "Rank override functionality for reclassifying entries",
+            "Integrated watchlist management within the modal"
+          ]
+        },
+        {
+          "title": "Enhanced List Rankings",
+          "description": "Improved drag-and-drop functionality and cleaner interface design.",
+          "details": [
+            "Drag and drop between different class sections",
+            "Removed movement arrows for cleaner interface",
+            "Larger portraits for creators, directors, and actors",
+            "Moved EDIT WATCHES button for better accessibility",
+            "Added filtering capabilities back to lists"
+          ]
+        },
+        {
+          "title": "Profile Viewer Enhancements",
+          "description": "Expanded profile pages with more comprehensive ranking views.",
+          "details": [
+            "Scroll through ALL of a user's ranked items",
+            "Quick access RANK and ADD UNRANKED buttons for easy saving",
+            "Top 10 actors and directors display",
+            "Better navigation for discovering new content from friends"
+          ]
+        },
+        {
+          "title": "Advanced Search Features",
+          "description": "Powerful new search options with depth control and better results.",
+          "details": [
+            "Query toggles for Movies/TV Shows/People filtering",
+            "Search depth options: SIMPLE (basic info) or EXTENSIVE (full details)",
+            "Browse tab for discovering top-ranked content",
+            "Cross-referenced search between actors/directors and their works"
+          ]
+        }
+      ],
+      "futureFeatures": [
+        {
+          "title": "Movie Clubs",
+          "description": "Social groups for sharing and discussing movies with friends.",
+          "details": [
+            "Create and join movie clubs with friends",
+            "View member watchlists and overlaps",
+            "Track recent watches and current progress",
+            "Send movie suggestions (similar or blind suggestions)",
+            "Comment system for friendly trash talk and discussions"
+          ]
+        },
+        {
+          "title": "Inbox System",
+          "description": "Central hub for updates from movie clubs and official Clastone communications.",
+          "details": [
+            "Receive movie club updates and invitations",
+            "Get official patch notes and announcements",
+            "Notification management system"
+          ]
+        },
+        {
+          "title": "Enhanced Statistics",
+          "description": "Comprehensive analytics and insights about your viewing habits.",
+          "details": [
+            "Detailed viewing statistics and trends",
+            "Genre preferences and patterns",
+            "Year-by-year breakdown analysis",
+            "Comparison statistics with friends"
+          ]
+        },
+        {
+          "title": "Database Optimizations",
+          "description": "Performance improvements and reduced data usage.",
+          "details": [
+            "Reduced total database reads and writes",
+            "Optimized batch processing with longer waits",
+            "Streamlined data structures for better performance"
+          ]
+        }
+      ]
+    },
+    "1.0": {
+      "title": "Clastone 1.0",
+      "releaseDate": "2025-01-01",
+      "newFeatures": [
+        {
+          "title": "Class-Based Ranking System",
+          "description": "Revolutionary ranking system using classes instead of numerical scores.",
+          "details": [
+            "S (OLYMPUS), A (DAMN_GOOD), B (GOOD), C (ALRIGHT), D (MEH), F (BAD) classes",
+            "Special classes: BABY, UNRANKED, DELICIOUS_GARBAGE",
+            "Percentile-based rankings within classes",
+            "Manual ordering within each class"
+          ]
+        },
+        {
+          "title": "Multi-Type Media Tracking",
+          "description": "Comprehensive tracking for movies, TV shows, actors, and directors.",
+          "details": [
+            "Separate lists for Movies, TV Shows, Actors, Directors",
+            "Watchlist functionality for all media types",
+            "Detailed watch history with date tracking",
+            "Progress tracking for TV shows"
+          ]
+        },
+        {
+          "title": "Social Features",
+          "description": "Connect with friends and share your rankings.",
+          "details": [
+            "Friends system with profile viewing",
+            "Compare rankings and discover new content",
+            "Top 10 lists display",
+            "Recently watched tracking"
+          ]
+        }
+      ],
+      "futureFeatures": []
+    }
+  },
+  "guide": {
+    "title": "GUIDE",
+    "content": [
+      {
+        "section": "Getting Started",
+        "content": "Clastone is a social tool for being able to accurately rank and view your previous/current/future watches of everything you have ever seen in a class-based superlist.\n\nI think a class system is more accurate than giving a number score to a given entry, as when you have seen 500+ movies it can be hard to get a grasp on what a good score to give it is. So this way, you can group together movies which are similarly liked, and within each class have a rough ranking of which is better or worse than anything else. The most important ranking orders are always at the top and the bottom."
+      },
+      {
+        "section": "Where to Start",
+        "content": "Personally, I'd start by going through and adding as many items you can to unranked classes, and then starting to add in your \"baseline\" movies and shows. That is, your top and bottom ranked ones, and what you feel is a good indicator of each of the middle classes. This is bound to change but you need to just start laying an even layer over all classes so you can truly understand what it means for a given entry to belong to its given class."
+      },
+      {
+        "section": "Navigation",
+        "content": "Main Navigation:\n- Left Menu Items: Movies | TV Shows | Actors | Directors | Watchlist\n- Right Menu Items: Search | Friends | Profile | Settings | Diagnostics\n- Version Flag: Click the version flag next to logo to access patch notes\n\nMobile Navigation:\n- Use the hamburger menu (☰) on mobile devices\n- All navigation options available in mobile overlay\n- Swipe or tap outside to close the mobile menu"
+      },
+      {
+        "section": "Saving and Performance",
+        "content": "I'm poor so we are having to use batch saving which means if you make a bunch of changes, wait at least 10s before reloading the site otherwise they might not save, I intend to add an indicator for this.\n\nThe system uses Firebase for data storage and TMDb for movie/TV metadata. Local storage is used as backup for offline access."
+      },
+      {
+        "section": "Advanced Features",
+        "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\nMore advanced features will be documented here as they are developed and tested."
+      }
+    ]
+  }
+}
