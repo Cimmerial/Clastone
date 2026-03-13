@@ -17,7 +17,7 @@ import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
-import { tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbImagePath } from '../lib/tmdb';
+import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 
 export function DirectorsPage() {
   const { scrollContainerRef } = usePageState<HTMLDivElement>('directors');
@@ -189,32 +189,6 @@ export function DirectorsPage() {
         )}
       </header>
 
-      {/* Mobile version using watchlist pattern */}
-      <div className="ranked-list-mobile">
-        <div className="main-page-tiles">
-          {Object.values(byClass).flat().map((item: DirectorItem) => (
-            <div key={item.id} className="main-page-tile">
-              <div className="main-page-tile-poster">
-                {item.profilePath ? (
-                  <img
-                    src={tmdbImagePath(item.profilePath, 'w154') || undefined}
-                    alt={item.title}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="main-page-tile-poster-placeholder">🎬</div>
-                )}
-              </div>
-              <div className="main-page-tile-info">
-                <h3 className="main-page-tile-title">{item.title}</h3>
-                <p className="main-page-tile-meta">
-                  {item.knownForDepartment || ''}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
       <RankedList<DirectorItem>
         ref={scrollContainerRef}
         viewMode={mobileViewMode}

@@ -24,7 +24,6 @@ import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
-import { tmdbImagePath } from '../lib/tmdb';
 
 function movieItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -176,32 +175,6 @@ export function MoviesPage() {
           pageKey="movies"
         />
       )}
-      {/* Mobile version using watchlist pattern */}
-      <div className="ranked-list-mobile">
-        <div className="main-page-tiles">
-          {Object.values(computedByClass).flat().map((item) => (
-            <div key={item.id} className="main-page-tile">
-              <div className="main-page-tile-poster">
-                {item.posterPath ? (
-                  <img
-                    src={tmdbImagePath(item.posterPath, 'w154') || undefined}
-                    alt={item.title}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="main-page-tile-poster-placeholder">🎬</div>
-                )}
-              </div>
-              <div className="main-page-tile-info">
-                <h3 className="main-page-tile-title">{item.title}</h3>
-                <p className="main-page-tile-meta">
-                  {item.releaseDate ? item.releaseDate.slice(0, 4) : ''}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
       <RankedList<MovieShowItem>
         ref={scrollContainerRef}
         viewMode={mobileViewMode}
