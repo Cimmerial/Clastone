@@ -733,6 +733,34 @@
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.wander-sort-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.4rem 2rem 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  min-width: 120px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.8rem;
+}
+
+.wander-sort-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wander-sort-select:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 .wander-results {
   display: flex;
   flex-direction: column;

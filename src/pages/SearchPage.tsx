@@ -86,6 +86,12 @@ export function SearchPage() {
   });
   const [isGenreModalOpen, setIsGenreModalOpen] = useState(false);
 
+  // Sort type state
+  const [wanderSortType, setWanderSortType] = useState<string>(() => {
+    const saved = sessionStorage.getItem('wander_sort_type');
+    return saved || 'vote_count.desc';
+  });
+
   useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
   useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
   useEffect(() => { sessionStorage.setItem('search_people', JSON.stringify(showPeople)); }, [showPeople]);
@@ -93,6 +99,7 @@ export function SearchPage() {
   useEffect(() => { sessionStorage.setItem('search_active_tab', activeTab); }, [activeTab]);
   useEffect(() => { sessionStorage.setItem('wander_column_count', wanderColumnCount.toString()); }, [wanderColumnCount]);
   useEffect(() => { sessionStorage.setItem('wander_selected_genres', JSON.stringify(wanderSelectedGenres)); }, [wanderSelectedGenres]);
+  useEffect(() => { sessionStorage.setItem('wander_sort_type', wanderSortType); }, [wanderSortType]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -552,8 +559,8 @@ export function SearchPage() {
         console.log(`Fetching page ${currentPage} of ${pagesToLoad}`);
         
         const results = wanderMediaType === 'movies' 
-          ? await tmdbDiscoverMoviesByYear(wanderYear, currentPage, undefined, wanderSelectedGenres)
-          : await tmdbDiscoverTvByYear(wanderYear, currentPage, undefined, wanderSelectedGenres);
+          ? await tmdbDiscoverMoviesByYear(wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType)
+          : await tmdbDiscoverTvByYear(wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType);
         
         console.log(`API returned ${results.length} results for page ${currentPage}`);
         
@@ -675,12 +682,20 @@ export function SearchPage() {
     setWanderError(null);
   };
 
-  // Load initial wander content when media type, year, or genres change
+  const handleWanderSortTypeChange = (sortType: string) => {
+    setWanderSortType(sortType);
+    setWanderResults([]);
+    setWanderPage(1);
+    setLastPageWasFull(false);
+    setWanderError(null);
+  };
+
+  // Load initial wander content when media type, year, genres, or sort type change
   useEffect(() => {
     if (activeTab === 'wander' && wanderResults.length === 0) {
       loadWanderContent(true);
     }
-  }, [wanderYear, wanderMediaType, wanderSelectedGenres, activeTab]);
+  }, [wanderYear, wanderMediaType, wanderSelectedGenres, wanderSortType, activeTab]);
 
   const filteredResults = useMemo(() => {
     return remoteResults.filter(r => {
@@ -903,6 +918,22 @@ export function SearchPage() {
                     : `${wanderSelectedGenres.length} Selected`
                   }
                 </button>
+              </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Sort</span>
+                <select
+                  value={wanderSortType}
+                  onChange={(e) => handleWanderSortTypeChange(e.target.value)}
+                  className="wander-sort-select"
+                >
+                  <option value="vote_count.desc">Vote Count</option>
+                  <option value="revenue.desc">Box Office</option>
+                  <option value="popularity.desc">Current Popularity</option>
+                  <option value="vote_average.desc">Rating</option>
+                  <option value="primary_release_date.desc">Release Date</option>
+                  <option value="original_title.asc">Title (A-Z)</option>
+                  <option value="original_title.desc">Title (Z-A)</option>
+                </select>
               </div>
             </div>
           </div>

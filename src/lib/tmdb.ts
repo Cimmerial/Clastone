@@ -654,12 +654,13 @@ export async function tmdbDiscoverMoviesByYear(
   year: number,
   page: number = 1,
   signal?: AbortSignal,
-  genres?: string[]
+  genres?: string[],
+  sortBy: string = 'vote_count.desc'
 ): Promise<TmdbMultiResult[]> {
   // If no genres specified, use the original single API call
   if (!genres || genres.length === 0) {
     const url = new URL(`${TMDB_BASE}/discover/movie`);
-    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('sort_by', sortBy);
     url.searchParams.set('primary_release_year', year.toString());
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
@@ -693,7 +694,7 @@ export async function tmdbDiscoverMoviesByYear(
     if (signal?.aborted) break;
     
     const url = new URL(`${TMDB_BASE}/discover/movie`);
-    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('sort_by', sortBy);
     url.searchParams.set('primary_release_year', year.toString());
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
@@ -732,12 +733,13 @@ export async function tmdbDiscoverTvByYear(
   year: number,
   page: number = 1,
   signal?: AbortSignal,
-  genres?: string[]
+  genres?: string[],
+  sortBy: string = 'vote_count.desc'
 ): Promise<TmdbMultiResult[]> {
   // If no genres specified, use the original single API call
   if (!genres || genres.length === 0) {
     const url = new URL(`${TMDB_BASE}/discover/tv`);
-    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('sort_by', sortBy);
     url.searchParams.set('first_air_date_year', year.toString());
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
@@ -771,7 +773,7 @@ export async function tmdbDiscoverTvByYear(
     if (signal?.aborted) break;
     
     const url = new URL(`${TMDB_BASE}/discover/tv`);
-    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('sort_by', sortBy);
     url.searchParams.set('first_air_date_year', year.toString());
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
