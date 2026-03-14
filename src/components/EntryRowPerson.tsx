@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { Info } from 'lucide-react';
 import type { TmdbPersonCache } from '../lib/tmdb';
 import { tmdbImagePath, tmdbPersonDetailsFull } from '../lib/tmdb';
 import { usePeopleStore, PersonItem } from '../state/peopleStore';
@@ -17,6 +18,7 @@ type Props = {
   onClassDown?: () => void;
   onUpdateCache?: (id: string, cache: TmdbPersonCache) => void;
   onRecordMedia?: (media: { id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string }) => void;
+  onInfo?: (item: PersonItem | DirectorItem) => void;
 };
 
 export function EntryRowPerson({
@@ -27,7 +29,8 @@ export function EntryRowPerson({
   onClassUp,
   onClassDown,
   onUpdateCache,
-  onRecordMedia
+  onRecordMedia,
+  onInfo
 }: Props) {
   const { settings } = useSettingsStore();
   // We'll use the passed in update function if available, otherwise fallback to peopleStore
@@ -181,6 +184,11 @@ export function EntryRowPerson({
           ) : (
             <span>👤</span>
           )}
+          <div className="entry-tile-info-btn">
+            <button type="button" onClick={() => onInfo?.(item)}>
+              <Info size={14} />
+            </button>
+          </div>
           <div className="entry-tile-stats-overlay">
             {age != null && <div className="entry-stat-pill">Age: {age}</div>}
             <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
@@ -206,7 +214,17 @@ export function EntryRowPerson({
       </div>
       <div className="entry-content">
         <div className="entry-left-col">
-          <h3 className="entry-title">{item.title}</h3>
+          <h3 className="entry-title">
+            {item.title}
+            <button 
+              type="button" 
+              className="entry-title-info-btn" 
+              onClick={() => onInfo?.(item)}
+              data-tooltip="Info"
+            >
+              <Info size={14} />
+            </button>
+          </h3>
           {!isMinimized && (
             <>
               <div className="entry-subtitle">

@@ -195,6 +195,13 @@
   flex-shrink: 0;
 }
 
+.info-modal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
 .info-modal-title {
   font-size: 2rem;
   font-weight: 700;

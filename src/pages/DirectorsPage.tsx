@@ -18,6 +18,7 @@ import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { PersonInfoModal } from '../components/PersonInfoModal';
 
 export function DirectorsPage() {
   const { scrollContainerRef } = usePageState<HTMLDivElement>('directors');
@@ -40,6 +41,7 @@ export function DirectorsPage() {
   const [recordTarget, setRecordTarget] = useState<DirectorItem | null>(null);
   const [recordMediaTarget, setRecordMediaTarget] = useState<{ id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string } | null>(null);
   const [isSavingMedia, setIsSavingMedia] = useState(false);
+  const [personInfoModalTarget, setPersonInfoModalTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
   const hasActiveModal = !!recordTarget || !!recordMediaTarget;
 
   const location = useLocation();
@@ -204,6 +206,14 @@ export function DirectorsPage() {
             onUpdateCache={updateDirectorCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}
+            onInfo={(person) => {
+              const tmdbId = person.tmdbId ?? parseInt(person.id.replace('tmdb-person-', ''), 10);
+              setPersonInfoModalTarget({
+                tmdbId,
+                name: person.title,
+                profilePath: person.profilePath,
+              });
+            }}
             onMoveUp={() => moveItemWithinClass(item.id, -1)}
             onMoveDown={() => moveItemWithinClass(item.id, 1)}
             onClassUp={() => {
@@ -372,6 +382,17 @@ export function DirectorsPage() {
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: classes.find(c => c.key === k)?.label ?? k }))} />
       </div>
+      
+      {/* Person Info Modal */}
+      {personInfoModalTarget && (
+        <PersonInfoModal
+          isOpen={!!personInfoModalTarget}
+          onClose={() => setPersonInfoModalTarget(null)}
+          tmdbId={personInfoModalTarget.tmdbId}
+          name={personInfoModalTarget.name}
+          profilePath={personInfoModalTarget.profilePath}
+        />
+      )}
     </section>
   );
 }

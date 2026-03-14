@@ -23,6 +23,7 @@ import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import { InfoModal } from '../components/InfoModal';
+import { PersonInfoModal } from '../components/PersonInfoModal';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -159,6 +160,7 @@ export function SearchPage() {
   const [recordDetails, setRecordDetails] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [personInfoModalTarget, setPersonInfoModalTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
 
@@ -1014,6 +1016,20 @@ export function SearchPage() {
                             <Info size={16} />
                           </button>
                         )}
+                        {r.media_type === 'person' && (
+                          <button
+                            type="button"
+                            className="search-card-info-btn"
+                            onClick={() => setPersonInfoModalTarget({
+                              tmdbId: r.id,
+                              name: r.title,
+                              profilePath: r.profile_path || undefined
+                            })}
+                            title="View detailed information"
+                          >
+                            <Info size={16} />
+                          </button>
+                        )}
                       </div>
                       <div className="search-card-subtitle">
                         {r.subtitle}
@@ -1614,6 +1630,17 @@ export function SearchPage() {
             setInfoModalTarget(null); // Close info modal first
             setRecordTarget(editTarget); // Open edit modal
           }}
+        />
+      )}
+
+      {/* Person Info Modal */}
+      {personInfoModalTarget && (
+        <PersonInfoModal
+          isOpen={!!personInfoModalTarget}
+          onClose={() => setPersonInfoModalTarget(null)}
+          tmdbId={personInfoModalTarget.tmdbId}
+          name={personInfoModalTarget.name}
+          profilePath={personInfoModalTarget.profilePath}
         />
       )}
     </section>
