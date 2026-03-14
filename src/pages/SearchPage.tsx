@@ -66,7 +66,10 @@ export function SearchPage() {
   });
 
   // Wander state
-  const [wanderYear, setWanderYear] = useState(new Date().getFullYear());
+  const [wanderYear, setWanderYear] = useState<number | 'ALL'>(() => {
+    const saved = sessionStorage.getItem('wander_year');
+    return saved ? (saved === 'ALL' ? 'ALL' : parseInt(saved, 10)) : new Date().getFullYear();
+  });
   const [wanderMediaType, setWanderMediaType] = useState<'movies' | 'shows'>('movies');
   const [wanderResults, setWanderResults] = useState<TmdbMultiResult[]>([]);
   const [wanderPage, setWanderPage] = useState(1);
@@ -99,6 +102,9 @@ export function SearchPage() {
   useEffect(() => { sessionStorage.setItem('search_active_tab', activeTab); }, [activeTab]);
   useEffect(() => { sessionStorage.setItem('wander_column_count', wanderColumnCount.toString()); }, [wanderColumnCount]);
   useEffect(() => { sessionStorage.setItem('wander_selected_genres', JSON.stringify(wanderSelectedGenres)); }, [wanderSelectedGenres]);
+  useEffect(() => { 
+    sessionStorage.setItem('wander_year', wanderYear.toString()); 
+  }, [wanderYear]);
   useEffect(() => { sessionStorage.setItem('wander_sort_type', wanderSortType); }, [wanderSortType]);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -559,8 +565,8 @@ export function SearchPage() {
         console.log(`Fetching page ${currentPage} of ${pagesToLoad}`);
         
         const results = wanderMediaType === 'movies' 
-          ? await tmdbDiscoverMoviesByYear(wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType)
-          : await tmdbDiscoverTvByYear(wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType);
+          ? await tmdbDiscoverMoviesByYear(wanderYear === 'ALL' ? undefined : wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType)
+          : await tmdbDiscoverTvByYear(wanderYear === 'ALL' ? undefined : wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType);
         
         console.log(`API returned ${results.length} results for page ${currentPage}`);
         
@@ -636,29 +642,26 @@ export function SearchPage() {
   // Debug logging
   console.log(`State: total=${wanderResults.length}, page=${wanderPage}, lastPageWasFull=${lastPageWasFull}, isLoadingMore=${isLoadingMore}, shouldShow=${shouldShowLoadMore}`);
 
-  // Generate year options for dropdown (current year - 50 to current year)
+  // Generate year options for dropdown (ALL + current year - 50 to current year)
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(() => {
-    const years = [];
-    for (let year = currentYear - 50; year <= currentYear; year++) {
-      years.push(year);
-    }
-    return years.reverse(); // Most recent first
+    const options = ['ALL', ...Array.from({ length: 51 }, (_, i) => currentYear - 50 + i)];
+    return options;
   }, [currentYear]);
 
   const handleYearIncrement = () => {
-    if (wanderYear < currentYear) {
+    if (wanderYear !== 'ALL' && wanderYear < currentYear) {
       handleWanderYearChange(wanderYear + 1);
     }
   };
 
   const handleYearDecrement = () => {
-    if (wanderYear > currentYear - 50) {
+    if (wanderYear !== 'ALL' && wanderYear > currentYear - 50) {
       handleWanderYearChange(wanderYear - 1);
     }
   };
 
-  const handleWanderYearChange = (newYear: number) => {
+  const handleWanderYearChange = (newYear: number | 'ALL') => {
     setWanderYear(newYear);
     setWanderResults([]);
     setWanderPage(1);
@@ -851,7 +854,7 @@ export function SearchPage() {
                     type="button"
                     className="wander-year-btn wander-year-decrement"
                     onClick={handleYearDecrement}
-                    disabled={wanderYear <= currentYear - 50}
+                    disabled={wanderYear === 'ALL' || wanderYear <= currentYear - 50}
                     aria-label="Previous year"
                   >
                     ‹
@@ -859,7 +862,7 @@ export function SearchPage() {
                   <div className="wander-year-dropdown">
                     <select
                       value={wanderYear}
-                      onChange={(e) => handleWanderYearChange(parseInt(e.target.value, 10))}
+                      onChange={(e) => handleWanderYearChange(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
                       className="wander-year-select"
                     >
                       {yearOptions.map(year => (
@@ -873,7 +876,7 @@ export function SearchPage() {
                     type="button"
                     className="wander-year-btn wander-year-increment"
                     onClick={handleYearIncrement}
-                    disabled={wanderYear >= currentYear}
+                    disabled={wanderYear === 'ALL' || wanderYear >= currentYear}
                     aria-label="Next year"
                   >
                     ›

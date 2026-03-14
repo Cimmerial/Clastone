@@ -651,7 +651,7 @@ export async function tmdbWatchProviders(
 
 /** Discover top movies by year */
 export async function tmdbDiscoverMoviesByYear(
-  year: number,
+  year: number | undefined,
   page: number = 1,
   signal?: AbortSignal,
   genres?: string[],
@@ -661,7 +661,9 @@ export async function tmdbDiscoverMoviesByYear(
   if (!genres || genres.length === 0) {
     const url = new URL(`${TMDB_BASE}/discover/movie`);
     url.searchParams.set('sort_by', sortBy);
-    url.searchParams.set('primary_release_year', year.toString());
+    if (year !== undefined) {
+      url.searchParams.set('primary_release_year', year.toString());
+    }
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
     
@@ -695,7 +697,9 @@ export async function tmdbDiscoverMoviesByYear(
     
     const url = new URL(`${TMDB_BASE}/discover/movie`);
     url.searchParams.set('sort_by', sortBy);
-    url.searchParams.set('primary_release_year', year.toString());
+    if (year !== undefined) {
+      url.searchParams.set('primary_release_year', year.toString());
+    }
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
     url.searchParams.set('with_genres', genreId.toString());
@@ -730,7 +734,7 @@ export async function tmdbDiscoverMoviesByYear(
 
 /** Discover top TV shows by year */
 export async function tmdbDiscoverTvByYear(
-  year: number,
+  year: number | undefined,
   page: number = 1,
   signal?: AbortSignal,
   genres?: string[],
@@ -740,7 +744,9 @@ export async function tmdbDiscoverTvByYear(
   if (!genres || genres.length === 0) {
     const url = new URL(`${TMDB_BASE}/discover/tv`);
     url.searchParams.set('sort_by', sortBy);
-    url.searchParams.set('first_air_date_year', year.toString());
+    if (year !== undefined) {
+      url.searchParams.set('first_air_date_year', year.toString());
+    }
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
     
@@ -774,7 +780,9 @@ export async function tmdbDiscoverTvByYear(
     
     const url = new URL(`${TMDB_BASE}/discover/tv`);
     url.searchParams.set('sort_by', sortBy);
-    url.searchParams.set('first_air_date_year', year.toString());
+    if (year !== undefined) {
+      url.searchParams.set('first_air_date_year', year.toString());
+    }
     url.searchParams.set('page', page.toString());
     url.searchParams.set('include_adult', 'false');
     url.searchParams.set('with_genres', genreId.toString());
