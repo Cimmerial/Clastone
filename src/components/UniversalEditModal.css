@@ -41,9 +41,31 @@
 
 .uem-header-info {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
+}
+
+.uem-info-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.uem-info-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(244, 162, 97, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  transform: scale(1.05);
 }
 
 .uem-title {

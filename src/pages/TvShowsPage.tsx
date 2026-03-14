@@ -24,6 +24,7 @@ import { PageSearch } from '../components/PageSearch';
 import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { InfoModal } from '../components/InfoModal';
 
 function tvItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -48,6 +49,7 @@ export function TvShowsPage() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
+  const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
@@ -203,6 +205,15 @@ export function TvShowsPage() {
                   setRecordPersonDetails(cache);
                 } catch { /* ignore */ }
                 finally { setIsSavingRecord(false); }
+              }}
+              onInfo={(entry) => {
+                const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0);
+                setInfoModalTarget({
+                  tmdbId,
+                  title: entry.title,
+                  posterPath: entry.posterPath,
+                  releaseDate: entry.releaseDate,
+                });
               }}
             />
           );
@@ -367,6 +378,30 @@ export function TvShowsPage() {
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
       </div>
+      
+      {/* Info Modal */}
+      {infoModalTarget && (
+        <InfoModal
+          isOpen={!!infoModalTarget}
+          onClose={() => setInfoModalTarget(null)}
+          tmdbId={infoModalTarget.tmdbId}
+          mediaType="tv"
+          title={infoModalTarget.title}
+          posterPath={infoModalTarget.posterPath}
+          releaseDate={infoModalTarget.releaseDate}
+          onEditWatches={() => {
+            // Find the TV show item from the current data
+            const showItem = Object.values(byClass).flat().find(item => 
+              item.tmdbId === infoModalTarget.tmdbId || 
+              parseInt(item.id.replace(/\D/g, ''), 10) === infoModalTarget.tmdbId
+            );
+            if (showItem) {
+              setInfoModalTarget(null); // Close info modal first
+              setSettingsFor(showItem); // Open edit modal
+            }
+          }}
+        />
+      )}
     </section>
   );
 }

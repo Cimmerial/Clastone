@@ -210,6 +210,43 @@
 .search-card-title {
   font-size: 1rem;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.search-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.search-card-info-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.search-card-info-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(244, 162, 97, 0.5);
+  color: var(--text-primary);
+}
+
+.search-card-info-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .search-card-subtitle {
@@ -782,6 +819,15 @@
 
 .wander-grid-3-columns {
   grid-template-columns: repeat(3, 1fr);
+}
+
+.wander-grid-3-columns .search-card-title {
+  font-size: 0.9rem;
+}
+
+.wander-grid-3-columns .search-card-action {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.6rem;
 }
 
 @media (max-width: 768px) {

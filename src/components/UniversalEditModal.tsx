@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
@@ -12,6 +12,7 @@ import {
   type DatePreset
 } from '../lib/dateDropdowns';
 import './UniversalEditModal.css';
+import { InfoModal } from './InfoModal';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -515,6 +516,7 @@ export function UniversalEditModal({
   const [showClassOverride, setShowClassOverride] = useState(false);
   const [removeClickCount, setRemoveClickCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const entriesEndRef = useRef<HTMLDivElement>(null);
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
@@ -807,6 +809,14 @@ export function UniversalEditModal({
         {/* Header */}
         <div className="uem-header">
           <div className="uem-header-info">
+            <button 
+              type="button" 
+              className="uem-info-btn" 
+              onClick={() => setShowInfoModal(true)}
+              title="View detailed information"
+            >
+              <Info size={16} />
+            </button>
             <h2 className="uem-title">{target.title}</h2>
             {target.subtitle && <span className="uem-subtitle">{target.subtitle}</span>}
           </div>
@@ -1023,6 +1033,22 @@ export function UniversalEditModal({
           </div>
         </div>
       </div>
+      
+      {/* Info Modal */}
+      {showInfoModal && target.tmdbId && (
+        <InfoModal
+          isOpen={showInfoModal}
+          onClose={() => setShowInfoModal(false)}
+          tmdbId={target.tmdbId}
+          mediaType={target.mediaType}
+          title={target.title}
+          posterPath={target.posterPath}
+          releaseDate={target.releaseDate}
+          onEditWatches={() => {
+            setShowInfoModal(false); // Close info modal, return to edit modal
+          }}
+        />
+      )}
     </div>
   );
 }

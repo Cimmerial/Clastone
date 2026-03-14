@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { RankedItemBase } from './RankedList';
+import { Info } from 'lucide-react';
 import {
   tmdbImagePath,
   needsMovieRefresh,
@@ -84,6 +85,7 @@ type Props = {
   onClassUp?: () => void;
   onClassDown?: () => void;
   onRecordPerson?: (info: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => void;
+  onInfo?: (item: MovieShowItem) => void;
 };
 
 function parsePercentile(s: string): number | null {
@@ -117,7 +119,8 @@ export function EntryRowMovieShow({
   onMoveDown,
   onClassUp,
   onClassDown,
-  onRecordPerson
+  onRecordPerson,
+  onInfo,
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -231,6 +234,11 @@ export function EntryRowMovieShow({
           ) : (
             <span>🎬</span>
           )}
+          <div className="entry-tile-info-btn">
+            <button type="button" onClick={() => onInfo?.(item)}>
+              <Info size={14} />
+            </button>
+          </div>
           <div className="entry-tile-stats-overlay">
             <div className="entry-stat-pill">{item.percentileRank}</div>
             <div className="entry-stat-pill">{item.absoluteRank}</div>
@@ -260,6 +268,14 @@ export function EntryRowMovieShow({
           <h3 className="entry-title">
             {item.title}
             {releaseLabel ? <span className="entry-title-year"> ({releaseLabel})</span> : null}
+            <button 
+              type="button" 
+              className="entry-title-info-btn" 
+              onClick={() => onInfo?.(item)}
+              data-tooltip="Info"
+            >
+              <Info size={14} />
+            </button>
           </h3>
           {!isMinimized && (
             <>

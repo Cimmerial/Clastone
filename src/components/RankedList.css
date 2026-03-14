@@ -357,6 +357,31 @@
 .entry-title {
   font-size: 1.15rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.entry-title-info-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.entry-title-info-btn:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: white;
 }
 
 .entry-title-year {
@@ -732,6 +757,37 @@
   font-size: 0.7rem;
   padding: 0.15rem 0.3rem;
   background: rgba(0, 0, 0, 0.8);
+  border-color: var(--accent-primary);
+}
+
+.entry-tile-info-btn {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.entry-tile:hover .entry-tile-info-btn {
+  opacity: 1;
+}
+
+.entry-tile-info-btn button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.entry-tile-info-btn button:hover {
+  background: var(--accent-primary);
   border-color: var(--accent-primary);
 }
 

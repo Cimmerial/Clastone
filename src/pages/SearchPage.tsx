@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Info } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import {
   tmdbSearchMulti,
@@ -21,6 +22,7 @@ import { GenreEditModal } from '../components/GenreEditModal';
 import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
+import { InfoModal } from '../components/InfoModal';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
@@ -156,6 +158,7 @@ export function SearchPage() {
   const [personSaveType, setPersonSaveType] = useState<'actor' | 'director' | null>(null);
   const [recordDetails, setRecordDetails] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
 
@@ -993,7 +996,25 @@ export function SearchPage() {
                             ? 'TV'
                             : 'PERSON'}
                       </div>
-                      <div className="search-card-title">{r.title}</div>
+                      <div className="search-card-title-row">
+                        <div className="search-card-title">{r.title}</div>
+                        {(isMovie || isTv) && (
+                          <button
+                            type="button"
+                            className="search-card-info-btn"
+                            onClick={() => setInfoModalTarget({
+                              tmdbId: r.id,
+                              mediaType: r.media_type as 'movie' | 'tv',
+                              title: r.title,
+                              posterPath: r.poster_path || undefined,
+                              releaseDate: r.release_date || undefined
+                            })}
+                            title="View detailed information"
+                          >
+                            <Info size={16} />
+                          </button>
+                        )}
+                      </div>
                       <div className="search-card-subtitle">
                         {r.subtitle}
                         {(isMovie || isTv) && searchDepth === 'extensive' && (
@@ -1279,7 +1300,22 @@ export function SearchPage() {
                         <div className="search-card-badge">
                           {r.media_type === 'movie' ? 'MOVIE' : 'TV'}
                         </div>
-                        <div className="search-card-title">{r.title}</div>
+                        <div className="search-card-title">
+                          {r.title}
+                          <button
+                            type="button"
+                            className="search-card-info-btn"
+                            onClick={() => setInfoModalTarget({
+                              tmdbId: r.id,
+                              mediaType: r.media_type as 'movie' | 'tv',
+                              title: r.title,
+                              posterPath: r.poster_path,
+                              releaseDate: r.release_date,
+                            })}
+                          >
+                            <Info size={14} />
+                          </button>
+                        </div>
                         <div className="search-card-subtitle">
                           {r.subtitle}
                         </div>
@@ -1553,6 +1589,33 @@ export function SearchPage() {
         selectedGenres={wanderSelectedGenres}
         onGenresChange={handleWanderGenresChange}
       />
+
+      {/* Info Modal */}
+      {infoModalTarget && (
+        <InfoModal
+          isOpen={!!infoModalTarget}
+          onClose={() => setInfoModalTarget(null)}
+          tmdbId={infoModalTarget.tmdbId}
+          mediaType={infoModalTarget.mediaType}
+          title={infoModalTarget.title}
+          posterPath={infoModalTarget.posterPath}
+          releaseDate={infoModalTarget.releaseDate}
+          onEditWatches={() => {
+            // Create a TmdbMultiResult from the info modal target to reuse existing handlers
+            const editTarget: TmdbMultiResult = {
+              id: infoModalTarget.tmdbId,
+              title: infoModalTarget.title,
+              subtitle: infoModalTarget.releaseDate ? String(infoModalTarget.releaseDate.slice(0, 4)) : '',
+              poster_path: infoModalTarget.posterPath,
+              media_type: infoModalTarget.mediaType,
+              release_date: infoModalTarget.releaseDate,
+              popularity: 0
+            };
+            setInfoModalTarget(null); // Close info modal first
+            setRecordTarget(editTarget); // Open edit modal
+          }}
+        />
+      )}
     </section>
   );
 }
