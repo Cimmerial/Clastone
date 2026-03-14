@@ -101,6 +101,40 @@ type TmdbMultiResponse = {
 };
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
+
+// TMDB Genre ID mappings
+const GENRE_NAME_TO_ID: Record<string, number> = {
+  'Action': 28,
+  'Adventure': 12,
+  'Animation': 16,
+  'Comedy': 35,
+  'Crime': 80,
+  'Documentary': 99,
+  'Drama': 18,
+  'Family': 10751,
+  'Fantasy': 14,
+  'History': 36,
+  'Horror': 27,
+  'Music': 10402,
+  'Mystery': 9648,
+  'Romance': 10749,
+  'Science Fiction': 878,
+  'TV Movie': 10770,
+  'Thriller': 53,
+  'War': 10752,
+  'Western': 37,
+  'Kids': 10762,
+  'News': 10763,
+  'Reality': 10764,
+  'Sci-Fi & Fantasy': 10765,
+  'Soap': 10766,
+  'Talk': 10767,
+  'War & Politics': 10768
+};
+
+function genreNamesToIds(genreNames: string[]): number[] {
+  return genreNames.map(name => GENRE_NAME_TO_ID[name]).filter(id => id !== undefined);
+}
 const IMAGE_BASE = 'https://image.tmdb.org/t/p';
 
 function getReadToken() {
@@ -619,53 +653,155 @@ export async function tmdbWatchProviders(
 export async function tmdbDiscoverMoviesByYear(
   year: number,
   page: number = 1,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  genres?: string[]
 ): Promise<TmdbMultiResult[]> {
-  const url = new URL(`${TMDB_BASE}/discover/movie`);
-  url.searchParams.set('sort_by', 'popularity.desc');
-  url.searchParams.set('primary_release_year', year.toString());
-  url.searchParams.set('page', page.toString());
-  url.searchParams.set('include_adult', 'false');
-  
-  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  
-  return (data.results || []).map((r: any) => ({
-    media_type: 'movie' as const,
-    id: r.id,
-    title: r.title ?? 'Unknown',
-    subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
-    poster_path: r.poster_path ?? undefined,
-    popularity: r.popularity,
-    release_date: r.release_date ?? undefined
-  }));
+  // If no genres specified, use the original single API call
+  if (!genres || genres.length === 0) {
+    const url = new URL(`${TMDB_BASE}/discover/movie`);
+    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('primary_release_year', year.toString());
+    url.searchParams.set('page', page.toString());
+    url.searchParams.set('include_adult', 'false');
+    
+    const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+    if (!res.ok) return [];
+    const data = await res.json() as any;
+    
+    return (data.results || []).map((r: any) => ({
+      media_type: 'movie' as const,
+      id: r.id,
+      title: r.title ?? 'Unknown',
+      subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
+      poster_path: r.poster_path ?? undefined,
+      popularity: r.popularity,
+      release_date: r.release_date ?? undefined
+    }));
+  }
+
+  // For multiple genres, make separate API calls and combine results (OR logic)
+  const genreIds = genreNamesToIds(genres);
+  if (genreIds.length === 0) {
+    return []; // No valid genre IDs
+  }
+
+  const allResults: TmdbMultiResult[] = [];
+  const seenIds = new Set<string>();
+
+  // Make API calls for each genre
+  for (const genreId of genreIds) {
+    if (signal?.aborted) break;
+    
+    const url = new URL(`${TMDB_BASE}/discover/movie`);
+    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('primary_release_year', year.toString());
+    url.searchParams.set('page', page.toString());
+    url.searchParams.set('include_adult', 'false');
+    url.searchParams.set('with_genres', genreId.toString());
+    
+    const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+    if (!res.ok) continue;
+    
+    const data = await res.json() as any;
+    const results = (data.results || []) as any[];
+    
+    // Add results with deduplication
+    for (const r of results) {
+      const uniqueId = `movie-${r.id}`;
+      if (!seenIds.has(uniqueId)) {
+        seenIds.add(uniqueId);
+        allResults.push({
+          media_type: 'movie' as const,
+          id: r.id,
+          title: r.title ?? 'Unknown',
+          subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
+          poster_path: r.poster_path ?? undefined,
+          popularity: r.popularity,
+          release_date: r.release_date ?? undefined
+        });
+      }
+    }
+  }
+
+  // Sort by popularity descending
+  return allResults.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 }
 
 /** Discover top TV shows by year */
 export async function tmdbDiscoverTvByYear(
   year: number,
   page: number = 1,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  genres?: string[]
 ): Promise<TmdbMultiResult[]> {
-  const url = new URL(`${TMDB_BASE}/discover/tv`);
-  url.searchParams.set('sort_by', 'popularity.desc');
-  url.searchParams.set('first_air_date_year', year.toString());
-  url.searchParams.set('page', page.toString());
-  url.searchParams.set('include_adult', 'false');
-  
-  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
-  if (!res.ok) return [];
-  const data = await res.json() as any;
-  
-  return (data.results || []).map((r: any) => ({
-    media_type: 'tv' as const,
-    id: r.id,
-    title: r.name ?? 'Unknown',
-    subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
-    poster_path: r.poster_path ?? undefined,
-    popularity: r.popularity,
-    release_date: r.first_air_date ?? undefined
-  }));
+  // If no genres specified, use the original single API call
+  if (!genres || genres.length === 0) {
+    const url = new URL(`${TMDB_BASE}/discover/tv`);
+    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('first_air_date_year', year.toString());
+    url.searchParams.set('page', page.toString());
+    url.searchParams.set('include_adult', 'false');
+    
+    const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+    if (!res.ok) return [];
+    const data = await res.json() as any;
+    
+    return (data.results || []).map((r: any) => ({
+      media_type: 'tv' as const,
+      id: r.id,
+      title: r.name ?? 'Unknown',
+      subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
+      poster_path: r.poster_path ?? undefined,
+      popularity: r.popularity,
+      release_date: r.first_air_date ?? undefined
+    }));
+  }
+
+  // For multiple genres, make separate API calls and combine results (OR logic)
+  const genreIds = genreNamesToIds(genres);
+  if (genreIds.length === 0) {
+    return []; // No valid genre IDs
+  }
+
+  const allResults: TmdbMultiResult[] = [];
+  const seenIds = new Set<string>();
+
+  // Make API calls for each genre
+  for (const genreId of genreIds) {
+    if (signal?.aborted) break;
+    
+    const url = new URL(`${TMDB_BASE}/discover/tv`);
+    url.searchParams.set('sort_by', 'popularity.desc');
+    url.searchParams.set('first_air_date_year', year.toString());
+    url.searchParams.set('page', page.toString());
+    url.searchParams.set('include_adult', 'false');
+    url.searchParams.set('with_genres', genreId.toString());
+    
+    const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+    if (!res.ok) continue;
+    
+    const data = await res.json() as any;
+    const results = (data.results || []) as any[];
+    
+    // Add results with deduplication
+    for (const r of results) {
+      const uniqueId = `tv-${r.id}`;
+      if (!seenIds.has(uniqueId)) {
+        seenIds.add(uniqueId);
+        allResults.push({
+          media_type: 'tv' as const,
+          id: r.id,
+          title: r.name ?? 'Unknown',
+          subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
+          poster_path: r.poster_path ?? undefined,
+          popularity: r.popularity,
+          release_date: r.first_air_date ?? undefined
+        });
+      }
+    }
+  }
+
+  // Sort by popularity descending
+  return allResults.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 }
 

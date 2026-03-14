@@ -17,6 +17,7 @@ import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
+import { GenreEditModal } from '../components/GenreEditModal';
 import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
@@ -77,6 +78,13 @@ export function SearchPage() {
     const saved = sessionStorage.getItem('wander_column_count');
     return saved ? (parseInt(saved) as 1 | 2 | 3) : 2;
   });
+  
+  // Genre filter state
+  const [wanderSelectedGenres, setWanderSelectedGenres] = useState<string[]>(() => {
+    const saved = sessionStorage.getItem('wander_selected_genres');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isGenreModalOpen, setIsGenreModalOpen] = useState(false);
 
   useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
   useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
@@ -84,6 +92,7 @@ export function SearchPage() {
   useEffect(() => { sessionStorage.setItem('search_depth', searchDepth); }, [searchDepth]);
   useEffect(() => { sessionStorage.setItem('search_active_tab', activeTab); }, [activeTab]);
   useEffect(() => { sessionStorage.setItem('wander_column_count', wanderColumnCount.toString()); }, [wanderColumnCount]);
+  useEffect(() => { sessionStorage.setItem('wander_selected_genres', JSON.stringify(wanderSelectedGenres)); }, [wanderSelectedGenres]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -529,7 +538,7 @@ export function SearchPage() {
     setWanderError(null);
     
     try {
-      console.log(`Loading ${wanderMediaType} for year ${wanderYear}, page ${page}, reset=${reset}`);
+      console.log(`Loading ${wanderMediaType} for year ${wanderYear}, page ${page}, reset=${reset}, genres=${wanderSelectedGenres.length > 0 ? wanderSelectedGenres.join(' OR ') : 'none (all)'}`);
       
       // Calculate how many pages to load based on media type
       const targetItemsPerLoad = wanderMediaType === 'movies' ? 50 : 26;
@@ -543,8 +552,8 @@ export function SearchPage() {
         console.log(`Fetching page ${currentPage} of ${pagesToLoad}`);
         
         const results = wanderMediaType === 'movies' 
-          ? await tmdbDiscoverMoviesByYear(wanderYear, currentPage)
-          : await tmdbDiscoverTvByYear(wanderYear, currentPage);
+          ? await tmdbDiscoverMoviesByYear(wanderYear, currentPage, undefined, wanderSelectedGenres)
+          : await tmdbDiscoverTvByYear(wanderYear, currentPage, undefined, wanderSelectedGenres);
         
         console.log(`API returned ${results.length} results for page ${currentPage}`);
         
@@ -658,12 +667,20 @@ export function SearchPage() {
     setWanderError(null);
   };
 
-  // Load initial wander content when media type or year changes
+  const handleWanderGenresChange = (genres: string[]) => {
+    setWanderSelectedGenres(genres);
+    setWanderResults([]);
+    setWanderPage(1);
+    setLastPageWasFull(false);
+    setWanderError(null);
+  };
+
+  // Load initial wander content when media type, year, or genres change
   useEffect(() => {
     if (activeTab === 'wander' && wanderResults.length === 0) {
       loadWanderContent(true);
     }
-  }, [wanderYear, wanderMediaType, activeTab]);
+  }, [wanderYear, wanderMediaType, wanderSelectedGenres, activeTab]);
 
   const filteredResults = useMemo(() => {
     return remoteResults.filter(r => {
@@ -873,6 +890,19 @@ export function SearchPage() {
                     3
                   </button>
                 </div>
+              </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Genre</span>
+                <button
+                  type="button"
+                  className={`wander-genre-btn ${wanderSelectedGenres.length > 0 ? 'active' : ''}`}
+                  onClick={() => setIsGenreModalOpen(true)}
+                >
+                  {wanderSelectedGenres.length === 0 
+                    ? 'Filter Disabled' 
+                    : `${wanderSelectedGenres.length} Selected`
+                  }
+                </button>
               </div>
             </div>
           </div>
@@ -1481,6 +1511,14 @@ export function SearchPage() {
           onSave={handlePersonSave}
         />
       )}
+
+      {/* Genre Edit Modal */}
+      <GenreEditModal
+        isOpen={isGenreModalOpen}
+        onClose={() => setIsGenreModalOpen(false)}
+        selectedGenres={wanderSelectedGenres}
+        onGenresChange={handleWanderGenresChange}
+      />
     </section>
   );
 }
