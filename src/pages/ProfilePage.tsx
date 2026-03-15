@@ -19,6 +19,7 @@ import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSavePar
 import { tmdbImagePath, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
+import { PageSearch } from '../components/PageSearch';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -854,6 +855,20 @@ export function ProfilePage() {
     return `Sometime ${record.year}`;
   };
 
+  const searchableMovies = useMemo(() => rankedMovies.map(m => ({ id: m.id, title: m.title })), [rankedMovies]);
+  const searchableShows = useMemo(() => rankedShows.map(s => ({ id: s.id, title: s.title })), [rankedShows]);
+  const searchableActors = useMemo(() => rankedActors.map(a => ({ id: a.id, title: a.title })), [rankedActors]);
+  const searchableDirectors = useMemo(() => rankedDirectors.map(d => ({ id: d.id, title: d.title })), [rankedDirectors]);
+
+  const handleScrollToId = useCallback((id: string) => {
+    const el = document.getElementById(`profile-entry-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlighted-entry');
+      setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
+    }
+  }, []);
+
   return (
     <section>
       <header className="page-heading">
@@ -1185,10 +1200,18 @@ export function ProfilePage() {
               {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
             </button>
           </div>
-          {!showAllMoviesWithClasses && (
+          {!showAllMoviesWithClasses ? (
             <Link to="/movies" className="profile-preview-link">
               View all movies →
             </Link>
+          ) : (
+            <PageSearch 
+              items={searchableMovies} 
+              onSelect={handleScrollToId} 
+              placeholder="Search all movies..." 
+              className="profile-section-search"
+              pageKey="profile-movies"
+            />
           )}
           {showAllMoviesWithClasses ? (
             <div className="profile-classes-view">
@@ -1202,6 +1225,7 @@ export function ProfilePage() {
                       return (
                         <div 
                           key={m.id} 
+                          id={`profile-entry-${m.id}`}
                           className="profile-top-item profile-top-item--clickable"
                           onClick={() => handleMovieClick(m)}
                         >
@@ -1274,10 +1298,18 @@ export function ProfilePage() {
               {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
             </button>
           </div>
-          {!showAllShowsWithClasses && (
+          {!showAllShowsWithClasses ? (
             <Link to="/tv" className="profile-preview-link">
               View all shows →
             </Link>
+          ) : (
+            <PageSearch 
+              items={searchableShows} 
+              onSelect={handleScrollToId} 
+              placeholder="Search all shows..." 
+              className="profile-section-search"
+              pageKey="profile-shows"
+            />
           )}
           {showAllShowsWithClasses ? (
             <div className="profile-classes-view">
@@ -1291,6 +1323,7 @@ export function ProfilePage() {
                       return (
                         <div 
                           key={s.id} 
+                          id={`profile-entry-${s.id}`}
                           className="profile-top-item profile-top-item--clickable"
                           onClick={() => handleShowClick(s)}
                         >
@@ -1367,10 +1400,18 @@ export function ProfilePage() {
                   {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
                 </button>
               </div>
-              {!showAllActorsWithClasses && (
+              {!showAllActorsWithClasses ? (
                 <Link to="/actors" className="profile-preview-link">
                   View all actors →
                 </Link>
+              ) : (
+                <PageSearch 
+                  items={searchableActors} 
+                  onSelect={handleScrollToId} 
+                  placeholder="Search all actors..." 
+                  className="profile-section-search"
+                  pageKey="profile-actors"
+                />
               )}
               {showAllActorsWithClasses ? (
                 <div className="profile-classes-view">
@@ -1383,6 +1424,7 @@ export function ProfilePage() {
                           return (
                             <div 
                               key={a.id} 
+                              id={`profile-entry-${a.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleActorClick(a)}
                             >
@@ -1453,10 +1495,18 @@ export function ProfilePage() {
                   {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
                 </button>
               </div>
-              {!showAllDirectorsWithClasses && (
+              {!showAllDirectorsWithClasses ? (
                 <Link to="/directors" className="profile-preview-link">
                   View all directors →
                 </Link>
+              ) : (
+                <PageSearch 
+                  items={searchableDirectors} 
+                  onSelect={handleScrollToId} 
+                  placeholder="Search all directors..." 
+                  className="profile-section-search"
+                  pageKey="profile-directors"
+                />
               )}
               {showAllDirectorsWithClasses ? (
                 <div className="profile-classes-view">
@@ -1469,6 +1519,7 @@ export function ProfilePage() {
                           return (
                             <div 
                               key={d.id} 
+                              id={`profile-entry-${d.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleDirectorClick(d)}
                             >

@@ -698,3 +698,26 @@
   }
 }
 
+.profile-section-search {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  margin-bottom: 1.25rem !important;
+  z-index: 10 !important;
+}
+
+.profile-section-search .page-search-input-wrapper {
+  width: 100% !important;
+  max-width: none !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.profile-section-search .page-search-results {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-height: 250px;
+  overflow-y: auto;
+}
+

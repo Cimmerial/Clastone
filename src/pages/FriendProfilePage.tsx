@@ -28,6 +28,7 @@ import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSavePar
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
+import { PageSearch } from '../components/PageSearch';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './FriendProfilePage.css';
 import '../components/ProfileSplitLayout.css';
@@ -469,8 +470,10 @@ export function FriendProfilePage() {
       }
     }
     // Only return actual ranked actors, don't pad with random ones
-    return list.slice(0, 5);
+    return list;
   }, [friendPeopleData]);
+
+  const top5Actors = useMemo(() => rankedActors.slice(0, 5), [rankedActors]);
 
   const rankedDirectors = useMemo(() => {
     if (!friendDirectorsData || !friendDirectorsData.byClass || !friendDirectorsData.classes) return [];
@@ -482,8 +485,10 @@ export function FriendProfilePage() {
       }
     }
     // Only return actual ranked directors, don't pad with random ones
-    return list.slice(0, 5);
+    return list;
   }, [friendDirectorsData]);
+
+  const top5Directors = useMemo(() => rankedDirectors.slice(0, 5), [rankedDirectors]);
 
   const hasActors = rankedActors.length > 0;
   const hasDirectors = rankedDirectors.length > 0;
@@ -831,6 +836,20 @@ export function FriendProfilePage() {
       showAvgRuntimeByCategory
     };
   }, [friendMoviesData, friendTvData, friendPeopleData, friendDirectorsData, rankedMovies, rankedShows]);
+
+  const searchableMovies = useMemo(() => rankedMovies.map(m => ({ id: m.id, title: m.title })), [rankedMovies]);
+  const searchableShows = useMemo(() => rankedShows.map(s => ({ id: s.id, title: s.title })), [rankedShows]);
+  const searchableActors = useMemo(() => rankedActors.map(a => ({ id: a.id, title: a.title })), [rankedActors]);
+  const searchableDirectors = useMemo(() => rankedDirectors.map(d => ({ id: d.id, title: d.title })), [rankedDirectors]);
+
+  const handleScrollToId = useCallback((id: string) => {
+    const el = document.getElementById(`profile-entry-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlighted-entry');
+      setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
+    }
+  }, []);
 
   // Debug logging for stats
   console.log('📊 Final stats object:', stats);
@@ -1611,6 +1630,15 @@ export function FriendProfilePage() {
               {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
             </button>
           </div>
+          {showAllMoviesWithClasses && (
+            <PageSearch 
+              items={searchableMovies} 
+              onSelect={handleScrollToId} 
+              placeholder="Search all movies..." 
+              className="profile-section-search"
+              pageKey="friend-profile-movies"
+            />
+          )}
           {showAllMoviesWithClasses ? (
             <div className="profile-classes-view">
               {friendMoviesData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendMoviesData.byClass[c.key]?.length > 0).map((classDef: any) => (
@@ -1623,6 +1651,7 @@ export function FriendProfilePage() {
                       return (
                         <div 
                           key={m.id} 
+                          id={`profile-entry-${m.id}`}
                           className="profile-top-item profile-top-item--clickable"
                           onClick={() => handleMovieClick(m)}
                         >
@@ -1695,6 +1724,15 @@ export function FriendProfilePage() {
               {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
             </button>
           </div>
+          {showAllShowsWithClasses && (
+            <PageSearch 
+              items={searchableShows} 
+              onSelect={handleScrollToId} 
+              placeholder="Search all shows..." 
+              className="profile-section-search"
+              pageKey="friend-profile-shows"
+            />
+          )}
           {showAllShowsWithClasses ? (
             <div className="profile-classes-view">
               {friendTvData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendTvData.byClass[c.key]?.length > 0).map((classDef: any) => (
@@ -1707,6 +1745,7 @@ export function FriendProfilePage() {
                       return (
                         <div 
                           key={s.id} 
+                          id={`profile-entry-${s.id}`}
                           className="profile-top-item profile-top-item--clickable"
                           onClick={() => handleShowClick(s)}
                         >
@@ -1783,6 +1822,15 @@ export function FriendProfilePage() {
                   {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
                 </button>
               </div>
+              {showAllActorsWithClasses && (
+                <PageSearch 
+                  items={searchableActors} 
+                  onSelect={handleScrollToId} 
+                  placeholder="Search all actors..." 
+                  className="profile-section-search"
+                  pageKey="friend-profile-actors"
+                />
+              )}
               {showAllActorsWithClasses ? (
                 <div className="profile-classes-view">
                   {friendPeopleData?.classes?.filter((c: any) => c.isRanked && friendPeopleData.byClass[c.key]?.length > 0).map((classDef: any) => (
@@ -1795,6 +1843,7 @@ export function FriendProfilePage() {
                           return (
                             <div 
                               key={a.id} 
+                              id={`profile-entry-${a.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleActorClick(a)}
                             >
@@ -1822,7 +1871,7 @@ export function FriendProfilePage() {
                 </div>
               ) : (
                 <div className="profile-top-grid">
-                  {rankedActors.map((a: any, i: number) => {
+                  {top5Actors.map((a: any, i: number) => {
                     const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
                     const userStatus = getUserActorStatus(tmdbId);
                     return (
@@ -1869,6 +1918,15 @@ export function FriendProfilePage() {
                   {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
                 </button>
               </div>
+              {showAllDirectorsWithClasses && (
+                <PageSearch 
+                  items={searchableDirectors} 
+                  onSelect={handleScrollToId} 
+                  placeholder="Search all directors..." 
+                  className="profile-section-search"
+                  pageKey="friend-profile-directors"
+                />
+              )}
               {showAllDirectorsWithClasses ? (
                 <div className="profile-classes-view">
                   {friendDirectorsData?.classes?.filter((c: any) => c.isRanked && friendDirectorsData.byClass[c.key]?.length > 0).map((classDef: any) => (
@@ -1881,6 +1939,7 @@ export function FriendProfilePage() {
                           return (
                             <div 
                               key={d.id} 
+                              id={`profile-entry-${d.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleDirectorClick(d)}
                             >
@@ -1908,7 +1967,7 @@ export function FriendProfilePage() {
                 </div>
               ) : (
                 <div className="profile-top-grid">
-                  {rankedDirectors.map((d: any, i: number) => {
+                  {top5Directors.map((d: any, i: number) => {
                     const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
                     const userStatus = getUserDirectorStatus(tmdbId);
                     return (
