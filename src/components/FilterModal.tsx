@@ -4,6 +4,7 @@ import { useFilterStore, FilterState } from '../state/filterStore';
 import { MovieShowItem, WatchRecord } from './EntryRowMovieShow';
 import { tmdbSearchMulti, tmdbImagePath } from '../lib/tmdb';
 import './FilterModal.css';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 type Props = {
     isOpen: boolean;
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function FilterModal({ isOpen, onClose, items, type }: Props) {
+    const { isMobile } = useMobileViewMode();
     const { movieFilters, showFilters, setMovieFilters, setShowFilters, resetMovieFilters, resetShowFilters } = useFilterStore();
 
     const currentFilters = type === 'movies' ? movieFilters : showFilters;
@@ -22,6 +24,15 @@ export function FilterModal({ isOpen, onClose, items, type }: Props) {
     const [actorSearch, setActorSearch] = useState('');
     const [actorResults, setActorResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+
+    // Lock body scroll when modal is open (only on desktop)
+    useEffect(() => {
+        if (!isOpen || isMobile) return; // Don't lock scroll on mobile or when closed
+        
+        const orig = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = orig || 'unset'; };
+    }, [isOpen, isMobile]);
 
     // Derived data for wordcloud and timeline
     const { allGenres, dateRange } = useMemo(() => {

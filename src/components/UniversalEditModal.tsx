@@ -13,6 +13,7 @@ import {
 } from '../lib/dateDropdowns';
 import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -464,6 +465,7 @@ export function UniversalEditModal({
   onGoToWatchlist,
   isSaving,
 }: Props) {
+  const { isMobile } = useMobileViewMode();
   // Convert WatchRecord[] to WatchMatrixEntry[] for initial state
   const convertRecordsToMatrix = useCallback((records?: WatchRecord[]): WatchMatrixEntry[] => {
     if (!records?.length) {
@@ -522,12 +524,14 @@ export function UniversalEditModal({
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when modal is open (only on desktop)
   useEffect(() => {
+    if (isMobile) return; // Don't lock scroll on mobile
+    
     const orig = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = orig || 'unset'; };
-  }, []);
+  }, [isMobile]);
 
   // Reset remove click count after 3 seconds
   useEffect(() => {

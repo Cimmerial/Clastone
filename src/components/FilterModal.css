@@ -346,14 +346,119 @@
     }
 }
 
-border: 2px solid rgba(255, 255, 255, 0.1);
-border-top-color: #3b82f6;
-border-radius: 50%;
-animation: spin 0.8s linear infinite;
-}
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    .filter-modal-overlay {
+        padding: 0;
+        align-items: flex-start;
+    }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
+    .filter-modal {
+        width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+        max-width: none;
+    }
+
+    .filter-header {
+        padding: 12px 16px;
+        gap: 8px;
+    }
+
+    .filter-header h2 {
+        font-size: 1rem;
+    }
+
+    .filter-content {
+        padding: 12px 16px;
+        gap: 16px;
+    }
+
+    .filter-section h3 {
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+    }
+
+    .genre-wordcloud {
+        gap: 6px;
+    }
+
+    .genre-tag {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+    }
+
+    .genre-count {
+        font-size: 0.7rem;
+    }
+
+    .timeline-inputs {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .timeline-input-group label {
+        font-size: 0.75rem;
+    }
+
+    .filter-checkbox-label {
+        font-size: 0.8rem;
+    }
+
+    .actor-search-input-wrapper input {
+        padding: 8px 10px 8px 32px;
+        font-size: 0.85rem;
+    }
+
+    .actor-result-item {
+        padding: 6px 10px;
+        gap: 8px;
+    }
+
+    .actor-result-item img,
+    .actor-placeholder {
+        width: 28px;
+        height: 28px;
+    }
+
+    .selected-actors {
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .selected-actor-tag {
+        padding: 3px 6px;
+        font-size: 0.75rem;
+    }
+
+    .filter-footer {
+        padding: 12px 16px;
+        gap: 8px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-footer-left,
+    .filter-footer-right {
+        justify-content: center;
+    }
+
+    .shown-entries {
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .filter-reset-btn,
+    .filter-apply-btn {
+        width: 100%;
+        padding: 8px 16px;
+        font-size: 0.85rem;
+        justify-content: center;
+    }
+
+    .filter-footer-right {
+        gap: 8px;
+        flex-direction: row;
+        width: 100%;
     }
 }
