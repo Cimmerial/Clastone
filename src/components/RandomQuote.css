@@ -7,3 +7,9 @@
 .random-quote-text:hover {
     opacity: 1;
 }
+
+@media (max-width: 768px) {
+    .random-quote-text {
+        display: none;
+    }
+}
