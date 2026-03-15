@@ -303,7 +303,8 @@ export function HomePage() {
                     <li>drag entries between classes <span className="feature-note">(sorry about lag and wonkyness, will fix)</span></li>
                     <li>view all stats and saved/ranked items from friends</li>
                     <li>can save and edit ranks from friends entries on their profile.</li>
-                    <li>info button to see data on a given movie/show/person</li>
+                    <li><strong>info</strong> button to see data on a given movie/show/person</li>
+                    <li><strong>mobile</strong> Clastone now is usable, though rough</li>
                   </ul>
                 </div>
               </div>

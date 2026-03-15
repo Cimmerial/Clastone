@@ -517,10 +517,16 @@
   }
 
   .info-modal {
-    max-height: 95vh;
+    width: min(500px, 85vw);
+    max-height: 85vh;
+    border-radius: 12px;
+    overflow-y: auto;
+    display: block;
   }
 
   .info-modal-content {
+    overflow-y: visible;
+    flex: none;
     padding: 1rem;
   }
 

@@ -984,9 +984,21 @@
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .uem-modal {
-    width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
+    width: min(500px, 85vw);
+    max-height: 85vh;
+    border-radius: 12px;
+    overflow-y: auto;
+    display: block; /* Allow header/footer to scroll away */
+  }
+
+  .uem-body {
+    overflow-y: visible;
+    flex: none;
+    padding: 18px 20px;
+  }
+
+  .uem-header, .uem-footer {
+    flex-shrink: 0;
   }
 
   .uem-matrix-header {
