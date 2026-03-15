@@ -440,3 +440,18 @@
     padding: 0.2rem 0.4rem;
   }
 }
+
+/* Minimized view styles */
+.watchlist-row--minimized .watchlist-row-poster {
+  width: 28px;
+  height: 42px;
+  border-radius: 6px;
+}
+
+.watchlist-row--minimized .watchlist-row-main {
+  gap: 0.5rem;
+}
+
+.watchlist-row--minimized .watchlist-row-title {
+  font-size: 0.9rem;
+}

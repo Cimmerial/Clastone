@@ -195,7 +195,7 @@ export function ActorsPage() {
 
       <RankedList<PersonItem>
         ref={scrollContainerRef}
-        viewMode={mobileViewMode}
+        viewMode={settings.viewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -205,7 +205,7 @@ export function ActorsPage() {
         renderRow={(item) => (
           <EntryRowPerson
             item={item as any}
-            viewMode={mobileViewMode}
+            viewMode={settings.viewMode}
             onUpdateCache={updatePersonCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}

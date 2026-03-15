@@ -193,6 +193,40 @@
   white-space: nowrap;
 }
 
+/* ── Select dropdown ── */
+.settings-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.settings-select-label {
+  flex: 1;
+  font-size: 0.88rem;
+}
+
+.settings-select-label strong {
+  color: var(--accent-soft);
+}
+
+.settings-select {
+  min-width: 120px;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: var(--accent-soft);
+  box-shadow: 0 0 0 2px rgba(244, 162, 97, 0.2);
+}
+
 /* ── Toggles ── */
 .settings-toggle-row {
   display: flex;

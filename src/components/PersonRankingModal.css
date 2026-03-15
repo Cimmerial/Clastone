@@ -406,28 +406,23 @@
 }
 
 @keyframes prm-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
 }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .prm-modal {
-    width: min(450px, 85vw);
-    max-height: 85vh;
-    border-radius: 12px;
-    overflow-y: auto;
-    display: block;
-  }
-
-  .prm-body {
-    overflow-y: visible;
-    flex: none;
-    padding: 18px 20px;
-  }
-
-  .prm-header, .prm-footer {
-    flex-shrink: 0;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
   }
 
   .prm-header {

@@ -13,28 +13,18 @@
     padding: 20px;
 }
 
-@media (max-width: 768px) {
-    .filter-modal-overlay {
-        padding: 10px;
-    }
-
-    .filter-modal {
-        width: min(500px, 85vw);
-        max-height: 85vh;
-        border-radius: 12px;
-        overflow-y: auto;
-        display: block;
-    }
-
-    .filter-content {
-        overflow-y: visible;
-        flex: none;
-        padding: 16px;
-    }
-
-    .filter-header, .filter-footer {
-        flex-shrink: 0;
-    }
+.filter-modal {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    animation: modalEnter 0.3s ease-out;
 }
 
 @keyframes modalEnter {
@@ -348,6 +338,18 @@
     border-top-color: #3b82f6;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+border: 2px solid rgba(255, 255, 255, 0.1);
+border-top-color: #3b82f6;
+border-radius: 50%;
+animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {

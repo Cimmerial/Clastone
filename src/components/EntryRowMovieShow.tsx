@@ -153,10 +153,10 @@ export function EntryRowMovieShow({
       const person = getPersonById(`tmdb-person-${c.id}`);
       const isSaved = !!person;
       const classLabel = person ? (peopleClasses.find(cl => cl.key === person.classKey)?.label ?? person.classKey.replace(/_/g, ' ')) : undefined;
-      
+
       // Check if actor has been seen in any watched movies/shows
       const hasBeenSeen = (item.watchRecords && item.watchRecords.length > 0);
-      
+
       return { ...c, isSaved: isSaved || hasBeenSeen, classLabel };
     });
   }, [castSlice, getPersonById, peopleClasses, item.watchRecords]);
@@ -166,10 +166,10 @@ export function EntryRowMovieShow({
       const director = getDirectorById(`tmdb-person-${d.id}`);
       const isSaved = !!director;
       const classLabel = director ? (directorsClasses.find(cl => cl.key === director.classKey)?.label ?? director.classKey.replace(/_/g, ' ')) : undefined;
-      
+
       // Check if director has been seen in any watched movies/shows
       const hasBeenSeen = (item.watchRecords && item.watchRecords.length > 0);
-      
+
       return { ...d, isSaved: isSaved || hasBeenSeen, classLabel };
     });
   }, [item.directors, getDirectorById, directorsClasses, item.watchRecords]);
@@ -251,7 +251,7 @@ export function EntryRowMovieShow({
             {isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
         </div>
-        <div className="entry-tile-title">{item.title}</div>
+        <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
       </article>
     );
   }
@@ -270,9 +270,9 @@ export function EntryRowMovieShow({
           <h3 className="entry-title">
             {item.title}
             {releaseLabel ? <span className="entry-title-year"> ({releaseLabel})</span> : null}
-            <button 
-              type="button" 
-              className="entry-title-info-btn" 
+            <button
+              type="button"
+              className="entry-title-info-btn"
               onClick={() => onInfo?.(item)}
               data-tooltip="Info"
             >

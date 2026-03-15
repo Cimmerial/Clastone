@@ -8,6 +8,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { formatDuration, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useNavigate } from 'react-router-dom';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 type Props = {
   item: PersonItem | DirectorItem;
@@ -172,37 +173,67 @@ export function EntryRowPerson({
 
   const totalWatchTime = (item.movieMinutes || 0) + (item.showMinutes || 0);
 
-  const finalViewMode = propViewMode ?? settings.viewMode;
+  const { mode: mobileViewMode, isMobile } = useMobileViewMode();
+  const finalViewMode = propViewMode ?? mobileViewMode;
   const isTile = finalViewMode === 'tile';
   const isMinimized = finalViewMode === 'minimized';
 
   if (isTile) {
     const age = calculateAge(item.birthday, item.deathday);
-    return (
-      <article className="entry-tile entry-tile-person" ref={rowRef}>
-        <div className="entry-tile-poster" data-item-id={item.id}>
-          {item.profilePath ? (
-            <img src={tmdbImagePath(item.profilePath) ?? ''} alt="" loading="lazy" />
-          ) : (
-            <span>👤</span>
-          )}
-          <div className="entry-tile-info-btn">
-            <button type="button" onClick={() => onInfo?.(item)}>
-              <Info size={14} />
-            </button>
+    if (isMobile) {
+      return (
+        <article className="entry-tile entry-tile-person" ref={rowRef}>
+          <div className="entry-tile-poster" data-item-id={item.id}>
+            {item.profilePath ? (
+              <img src={tmdbImagePath(item.profilePath) ?? ''} alt="" loading="lazy" />
+            ) : (
+              <span>👤</span>
+            )}
+            <div className="entry-tile-info-btn">
+              <button type="button" onClick={() => onInfo?.(item)}>
+                <Info size={14} />
+              </button>
+            </div>
+            <div className="entry-tile-stats-overlay">
+              <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
+              {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
+            </div>
+            <div className="entry-tile-quick-actions">
+              <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+            </div>
           </div>
-          <div className="entry-tile-stats-overlay">
-            {age != null && <div className="entry-stat-pill">Age: {age}</div>}
-            <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
-            {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
+          <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
+        </article>
+      );
+    } else {
+      // Desktop-specific Person Tile
+      return (
+        <article className="entry-tile entry-tile-person entry-tile--desktop" ref={rowRef}>
+          <div className="entry-tile-poster" data-item-id={item.id}>
+            {item.profilePath ? (
+              <img src={tmdbImagePath(item.profilePath, 'w300') ?? ''} alt="" loading="lazy" />
+            ) : (
+              <span>👤</span>
+            )}
+            <div className="entry-tile-info-btn">
+              <button type="button" onClick={() => onInfo?.(item)}>
+                <Info size={16} />
+              </button>
+            </div>
+            <div className="entry-tile-stats-overlay">
+              <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
+              {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
+            </div>
+            <div className="entry-tile-quick-actions">
+               <button type="button" onClick={() => onOpenSettings?.(item)} title="Settings">⚙</button>
+            </div>
           </div>
-          <div className="entry-tile-quick-actions">
-            <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+          <div className="entry-tile-content">
+             <h4 className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</h4>
           </div>
-        </div>
-        <div className="entry-tile-title">{item.title}</div>
-      </article>
-    );
+        </article>
+      );
+    }
   }
 
   return (

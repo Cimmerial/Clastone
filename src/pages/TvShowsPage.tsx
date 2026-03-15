@@ -56,7 +56,7 @@ export function TvShowsPage() {
   const { addDirectorFromSearch, classes: directorsClasses } = useDirectorsStore();
   const { showFilters } = useFilterStore();
   const { settings } = useSettingsStore();
-  const mobileViewMode = useMobileViewMode();
+  const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
   const navigate = useNavigate();
@@ -266,7 +266,7 @@ export function TvShowsPage() {
           onSave={async (params, goToMedia) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
-            
+
             // Convert WatchMatrixEntry[] to WatchRecord[]
             const watches = params.watches.map((w) => {
               let type: WatchRecord['type'] = 'DATE';
@@ -274,10 +274,10 @@ export function TvShowsPage() {
               else if (w.watchType === 'LONG_AGO') {
                 type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
               }
-              
+
               if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
               else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-              
+
               return {
                 id: w.id,
                 type,
@@ -290,23 +290,23 @@ export function TvShowsPage() {
                 dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
               };
             });
-            
+
             if (recordWatchFor && watches.length > 0) {
               addWatchToShow(targetItem.id, watches[0]);
             } else if (settingsFor) {
               updateShowWatchRecords(targetItem.id, watches);
             }
-            
+
             if (params.classKey) {
               moveItemToClass(targetItem.id, params.classKey, {
                 toTop: params.position === 'top',
                 toMiddle: params.position === 'middle'
               });
             }
-            
+
             setSettingsFor(null);
             setRecordWatchFor(null);
-            
+
             if (goToMedia) {
               setTimeout(() => {
                 const el = document.getElementById(`entry-${targetItem.id}`);
@@ -380,7 +380,7 @@ export function TvShowsPage() {
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
       </div>
-      
+
       {/* Info Modal */}
       {infoModalTarget && (
         <InfoModal
@@ -393,8 +393,8 @@ export function TvShowsPage() {
           releaseDate={infoModalTarget.releaseDate}
           onEditWatches={() => {
             // Find the TV show item from the current data
-            const showItem = Object.values(byClass).flat().find(item => 
-              item.tmdbId === infoModalTarget.tmdbId || 
+            const showItem = Object.values(byClass).flat().find(item =>
+              item.tmdbId === infoModalTarget.tmdbId ||
               parseInt(item.id.replace(/\D/g, ''), 10) === infoModalTarget.tmdbId
             );
             if (showItem) {

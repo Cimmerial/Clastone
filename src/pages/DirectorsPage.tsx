@@ -193,7 +193,7 @@ export function DirectorsPage() {
 
       <RankedList<DirectorItem>
         ref={scrollContainerRef}
-        viewMode={mobileViewMode}
+        viewMode={settings.viewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -203,7 +203,7 @@ export function DirectorsPage() {
         renderRow={(item) => (
           <EntryRowPerson
             item={item as any}
-            viewMode={mobileViewMode}
+            viewMode={settings.viewMode}
             onUpdateCache={updateDirectorCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}

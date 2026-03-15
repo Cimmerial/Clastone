@@ -670,6 +670,22 @@ export function SettingsPage() {
             <span className="settings-slider-range">0 – 20</span>
           </label>
 
+          <div className="settings-select-row">
+            <span className="settings-select-label">Tile View Size: <strong>{settings.tileViewSize}</strong></span>
+            <select
+              value={settings.tileViewSize}
+              className="settings-select"
+              onChange={(e) => {
+                const v = e.target.value as 'small' | 'default' | 'big';
+                updateSettings({ tileViewSize: v });
+              }}
+            >
+              <option value="small">Small</option>
+              <option value="default">Default</option>
+              <option value="big">Big</option>
+            </select>
+          </div>
+
 
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">

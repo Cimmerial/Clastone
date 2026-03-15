@@ -70,7 +70,7 @@ export function MoviesPage() {
   const { addDirectorFromSearch, classes: directorsClasses, moveItemToClass: moveDirectorToClass } = useDirectorsStore();
   const { movieFilters } = useFilterStore();
   const { settings } = useSettingsStore();
-  const mobileViewMode = useMobileViewMode();
+  const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
   const navigate = useNavigate();
@@ -283,7 +283,7 @@ export function MoviesPage() {
           onSave={async (params, goToMedia) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
-            
+
             // Convert WatchMatrixEntry[] to WatchRecord[]
             const watches = params.watches.map((w) => {
               let type: WatchRecord['type'] = 'DATE';
@@ -291,10 +291,10 @@ export function MoviesPage() {
               else if (w.watchType === 'LONG_AGO') {
                 type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
               }
-              
+
               if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
               else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-              
+
               return {
                 id: w.id,
                 type,
@@ -307,23 +307,23 @@ export function MoviesPage() {
                 dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
               };
             });
-            
+
             if (recordWatchFor && watches.length > 0) {
               addWatchToMovie(targetItem.id, watches[0]);
             } else if (settingsFor) {
               updateMovieWatchRecords(targetItem.id, watches);
             }
-            
+
             if (params.classKey) {
               moveItemToClass(targetItem.id, params.classKey, {
                 toTop: params.position === 'top',
                 toMiddle: params.position === 'middle'
               });
             }
-            
+
             setSettingsFor(null);
             setRecordWatchFor(null);
-            
+
             if (goToMedia) {
               // Close modal first, then navigate
               setTimeout(() => {
@@ -398,7 +398,7 @@ export function MoviesPage() {
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
       </div>
-      
+
       {/* Info Modal */}
       {infoModalTarget && (
         <InfoModal
@@ -411,8 +411,8 @@ export function MoviesPage() {
           releaseDate={infoModalTarget.releaseDate}
           onEditWatches={() => {
             // Find the movie item from the current data
-            const movieItem = Object.values(byClass).flat().find(item => 
-              item.tmdbId === infoModalTarget.tmdbId || 
+            const movieItem = Object.values(byClass).flat().find(item =>
+              item.tmdbId === infoModalTarget.tmdbId ||
               parseInt(item.id.replace(/\D/g, ''), 10) === infoModalTarget.tmdbId
             );
             if (movieItem) {

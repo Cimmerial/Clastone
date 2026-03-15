@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Info } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { useSettingsStore } from '../state/settingsStore';
+import { InfoModal } from '../components/InfoModal';
 import {
   DndContext,
   type DragEndEvent,
@@ -35,7 +37,8 @@ function WatchlistTile({
   onRecordWatch,
   onRemove,
   hasWatched,
-  providers
+  providers,
+  onInfo
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -43,6 +46,7 @@ function WatchlistTile({
   onRemove: () => void;
   hasWatched: boolean;
   providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
+  onInfo?: () => void;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -106,6 +110,19 @@ function WatchlistTile({
           >
             {showConfirm ? '✓' : '✕'}
           </button>
+          {onInfo && (
+            <button
+              type="button"
+              className="watchlist-tile-info-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onInfo();
+              }}
+              title="Info"
+            >
+              <Info size={12} />
+            </button>
+          )}
           <button
             type="button"
             className="watchlist-tile-rw-btn"
@@ -138,7 +155,9 @@ function WatchlistRow({
   hasWatched,
   canMoveUp,
   canMoveDown,
-  providers
+  providers,
+  minimized = false,
+  onInfo
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -150,6 +169,8 @@ function WatchlistRow({
   canMoveUp: boolean;
   canMoveDown: boolean;
   providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
+  minimized?: boolean;
+  onInfo?: () => void;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -185,7 +206,7 @@ function WatchlistRow({
   return (
     <div
       ref={setNodeRef}
-      className={`watchlist-row ${isDragging ? 'watchlist-row--dragging' : ''}`}
+      className={`watchlist-row ${isDragging ? 'watchlist-row--dragging' : ''} ${minimized ? 'watchlist-row--minimized' : ''}`}
       style={style}
       data-watchlist-id={entry.id}
       {...attributes}
@@ -195,7 +216,7 @@ function WatchlistRow({
         <div className="watchlist-row-poster">
           {entry.posterPath && (
             <img
-              src={tmdbImagePath(entry.posterPath, 'w154') || undefined}
+              src={tmdbImagePath(entry.posterPath, minimized ? 'w45' : 'w154') || undefined}
               alt={entry.title}
               className="watchlist-row-poster-img"
               loading="lazy"
@@ -204,10 +225,12 @@ function WatchlistRow({
         </div>
         <div className="watchlist-row-info">
           <h3 className="watchlist-row-title">{entry.title}</h3>
-          <p className="watchlist-row-meta">
-            {formatYear(entry.releaseDate || undefined)}
-          </p>
-          {providers && providers.length > 0 && (
+          {!minimized && (
+            <p className="watchlist-row-meta">
+              {formatYear(entry.releaseDate || undefined)}
+            </p>
+          )}
+          {!minimized && providers && providers.length > 0 && (
             <div className="watchlist-row-providers">
               {providers?.slice(0, 3).map((provider, idx) => (
                 <div key={idx} className="watchlist-provider-item">
@@ -236,30 +259,47 @@ function WatchlistRow({
         >
           {showConfirm ? '✓ Confirm Remove' : '✕'}
         </button>
-        <button
-          type="button"
-          className="watchlist-row-move-btn"
-          aria-label="Move up"
-          disabled={!canMoveUp}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMoveUp();
-          }}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          className="watchlist-row-move-btn"
-          aria-label="Move down"
-          disabled={!canMoveDown}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMoveDown();
-          }}
-        >
-          ↓
-        </button>
+        {!minimized && (
+          <>
+            <button
+              type="button"
+              className="watchlist-row-move-btn"
+              aria-label="Move up"
+              disabled={!canMoveUp}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp();
+              }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="watchlist-row-move-btn"
+              aria-label="Move down"
+              disabled={!canMoveDown}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown();
+              }}
+            >
+              ↓
+            </button>
+          </>
+        )}
+        {onInfo && (
+          <button
+            type="button"
+            className="watchlist-row-btn watchlist-row-info-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onInfo();
+            }}
+            title="Info"
+          >
+            <Info size={14} />
+          </button>
+        )}
         <button
           type="button"
           className="watchlist-row-btn"
@@ -306,6 +346,7 @@ export function WatchlistPage() {
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>>>({});
+  const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
 
   useEffect(() => {
     const fetchAllProviders = async () => {
@@ -343,8 +384,24 @@ export function WatchlistPage() {
     fetchAllProviders();
   }, [movies, tv]);
 
+  const handleInfo = (entry: WatchlistEntry, mediaType: 'movie' | 'tv') => {
+    const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
+    if (!match) return;
+    const [, media, idStr] = match;
+    const tmdbId = parseInt(idStr, 10);
+    if (Number.isNaN(tmdbId)) return;
+    
+    setInfoModalTarget({
+      tmdbId,
+      title: entry.title,
+      posterPath: entry.posterPath,
+      releaseDate: entry.releaseDate,
+      mediaType
+    });
+  };
+
   // Track modal state
-  const hasActiveModal = !!recordTarget;
+  const hasActiveModal = !!recordTarget || !!infoModalTarget;
 
   const movieRankedClasses = useMemo(
     () => classOrder.map((k) => ({
@@ -595,7 +652,7 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">Movies</h3>
                 <p className="class-section-count">{movies.length} entries</p>
               </header>
-              {mobileViewMode === 'tile' ? (
+              {settings.viewMode === 'tile' ? (
                 <div className="watchlist-tiles">
                   <SortableContext items={movies.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
                     {movies.map((entry, index) => (
@@ -607,6 +664,29 @@ export function WatchlistPage() {
                         onRemove={() => removeFromWatchlist(entry.id)}
                         hasWatched={hasWatched(entry.id)}
                         providers={watchProviders[entry.id]}
+                        onInfo={() => handleInfo(entry, 'movie')}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              ) : settings.viewMode === 'minimized' ? (
+                <div className="class-section-rows class-section-rows--minimized">
+                  <SortableContext items={movies.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    {movies.map((entry, index) => (
+                      <WatchlistRow
+                        key={entry.id}
+                        entry={entry}
+                        type="movies"
+                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
+                        onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
+                        onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < movies.length - 1}
+                        providers={watchProviders[entry.id]}
+                        minimized={true}
+                        onInfo={() => handleInfo(entry, 'movie')}
                       />
                     ))}
                   </SortableContext>
@@ -627,6 +707,7 @@ export function WatchlistPage() {
                         canMoveUp={index > 0}
                         canMoveDown={index < movies.length - 1}
                         providers={watchProviders[entry.id]}
+                        onInfo={() => handleInfo(entry, 'movie')}
                       />
                     ))}
                   </SortableContext>
@@ -639,7 +720,7 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">TV Shows</h3>
                 <p className="class-section-count">{tv.length} entries</p>
               </header>
-              {mobileViewMode === 'tile' ? (
+              {settings.viewMode === 'tile' ? (
                 <div className="watchlist-tiles">
                   <SortableContext items={tv.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
                     {tv.map((entry, index) => (
@@ -651,6 +732,29 @@ export function WatchlistPage() {
                         onRemove={() => removeFromWatchlist(entry.id)}
                         hasWatched={hasWatched(entry.id)}
                         providers={watchProviders[entry.id]}
+                        onInfo={() => handleInfo(entry, 'tv')}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              ) : settings.viewMode === 'minimized' ? (
+                <div className="class-section-rows class-section-rows--minimized">
+                  <SortableContext items={tv.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    {tv.map((entry, index) => (
+                      <WatchlistRow
+                        key={entry.id}
+                        entry={entry}
+                        type="tv"
+                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
+                        onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
+                        onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < tv.length - 1}
+                        providers={watchProviders[entry.id]}
+                        minimized={true}
+                        onInfo={() => handleInfo(entry, 'tv')}
                       />
                     ))}
                   </SortableContext>
@@ -671,6 +775,7 @@ export function WatchlistPage() {
                         canMoveUp={index > 0}
                         canMoveDown={index < tv.length - 1}
                         providers={watchProviders[entry.id]}
+                        onInfo={() => handleInfo(entry, 'tv')}
                       />
                     ))}
                   </SortableContext>
@@ -722,6 +827,19 @@ export function WatchlistPage() {
             setRecordWatchlistId(null);
           }}
           isSaving={isSaving}
+        />
+      )}
+
+      {/* Info Modal */}
+      {infoModalTarget && (
+        <InfoModal
+          isOpen={!!infoModalTarget}
+          onClose={() => setInfoModalTarget(null)}
+          tmdbId={infoModalTarget.tmdbId}
+          mediaType={infoModalTarget.mediaType}
+          title={infoModalTarget.title}
+          posterPath={infoModalTarget.posterPath}
+          releaseDate={infoModalTarget.releaseDate}
         />
       )}
     </section>

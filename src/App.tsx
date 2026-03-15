@@ -14,7 +14,22 @@ import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
 import { FilterProvider } from './state/filterStore';
 import { SpotlightBackground } from './components/SpotlightBackground';
 import { FriendsProvider } from './context/FriendsContext';
+import { useSettingsStore } from './state/settingsStore';
+import { useEffect } from 'react';
 import './components/SpotlightBackground.css';
+
+// Component to handle CSS custom property for tile size
+function TileSizeManager() {
+  const { settings } = useSettingsStore();
+
+  useEffect(() => {
+    const tileSize = settings.tileViewSize === 'small' ? '100px' : 
+                    settings.tileViewSize === 'big' ? '160px' : '120px';
+    document.documentElement.style.setProperty('--tile-size', tileSize);
+  }, [settings.tileViewSize]);
+
+  return null;
+}
 
 function App() {
   const { user, loading, needsUsername } = useAuth();
@@ -47,6 +62,7 @@ function App() {
     <FriendsProvider>
       <SyncStatusProvider>
         <FirestoreSettingsGate>
+          <TileSizeManager />
           <FirestoreMoviesGate>
             <FirestoreTvGate>
               <FirestorePeopleGate>

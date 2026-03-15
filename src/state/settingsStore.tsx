@@ -5,6 +5,7 @@ export type GlobalSettings = {
     topRoleCount: number;
     personProjectsLimit: number;
     viewMode: 'minimized' | 'detailed' | 'tile';
+    tileViewSize: 'small' | 'default' | 'big';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
     useSpotlightBackground: boolean;
@@ -25,6 +26,7 @@ function getInitialSettings(): GlobalSettings {
         const role = localStorage.getItem('clastone-topRoleCount');
         const ppl = localStorage.getItem('clastone-personProjectsLimit');
         const vm = localStorage.getItem('clastone-viewMode');
+        const tvs = localStorage.getItem('clastone-tileViewSize');
         const min = localStorage.getItem('clastone-minimizedEntries');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
         const es = localStorage.getItem('clastone-excludeSimpsons');
@@ -41,6 +43,11 @@ function getInitialSettings(): GlobalSettings {
             viewMode = 'detailed';
         }
 
+        let tileViewSize: 'small' | 'default' | 'big' = 'default';
+        if (tvs === 'small' || tvs === 'default' || tvs === 'big') {
+            tileViewSize = tvs as any;
+        }
+
         let dismissedHomepageFlags: string[] = [];
         if (dhf) {
             try {
@@ -55,6 +62,7 @@ function getInitialSettings(): GlobalSettings {
             topRoleCount: role ? Number(role) : 5,
             personProjectsLimit: ppl ? Number(ppl) : 12,
             viewMode,
+            tileViewSize,
             boycottTalkShows: bts === 'true',
             excludeSimpsons: es === 'true',
             useSpotlightBackground: usb === 'true',
@@ -67,6 +75,7 @@ function getInitialSettings(): GlobalSettings {
             topRoleCount: 5,
             personProjectsLimit: 12,
             viewMode: 'minimized',
+            tileViewSize: 'default',
             boycottTalkShows: false,
             excludeSimpsons: false,
             useSpotlightBackground: false,
@@ -135,6 +144,7 @@ export function SettingsProvider({
                 if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
                 if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
+                if (updates.tileViewSize !== undefined) localStorage.setItem('clastone-tileViewSize', next.tileViewSize);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));

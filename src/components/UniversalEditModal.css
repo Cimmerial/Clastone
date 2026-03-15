@@ -977,28 +977,23 @@
 }
 
 @keyframes uem-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
 }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .uem-modal {
-    width: min(500px, 85vw);
-    max-height: 85vh;
-    border-radius: 12px;
-    overflow-y: auto;
-    display: block; /* Allow header/footer to scroll away */
-  }
-
-  .uem-body {
-    overflow-y: visible;
-    flex: none;
-    padding: 18px 20px;
-  }
-
-  .uem-header, .uem-footer {
-    flex-shrink: 0;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
   }
 
   .uem-matrix-header {
@@ -1017,10 +1012,29 @@
     width: 100%;
   }
 
-  .uem-matrix-cell--type::before { content: 'Type: '; color: #666; font-size: 0.7rem; }
-  .uem-matrix-cell--time::before { content: 'Date: '; color: #666; font-size: 0.7rem; }
-  .uem-matrix-cell--amount::before { content: 'Progress: '; color: #666; font-size: 0.7rem; }
-  .uem-matrix-cell--details::before { content: 'Status: '; color: #666; font-size: 0.7rem; }
+  .uem-matrix-cell--type::before {
+    content: 'Type: ';
+    color: #666;
+    font-size: 0.7rem;
+  }
+
+  .uem-matrix-cell--time::before {
+    content: 'Date: ';
+    color: #666;
+    font-size: 0.7rem;
+  }
+
+  .uem-matrix-cell--amount::before {
+    content: 'Progress: ';
+    color: #666;
+    font-size: 0.7rem;
+  }
+
+  .uem-matrix-cell--details::before {
+    content: 'Status: ';
+    color: #666;
+    font-size: 0.7rem;
+  }
 
   .uem-time-with-preset {
     flex-wrap: wrap;

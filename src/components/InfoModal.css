@@ -135,8 +135,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .info-modal-top {
@@ -517,16 +522,10 @@
   }
 
   .info-modal {
-    width: min(500px, 85vw);
-    max-height: 85vh;
-    border-radius: 12px;
-    overflow-y: auto;
-    display: block;
+    max-height: 95vh;
   }
 
   .info-modal-content {
-    overflow-y: visible;
-    flex: none;
     padding: 1rem;
   }
 

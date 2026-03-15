@@ -16,5 +16,6 @@ export function useMobileViewMode() {
   }, []);
 
   // Force tile mode on mobile
-  return isMobile ? 'tile' as const : settings.viewMode;
+  const mode = isMobile ? 'tile' as const : settings.viewMode;
+  return { mode, isMobile };
 }

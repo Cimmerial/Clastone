@@ -741,30 +741,16 @@
 
 /* ── Responsive ── */
 @media (max-width: 640px) {
-  .rwm-modal {
-    width: min(500px, 85vw);
-    max-height: 85vh;
-    border-radius: 12px;
-    overflow-y: auto;
-    display: block;
-  }
-
-  .rwm-body {
-    overflow-y: visible;
-    flex: none;
-    padding: 18px 20px;
-  }
-
-  .rwm-header, .rwm-footer {
-    flex-shrink: 0;
-  }
-
   .rwm-body--two-col {
     flex-direction: column;
   }
 
   .rwm-class-col {
     flex: unset;
+    width: 100%;
+  }
+
+  .rwm-modal--wide {
     width: 100%;
   }
 
@@ -776,9 +762,24 @@
     flex-wrap: wrap;
   }
 
+  /* Allow entry to wrap on very small screens */
   .rwm-entry {
     flex-wrap: wrap;
   }
+}
+
+/* Ensure dropdown lists in the modal show all options */
+.rwm-modal .themed-dropdown-list {
+  max-height: none !important;
+}
+
+.rwm-footer-inner {
+  flex-wrap: wrap;
+}
+
+.rwm-entry {
+  flex-wrap: wrap;
+}
 }
 
 /* Ensure dropdown lists in the modal show all options */
