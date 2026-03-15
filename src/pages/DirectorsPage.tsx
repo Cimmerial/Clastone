@@ -203,6 +203,7 @@ export function DirectorsPage() {
         renderRow={(item) => (
           <EntryRowPerson
             item={item as any}
+            viewMode={mobileViewMode}
             onUpdateCache={updateDirectorCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}

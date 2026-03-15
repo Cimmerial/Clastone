@@ -19,6 +19,7 @@ type Props = {
   onUpdateCache?: (id: string, cache: TmdbPersonCache) => void;
   onRecordMedia?: (media: { id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string }) => void;
   onInfo?: (item: PersonItem | DirectorItem) => void;
+  viewMode?: 'detailed' | 'minimized' | 'tile';
 };
 
 export function EntryRowPerson({
@@ -30,7 +31,8 @@ export function EntryRowPerson({
   onClassDown,
   onUpdateCache,
   onRecordMedia,
-  onInfo
+  onInfo,
+  viewMode: propViewMode
 }: Props) {
   const { settings } = useSettingsStore();
   // We'll use the passed in update function if available, otherwise fallback to peopleStore
@@ -170,9 +172,9 @@ export function EntryRowPerson({
 
   const totalWatchTime = (item.movieMinutes || 0) + (item.showMinutes || 0);
 
-  const viewMode = settings.viewMode;
-  const isTile = viewMode === 'tile';
-  const isMinimized = viewMode === 'minimized';
+  const finalViewMode = propViewMode ?? settings.viewMode;
+  const isTile = finalViewMode === 'tile';
+  const isMinimized = finalViewMode === 'minimized';
 
   if (isTile) {
     const age = calculateAge(item.birthday, item.deathday);
