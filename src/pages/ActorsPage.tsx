@@ -204,8 +204,7 @@ export function ActorsPage() {
         onMoveBetweenClasses={moveItemToClass}
         renderRow={(item) => (
           <EntryRowPerson
-            item={item as any}
-            viewMode={mobileViewMode}
+            item={item}
             onUpdateCache={updatePersonCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}

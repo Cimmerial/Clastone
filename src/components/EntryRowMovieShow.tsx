@@ -86,7 +86,6 @@ type Props = {
   onClassDown?: () => void;
   onRecordPerson?: (info: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => void;
   onInfo?: (item: MovieShowItem) => void;
-  viewMode?: 'detailed' | 'minimized' | 'tile';
 };
 
 function parsePercentile(s: string): number | null {
@@ -122,7 +121,6 @@ export function EntryRowMovieShow({
   onClassDown,
   onRecordPerson,
   onInfo,
-  viewMode: propViewMode
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -191,9 +189,9 @@ export function EntryRowMovieShow({
   const { updateMovieCache } = useMoviesStore();
   const { updateShowCache } = useTvStore();
 
-  const finalViewMode = propViewMode ?? settings.viewMode;
-  const isTile = finalViewMode === 'tile';
-  const isMinimized = finalViewMode === 'minimized';
+  const viewMode = settings.viewMode;
+  const isMinimized = viewMode === 'minimized';
+  const isTile = viewMode === 'tile';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
