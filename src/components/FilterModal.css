@@ -355,7 +355,7 @@
 
     .filter-modal {
         width: 100%;
-        max-height: 100vh;
+        max-height: 67.5vh; /* Reduced from 90vh to make it 25% shorter */
         border-radius: 0;
         max-width: none;
     }
