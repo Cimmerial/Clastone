@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Info } from 'lucide-react';
+import { Info, User, Film, ArrowUp, ChevronLeft, ChevronRight, Clapperboard } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import {
   tmdbSearchMulti,
@@ -176,12 +176,7 @@ export function SearchPage() {
   }, [remoteResults]);
 
   // Clear search function
-  const clearSearch = () => {
-    setQuery('');
-    setRemoteResults([]);
-    sessionStorage.removeItem('search_query');
-    sessionStorage.removeItem('search_results');
-  };
+
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -769,16 +764,7 @@ export function SearchPage() {
                   placeholder={placeholderText}
                   className="search-input"
                 />
-                {query && (
-                  <button 
-                    type="button" 
-                    className="search-clear-btn"
-                    onClick={clearSearch}
-                    title="Clear search"
-                  >
-                    ×
-                  </button>
-                )}
+
               </div>
             </label>
             <div className="search-toggles">
@@ -864,7 +850,7 @@ export function SearchPage() {
                     disabled={wanderYear === 'ALL' || wanderYear <= currentYear - 50}
                     aria-label="Previous year"
                   >
-                    ‹
+                    <ChevronLeft size={16} />
                   </button>
                   <div className="wander-year-dropdown">
                     <select
@@ -886,7 +872,7 @@ export function SearchPage() {
                     disabled={wanderYear === 'ALL' || wanderYear >= currentYear}
                     aria-label="Next year"
                   >
-                    ›
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               </div>
@@ -987,7 +973,7 @@ export function SearchPage() {
                       <img src={imgUrl} alt={r.title} />
                     ) : (
                       <div className="search-card-poster-fallback">
-                        {r.media_type === 'person' ? '👤' : '🎬'}
+                        {r.media_type === 'person' ? <User size={24} /> : <Film size={24} />}
                       </div>
                     )}
                   </div>
@@ -1309,7 +1295,7 @@ export function SearchPage() {
                         <img src={imgUrl} alt={r.title} />
                       ) : (
                         <div className="search-card-poster-fallback">
-                          🎬
+                          <Film size={24} />
                         </div>
                       )}
                     </div>
@@ -1488,7 +1474,7 @@ export function SearchPage() {
                 onClick={scrollToTop}
                 aria-label="Scroll to top"
               >
-                ↑ Top
+                <ArrowUp size={14} /> Top
               </button>
             )}
           </div>

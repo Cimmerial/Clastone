@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUp, ArrowDown, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, ChevronLeft } from 'lucide-react';
 import './PersonRankingModal.css';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -177,7 +177,7 @@ export function PersonRankingModal({
                   className="prm-cancel-override"
                   onClick={() => setShowClassOverride(false)}
                 >
-                  ← Keep current rank
+                  <ChevronLeft size={16} /> Keep current rank
                 </button>
               )}
               

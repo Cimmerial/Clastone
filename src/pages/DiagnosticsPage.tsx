@@ -6,6 +6,7 @@ import {
     clearThrottlerLog,
     type ThrottledRequest
 } from '../lib/firebaseThrottler';
+import { Check, AlertTriangle } from 'lucide-react';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
@@ -220,19 +221,19 @@ export function DiagnosticsPage() {
                     <h2 className="settings-title">Storage & Migration</h2>
                     <div className="settings-migration-status">
                         <div className={`migration-indicator ${status.migration.movies ? 'migrated' : 'pending'}`}>
-                            Movies: {status.migration.movies ? '✓ Migrated' : '⚠ Pending Migration'}
+                            Movies: {status.migration.movies ? <><Check size={14} /> Migrated</> : <><AlertTriangle size={14} /> Pending Migration</>}
                         </div>
                         <div className={`migration-indicator ${status.migration.tv ? 'migrated' : 'pending'}`}>
-                            TV Shows: {status.migration.tv ? '✓ Migrated' : '⚠ Pending Migration'}
+                            TV Shows: {status.migration.tv ? <><Check size={14} /> Migrated</> : <><AlertTriangle size={14} /> Pending Migration</>}
                         </div>
                         <div className={`migration-indicator ${status.migration.watchlist ? 'migrated' : 'pending'}`}>
-                            Watchlist: {status.migration.watchlist ? '✓ Migrated' : '⚠ Pending Migration'}
+                            Watchlist: {status.migration.watchlist ? <><Check size={14} /> Migrated</> : <><AlertTriangle size={14} /> Pending Migration</>}
                         </div>
                         <div className={`migration-indicator ${status.migration.people ? 'migrated' : 'pending'}`}>
-                            Actors: {status.migration.people ? '✓ Migrated' : '⚠ Pending Migration'}
+                            Actors: {status.migration.people ? <><Check size={14} /> Migrated</> : <><AlertTriangle size={14} /> Pending Migration</>}
                         </div>
                         <div className={`migration-indicator ${status.migration.directors ? 'migrated' : 'pending'}`}>
-                            Directors: {status.migration.directors ? '✓ Migrated' : '⚠ Pending Migration'}
+                            Directors: {status.migration.directors ? <><Check size={14} /> Migrated</> : <><AlertTriangle size={14} /> Pending Migration</>}
                         </div>
                     </div>
 
@@ -271,7 +272,7 @@ export function DiagnosticsPage() {
                             </button>
                         ) : (
                             <div className="migration-complete-msg">
-                                <span className="check-icon">✓</span> All data is successfully migrated.
+                                <span className="check-icon"><Check size={16} /></span> All data is successfully migrated.
                             </div>
                         )}
                     </div>

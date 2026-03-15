@@ -21,6 +21,9 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   background-image: radial-gradient(ellipse at top, var(--bg-gradient-top) 0%, var(--bg-gradient-bottom) 60%);
+  background-attachment: fixed;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .app-root {

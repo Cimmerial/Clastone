@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { X, Star, Users, Film, Tv, User, Settings, Search, ChevronRight, ChevronDown, BookOpen, Shield, Clock, Tag, Move, Plus, ArrowUp } from 'lucide-react';
+import { X, Star, Users, Film, Tv, User, Settings, Search, ChevronRight, ChevronDown, BookOpen, Shield, Clock, Tag, Move, Plus, ArrowUp, Menu } from 'lucide-react';
 import { useSettingsStore } from '../state/settingsStore';
 import './GuidePage.css';
 
@@ -86,7 +86,9 @@ export function GuidePage() {
   };
 
   const handleDismissFlag = () => {
-    updateSettings({ showGuideFlag: false });
+    const currentFlagVersion = 'v1.0';
+    const newDismissed = [...(settings.dismissedHomepageFlags || []), currentFlagVersion];
+    updateSettings({ dismissedHomepageFlags: newDismissed });
     setShowDismissConfirm(false);
   };
 
@@ -155,7 +157,7 @@ export function GuidePage() {
             <div className="guide-subsection">
               <h4>Mobile Navigation</h4>
               <ul>
-                <li>Use the hamburger menu (☰) on mobile devices</li>
+                <li>Use the hamburger menu (<Menu size={14} style={{ display: 'inline-block', verticalAlign: 'middle', marginTop: '-2px' }} />) on mobile devices</li>
                 <li>All navigation options available in mobile overlay</li>
                 <li>Swipe or tap outside to close the mobile menu</li>
               </ul>
@@ -410,13 +412,13 @@ export function GuidePage() {
               <label className="guide-switch">
                 <input
                   type="checkbox"
-                  checked={settings.showGuideFlag !== false}
-                  onChange={(e) => updateSettings({ showGuideFlag: e.target.checked })}
+                  checked={settings.showHomepageFlag !== false}
+                  onChange={(e) => updateSettings({ showHomepageFlag: e.target.checked })}
                 />
                 <span className="guide-switch-slider"></span>
               </label>
             </div>
-            {settings.showGuideFlag !== false && (
+            {settings.showHomepageFlag !== false && (
               <button 
                 className="guide-dismiss-btn"
                 onClick={() => setShowDismissConfirm(true)}

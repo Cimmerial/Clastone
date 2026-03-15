@@ -81,3 +81,19 @@
 ### Saving
 - I'm poor so we are having to use batch saving which means if you make a bunch of changes, wait at least 10s before reloading the site otherwise they might not save, I intend to add an indicator for this.
 
+
+then below, add FEATURES section, where we have NEW and FUTURE columns, two bulleted lists of features.
+
+NEW
+- drag entries between classes (sorry about lag and wonkyness, will fix)
+- view all stats and saved/ranked items from friends
+- can save and edit ranks from friends entries on their profile.
+- info button to see data on a given movie/show/person
+
+FUTURE
+- custom TAGGING entries for personal preference, extra sorting capabilities and becuase its fun.
+- 'movie clubs' or 'show clubs' where you can track progress, see all of your overlapping stats and watchlists
+- improve dragging feature
+- 'quick move' button options for moving around entries
+
+then add this as a part of the features section: something that says if you have any bugs or features you want, there is a 95% change that Cooper is willing or wanting to fix/make that for you, so you should know him or someone who knows him to just pass on the word and it will be done.

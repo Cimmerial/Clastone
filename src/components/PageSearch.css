@@ -47,20 +47,7 @@
     color: #666;
 }
 
-.clear-btn {
-    background: transparent;
-    border: none;
-    color: #666;
-    cursor: pointer;
-    padding: 2px;
-    display: flex;
-    align-items: center;
-    transition: color 0.2s;
-}
 
-.clear-btn:hover {
-    color: #fff;
-}
 
 .page-search-results {
     position: absolute;
@@ -123,8 +110,5 @@
         width: 160px;
     }
 
-    .page-search-input-wrapper:hover,
-    .page-search-input-wrapper:focus-within {
-        /* No expansion on mobile either */
-    }
+
 }

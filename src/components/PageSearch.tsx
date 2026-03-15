@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { usePageState } from '../hooks/usePageState';
 import './PageSearch.css';
 
@@ -73,10 +73,7 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
         setIsOpen(false);
     };
 
-    const handleClear = () => {
-        handleQueryChange('');
-        setIsOpen(false);
-    };
+
 
     return (
         <div
@@ -96,11 +93,7 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
                     }}
                     onFocus={() => setIsOpen(true)}
                 />
-                {query && (
-                    <button className="clear-btn" onClick={handleClear}>
-                        <X size={14} />
-                    </button>
-                )}
+
             </div>
 
             {isOpen && results.length > 0 && (

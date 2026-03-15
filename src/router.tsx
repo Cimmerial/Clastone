@@ -12,8 +12,11 @@ import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { GuidePage } from './pages/GuidePage';
 import { HomePage } from './pages/HomePage';
+import { useAuth } from './context/AuthContext';
 
 export function AppRoutes() {
+  const { isAdmin } = useAuth();
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/home" replace />} />
@@ -29,7 +32,10 @@ export function AppRoutes() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/guide" element={<GuidePage />} />
-      <Route path="/diagnostics" element={<DiagnosticsPage />} />
+      <Route 
+        path="/diagnostics" 
+        element={isAdmin ? <DiagnosticsPage /> : <Navigate to="/home" replace />} 
+      />
       <Route path="*" element={<Navigate to="/movies" replace />} />
     </Routes>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
@@ -125,14 +126,14 @@ export function SettingsPage() {
                       className="settings-btn settings-btn-subtle"
                       onClick={() => moveClass(c.key, -1)}
                     >
-                      ↑
+                      <ArrowUp size={14} />
                     </button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
                       onClick={() => moveClass(c.key, 1)}
                     >
-                      ↓
+                      <ArrowDown size={14} />
                     </button>
                     <button
                       type="button"
@@ -219,14 +220,14 @@ export function SettingsPage() {
                       className="settings-btn settings-btn-subtle"
                       onClick={() => moveClass(c.key, -1)}
                     >
-                      ↑
+                      <ArrowUp size={14} />
                     </button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
                       onClick={() => moveClass(c.key, 1)}
                     >
-                      ↓
+                      <ArrowDown size={14} />
                     </button>
                     <button
                       type="button"
@@ -313,8 +314,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
@@ -363,8 +364,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
@@ -420,8 +421,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
@@ -479,8 +480,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
@@ -536,8 +537,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
@@ -595,8 +596,8 @@ export function SettingsPage() {
                     </span>
                   </span>
                   <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}>↑</button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}>↓</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}><ArrowDown size={14} /></button>
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"

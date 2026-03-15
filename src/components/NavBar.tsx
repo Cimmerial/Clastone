@@ -81,7 +81,7 @@ export function NavBar() {
               <NavItem key={link.to} to={link.to} label={link.label} />
             ))}
             <span className="nav-sep" aria-hidden role="separator" />
-            {iconLinks.map((link) => (
+            {filteredIconLinks.map((link) => (
               <NavItem
                 key={link.to}
                 to={link.to}

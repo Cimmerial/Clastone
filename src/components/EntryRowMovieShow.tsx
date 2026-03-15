@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { RankedItemBase } from './RankedList';
-import { Info } from 'lucide-react';
+import { Info, Film, Settings, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   tmdbImagePath,
   needsMovieRefresh,
@@ -232,7 +232,7 @@ export function EntryRowMovieShow({
           {item.posterPath ? (
             <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
           ) : (
-            <span>🎬</span>
+            <Film size={24} />
           )}
           <div className="entry-tile-info-btn">
             <button type="button" onClick={() => onInfo?.(item)}>
@@ -245,7 +245,7 @@ export function EntryRowMovieShow({
             {item.watchTime && <div className="entry-stat-pill">{item.watchTime}</div>}
           </div>
           <div className="entry-tile-quick-actions">
-            <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+            <button type="button" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
             {isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
         </div>
@@ -260,7 +260,7 @@ export function EntryRowMovieShow({
         {item.posterPath ? (
           <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
         ) : (
-          <span>🎬</span>
+          <Film size={24} />
         )}
       </div>
       <div className="entry-content">
@@ -311,11 +311,11 @@ export function EntryRowMovieShow({
                 RW
               </button>
             )}
-            <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class">⇡</button>
-            <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
-            <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
-            <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
-            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings">⚙</button>
+            <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class"><ChevronUp size={14} /></button>
+            <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class"><ChevronDown size={14} /></button>
+            <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up"><ArrowUp size={14} /></button>
+            <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down"><ArrowDown size={14} /></button>
+            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings"><Settings size={14} /></button>
           </div>
         ) : (
           <div className="entry-right-col">
@@ -395,10 +395,10 @@ export function EntryRowMovieShow({
               </>
             ) : (
               <div className="entry-controls-column">
-                <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class">⇡</button>
-                <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
-                <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
-                <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
+                <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class"><ChevronUp size={14} /></button>
+                <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class"><ChevronDown size={14} /></button>
+                <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up"><ArrowUp size={14} /></button>
+                <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down"><ArrowDown size={14} /></button>
                 {!isUnranked && (
                   <button
                     type="button"
@@ -406,7 +406,7 @@ export function EntryRowMovieShow({
                     data-tooltip="Edit watches"
                     onClick={() => onOpenSettings?.(item)}
                   >
-                    ⚙
+                    <Settings size={14} />
                   </button>
                 )}
               </div>

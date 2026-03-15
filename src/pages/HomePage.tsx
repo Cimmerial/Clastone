@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Film, Tv, Users, User, Settings, Search, PlayCircle, Star, TrendingUp, ChevronDown, ChevronUp, RefreshCw, BarChart3, Sparkles, Zap } from 'lucide-react';
+import { Film, Tv, Users, User, Settings, Search, PlayCircle, Star, TrendingUp, ChevronDown, ChevronUp, RefreshCw, BarChart3, Sparkles, Zap, Target, Rocket, BookOpen, Link, MessagesSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -175,104 +175,186 @@ export function HomePage() {
           <section className="homepage-example-profile">
             <div className="example-profile-card">
               <div className="profile-preview">
-                <div className="profile-avatar">
-                  <User size={48} />
+                <div className="profile-avatar-container">
+                  <div className="profile-avatar">
+                    <User size={64} />
+                    <Sparkles className="premium-badge-icon" size={24} />
+                  </div>
                 </div>
                 <div className="profile-info">
-                  <h3>Example Profile: {exampleProfile.username}</h3>
-                  <p>Explore a fully featured example profile to see Clastone's capabilities</p>
+                  <div className="profile-title-row">
+                    <h3 className="example-title">Example Profile: <span className="highlight-username">{exampleProfile.username}</span></h3>
+                    <div className="verified-badge">Featured</div>
+                  </div>
+                  <p className="example-tagline">Explore a fully filled out profile to see Clastone's capabilities.</p>
                   <div className="profile-stats">
-                    <span>{exampleProfile.movieCount.toLocaleString()} Movies</span>
-                    <span>{exampleProfile.showCount.toLocaleString()} TV Shows</span>
-                    <span>{exampleProfile.actorCount.toLocaleString()} People</span>
+                    <div className="stat-pill">
+                      <Film size={16} />
+                      <span>{exampleProfile.movieCount.toLocaleString()} Movies</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Tv size={16} />
+                      <span>{exampleProfile.showCount.toLocaleString()} TV Shows</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Users size={16} />
+                      <span>{exampleProfile.actorCount.toLocaleString()} People</span>
+                    </div>
                   </div>
                 </div>
               </div>
               <NavLink to="/friends/cimmerial@clastone.local" className="profile-view-btn">
-                View Example Profile
+                <span>View Example Profile</span>
+                <ChevronDown className="btn-arrow" size={20} style={{ transform: 'rotate(-90deg)' }} />
               </NavLink>
             </div>
           </section>
 
           <section className="homepage-guides">
-            <div className="guides-hero">
-              <h2 className="guides-title">Workflow Guides</h2>
+            <header className="guides-section-header">
+              <div className="guides-title-wrapper">
+                <Zap className="section-icon" size={32} />
+                <h2 className="guides-title">Workflow Guides</h2>
+              </div>
               <p className="guides-description">
-                Three proven strategies to build and expand your personal media collection. 
+                Three strategies to help expand your personal media collection. 
                 Choose your approach based on your goals and time commitment.
               </p>
-            </div>
+            </header>
+            
             <div className="guides-grid">
               <div className="guide-column">
-                <div className="guide-header">
-                  <h3 className="guide-title">🎯 Starting Workflow</h3>
-                  <p className="guide-subtitle">Perfect for beginners building their initial collection</p>
-                </div>
-                <div className="guide-content">
-                  <ul className="guide-list">
-                    <li>Go to <strong>Search</strong> and query all your favorite movies, shows, and people</li>
-                    <li>Add everything to <strong>Unranked</strong> to build your initial collection</li>
-                    <li>Visit each page and start ranking items one at a time</li>
-                    <li>Tweak as you go - change/add classes to better suit your personal data</li>
-                  </ul>
-                </div>
-              </div>
-              
-              <div className="guide-column">
-                <div className="guide-header">
-                  <h3 className="guide-title">🔍 Deeper Dive</h3>
-                  <p className="guide-subtitle">Expand your collection through smart connections</p>
-                </div>
-                <div className="guide-content">
-                  <ul className="guide-list">
-                    <li>Go to all your <strong>top-rated movies and shows</strong></li>
-                    <li>Enter <strong>detailed view</strong> and save all your favorite actors</li>
-                    <li>Visit the <strong>Actors</strong> page and explore their filmography</li>
-                    <li>Save their projects as Unranked, then rank all newly discovered content</li>
-                  </ul>
+                <div className="guide-card">
+                  <div className="guide-card-header">
+                    <div className="guide-icon-box"><Target size={28} /></div>
+                    <div className="guide-header-text">
+                      <h3 className="guide-title">Starting Workflow</h3>
+                      <p className="guide-subtitle">Perfect for beginners building their initial collection</p>
+                    </div>
+                  </div>
+                  <div className="guide-content">
+                    <ul className="guide-list">
+                      <li>Go to <strong>Search</strong> and query all your favorite items</li>
+                      <li>Add everything to <strong>Unranked</strong> to build your initial library</li>
+                      <li>Visit each page and start ranking items one at a time</li>
+                      <li>Tweak as you go - change classes to suit your personal data</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
               
               <div className="guide-column">
-                <div className="guide-header">
-                  <h3 className="guide-title">⚡ Trench Dive</h3>
-                  <p className="guide-subtitle">Comprehensive discovery for completionists</p>
+                <div className="guide-card">
+                  <div className="guide-card-header">
+                    <div className="guide-icon-box"><Search size={28} /></div>
+                    <div className="guide-header-text">
+                      <h3 className="guide-title">Deeper Dive</h3>
+                      <p className="guide-subtitle">Expand your collection through smart connections</p>
+                    </div>
+                  </div>
+                  <div className="guide-content">
+                    <ul className="guide-list">
+                      <li>Go to all your <strong>top-rated movies and shows</strong></li>
+                      <li>Enter <strong>detailed view</strong> and save all your favorite actors</li>
+                      <li>Visit the <strong>Actors</strong> page and explore their filmography</li>
+                      <li>Save their projects as Unranked, then rank newly discovered content</li>
+                    </ul>
+                  </div>
                 </div>
-                <div className="guide-content">
-                  <ul className="guide-list">
-                    <li>Go to the <strong>Wander tab</strong> in Search page</li>
-                    <li>Sort by <strong>vote count</strong> in three columns</li>
-                    <li>Start at <strong>current year</strong>, scroll and add to Unranked</li>
-                    <li>Continue until you find nothing more you might've seen</li>
-                    <li>Move to <strong>prior years</strong> and repeat</li>
-                    <li>Combine with Deeper Dive strategy for maximum coverage</li>
-                  </ul>
+              </div>
+              
+              <div className="guide-column">
+                <div className="guide-card">
+                  <div className="guide-card-header">
+                    <div className="guide-icon-box"><Zap size={28} /></div>
+                    <div className="guide-header-text">
+                      <h3 className="guide-title">Trench Dive</h3>
+                      <p className="guide-subtitle">Comprehensive discovery for completionists</p>
+                    </div>
+                  </div>
+                  <div className="guide-content">
+                    <ul className="guide-list">
+                      <li>Go to the <strong>Wander tab</strong> in Search page</li>
+                      <li>Sort by <strong>vote count</strong> in three columns</li>
+                      <li>Start at <strong>current year</strong>, scroll and add to Unranked</li>
+                      <li>Continue until you find nothing more you might've seen</li>
+                      <li>Move to <strong>prior years</strong> and repeat</li>
+                      <li>Combine with Deeper Dive strategy for maximum coverage</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
+          <section className="homepage-features">
+            <header className="features-section-header">
+              <div className="features-title-wrapper">
+                <Sparkles className="section-icon" size={32} />
+                <h2 className="features-title">Features</h2>
+              </div>
+            </header>
+            
+            <div className="features-grid">
+              <div className="feature-column">
+                <div className="feature-card new">
+                  <h3 className="feature-group-title">New</h3>
+                  <ul className="feature-list">
+                    <li>drag entries between classes <span className="feature-note">(sorry about lag and wonkyness, will fix)</span></li>
+                    <li>view all stats and saved/ranked items from friends</li>
+                    <li>can save and edit ranks from friends entries on their profile.</li>
+                    <li>info button to see data on a given movie/show/person</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="feature-column">
+                <div className="feature-card future">
+                  <h3 className="feature-group-title">Future</h3>
+                  <ul className="feature-list">
+                    <li>custom <strong>tagging</strong> entries for personal preference, extra sorting capabilities and becuase its fun.<span className="feature-note">(lmk if you want any specific ones to be default tags, though you will be able to make your own too)</span></li>
+                    <li><strong>movie clubs</strong> or <strong>show clubs</strong> where you can track progress, see all of your overlapping stats and watchlists</li>
+                    <li>improve dragging feature</li>
+                    <li><strong>quick move</strong> button options for moving around entries</li>
+                    <li><strong>logging recently watched</strong> or reviews of movies watched with friends (perhaps movie clubs)</li>
+                    <li>profile pictures</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="features-feedback-notice">
+              <div className="feedback-content">
+                <MessagesSquare className="feedback-icon" size={24} />
+                <p>
+                  <strong>Got feedback?</strong> If you have any bugs or features you want, there is a 95% chance that <strong>Cooper</strong> is willing or wanting to fix/make that for you. 
+                  Reach out to him (or someone who knows him) to pass on the word and it will be done.
+                </p>
+              </div>
+            </div>
+          </section>
+{/* 
           <section className="homepage-todo">
             <h2 className="section-title">TODO - Complete These Sections</h2>
             <div className="todo-grid">
               <div className="todo-card">
-                <h3>📖 Guide Section</h3>
+                <h3><BookOpen size={18} /> Guide Section</h3>
                 <p>Rebuild the guide section with updated content and better organization</p>
               </div>
               <div className="todo-card">
-                <h3>🚀 Quick Start</h3>
+                <h3><Rocket size={18} /> Quick Start</h3>
                 <p>Create a new quick start section with better workflow guidance</p>
               </div>
               <div className="todo-card">
-                <h3>✨ Features Showcase</h3>
+                <h3><Sparkles size={18} /> Features Showcase</h3>
                 <p>Update features section with current and upcoming functionality</p>
               </div>
               <div className="todo-card">
-                <h3>🔗 Quick Navigation</h3>
+                <h3><Link size={18} /> Quick Navigation</h3>
                 <p>Redesign quick navigation with better accessibility</p>
               </div>
             </div>
-          </section>
+          </section> */}
         </main>
       </div>
     </div>
