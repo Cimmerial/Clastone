@@ -24,7 +24,7 @@ const iconLinks = [
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { settings } = useSettingsStore();
+  const { settings, updateSettings } = useSettingsStore();
   const { isAdmin } = useAuth();
 
   // Check if homepage flag should be shown
@@ -39,16 +39,28 @@ export function NavBar() {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
   }, [isAdmin]);
 
+  const handleDismissFlag = () => {
+    const currentFlagVersion = 'v1.0';
+    if (!settings.dismissedHomepageFlags.includes(currentFlagVersion)) {
+      const newDismissed = [...settings.dismissedHomepageFlags, currentFlagVersion];
+      updateSettings({ dismissedHomepageFlags: newDismissed });
+    }
+  };
+
   return (
     <header className="nav-root">
       <div className="nav-inner">
         <div className="nav-left">
           <div className="nav-logo-wrapper">
-            <NavLink to="/home" className="nav-logo-mark">
+            <NavLink 
+              to="/home" 
+              className="nav-logo-mark"
+              onClick={handleDismissFlag}
+            >
               CLASTONE
             </NavLink>
             {shouldShowHomepageFlag && (
-              <NavLink to="/home" className="nav-homepage-flag">
+              <NavLink to="/home" className="nav-homepage-flag" onClick={handleDismissFlag}>
                 <AnimatedArrow size={16} />
                 <span>NEW</span>
               </NavLink>
