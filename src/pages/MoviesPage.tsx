@@ -161,6 +161,7 @@ export function MoviesPage() {
               title="Filter movies"
             >
               <FilterIcon size={18} />
+              <span className="filter-label">Filter</span>
             </button>
           </div>
         )}

@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Menu, X, Flag } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Menu, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
-import patchNotesData from '../data/patchNotes.json';
+import { AnimatedArrow } from './AnimatedArrow';
 import './NavBar.css';
 
 const mainLinks = [
@@ -27,11 +27,11 @@ export function NavBar() {
   const { settings } = useSettingsStore();
   const { isAdmin } = useAuth();
 
-  // Check if current version flag should be shown
-  const shouldShowFlag = useMemo(() => {
-    if (settings.showGuideFlag === false) return false;
-    const currentVersion = patchNotesData.currentVersion;
-    return !settings.dismissedVersionFlags.includes(currentVersion);
+  // Check if homepage flag should be shown
+  const shouldShowHomepageFlag = useMemo(() => {
+    if (settings.showHomepageFlag === false) return false;
+    const currentFlagVersion = 'v1.0'; // You can change this when you want to show a new flag
+    return !settings.dismissedHomepageFlags.includes(currentFlagVersion);
   }, [settings]);
 
   // Filter icon links based on admin status
@@ -44,11 +44,13 @@ export function NavBar() {
       <div className="nav-inner">
         <div className="nav-left">
           <div className="nav-logo-wrapper">
-            <span className="nav-logo-mark">CLASTONE</span>
-            {shouldShowFlag && (
-              <NavLink to="/patchnotes" className="nav-guide-flag">
-                <Flag size={14} />
-                <span>V2.0</span>
+            <NavLink to="/home" className="nav-logo-mark">
+              CLASTONE
+            </NavLink>
+            {shouldShowHomepageFlag && (
+              <NavLink to="/home" className="nav-homepage-flag">
+                <AnimatedArrow size={16} />
+                <span>NEW</span>
               </NavLink>
             )}
             <div className="nav-logo-dropdown">

@@ -218,10 +218,6 @@ export function DiagnosticsPage() {
 
                 <div className="settings-card card-surface settings-card-wide">
                     <h2 className="settings-title">Storage & Migration</h2>
-                    <p className="settings-muted">
-                        Visualize your Firestore storage usage and manually trigger a migration to the new scalable structure.
-                    </p>
-
                     <div className="settings-migration-status">
                         <div className={`migration-indicator ${status.migration.movies ? 'migrated' : 'pending'}`}>
                             Movies: {status.migration.movies ? '✓ Migrated' : '⚠ Pending Migration'}
@@ -275,7 +271,7 @@ export function DiagnosticsPage() {
                             </button>
                         ) : (
                             <div className="migration-complete-msg">
-                                <span className="check-icon">✓</span> All data is successfully migrated to the new scalable structure.
+                                <span className="check-icon">✓</span> All data is successfully migrated.
                             </div>
                         )}
                     </div>

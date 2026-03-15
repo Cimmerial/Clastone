@@ -1,9 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - allow read for search and login (including unauthenticated)
+    // Users collection - allow read for authenticated users with field restrictions
     match /users/{userId} {
-      allow read: if true; // Allow reading for friend search and login (including unauthenticated)
+      allow read: if request.auth != null && 
+        (request.auth.uid == userId || 
+         // Non-owners can only read safe fields
+         (!resource.data.keys().hasAny(['password', 'hash', 'salt', 'token', 'secret', 'key']) &&
+          resource.data.keys().size() <= 5));
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
@@ -17,7 +21,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
@@ -25,7 +31,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
@@ -33,7 +41,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
@@ -41,7 +51,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
@@ -49,7 +61,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
@@ -58,7 +72,9 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (userId == request.auth.uid || 
          exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)));
+         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
+         // Allow public access to cimmerial@clastone.local data (both username and UID)
+         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     

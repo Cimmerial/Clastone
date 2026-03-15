@@ -147,6 +147,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         // Username lookup
         console.log('Detected username, looking up email');
+        
+        // Special handling for admin username
+        if (username.toLowerCase() === 'cimmerial') {
+          console.log('Admin username detected, using admin email');
+          await signInWithEmailAndPassword(auth, 'cimmerial@clastone.local', pass);
+          return;
+        }
+        
         const usersQuery = query(
           collection(db, 'users'),
           where('username', '==', username)

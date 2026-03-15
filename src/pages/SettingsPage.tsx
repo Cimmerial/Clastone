@@ -718,22 +718,6 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
-          <h2 className="settings-title">NEW VERSION V2.0</h2>
-          <p className="settings-muted">
-            Explore the latest features and improvements in Clastone V2.0.
-          </p>
-          <div className="settings-links-grid">
-            <NavLink to="/patchnotes" className="settings-link-card">
-              <div className="settings-link-icon">�</div>
-              <div className="settings-link-content">
-                <h4>View Patch Notes</h4>
-                <p>See what's new in V2.0 and what's coming next</p>
-              </div>
-            </NavLink>
-          </div>
-        </div>
-
-        <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
           <div className="settings-account-row">
             <span className="settings-account-label">Signed in as</span>

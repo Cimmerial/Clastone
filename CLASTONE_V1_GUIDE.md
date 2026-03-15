@@ -7,8 +7,46 @@
 
 ## Lay of the Land
 ### Movie/TV Show Pages
+- SUMMARY: All entries, saved into classes, best to worse, then unranked classes at the bottom.
+- BUTTONS:
+    - View button (top right (left))
+        - Swap from minimal/detailed/tile views of entries
+    - Filter button (top right (middle))
+        - Filter by genre, watchDate, actors
+    - Search button (top right (right))
+        - Search and goto entries
+    - Class hotkeys (bottom right->center)
+        - Goto top of that class
+    - Entries (within classes)
+        - Button for editing them
+        - Button(s) for moving them
+        - Button for looking at their info
+        - If detailed, buttons to goto/save related projects/people
 ### Actor/Director Pages
+- SUMMARY: All entries, saved into classes, best to worse, then unranked classes at the bottom.
+- BUTTONS:
+    - View button (top right (left))
+        - Swap from minimal/detailed/tile views of entries
+    - Search button (top right (right))
+        - Search and goto entries
+    - Class hotkeys (bottom right->center)
+        - Goto top of that class
+    - Entries (within classes)
+        - Button for editing them
+        - Button(s) for moving them
+        - Button for looking at their info
+        - If detailed, buttons to goto/save related projects/people
 ### Watchlist
+- SUMMARY: Have your movie/show watchlist
+- BUTTONS:
+    - View button (top right (left))
+        - Swap from minimal/detailed/tile views of entries
+    - Search button (top right (right))
+        - Search and goto entries
+    - Entries (within classes)
+        - Button for editing them
+        - Button(s) for moving them
+        - Button for looking at their info
 ### Search
 ### Friends
 ### Profile

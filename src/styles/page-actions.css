@@ -8,16 +8,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     background: rgba(26, 26, 26, 0.3);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-muted);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    padding: 6px 12px;
+    border-radius: 18px;
     cursor: pointer;
     transition: all 0.3s ease;
     opacity: 0.75;
+    min-width: fit-content;
+}
+
+.filter-label {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
 .filter-button:hover {

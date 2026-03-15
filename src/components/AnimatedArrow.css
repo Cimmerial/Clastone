@@ -1,0 +1,22 @@
+.animated-arrow {
+  display: inline-flex;
+  align-items: center;
+  animation: bounce-left 2s infinite;
+}
+
+@keyframes bounce-left {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(-5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+}
+
+.animated-arrow svg {
+  color: #ff6b6b;
+  filter: drop-shadow(0 0 4px rgba(255, 107, 107, 0.4));
+}

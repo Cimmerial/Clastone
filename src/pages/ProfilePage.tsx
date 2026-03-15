@@ -491,7 +491,7 @@ export function ProfilePage() {
   }, [directorsByClass, directorsClassOrder]);
 
   // Create top 5 actors and directors
-  const top5Actors = useMemo(() => {
+  const rankedActors = useMemo(() => {
     const list: PersonItem[] = [];
     for (const k of peopleClassOrder) {
       const classDef = peopleClasses.find(c => c.key === k);
@@ -499,10 +499,10 @@ export function ProfilePage() {
         for (const item of peopleByClass[k] ?? []) list.push(item);
       }
     }
-    return list.slice(0, 5);
+    return list;
   }, [peopleByClass, peopleClassOrder, peopleClasses]);
 
-  const top5Directors = useMemo(() => {
+  const rankedDirectors = useMemo(() => {
     const list: DirectorItem[] = [];
     for (const k of directorsClassOrder) {
       const classDef = directorsClasses.find(c => c.key === k);
@@ -510,8 +510,16 @@ export function ProfilePage() {
         for (const item of directorsByClass[k] ?? []) list.push(item);
       }
     }
-    return list.slice(0, 5);
+    return list;
   }, [directorsByClass, directorsClassOrder, directorsClasses]);
+
+  const top5Actors = useMemo(() => {
+    return rankedActors.slice(0, 5);
+  }, [rankedActors]);
+
+  const top5Directors = useMemo(() => {
+    return rankedDirectors.slice(0, 5);
+  }, [rankedDirectors]);
 
   // Create top 10 movies and shows (only ranked items)
   const top10Movies = useMemo(() => {
@@ -1166,10 +1174,12 @@ export function ProfilePage() {
       <div className="profile-grid">
         <div className="profile-card card-surface">
           <div className="profile-card-header">
-            <h2 className="profile-card-title">Top 10 Movies</h2>
+            <h2 className="profile-card-title">
+              {showAllMoviesWithClasses ? `All ${rankedMovies.length} Movies` : 'Top 10 Movies'}
+            </h2>
             <button
               type="button"
-              className="profile-show-all-toggle"
+              className="profile-stats-expand-btn profile-tiny-expand-btn"
               onClick={() => setShowAllMoviesWithClasses(!showAllMoviesWithClasses)}
             >
               {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
@@ -1253,10 +1263,12 @@ export function ProfilePage() {
 
         <div className="profile-card card-surface">
           <div className="profile-card-header">
-            <h2 className="profile-card-title">Top 10 Shows</h2>
+            <h2 className="profile-card-title">
+              {showAllShowsWithClasses ? `All ${rankedShows.length} Shows` : 'Top 10 Shows'}
+            </h2>
             <button
               type="button"
-              className="profile-show-all-toggle"
+              className="profile-stats-expand-btn profile-tiny-expand-btn"
               onClick={() => setShowAllShowsWithClasses(!showAllShowsWithClasses)}
             >
               {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
@@ -1344,10 +1356,12 @@ export function ProfilePage() {
           {hasActors && (
             <div className="profile-card card-surface">
               <div className="profile-card-header">
-                <h2 className="profile-card-title">Top 5 Actors</h2>
+                <h2 className="profile-card-title">
+                  {showAllActorsWithClasses ? `All ${rankedActors.length} Actors` : 'Top 5 Actors'}
+                </h2>
                 <button
                   type="button"
-                  className="profile-show-all-toggle"
+                  className="profile-stats-expand-btn profile-tiny-expand-btn"
                   onClick={() => setShowAllActorsWithClasses(!showAllActorsWithClasses)}
                 >
                   {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
@@ -1428,10 +1442,12 @@ export function ProfilePage() {
           {hasDirectors && (
             <div className="profile-card card-surface">
               <div className="profile-card-header">
-                <h2 className="profile-card-title">Top 5 Directors</h2>
+                <h2 className="profile-card-title">
+                  {showAllDirectorsWithClasses ? `All ${rankedDirectors.length} Directors` : 'Top 5 Directors'}
+                </h2>
                 <button
                   type="button"
-                  className="profile-show-all-toggle"
+                  className="profile-stats-expand-btn profile-tiny-expand-btn"
                   onClick={() => setShowAllDirectorsWithClasses(!showAllDirectorsWithClasses)}
                 >
                   {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}

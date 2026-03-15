@@ -18,7 +18,16 @@ export function ViewToggle() {
             ? StretchHorizontal
             : LayoutGrid;
 
-    const label = settings.viewMode.charAt(0).toUpperCase() + settings.viewMode.slice(1);
+    const getLabel = (mode: string) => {
+        switch (mode) {
+            case 'minimized': return 'Simple';
+            case 'detailed': return 'Detailed';
+            case 'tile': return 'Tile';
+            default: return mode.charAt(0).toUpperCase() + mode.slice(1);
+        }
+    };
+
+    const label = getLabel(settings.viewMode);
 
     return (
         <button
@@ -27,6 +36,7 @@ export function ViewToggle() {
             title={`Current View: ${label}. Click to cycle.`}
         >
             <Icon size={18} />
+            <span className="view-toggle-label">{label}</span>
         </button>
     );
 }

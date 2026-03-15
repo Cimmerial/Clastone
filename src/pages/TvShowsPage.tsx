@@ -143,6 +143,7 @@ export function TvShowsPage() {
               title="Filter TV shows"
             >
               <FilterIcon size={18} />
+              <span className="filter-label">Filter</span>
             </button>
           </div>
         )}

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFriends, type UserProfile } from '../context/FriendsContext';
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus } from 'lucide-react';
 import { loadMovies } from '../lib/firestoreMovies';
@@ -183,6 +183,35 @@ export function FriendProfilePage() {
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
 
+  // Calculate ranked counts for display
+  const rankedMoviesCount = useMemo(() => {
+    if (!friendMoviesData?.classes) return 0;
+    return friendMoviesData.classes
+      .filter((c: any) => c.key !== 'UNRANKED')
+      .reduce((count: number, classDef: any) => count + (friendMoviesData.byClass[classDef.key]?.length || 0), 0);
+  }, [friendMoviesData]);
+
+  const rankedShowsCount = useMemo(() => {
+    if (!friendTvData?.classes) return 0;
+    return friendTvData.classes
+      .filter((c: any) => c.key !== 'UNRANKED')
+      .reduce((count: number, classDef: any) => count + (friendTvData.byClass[classDef.key]?.length || 0), 0);
+  }, [friendTvData]);
+
+  const rankedActorsCount = useMemo(() => {
+    if (!friendPeopleData?.classes) return 0;
+    return friendPeopleData.classes
+      .filter((c: any) => c.isRanked)
+      .reduce((count: number, classDef: any) => count + (friendPeopleData.byClass[classDef.key]?.length || 0), 0);
+  }, [friendPeopleData]);
+
+  const rankedDirectorsCount = useMemo(() => {
+    if (!friendDirectorsData?.classes) return 0;
+    return friendDirectorsData.classes
+      .filter((c: any) => c.isRanked)
+      .reduce((count: number, classDef: any) => count + (friendDirectorsData.byClass[classDef.key]?.length || 0), 0);
+  }, [friendDirectorsData]);
+
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
 
@@ -194,45 +223,94 @@ export function FriendProfilePage() {
         console.log('🔍 Starting friend profile load for:', friendId);
         console.log('👤 Current user:', user?.uid);
 
-        // Check if they are friends
-        console.log('🤝 Checking friendship...');
-        const friendsQuery1 = query(
-          collection(db!, 'friends'),
-          where('userId', '==', user?.uid),
-          where('friendUid', '==', friendId)
-        );
-        const friendsQuery2 = query(
-          collection(db!, 'friends'),
-          where('userId', '==', friendId),
-          where('friendUid', '==', user?.uid)
-        );
+        let actualFriendUid = friendId;
+        let skipFriendshipCheck = false;
 
-        console.log('📋 Executing friendship queries...');
-        const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
-          getDocs(friendsQuery1),
-          getDocs(friendsQuery2)
-        ]);
-
-        console.log('📊 Friendship check results:');
-        console.log('  Query 1 results:', friendsSnapshot1.size);
-        console.log('  Query 2 results:', friendsSnapshot2.size);
-
-        if (friendsSnapshot1.empty && friendsSnapshot2.empty) {
-          console.log('❌ No friendship found');
-          setError('You are not friends with this user');
-          return;
+        // Allow users to view their own profile
+        if (friendId === user?.uid) {
+          console.log('✅ User viewing own profile - skipping friendship check');
+          skipFriendshipCheck = true;
+        } else {
+          // Check if friendId is a username (contains @) or UID
+          const isUsername = friendId.includes('@');
+          
+          if (isUsername) {
+            // For usernames, we need to look up the UID first
+            console.log('🔍 FriendId is username, looking up UID...');
+            const userQuery = query(
+              collection(db!, 'users'),
+              where('username', '==', friendId)
+            );
+            const userSnapshot = await getDocs(userQuery);
+            
+            if (userSnapshot.empty) {
+              console.log('❌ Username not found');
+              setError('User not found');
+              return;
+            }
+            
+            actualFriendUid = userSnapshot.docs[0].id;
+            console.log('✅ Found UID for username:', actualFriendUid);
+          }
+          
+          // Check friendship (unless it's the admin user which has public access)
+          if (friendId !== 'cimmerial@clastone.local') {
+            await checkFriendship(actualFriendUid);
+          } else {
+            console.log('✅ Admin user - public access allowed');
+          }
         }
 
-        console.log('✅ Friendship confirmed');
+        // Helper function to check friendship
+        async function checkFriendship(uid: string) {
+          console.log('🤝 Checking friendship...');
+          const friendsQuery1 = query(
+            collection(db!, 'friends'),
+            where('userId', '==', user?.uid),
+            where('friendUid', '==', uid)
+          );
+          const friendsQuery2 = query(
+            collection(db!, 'friends'),
+            where('userId', '==', uid),
+            where('friendUid', '==', user?.uid)
+          );
 
-        // Load friend's profile
+          console.log('📋 Executing friendship queries...');
+          const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
+            getDocs(friendsQuery1),
+            getDocs(friendsQuery2)
+          ]);
+
+          console.log('📊 Friendship check results:');
+          console.log('  Query 1 results:', friendsSnapshot1.size);
+          console.log('  Query 2 results:', friendsSnapshot2.size);
+
+          if (friendsSnapshot1.empty && friendsSnapshot2.empty) {
+            console.log('❌ No friendship found');
+            setError('You are not friends with this user');
+            return;
+          }
+
+          console.log('✅ Friendship confirmed');
+        }
+
+        // Load friend's profile using the actual UID
         console.log('👤 Loading friend profile...');
-        const friendDoc = await getDoc(doc(db!, 'users', friendId));
+        const friendDoc = await getDoc(doc(db!, 'users', actualFriendUid));
         if (friendDoc.exists()) {
           console.log('✅ Friend profile loaded:', friendDoc.data());
+          
+          let profileData = friendDoc.data();
+          
+          // Fix admin username display
+          if (friendId === 'cimmerial@clastone.local' && profileData.username === 'cimmerial@clastone.local') {
+            console.log('🔧 Fixing admin username display');
+            profileData = { ...profileData, username: 'Cimmerial' };
+          }
+          
           setFriendProfile({
-            uid: friendId,
-            ...friendDoc.data()
+            uid: actualFriendUid,
+            ...profileData
           } as FriendProfile);
         } else {
           console.log('❌ Friend profile not found');
@@ -242,23 +320,23 @@ export function FriendProfilePage() {
 
         // Load all friend data using the same functions as the user's profile
         console.log('📼 Loading friend movie data...');
-        const moviesData = await loadMovies(db!, friendId);
+        const moviesData = await loadMovies(db!, actualFriendUid);
         console.log('✅ Movies loaded:', moviesData);
 
         console.log('📺 Loading friend TV data...');
-        const tvData = await loadTvShows(db!, friendId);
+        const tvData = await loadTvShows(db!, actualFriendUid);
         console.log('✅ TV shows loaded:', tvData);
 
         console.log('🎭 Loading friend actors data...');
-        const peopleData = await loadPeople(db!, friendId);
+        const peopleData = await loadPeople(db!, actualFriendUid);
         console.log('✅ Actors loaded:', peopleData);
 
         console.log('🎬 Loading friend directors data...');
-        const directorsData = await loadDirectors(db!, friendId);
+        const directorsData = await loadDirectors(db!, actualFriendUid);
         console.log('✅ Directors loaded:', directorsData);
 
         console.log('📝 Loading friend watchlist data...');
-        const watchlistData = await loadWatchlist(db!, friendId);
+        const watchlistData = await loadWatchlist(db!, actualFriendUid);
         console.log('✅ Watchlist loaded:', watchlistData);
 
         setFriendMoviesData(moviesData);
@@ -1522,10 +1600,12 @@ export function FriendProfilePage() {
       <div className="profile-grid">
         <div className="profile-card card-surface">
           <div className="profile-card-header">
-            <h2 className="profile-card-title">Top 10 Movies</h2>
+            <h2 className="profile-card-title">
+              {showAllMoviesWithClasses ? `All ${rankedMoviesCount} Movies` : 'Top 10 Movies'}
+            </h2>
             <button
               type="button"
-              className="profile-show-all-toggle"
+              className="profile-stats-expand-btn profile-tiny-expand-btn"
               onClick={() => setShowAllMoviesWithClasses(!showAllMoviesWithClasses)}
             >
               {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
@@ -1604,10 +1684,12 @@ export function FriendProfilePage() {
 
         <div className="profile-card card-surface">
           <div className="profile-card-header">
-            <h2 className="profile-card-title">Top 10 Shows</h2>
+            <h2 className="profile-card-title">
+              {showAllShowsWithClasses ? `All ${rankedShowsCount} Shows` : 'Top 10 Shows'}
+            </h2>
             <button
               type="button"
-              className="profile-show-all-toggle"
+              className="profile-stats-expand-btn profile-tiny-expand-btn"
               onClick={() => setShowAllShowsWithClasses(!showAllShowsWithClasses)}
             >
               {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
@@ -1690,10 +1772,12 @@ export function FriendProfilePage() {
           {hasActors && (
             <div className="profile-card card-surface">
               <div className="profile-card-header">
-                <h2 className="profile-card-title">Top 5 Actors</h2>
+                <h2 className="profile-card-title">
+                  {showAllActorsWithClasses ? `All ${rankedActorsCount} Actors` : 'Top 5 Actors'}
+                </h2>
                 <button
                   type="button"
-                  className="profile-show-all-toggle"
+                  className="profile-stats-expand-btn profile-tiny-expand-btn"
                   onClick={() => setShowAllActorsWithClasses(!showAllActorsWithClasses)}
                 >
                   {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
@@ -1774,10 +1858,12 @@ export function FriendProfilePage() {
           {hasDirectors && (
             <div className="profile-card card-surface">
               <div className="profile-card-header">
-                <h2 className="profile-card-title">Top 5 Directors</h2>
+                <h2 className="profile-card-title">
+                  {showAllDirectorsWithClasses ? `All ${rankedDirectorsCount} Directors` : 'Top 5 Directors'}
+                </h2>
                 <button
                   type="button"
-                  className="profile-show-all-toggle"
+                  className="profile-stats-expand-btn profile-tiny-expand-btn"
                   onClick={() => setShowAllDirectorsWithClasses(!showAllDirectorsWithClasses)}
                 >
                   {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}

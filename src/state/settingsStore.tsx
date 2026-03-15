@@ -7,9 +7,9 @@ export type GlobalSettings = {
     viewMode: 'minimized' | 'detailed' | 'tile';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
-    showGuideFlag: boolean;
     useSpotlightBackground: boolean;
-    dismissedVersionFlags: string[];
+    showHomepageFlag: boolean;
+    dismissedHomepageFlags: string[];
 };
 
 type SettingsStore = {
@@ -28,9 +28,9 @@ function getInitialSettings(): GlobalSettings {
         const min = localStorage.getItem('clastone-minimizedEntries');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
         const es = localStorage.getItem('clastone-excludeSimpsons');
-        const sgf = localStorage.getItem('clastone-showGuideFlag');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
-        const dvf = localStorage.getItem('clastone-dismissedVersionFlags');
+        const shf = localStorage.getItem('clastone-showHomepageFlag');
+        const dhf = localStorage.getItem('clastone-dismissedHomepageFlags');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -41,12 +41,12 @@ function getInitialSettings(): GlobalSettings {
             viewMode = 'detailed';
         }
 
-        let dismissedVersionFlags: string[] = [];
-        if (dvf) {
+        let dismissedHomepageFlags: string[] = [];
+        if (dhf) {
             try {
-                dismissedVersionFlags = JSON.parse(dvf);
+                dismissedHomepageFlags = JSON.parse(dhf);
             } catch {
-                dismissedVersionFlags = [];
+                dismissedHomepageFlags = [];
             }
         }
 
@@ -57,9 +57,9 @@ function getInitialSettings(): GlobalSettings {
             viewMode,
             boycottTalkShows: bts === 'true',
             excludeSimpsons: es === 'true',
-            showGuideFlag: sgf !== 'false',
             useSpotlightBackground: usb === 'true',
-            dismissedVersionFlags
+            showHomepageFlag: shf !== 'false',
+            dismissedHomepageFlags
         };
     } catch {
         return {
@@ -69,9 +69,9 @@ function getInitialSettings(): GlobalSettings {
             viewMode: 'minimized',
             boycottTalkShows: false,
             excludeSimpsons: false,
-            showGuideFlag: true,
             useSpotlightBackground: false,
-            dismissedVersionFlags: []
+            showHomepageFlag: true,
+            dismissedHomepageFlags: []
         };
     }
 }
@@ -137,9 +137,9 @@ export function SettingsProvider({
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
-                if (updates.showGuideFlag !== undefined) localStorage.setItem('clastone-showGuideFlag', String(next.showGuideFlag));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
-                if (updates.dismissedVersionFlags !== undefined) localStorage.setItem('clastone-dismissedVersionFlags', JSON.stringify(next.dismissedVersionFlags));
+                if (updates.showHomepageFlag !== undefined) localStorage.setItem('clastone-showHomepageFlag', String(next.showHomepageFlag));
+                if (updates.dismissedHomepageFlags !== undefined) localStorage.setItem('clastone-dismissedHomepageFlags', JSON.stringify(next.dismissedHomepageFlags));
 
             } catch { /* ignore */ }
             return next;

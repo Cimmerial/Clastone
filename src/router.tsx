@@ -11,12 +11,13 @@ import { FriendProfilePage } from './pages/FriendProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { GuidePage } from './pages/GuidePage';
-import { PatchNotesPage } from './pages/PatchNotesPage';
+import { HomePage } from './pages/HomePage';
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/movies" replace />} />
+      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/home" element={<HomePage />} />
       <Route path="/movies" element={<MoviesPage />} />
       <Route path="/tv" element={<TvShowsPage />} />
       <Route path="/actors" element={<ActorsPage />} />
@@ -28,7 +29,6 @@ export function AppRoutes() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/guide" element={<GuidePage />} />
-      <Route path="/patchnotes" element={<PatchNotesPage />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="*" element={<Navigate to="/movies" replace />} />
     </Routes>

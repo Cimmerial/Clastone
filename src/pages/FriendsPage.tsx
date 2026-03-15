@@ -150,7 +150,6 @@ export function FriendsPage() {
                       </div>
                       <div className="user-details">
                         <strong>{result.username}</strong>
-                        <span>{result.email}</span>
                       </div>
                     </div>
                     <div className="user-actions">
