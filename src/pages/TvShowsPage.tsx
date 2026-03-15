@@ -192,6 +192,7 @@ export function TvShowsPage() {
             <EntryRowMovieShow
               item={item}
               listType="shows"
+              viewMode={mobileViewMode}
               onOpenSettings={(entry) => setSettingsFor(entry)}
               onRecordFirstWatch={(entry) => setRecordWatchFor(entry)}
               onMoveUp={canMoveUp ? () => (isFirst ? moveToOtherClass(item.id, -1) : moveWithinClass(item.id, -1)) : undefined}

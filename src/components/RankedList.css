@@ -675,6 +675,14 @@
   padding: 1rem 0.5rem !important;
 }
 
+@media (max-width: 768px) {
+  .class-section-rows--tile {
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)) !important;
+    gap: 0.5rem !important;
+    padding: 0.4rem 0 !important;
+  }
+}
+
 .mode-tile .entry-row-wrapper {
   width: auto !important;
   flex-shrink: 0;
@@ -687,6 +695,13 @@
   gap: 0.6rem;
   transition: transform 0.2s ease;
   position: relative;
+}
+
+@media (max-width: 768px) {
+  .entry-tile {
+    width: 100%;
+    gap: 0.4rem;
+  }
 }
 
 .entry-tile:hover {
@@ -733,6 +748,14 @@
   height: 2.6rem;
 }
 
+@media (max-width: 768px) {
+  .entry-tile-title {
+    font-size: 0.72rem;
+    height: 2.2rem;
+    padding: 0 0.1rem;
+  }
+}
+
 .entry-tile-stats-overlay {
   position: absolute;
   inset: 0;
@@ -768,6 +791,14 @@
   transition: opacity 0.2s ease;
 }
 
+@media (max-width: 768px) {
+  .entry-tile-info-btn {
+    opacity: 1;
+    top: 0.25rem;
+    left: 0.25rem;
+  }
+}
+
 .entry-tile:hover .entry-tile-info-btn {
   opacity: 1;
 }
@@ -800,6 +831,14 @@
   gap: 0.35rem;
   opacity: 0;
   transition: opacity 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .entry-tile-quick-actions {
+    opacity: 1;
+    top: 0.25rem;
+    right: 0.25rem;
+  }
 }
 
 .entry-tile:hover .entry-tile-quick-actions {
@@ -852,6 +891,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .mode-tile .entry-row-wrapper--placeholder {
+    width: 100%;
+  }
 }
 
 /* Drag overlay styles */
