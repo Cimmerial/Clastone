@@ -582,6 +582,29 @@
 }
 
 /* Wander Tab Styles */
+.page-heading-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  position: relative;
+}
+
+.search-tabs-header {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+  position: fixed;
+  right: 1rem;
+  top: 4.5rem;
+  z-index: 100;
+}
+
 .search-tabs {
   display: flex;
   gap: 0.5rem;
@@ -591,27 +614,33 @@
 }
 
 .search-tab {
-  background: none;
-  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
   padding: 0.5rem 1rem;
-  border-radius: 0.5rem 0.5rem 0 0;
+  border-radius: 0.5rem;
   transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   position: relative;
 }
 
 .search-tab:hover {
-  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 .search-tab.active {
-  color: var(--text-primary);
-  background: var(--surface);
-  border-bottom: 2px solid var(--accent);
+  background: rgba(232, 93, 4, 0.15);
+  border-color: rgba(244, 162, 97, 0.5);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 10px rgba(232, 93, 4, 0.1);
+  transform: translateY(-1px);
 }
 
 .wander-controls {
@@ -975,14 +1004,28 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .page-heading-main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding-right: 0;
+  }
+  
+  .search-tabs-header {
+    position: fixed;
+    right: 0.5rem;
+    top: 4rem;
+    z-index: 100;
+  }
+  
   .search-tabs {
     gap: 0.25rem;
   }
   
   .search-tab {
     padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
   }
   
   .wander-toggles {

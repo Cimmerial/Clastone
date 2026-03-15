@@ -728,30 +728,32 @@ export function SearchPage() {
   return (
     <section>
       <header className="page-heading">
-        <div>
-          <h1 className="page-title">Search</h1>
-          <RandomQuote />
+        <div className="page-heading-main">
+          <div>
+            <h1 className="page-title">Search</h1>
+            <RandomQuote />
+          </div>
+          {/* Tab Selection - moved to header */}
+          <div className="search-tabs-header">
+            <button
+              type="button"
+              className={`search-tab ${activeTab === 'search' ? 'active' : ''}`}
+              onClick={() => setActiveTab('search')}
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              className={`search-tab ${activeTab === 'wander' ? 'active' : ''}`}
+              onClick={() => setActiveTab('wander')}
+            >
+              Wander
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="search-shell card-surface">
-        {/* Tab Selection */}
-        <div className="search-tabs">
-          <button
-            type="button"
-            className={`search-tab ${activeTab === 'search' ? 'active' : ''}`}
-            onClick={() => setActiveTab('search')}
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            className={`search-tab ${activeTab === 'wander' ? 'active' : ''}`}
-            onClick={() => setActiveTab('wander')}
-          >
-            Wander
-          </button>
-        </div>
 
         {/* Search Controls */}
         {activeTab === 'search' && (
