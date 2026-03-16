@@ -128,9 +128,15 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
     } else {
       const episodeRuntime = details?.episodeRuntimeMinutes;
       const totalEpisodes = details?.totalEpisodes;
+      const totalSeasons = details?.totalSeasons;
+      
       if (episodeRuntime && totalEpisodes) {
         const totalMinutes = episodeRuntime * totalEpisodes;
-        return `${formatRuntime(totalMinutes)} (${totalEpisodes} episodes)`;
+        const seasonText = totalSeasons ? ` over ${totalSeasons} seasons` : '';
+        return `${formatRuntime(totalMinutes)} (${totalEpisodes} episodes${seasonText})`;
+      }
+      if (totalEpisodes && totalSeasons) {
+        return `${totalEpisodes} episodes over ${totalSeasons} seasons`;
       }
       return totalEpisodes ? `${totalEpisodes} episodes` : 'Unknown';
     }

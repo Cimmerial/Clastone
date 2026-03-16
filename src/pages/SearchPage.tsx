@@ -638,9 +638,6 @@ export function SearchPage() {
 
   // Calculate if we should show load more button - use a simple approach without useMemo to avoid re-render issues
   const shouldShowLoadMore = wanderResults.length > 0 && lastPageWasFull && !isLoadingMore;
-  
-  // Debug logging
-  console.log(`State: total=${wanderResults.length}, page=${wanderPage}, lastPageWasFull=${lastPageWasFull}, isLoadingMore=${isLoadingMore}, shouldShow=${shouldShowLoadMore}`);
 
   // Generate year options for dropdown (ALL + current year - 50 to current year)
   const currentYear = new Date().getFullYear();
