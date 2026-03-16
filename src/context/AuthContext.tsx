@@ -197,28 +197,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setLoginError(null);
     try {
+      console.log('Starting account creation:', { email, username });
+      console.log('Auth configured:', !!auth);
+      console.log('DB configured:', !!db);
+      
       // Check if username is already taken
+      console.log('Creating username query...');
       const usernameQuery = query(
         collection(db, 'users'),
         where('username', '==', username)
       );
+      console.log('Username query created:', usernameQuery);
+      
+      console.log('Executing username query...');
       const usernameSnapshot = await getDocs(usernameQuery);
+      console.log('Username query executed, results:', usernameSnapshot.size);
       
       if (!usernameSnapshot.empty) {
+        console.log('Username already taken:', username);
         setLoginError('Username is already taken');
         return;
       }
       
+      console.log('Creating Firebase auth user...');
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      console.log('Auth user created:', userCredential.user.uid);
+      
+      console.log('Updating user profile...');
       await updateProfile(userCredential.user, { displayName: username });
-      await setDoc(doc(db!, 'users', userCredential.user.uid), {
+      
+      console.log('Creating user document in Firestore...');
+      const userDocData = {
         username,
         email,
         createdAt: new Date().toISOString()
-      });
+      };
+      console.log('User doc data:', userDocData);
+      
+      await setDoc(doc(db!, 'users', userCredential.user.uid), userDocData);
+      console.log('User document created successfully');
+      
       setUsername(username);
       setNeedsUsername(false);
     } catch (e: any) {
+      console.error('Account creation error:', e);
+      console.error('Error code:', e.code);
+      console.error('Error message:', e.message);
       setLoginError(e.message || String(e));
     }
   }, []);

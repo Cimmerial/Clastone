@@ -165,14 +165,14 @@ export function LoginPage() {
             <div className="login-input-group">
               <Mail size={18} className="login-input-icon" />
               <input
-                type="text"
+                type={isSignUp ? "email" : "text"}
                 placeholder={isSignUp ? "Email address" : "Username or Email"}
                 value={isSignUp ? email : email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 minLength={isSignUp ? undefined : 3}
                 maxLength={isSignUp ? undefined : 20}
-                pattern={isSignUp ? undefined : "[a-zA-Z0-9_@.]+"}
+                pattern={isSignUp ? "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" : "[a-zA-Z0-9_@.]+"}
                 className="login-input"
               />
             </div>
