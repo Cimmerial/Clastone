@@ -171,7 +171,6 @@ export function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 minLength={isSignUp ? undefined : 3}
-                maxLength={isSignUp ? undefined : 20}
                 pattern={isSignUp ? "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" : "[a-zA-Z0-9_@.]+"}
                 className="login-input"
               />
