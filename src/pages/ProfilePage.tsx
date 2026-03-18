@@ -93,6 +93,7 @@ export function ProfilePage() {
     isRankedClass: isRankedMovieClass,
     getClassLabel: getMovieClassLabel,
     classes: movieClasses,
+    globalRanks: moviesGlobalRanks,
     addMovieFromSearch,
     updateMovieWatchRecords,
     moveItemToClass: moveMovieToClass,
@@ -104,6 +105,7 @@ export function ProfilePage() {
     isRankedClass: isRankedTvClass,
     getClassLabel: getTvClassLabel,
     classes: tvClasses,
+    globalRanks: tvGlobalRanks,
     addTvShowFromSearch,
     updateTvShowWatchRecords,
     moveItemToClass: moveTvToClass,
@@ -446,11 +448,12 @@ export function ProfilePage() {
       const items = moviesByClass[classKey] ?? [];
       const found = items.find(item => item.tmdbId === tmdbId || item.id === `movie-${tmdbId}`);
       if (found) {
-        return { isRanked: true, classKey, watchRecords: found.watchRecords };
+        const isRankedClass = isRankedMovieClass(classKey);
+        return { isRanked: isRankedClass, classKey, watchRecords: found.watchRecords };
       }
     }
     return { isRanked: false };
-  }, [moviesByClass, movieClassOrder]);
+  }, [moviesByClass, movieClassOrder, isRankedMovieClass]);
 
   // Helper to check if current user has a show ranked
   const getUserShowStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
@@ -459,11 +462,12 @@ export function ProfilePage() {
       const items = tvByClass[classKey] ?? [];
       const found = items.find(item => item.tmdbId === tmdbId || item.id === `tv-${tmdbId}`);
       if (found) {
-        return { isRanked: true, classKey, watchRecords: found.watchRecords };
+        const isRankedClass = isRankedTvClass(classKey);
+        return { isRanked: isRankedClass, classKey, watchRecords: found.watchRecords };
       }
     }
     return { isRanked: false };
-  }, [tvByClass, tvClassOrder]);
+  }, [tvByClass, tvClassOrder, isRankedTvClass]);
 
   // Helper to check if current user has an actor ranked
   const getUserActorStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string } => {
@@ -772,8 +776,9 @@ export function ProfilePage() {
       }
       
       if (goToMedia) {
-        // Navigate to movies or tv page
-        window.location.href = rankingTarget.mediaType === 'movie' ? '/movies' : '/tv';
+        // Navigate and then scroll to the item
+        const targetPath = rankingTarget.mediaType === 'movie' ? '/movies' : '/tv';
+        navigate(targetPath, { state: { scrollToId: rankingTarget.id } });
       }
     } finally {
       setIsRankingSaving(false);
@@ -1620,6 +1625,21 @@ export function ProfilePage() {
                       handleShowClick(w.item);
                     }
                   };
+                  
+                  // Get percentile ranking or special class text
+                  let displayText = null;
+                  if (userStatus.isRanked) {
+                    const globalRanks = w.isMovie ? moviesGlobalRanks : tvGlobalRanks;
+                    const rankInfo = globalRanks.get(w.item.id);
+                    displayText = rankInfo?.percentileRank;
+                  } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
+                    displayText = 'GARB';
+                  } else if (userStatus.classKey === 'BABY') {
+                    displayText = 'BABY';
+                  } else {
+                    displayText = 'N/A';
+                  }
+                  
                   return (
                     <div 
                       key={`${w.item.id}-${w.record.id}-${i}`} 
@@ -1637,6 +1657,11 @@ export function ProfilePage() {
                             {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                           </span>
                         </div>
+                        {displayText && (
+                          <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${w.isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
+                            {displayText}
+                          </div>
+                        )}
                       </div>
                       <div className="profile-recent-tile-info">
                         <span className="profile-recent-tile-title">{w.item.title}</span>

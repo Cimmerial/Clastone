@@ -138,7 +138,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -167,7 +167,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={count > 0 || c.key === 'UNRANKED'}
+                      disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => deleteClass(c.key)}
                     >
                       Delete
@@ -232,7 +232,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -261,7 +261,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={count > 0 || c.key === 'UNRANKED'}
+                      disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => deleteClass(c.key)}
                     >
                       Delete
@@ -319,7 +319,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -339,7 +339,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => deleteTvClass(c.key)}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => deleteTvClass(c.key)}>Delete</button>
                   </div>
                 </div>
               );
@@ -369,7 +369,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -389,7 +389,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => deleteTvClass(c.key)}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => deleteTvClass(c.key)}>Delete</button>
                   </div>
                 </div>
               );
@@ -426,7 +426,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -446,7 +446,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );
@@ -485,7 +485,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -505,7 +505,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );
@@ -542,7 +542,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -562,7 +562,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );
@@ -601,7 +601,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED'}
+                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
                       onClick={() => {
                         const next = prompt('Rename class', c.label);
                         if (!next) return;
@@ -621,7 +621,7 @@ export function SettingsPage() {
                     >
                       Tagline
                     </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
+                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
                   </div>
                 </div>
               );

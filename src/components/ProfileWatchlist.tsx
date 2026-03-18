@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useWatchlistStore, type WatchlistEntry } from '../state/watchlistStore';
+import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import './ProfileWatchlist.css';
 
@@ -11,8 +13,8 @@ interface ProfileWatchlistProps {
   } | null;
   onMovieClick?: (movie: WatchlistEntry) => void;
   onShowClick?: (show: WatchlistEntry) => void;
-  getUserMovieStatus?: (tmdbId: number) => { isRanked: boolean };
-  getUserShowStatus?: (tmdbId: number) => { isRanked: boolean };
+  getUserMovieStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string };
+  getUserShowStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string };
 }
 
 type WatchlistViewType = 'movies' | 'shows';
@@ -34,6 +36,8 @@ export function ProfileWatchlist({
   const [viewType, setViewType] = useState<WatchlistViewType>('movies');
   const [showOverlapOnly, setShowOverlapOnly] = useState(false);
   const { movies: myMovies, tv: myTv } = useWatchlistStore();
+  const { globalRanks: moviesGlobalRanks } = useMoviesStore();
+  const { globalRanks: tvGlobalRanks } = useTvStore();
   
   // Use friend's data if viewing friend profile, otherwise use own data
   const movies = isOwnProfile ? myMovies : (friendWatchlistData?.movies || []);
@@ -147,6 +151,20 @@ export function ProfileWatchlist({
                 }
               };
               
+              // Get percentile ranking or special class text - only show if seen
+              let displayText = null;
+              if (userStatus.isRanked) {
+                const globalRanks = isMovie ? moviesGlobalRanks : tvGlobalRanks;
+                const rankInfo = globalRanks.get(entry.id);
+                displayText = rankInfo?.percentileRank;
+              } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
+                displayText = 'GARB';
+              } else if (userStatus.classKey === 'BABY') {
+                displayText = 'BABY';
+              } else if (userStatus.classKey) {
+                displayText = 'N/A';
+              }
+              
               return (
                 <div 
                   key={entry.id} 
@@ -168,6 +186,11 @@ export function ProfileWatchlist({
                         {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                       </span>
                     </div>
+                    {displayText && (
+                      <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
+                        {displayText}
+                      </div>
+                    )}
                   </div>
                   <div className="profile-recent-tile-info">
                     <span className="profile-recent-tile-title">{entry.title}</span>

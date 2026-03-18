@@ -133,6 +133,7 @@ export function FriendProfilePage() {
     classOrder: myMovieClassOrder,
     getClassLabel: getMovieClassLabel,
     classes: movieClasses,
+    globalRanks: moviesGlobalRanks,
     addMovieFromSearch,
     updateMovieWatchRecords,
     moveItemToClass: moveMovieToClass,
@@ -143,6 +144,7 @@ export function FriendProfilePage() {
     classOrder: myTvClassOrder,
     getClassLabel: getTvClassLabel,
     classes: tvClasses,
+    globalRanks: tvGlobalRanks,
     addTvShowFromSearch,
     updateTvShowWatchRecords,
     moveItemToClass: moveTvToClass,
@@ -887,6 +889,36 @@ export function FriendProfilePage() {
     return { isRanked: false };
   }, [myMoviesByClass, myMovieClassOrder]);
 
+  // Helper to check if friend has a movie ranked (using FRIEND's data)
+  const getFriendMovieStatus = useCallback((itemId: string): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
+    if (!friendMoviesData?.byClass || !friendMoviesData?.classes) return { isRanked: false };
+    
+    for (const classDef of friendMoviesData.classes) {
+      const classKey = classDef.key;
+      const items = friendMoviesData.byClass[classKey] ?? [];
+      const found = items.find(item => item.id === itemId);
+      if (found) {
+        return { isRanked: classDef.isRanked, classKey, watchRecords: found.watchRecords };
+      }
+    }
+    return { isRanked: false };
+  }, [friendMoviesData]);
+
+  // Helper to check if friend has a show ranked (using FRIEND's data)
+  const getFriendShowStatus = useCallback((itemId: string): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
+    if (!friendTvData?.byClass || !friendTvData?.classes) return { isRanked: false };
+    
+    for (const classDef of friendTvData.classes) {
+      const classKey = classDef.key;
+      const items = friendTvData.byClass[classKey] ?? [];
+      const found = items.find(item => item.id === itemId);
+      if (found) {
+        return { isRanked: classDef.isRanked, classKey, watchRecords: found.watchRecords };
+      }
+    }
+    return { isRanked: false };
+  }, [friendTvData]);
+
   // Helper to check if current user has a show ranked
   const getUserShowStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
     if (!tmdbId) return { isRanked: false };
@@ -950,6 +982,49 @@ export function FriendProfilePage() {
     
     return { isRanked: false };
   }, [myDirectorsByClass, myDirectorsClassOrder]);
+
+  // Calculate friend's global ranks for percentile display
+  const friendMoviesGlobalRanks = useMemo(() => {
+    if (!friendMoviesData?.byClass || !friendMoviesData?.classes) return new Map();
+    
+    const rankedItems: any[] = [];
+    for (const classDef of friendMoviesData.classes) {
+      if (!classDef.isRanked) continue;
+      const classKey = classDef.key;
+      const items = friendMoviesData.byClass[classKey] ?? [];
+      for (const item of items) rankedItems.push(item);
+    }
+    const total = rankedItems.length || 1;
+    const map = new Map<string, { absoluteRank: string; percentileRank: string }>();
+    rankedItems.forEach((item, index) => {
+      map.set(item.id, {
+        absoluteRank: `${index + 1} / ${total}`,
+        percentileRank: `${Math.round(((total - index) / total) * 100)}%`
+      });
+    });
+    return map;
+  }, [friendMoviesData]);
+
+  const friendTvGlobalRanks = useMemo(() => {
+    if (!friendTvData?.byClass || !friendTvData?.classes) return new Map();
+    
+    const rankedItems: any[] = [];
+    for (const classDef of friendTvData.classes) {
+      if (!classDef.isRanked) continue;
+      const classKey = classDef.key;
+      const items = friendTvData.byClass[classKey] ?? [];
+      for (const item of items) rankedItems.push(item);
+    }
+    const total = rankedItems.length || 1;
+    const map = new Map<string, { absoluteRank: string; percentileRank: string }>();
+    rankedItems.forEach((item, index) => {
+      map.set(item.id, {
+        absoluteRank: `${index + 1} / ${total}`,
+        percentileRank: `${Math.round(((total - index) / total) * 100)}%`
+      });
+    });
+    return map;
+  }, [friendTvData]);
 
   // Handle clicking a top 10 movie
   const handleMovieClick = (movie: MovieShowItem) => {
@@ -2037,6 +2112,12 @@ export function FriendProfilePage() {
                   const userStatus = w.isMovie 
                     ? getUserMovieStatus(w.item.tmdbId || 0)
                     : getUserShowStatus(w.item.tmdbId || 0);
+                  
+                  // Get friend's status for ranking display
+                  const friendStatus = w.isMovie 
+                    ? getFriendMovieStatus(w.item.id)
+                    : getFriendShowStatus(w.item.id);
+                  
                   const handleClick = () => {
                     if (w.isMovie) {
                       handleMovieClick(w.item);
@@ -2044,6 +2125,21 @@ export function FriendProfilePage() {
                       handleShowClick(w.item);
                     }
                   };
+                  
+                  // Get percentile ranking or special class text using FRIEND's data
+                  let displayText = null;
+                  if (friendStatus.isRanked) {
+                    const globalRanks = w.isMovie ? friendMoviesGlobalRanks : friendTvGlobalRanks;
+                    const rankInfo = globalRanks.get(w.item.id);
+                    displayText = rankInfo?.percentileRank;
+                  } else if (friendStatus.classKey === 'DELICIOUS_GARBAGE') {
+                    displayText = 'GARB';
+                  } else if (friendStatus.classKey === 'BABY') {
+                    displayText = 'BABY';
+                  } else {
+                    displayText = 'N/A';
+                  }
+                  
                   return (
                     <div 
                       key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`} 
@@ -2061,6 +2157,11 @@ export function FriendProfilePage() {
                             {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                           </span>
                         </div>
+                        {displayText && (
+                          <div className={`profile-recent-percentile ${!friendStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${w.isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
+                            {displayText}
+                          </div>
+                        )}
                       </div>
                       <div className="profile-recent-tile-info">
                         <span className="profile-recent-tile-title">{w.item.title}</span>
@@ -2103,8 +2204,32 @@ export function FriendProfilePage() {
             } as MovieShowItem;
             handleShowClick(show);
           }}
-          getUserMovieStatus={getUserMovieStatus}
-          getUserShowStatus={getUserShowStatus}
+          getUserMovieStatus={(tmdbId) => {
+            // Convert tmdbId to itemId format for friend status lookup
+            const possibleIds = [
+              `tmdb-movie-${tmdbId}`,
+              `movie-${tmdbId}`,
+              `${tmdbId}`
+            ];
+            for (const id of possibleIds) {
+              const status = getFriendMovieStatus(id);
+              if (status.classKey) return status;
+            }
+            return { isRanked: false };
+          }}
+          getUserShowStatus={(tmdbId) => {
+            // Convert tmdbId to itemId format for friend status lookup
+            const possibleIds = [
+              `tmdb-tv-${tmdbId}`,
+              `tv-${tmdbId}`,
+              `${tmdbId}`
+            ];
+            for (const id of possibleIds) {
+              const status = getFriendShowStatus(id);
+              if (status.classKey) return status;
+            }
+            return { isRanked: false };
+          }}
         />
       </div>
 

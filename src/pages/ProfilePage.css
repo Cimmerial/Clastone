@@ -562,6 +562,38 @@
   color: var(--text-muted);
 }
 
+.profile-recent-percentile {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.75rem;
+  line-height: 1;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.profile-recent-percentile--unranked {
+  background: var(--text-muted);
+  color: var(--bg);
+}
+
+.profile-recent-percentile--movie {
+  background: var(--bg);
+  color: #daa520;
+  border: 1px solid #daa520;
+}
+
+.profile-recent-percentile--tv {
+  background: #daa520;
+  color: var(--bg);
+  border: 1px solid var(--bg);
+}
+
 .profile-muted {
   color: var(--text-muted);
   margin-bottom: 0.75rem;
