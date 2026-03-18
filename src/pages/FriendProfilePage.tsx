@@ -896,7 +896,7 @@ export function FriendProfilePage() {
     for (const classDef of friendMoviesData.classes) {
       const classKey = classDef.key;
       const items = friendMoviesData.byClass[classKey] ?? [];
-      const found = items.find(item => item.id === itemId);
+      const found = items.find((item: MovieShowItem) => item.id === itemId);
       if (found) {
         return { isRanked: classDef.isRanked, classKey, watchRecords: found.watchRecords };
       }
@@ -911,7 +911,7 @@ export function FriendProfilePage() {
     for (const classDef of friendTvData.classes) {
       const classKey = classDef.key;
       const items = friendTvData.byClass[classKey] ?? [];
-      const found = items.find(item => item.id === itemId);
+      const found = items.find((item: MovieShowItem) => item.id === itemId);
       if (found) {
         return { isRanked: classDef.isRanked, classKey, watchRecords: found.watchRecords };
       }
