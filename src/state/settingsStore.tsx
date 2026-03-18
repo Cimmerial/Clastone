@@ -8,6 +8,7 @@ export type GlobalSettings = {
     tileViewSize: 'small' | 'default' | 'big';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
+    excludeSelfRoles: boolean;
     useSpotlightBackground: boolean;
     showHomepageFlag: boolean;
     dismissedHomepageFlags: string[];
@@ -30,6 +31,7 @@ function getInitialSettings(): GlobalSettings {
         const min = localStorage.getItem('clastone-minimizedEntries');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
         const es = localStorage.getItem('clastone-excludeSimpsons');
+        const esr = localStorage.getItem('clastone-excludeSelfRoles');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
         const shf = localStorage.getItem('clastone-showHomepageFlag');
         const dhf = localStorage.getItem('clastone-dismissedHomepageFlags');
@@ -65,6 +67,7 @@ function getInitialSettings(): GlobalSettings {
             tileViewSize,
             boycottTalkShows: bts === 'true',
             excludeSimpsons: es === 'true',
+            excludeSelfRoles: esr === 'true',
             useSpotlightBackground: usb === 'true',
             showHomepageFlag: shf !== 'false',
             dismissedHomepageFlags
@@ -78,6 +81,7 @@ function getInitialSettings(): GlobalSettings {
             tileViewSize: 'default',
             boycottTalkShows: false,
             excludeSimpsons: false,
+            excludeSelfRoles: false,
             useSpotlightBackground: false,
             showHomepageFlag: true,
             dismissedHomepageFlags: []
@@ -147,6 +151,7 @@ export function SettingsProvider({
                 if (updates.tileViewSize !== undefined) localStorage.setItem('clastone-tileViewSize', next.tileViewSize);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
+                if (updates.excludeSelfRoles !== undefined) localStorage.setItem('clastone-excludeSelfRoles', String(next.excludeSelfRoles));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
                 if (updates.showHomepageFlag !== undefined) localStorage.setItem('clastone-showHomepageFlag', String(next.showHomepageFlag));
                 if (updates.dismissedHomepageFlags !== undefined) localStorage.setItem('clastone-dismissedHomepageFlags', JSON.stringify(next.dismissedHomepageFlags));

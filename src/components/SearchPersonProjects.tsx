@@ -39,18 +39,34 @@ export function SearchPersonProjects({ personId, onRecordMedia }: Props) {
     let all = personCache.roles;
 
     // Apply boycott if enabled
-    if (settings.boycottTalkShows) {
+    if (settings.boycottTalkShows || settings.excludeSelfRoles) {
       all = all.filter(r => {
         const title = r.title.toLowerCase();
-        return !title.includes('the tonight show') && 
-               !title.includes('the late night show') && 
-               !title.includes('jimmy kimmel live') && 
-               !title.includes('the graham norton show') &&
-               !title.includes('golden globe awards') &&
-               !title.includes('live with kelly') &&
-               !title.includes('the one show') &&
-               !title.includes('late night with seth meyers') &&
-               !title.includes('the late late show with james corden');
+        const character = (r.character || '').toLowerCase();
+        const job = (r.job || '').toLowerCase();
+        
+        // Boycott talk shows filter
+        const isBoycottedTalkShow = title.includes('the tonight show') || 
+                                    title.includes('the tonight show starring jimmy fallon') ||
+                                    title.includes('the late show with stephen colbert') ||
+                                    title.includes('the late night show') || 
+                                    title.includes('jimmy kimmel live') || 
+                                    title.includes('the graham norton show') ||
+                                    title.includes('golden globe awards') ||
+                                    title.includes('live with kelly') ||
+                                    title.includes('the one show') ||
+                                    title.includes('late night with seth meyers') ||
+                                    title.includes('the late late show with james corden');
+        
+        // Self roles filter
+        const isSelfRole = character === 'self' || 
+                           character === 'self - guest' ||
+                           job === 'self' || 
+                           job === 'self - guest' ||
+                           character.includes('self') ||
+                           job.includes('self');
+        
+        return !isBoycottedTalkShow && !(settings.excludeSelfRoles && isSelfRole);
       });
     }
 

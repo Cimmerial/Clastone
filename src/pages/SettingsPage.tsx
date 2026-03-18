@@ -719,6 +719,21 @@ export function SettingsPage() {
 
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Exclude "Self" roles from actor projects</span>
+              <span className="settings-toggle-description">Hides roles where actors are listed as "Self" or "Self - Guest" (talk show appearances, award shows, documentaries, etc.) from info modal and detailed views.</span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.excludeSelfRoles}
+                onChange={(e) => updateSettings({ excludeSelfRoles: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
               <span className="settings-toggle-label">Use spotlight background</span>
               <span className="settings-toggle-description">Adds animated colored dots background effect (like login screen) to all pages.</span>
             </div>

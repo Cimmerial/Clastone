@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Info, Calendar, PlayCircle, Edit } from 'lucide-react';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
+import { useSettingsStore } from '../state/settingsStore';
 import './InfoModal.css';
 
 interface PersonInfoModalProps {
@@ -37,6 +38,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBiography, setShowBiography] = useState(false);
+  const { settings } = useSettingsStore();
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -73,6 +75,69 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
 
     fetchDetails();
   }, [isOpen, tmdbId]);
+
+  // Apply boycott filter to roles
+  const filteredRoles = useMemo(() => {
+    console.log('=== PersonInfoModal Filter Debug ===');
+    console.log('Settings:', settings);
+    console.log('BoycottTalkShows enabled:', settings.boycottTalkShows);
+    
+    if (!details?.roles) {
+      console.log('No roles found in details');
+      return [];
+    }
+    
+    console.log('Original roles count:', details.roles.length);
+    console.log('Original roles:', details.roles.map(r => r.title));
+    
+    if (!settings.boycottTalkShows && !settings.excludeSelfRoles) {
+      console.log('Both filters disabled, returning all roles');
+      return details.roles;
+    }
+    
+    const filtered = details.roles.filter(role => {
+      const title = role.title.toLowerCase();
+      const character = (role.character || '').toLowerCase();
+      const job = (role.job || '').toLowerCase();
+      
+      // Boycott talk shows filter
+      const isBoycottedTalkShow = title.includes('the tonight show') || 
+                                  title.includes('the tonight show starring jimmy fallon') ||
+                                  title.includes('the late show with stephen colbert') ||
+                                  title.includes('the late night show') || 
+                                  title.includes('jimmy kimmel live') || 
+                                  title.includes('the graham norton show') ||
+                                  title.includes('golden globe awards') ||
+                                  title.includes('live with kelly') ||
+                                  title.includes('the one show') ||
+                                  title.includes('late night with seth meyers') ||
+                                  title.includes('the late late show with james corden');
+      
+      // Self roles filter
+      const isSelfRole = character === 'self' || 
+                         character === 'self - guest' ||
+                         job === 'self' || 
+                         job === 'self - guest' ||
+                         character.includes('self') ||
+                         job.includes('self');
+      
+      const isBoycotted = isBoycottedTalkShow || (settings.excludeSelfRoles && isSelfRole);
+      
+      if (isBoycotted) {
+        console.log('FILTERING OUT:', role.title, `(${role.character || role.job || 'Unknown Role'})`);
+        if (isBoycottedTalkShow) console.log('  Reason: Talk show boycott');
+        if (settings.excludeSelfRoles && isSelfRole) console.log('  Reason: Self role exclusion');
+      }
+      
+      return !isBoycotted;
+    });
+    
+    console.log('Filtered roles count:', filtered.length);
+    console.log('Filtered roles:', filtered.map(r => r.title));
+    console.log('=== End Filter Debug ===');
+    
+    return filtered;
+  }, [details?.roles, settings.boycottTalkShows]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -198,7 +263,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
               <div className="info-modal-section">
                 <h3 className="info-modal-section-title">Projects</h3>
                 <div className="info-modal-cast-scroll">
-                  {details.roles.slice(0, 20).map(project => (
+                  {filteredRoles.slice(0, 20).map(project => (
                     <div key={`${project.mediaType}-${project.id}`} className="info-modal-cast-member">
                       {project.posterPath ? (
                         <img src={tmdbImagePath(project.posterPath, 'w300')!} alt={project.title} />

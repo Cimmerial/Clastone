@@ -187,7 +187,7 @@ const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(({ year,
   ];
   const dayItems: DPItem[] = [
     { val: undefined, label: '—' },
-    ...dayOptsFor(yStr, mStr).map(o => ({ val: o.value ? parseInt(o.value, 10) : undefined, label: o.value })),
+    ...dayOptsFor(yStr, mStr).map(o => ({ val: o.value ? parseInt(o.value, 10) : undefined, label: o.label })),
   ];
 
   const yPart = year ? String(year) : '—';
@@ -560,26 +560,39 @@ export function UniversalEditModal({
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
 
-    if (!y || y > currentYear) return [{ value: '', label: '—' }];
-    
-    // If year is after release year, show all months up to current month
-    if (y > (releaseYear ?? 0)) {
-      return y < currentYear ? MONTH_OPTIONS : MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
+    // If no year selected, only show empty option
+    if (!y) {
+      return [{ value: '', label: '—' }];
     }
-    
-    // If year is the release year, only show months from release month onwards
-    if (y === (releaseYear ?? 0)) {
-      const releaseMonth = target.releaseDate ? parseInt(target.releaseDate.split('-')[1], 10) : 1;
-      if (y < currentYear) {
-        // Release year is in the past, show months from release month onwards
+
+    // Don't allow years before release year
+    if (releaseYear && y < releaseYear) {
+      return [{ value: '', label: '—' }];
+    }
+
+    // Don't allow future years
+    if (y > currentYear) {
+      return [{ value: '', label: '—' }];
+    }
+
+    if (y < currentYear) {
+      // For past years, show all months (but respect release month if it's the release year)
+      if (y === (releaseYear ?? 0) && target.releaseDate) {
+        const releaseMonth = parseInt(target.releaseDate.split('-')[1], 10);
         return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) >= releaseMonth);
-      } else if (y === currentYear) {
-        // Release year is current year, show months from release month to current month
+      }
+      return MONTH_OPTIONS;
+    }
+
+    // For current year, show months up to current month (but respect release month)
+    if (y === currentYear) {
+      if (y === (releaseYear ?? 0) && target.releaseDate) {
+        const releaseMonth = parseInt(target.releaseDate.split('-')[1], 10);
         return MONTH_OPTIONS.filter(m => !m.value || (parseInt(m.value, 10) >= releaseMonth && parseInt(m.value, 10) <= currentMonth));
       }
+      return MONTH_OPTIONS.filter(m => !m.value || parseInt(m.value, 10) <= currentMonth);
     }
-    
-    // Past years (before release year shouldn't be selectable, but just in case)
+
     return MONTH_OPTIONS;
   }, [releaseYear, target.releaseDate]);
 
@@ -591,56 +604,43 @@ export function UniversalEditModal({
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
 
-    if (!y || !m || y > currentYear) return [{ value: '', label: '—' }];
+    // If no year or month selected, only show empty option
+    if (!y || !m) {
+      return [{ value: '', label: '—' }];
+    }
+
+    // Don't allow years before release year
+    if (releaseYear && y < releaseYear) {
+      return [{ value: '', label: '—' }];
+    }
+
+    // Don't allow future years
+    if (y > currentYear) {
+      return [{ value: '', label: '—' }];
+    }
+
+    // Get release date bounds
+    let minDay = 1;
+    let maxDay = 31;
     
-    // Get release day for comparison
-    const releaseDay = target.releaseDate ? parseInt(target.releaseDate.split('-')[2], 10) : 1;
-    const releaseMonth = target.releaseDate ? parseInt(target.releaseDate.split('-')[1], 10) : 1;
-    
-    if (y < currentYear) {
-      if (y > (releaseYear ?? 0)) {
-        // Years after release year but before current year - show all days
-        return DAY_OPTIONS;
-      } else if (y === (releaseYear ?? 0)) {
-        // Release year - check month
-        if (m > releaseMonth) {
-          return DAY_OPTIONS; // Months after release month
-        } else if (m === releaseMonth) {
-          // Release month - show days from release day onwards
-          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) >= releaseDay);
-        }
+    if (y === (releaseYear ?? 0) && target.releaseDate) {
+      const releaseMonth = parseInt(target.releaseDate.split('-')[1], 10);
+      const releaseDay = parseInt(target.releaseDate.split('-')[2], 10);
+      
+      if (m === releaseMonth) {
+        minDay = releaseDay;
       }
     }
     
-    if (y === currentYear) {
-      if (m > (releaseYear ?? 0)) {
-        // Current year, months after release year
-        if (m < currentMonth) {
-          return DAY_OPTIONS; // Past months in current year
-        } else if (m === currentMonth) {
-          // Current month - show days up to current day
-          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
-        }
-      } else if (m === (releaseYear ?? 0)) {
-        // Current year is release year
-        if (m === releaseMonth && m === currentMonth) {
-          // Release month is current month - show days from release day to current day
-          return DAY_OPTIONS.filter(d => !d.value || (parseInt(d.value, 10) >= releaseDay && parseInt(d.value, 10) <= currentDay));
-        } else if (m === releaseMonth) {
-          // Release month but not current month - show days from release day onwards
-          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) >= releaseDay);
-        } else if (m > releaseMonth && m < currentMonth) {
-          // Months after release month but before current month - show all days
-          return DAY_OPTIONS;
-        } else if (m === currentMonth) {
-          // Current month after release month - show days up to current day
-          return DAY_OPTIONS.filter(d => !d.value || parseInt(d.value, 10) <= currentDay);
-        }
-      }
+    if (y === currentYear && m === currentMonth) {
+      maxDay = currentDay;
     }
-    
-    // For future months in current year or invalid combinations, no days available
-    return [{ value: '', label: '—' }];
+
+    return DAY_OPTIONS.filter(d => {
+      if (!d.value) return true; // Keep empty option
+      const dayNum = parseInt(d.value, 10);
+      return dayNum >= minDay && dayNum <= maxDay;
+    });
   }, [releaseYear, target.releaseDate]);
 
   const addEntry = () => {
