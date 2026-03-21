@@ -31,6 +31,45 @@ function formatYear(releaseDate?: string): string {
   return /^\d{4}$/.test(y) ? y : releaseDate;
 }
 
+function isUnreleased(releaseDate?: string): boolean {
+  if (!releaseDate) return false;
+  const release = new Date(releaseDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return release > today;
+}
+
+function formatDate(releaseDate?: string): string {
+  if (!releaseDate) return '';
+  const date = new Date(releaseDate);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function sortUnreleasedByDate(entries: WatchlistEntry[]): WatchlistEntry[] {
+  return [...entries]
+    .filter(entry => isUnreleased(entry.releaseDate))
+    .sort((a, b) => {
+      if (!a.releaseDate) return 1;
+      if (!b.releaseDate) return -1;
+      return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
+    });
+}
+
+function separateReleasedAndUnreleased(entries: WatchlistEntry[]): { released: WatchlistEntry[]; unreleased: WatchlistEntry[] } {
+  const released: WatchlistEntry[] = [];
+  const unreleased: WatchlistEntry[] = [];
+  
+  entries.forEach(entry => {
+    if (isUnreleased(entry.releaseDate)) {
+      unreleased.push(entry);
+    } else {
+      released.push(entry);
+    }
+  });
+  
+  return { released, unreleased: sortUnreleasedByDate(unreleased) };
+}
+
 function WatchlistTile({
   entry,
   type,
@@ -81,65 +120,73 @@ function WatchlistTile({
 
   return (
     <div 
-      className={`watchlist-tile ${hasWatched ? 'watched' : ''} ${isDragging ? 'watchlist-tile--dragging' : ''}`}
+      className={`entry-tile ${hasWatched ? 'watched' : ''} ${isDragging ? 'watchlist-tile--dragging' : ''}`}
       data-watchlist-id={entry.id}
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
     >
-      <div className="watchlist-tile-poster">
+      <div className="entry-tile-poster">
         {entry.posterPath ? (
           <img
-            src={tmdbImagePath(entry.posterPath, 'w154') || undefined}
+            src={tmdbImagePath(entry.posterPath, 'w500') || undefined}
             alt={entry.title}
-            className="watchlist-tile-poster-img"
             loading="lazy"
           />
         ) : (
-          <div className="watchlist-tile-poster-placeholder">
+          <span>
             {type === 'movies' ? '🎬' : '📺'}
-          </div>
+          </span>
         )}
-        <div className="watchlist-tile-overlay">
-          <button
-            type="button"
-            className={`watchlist-tile-remove-btn ${showConfirm ? 'confirming' : ''}`}
-            aria-label="Remove from watchlist"
-            onClick={handleClick}
-          >
-            {showConfirm ? '✓' : '✕'}
-          </button>
+        <div className="entry-tile-stats-overlay">
+          <div className="entry-stat-pill">
+            {formatYear(entry.releaseDate)}
+          </div>
+          {isUnreleased(entry.releaseDate) && (
+            <div className="entry-stat-pill">
+              {formatDate(entry.releaseDate)}
+            </div>
+          )}
+        </div>
+        <div className="entry-tile-info-btn">
           {onInfo && (
             <button
               type="button"
-              className="watchlist-tile-info-btn"
               onClick={(e) => {
                 e.stopPropagation();
                 onInfo();
               }}
               title="Info"
             >
-              <Info size={12} />
+              <Info size={14} />
             </button>
           )}
+        </div>
+        <div className="entry-tile-quick-actions">
           <button
             type="button"
-            className="watchlist-tile-rw-btn"
             onClick={(e) => {
               e.stopPropagation();
               onRecordWatch();
             }}
+            title="Record Watch"
           >
             RW
           </button>
+          <button
+            type="button"
+            className={`watchlist-tile-remove-btn ${showConfirm ? 'confirming' : ''}`}
+            aria-label="Remove from watchlist"
+            onClick={handleClick}
+            title="Remove"
+          >
+            {showConfirm ? '✓' : '✕'}
+          </button>
         </div>
       </div>
-      <div className="watchlist-tile-info">
-        <h3 className="watchlist-tile-title">{entry.title}</h3>
-        <p className="watchlist-tile-meta">
-          {formatYear(entry.releaseDate || undefined)}
-        </p>
+      <div className="entry-tile-title">
+        {entry.title}
       </div>
     </div>
   );
@@ -206,110 +253,133 @@ function WatchlistRow({
   return (
     <div
       ref={setNodeRef}
-      className={`watchlist-row ${isDragging ? 'watchlist-row--dragging' : ''} ${minimized ? 'watchlist-row--minimized' : ''}`}
+      className={`entry-row-wrapper ${isDragging ? 'entry-row-wrapper--dragging' : ''}`}
       style={style}
       data-watchlist-id={entry.id}
       {...attributes}
       {...listeners}
     >
-      <div className="watchlist-row-main">
-        <div className="watchlist-row-poster">
-          {entry.posterPath && (
+      <div className={`entry-row ${minimized ? 'entry-row-minimized' : ''} ${hasWatched ? 'watched' : ''}`}>
+        <div className="entry-poster">
+          {entry.posterPath ? (
             <img
-              src={tmdbImagePath(entry.posterPath, minimized ? 'w45' : 'w154') || undefined}
+              src={tmdbImagePath(entry.posterPath, 'w300') || undefined}
               alt={entry.title}
-              className="watchlist-row-poster-img"
               loading="lazy"
             />
+          ) : (
+            <span>
+              {type === 'movies' ? '🎬' : '📺'}
+            </span>
           )}
         </div>
-        <div className="watchlist-row-info">
-          <h3 className="watchlist-row-title">{entry.title}</h3>
-          {!minimized && (
-            <p className="watchlist-row-meta">
-              {formatYear(entry.releaseDate || undefined)}
-            </p>
-          )}
-          {!minimized && providers && providers.length > 0 && (
-            <div className="watchlist-row-providers">
-              {providers?.slice(0, 3).map((provider, idx) => (
-                <div key={idx} className="watchlist-provider-item">
-                  <img
-                    src={tmdbImagePath(provider.logo_path, 'w45') || undefined}
-                    alt={provider.provider_name}
-                    title={provider.provider_name}
-                    className="watchlist-row-provider-img"
-                    loading="lazy"
-                  />
-                  {provider.type === 'subs' && (
-                    <span className="watchlist-provider-badge watchlist-provider-badge--subs">SUBS</span>
+        <div className="entry-content">
+          <div className="entry-left-col">
+            <div className="entry-title-row">
+              <h3 className="entry-title">{entry.title}</h3>
+              {onInfo && (
+                <button
+                  type="button"
+                  className="entry-title-info-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInfo();
+                  }}
+                  title="Info"
+                >
+                  <Info size={14} />
+                </button>
+              )}
+            </div>
+            {!minimized && (
+              <>
+                <div className="entry-stats-row">
+                  <div className="entry-stat-pill">
+                    {formatYear(entry.releaseDate)}
+                  </div>
+                  {isUnreleased(entry.releaseDate) && (
+                    <div className="entry-stat-pill">
+                      {formatDate(entry.releaseDate)}
+                    </div>
                   )}
                 </div>
-              ))}
+                {providers && providers.length > 0 && (
+                  <div className="entry-details">
+                    {providers?.slice(0, 3).map((provider, idx) => (
+                      <div key={idx} className="entry-detail-pill">
+                        <img
+                          src={tmdbImagePath(provider.logo_path, 'w45') || undefined}
+                          alt={provider.provider_name}
+                          title={provider.provider_name}
+                          style={{ width: '18px', height: '18px', borderRadius: '3px', marginRight: '4px' }}
+                          loading="lazy"
+                        />
+                        {provider.provider_name}
+                        {provider.type === 'subs' && (
+                          <span style={{ color: '#4ade80', marginLeft: '4px' }}>[SUBS]</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="entry-right-col">
+            <div className="entry-controls">
+              <button
+                type="button"
+                className="entry-record-first"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRecordWatch();
+                }}
+                title="Record Watch"
+              >
+                RW
+              </button>
+              {!minimized && (
+                <>
+                  <button
+                    type="button"
+                    className="entry-move-btn"
+                    aria-label="Move up"
+                    disabled={!canMoveUp}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMoveUp();
+                    }}
+                    title="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="entry-move-btn"
+                    aria-label="Move down"
+                    disabled={!canMoveDown}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMoveDown();
+                    }}
+                    title="Move down"
+                  >
+                    ↓
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className={`entry-config-btn ${showConfirm ? 'confirming' : ''}`}
+                aria-label="Remove from watchlist"
+                onClick={handleClick}
+                title="Remove"
+              >
+                {showConfirm ? '✓' : '✕'}
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
-      <div className="watchlist-row-actions">
-        <button
-          type="button"
-          className={`watchlist-row-remove-btn ${showConfirm ? 'confirming' : ''}`}
-          aria-label="Remove from watchlist"
-          onClick={handleClick}
-        >
-          {showConfirm ? '✓ Confirm Remove' : '✕'}
-        </button>
-        {!minimized && (
-          <>
-            <button
-              type="button"
-              className="watchlist-row-move-btn"
-              aria-label="Move up"
-              disabled={!canMoveUp}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveUp();
-              }}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="watchlist-row-move-btn"
-              aria-label="Move down"
-              disabled={!canMoveDown}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveDown();
-              }}
-            >
-              ↓
-            </button>
-          </>
-        )}
-        {onInfo && (
-          <button
-            type="button"
-            className="watchlist-row-btn watchlist-row-info-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onInfo();
-            }}
-            title="Info"
-          >
-            <Info size={14} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="watchlist-row-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRecordWatch();
-          }}
-        >
-          Record watch
-        </button>
       </div>
     </div>
   );
@@ -617,6 +687,152 @@ export function WatchlistPage() {
     }
   };
 
+  const renderSeparatedWatchlist = (
+    entries: WatchlistEntry[],
+    type: WatchlistType
+  ) => {
+    const { released, unreleased } = separateReleasedAndUnreleased(entries);
+    const hasBoth = released.length > 0 && unreleased.length > 0;
+
+    return (
+      <>
+        {released.length > 0 && (
+          <>
+            {settings.viewMode === 'tile' ? (
+              <div className="class-section-rows class-section-rows--tile">
+                <SortableContext items={released.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
+                  {released.map((entry, index) => (
+                    <WatchlistTile
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      providers={watchProviders[entry.id]}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            ) : settings.viewMode === 'minimized' ? (
+              <div className="class-section-rows">
+                <SortableContext items={released.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  {released.map((entry, index) => (
+                    <WatchlistRow
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
+                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < released.length - 1}
+                      providers={watchProviders[entry.id]}
+                      minimized={true}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            ) : (
+              <div className="class-section-rows">
+                <SortableContext items={released.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  {released.map((entry, index) => (
+                    <WatchlistRow
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
+                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < released.length - 1}
+                      providers={watchProviders[entry.id]}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            )}
+          </>
+        )}
+        
+        {hasBoth && (
+          <div className="watchlist-divider">
+            <div className="watchlist-divider-line"></div>
+            <div className="watchlist-divider-label">Unreleased</div>
+            <div className="watchlist-divider-line"></div>
+          </div>
+        )}
+        
+        {unreleased.length > 0 && (
+          <>
+            {settings.viewMode === 'tile' ? (
+              <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
+                {unreleased.map((entry) => (
+                  <WatchlistTile
+                    key={entry.id}
+                    entry={entry}
+                    type={type}
+                    onRecordWatch={() => handleRecordWatch(entry, type)}
+                    onRemove={() => removeFromWatchlist(entry.id)}
+                    hasWatched={hasWatched(entry.id)}
+                    providers={watchProviders[entry.id]}
+                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                  />
+                ))}
+              </div>
+            ) : settings.viewMode === 'minimized' ? (
+              <div className="class-section-rows class-section-rows--unreleased">
+                {unreleased.map((entry, index) => (
+                  <WatchlistRow
+                    key={entry.id}
+                    entry={entry}
+                    type={type}
+                    onRecordWatch={() => handleRecordWatch(entry, type)}
+                    onMoveUp={() => {}} // Disabled for unreleased
+                    onMoveDown={() => {}} // Disabled for unreleased
+                    onRemove={() => removeFromWatchlist(entry.id)}
+                    hasWatched={hasWatched(entry.id)}
+                    canMoveUp={false}
+                    canMoveDown={false}
+                    providers={watchProviders[entry.id]}
+                    minimized={true}
+                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="class-section-rows class-section-rows--unreleased">
+                {unreleased.map((entry, index) => (
+                  <WatchlistRow
+                    key={entry.id}
+                    entry={entry}
+                    type={type}
+                    onRecordWatch={() => handleRecordWatch(entry, type)}
+                    onMoveUp={() => {}} // Disabled for unreleased
+                    onMoveDown={() => {}} // Disabled for unreleased
+                    onRemove={() => removeFromWatchlist(entry.id)}
+                    hasWatched={hasWatched(entry.id)}
+                    canMoveUp={false}
+                    canMoveDown={false}
+                    providers={watchProviders[entry.id]}
+                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </>
+    );
+  };
+
   return (
     <section>
       <header className="page-heading">
@@ -652,67 +868,7 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">Movies</h3>
                 <p className="class-section-count">{movies.length} entries</p>
               </header>
-              {settings.viewMode === 'tile' ? (
-                <div className="watchlist-tiles">
-                  <SortableContext items={movies.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
-                    {movies.map((entry, index) => (
-                      <WatchlistTile
-                        key={entry.id}
-                        entry={entry}
-                        type="movies"
-                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        providers={watchProviders[entry.id]}
-                        onInfo={() => handleInfo(entry, 'movie')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              ) : settings.viewMode === 'minimized' ? (
-                <div className="class-section-rows class-section-rows--minimized">
-                  <SortableContext items={movies.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                    {movies.map((entry, index) => (
-                      <WatchlistRow
-                        key={entry.id}
-                        entry={entry}
-                        type="movies"
-                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
-                        onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
-                        onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < movies.length - 1}
-                        providers={watchProviders[entry.id]}
-                        minimized={true}
-                        onInfo={() => handleInfo(entry, 'movie')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              ) : (
-                <div className="class-section-rows">
-                  <SortableContext items={movies.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                    {movies.map((entry, index) => (
-                      <WatchlistRow
-                        key={entry.id}
-                        entry={entry}
-                        type="movies"
-                        onRecordWatch={() => handleRecordWatch(entry, 'movies')}
-                        onMoveUp={() => moveWatchlistEntry('movies', index, -1)}
-                        onMoveDown={() => moveWatchlistEntry('movies', index, 1)}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < movies.length - 1}
-                        providers={watchProviders[entry.id]}
-                        onInfo={() => handleInfo(entry, 'movie')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              )}
+              {renderSeparatedWatchlist(movies, 'movies')}
             </section>
 
             <section className="watchlist-section class-section">
@@ -720,67 +876,7 @@ export function WatchlistPage() {
                 <h3 className="class-section-title">TV Shows</h3>
                 <p className="class-section-count">{tv.length} entries</p>
               </header>
-              {settings.viewMode === 'tile' ? (
-                <div className="watchlist-tiles">
-                  <SortableContext items={tv.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
-                    {tv.map((entry, index) => (
-                      <WatchlistTile
-                        key={entry.id}
-                        entry={entry}
-                        type="tv"
-                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        providers={watchProviders[entry.id]}
-                        onInfo={() => handleInfo(entry, 'tv')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              ) : settings.viewMode === 'minimized' ? (
-                <div className="class-section-rows class-section-rows--minimized">
-                  <SortableContext items={tv.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                    {tv.map((entry, index) => (
-                      <WatchlistRow
-                        key={entry.id}
-                        entry={entry}
-                        type="tv"
-                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
-                        onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
-                        onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < tv.length - 1}
-                        providers={watchProviders[entry.id]}
-                        minimized={true}
-                        onInfo={() => handleInfo(entry, 'tv')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              ) : (
-                <div className="class-section-rows">
-                  <SortableContext items={tv.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                    {tv.map((entry, index) => (
-                      <WatchlistRow
-                        key={entry.id}
-                        entry={entry}
-                        type="tv"
-                        onRecordWatch={() => handleRecordWatch(entry, 'tv')}
-                        onMoveUp={() => moveWatchlistEntry('tv', index, -1)}
-                        onMoveDown={() => moveWatchlistEntry('tv', index, 1)}
-                        onRemove={() => removeFromWatchlist(entry.id)}
-                        hasWatched={hasWatched(entry.id)}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < tv.length - 1}
-                        providers={watchProviders[entry.id]}
-                        onInfo={() => handleInfo(entry, 'tv')}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-              )}
+              {renderSeparatedWatchlist(tv, 'tv')}
             </section>
           </div>
         </DndContext>

@@ -55,6 +55,49 @@ export function WatchlistProvider({
   const currentStateRef = useRef({ movies, tv });
   currentStateRef.current = { movies, tv };
 
+  // Batch refresh on mount to move released movies
+  useEffect(() => {
+    const refreshReleasedMovies = () => {
+      const isUnreleased = (releaseDate?: string): boolean => {
+        if (!releaseDate) return false;
+        const release = new Date(releaseDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return release > today;
+      };
+
+      const sortReleasedFirst = (entries: WatchlistEntry[]): WatchlistEntry[] => {
+        const released: WatchlistEntry[] = [];
+        const unreleased: WatchlistEntry[] = [];
+        
+        entries.forEach(entry => {
+          if (isUnreleased(entry.releaseDate)) {
+            unreleased.push(entry);
+          } else {
+            released.push(entry);
+          }
+        });
+        
+        // Sort unreleased by release date
+        const sortedUnreleased = unreleased.sort((a, b) => {
+          if (!a.releaseDate) return 1;
+          if (!b.releaseDate) return -1;
+          return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
+        });
+        
+        return [...released, ...sortedUnreleased];
+      };
+
+      setMovies(prev => sortReleasedFirst(prev));
+      setTv(prev => sortReleasedFirst(prev));
+    };
+
+    // Only run on initial mount after hydration
+    if (!isHydratedRef.current) {
+      refreshReleasedMovies();
+    }
+  }, []);
+
   useEffect(() => {
     // 1. Skip the very first "fresh load" mutation
     if (!isHydratedRef.current) {
