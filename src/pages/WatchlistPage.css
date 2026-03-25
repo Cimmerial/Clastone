@@ -38,6 +38,193 @@
   color: var(--text-primary);
 }
 
+/* Overlap-with-friends button */
+.watchlist-overlap-open-btn {
+  background: rgba(26, 26, 26, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 18px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.watchlist-overlap-open-btn:hover {
+  background: rgba(26, 26, 26, 0.8);
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.watchlist-overlap-open-btn--active {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(26, 26, 26, 0.95);
+  color: var(--text-primary);
+}
+
+/* Overlap modal */
+.watchlist-overlap-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 16px;
+}
+
+.watchlist-overlap-modal {
+  width: min(640px, 100%);
+  max-height: min(78vh, 720px);
+  background: rgba(12, 12, 12, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.watchlist-overlap-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.watchlist-overlap-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.watchlist-overlap-modal-close {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(26, 26, 26, 0.35);
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.watchlist-overlap-modal-close:hover {
+  background: rgba(26, 26, 26, 0.75);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.watchlist-overlap-modal-body {
+  padding: 12px 14px;
+  overflow: auto;
+}
+
+.watchlist-overlap-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
+.watchlist-overlap-friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.watchlist-overlap-friend-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(26, 26, 26, 0.22);
+  cursor: pointer;
+}
+
+.watchlist-overlap-friend-row:hover {
+  border-color: rgba(244, 162, 97, 0.28);
+  background: rgba(26, 26, 26, 0.35);
+}
+
+.watchlist-overlap-friend-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.watchlist-overlap-friend-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.watchlist-overlap-friend-name {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.watchlist-overlap-friend-sub {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist-overlap-modal-footer {
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.watchlist-overlap-btn {
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.watchlist-overlap-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.watchlist-overlap-btn--ghost {
+  background: rgba(26, 26, 26, 0.2);
+  color: var(--text-muted);
+}
+
+.watchlist-overlap-btn--ghost:hover {
+  background: rgba(26, 26, 26, 0.5);
+  color: var(--text-primary);
+}
+
+.watchlist-overlap-btn--primary {
+  background: rgba(244, 162, 97, 0.18);
+  border-color: rgba(244, 162, 97, 0.35);
+  color: var(--text-primary);
+}
+
+.watchlist-overlap-btn--primary:hover {
+  background: rgba(244, 162, 97, 0.28);
+  border-color: rgba(244, 162, 97, 0.55);
+}
+
 /* Use the same styles as ranked lists for consistency */
 .watchlist-sections {
   display: flex;
