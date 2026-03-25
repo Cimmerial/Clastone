@@ -12,6 +12,8 @@ export type GlobalSettings = {
     useSpotlightBackground: boolean;
     showHomepageFlag: boolean;
     dismissedHomepageFlags: string[];
+    watchRegion: string;
+    myWatchProviderIds: number[];
 };
 
 type SettingsStore = {
@@ -35,6 +37,8 @@ function getInitialSettings(): GlobalSettings {
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
         const shf = localStorage.getItem('clastone-showHomepageFlag');
         const dhf = localStorage.getItem('clastone-dismissedHomepageFlags');
+        const wr = localStorage.getItem('clastone-watchRegion');
+        const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
         if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
@@ -59,6 +63,18 @@ function getInitialSettings(): GlobalSettings {
             }
         }
 
+        let myWatchProviderIds: number[] = [];
+        if (wps) {
+            try {
+                const parsed = JSON.parse(wps);
+                if (Array.isArray(parsed)) {
+                    myWatchProviderIds = parsed.map((n) => Number(n)).filter((n) => Number.isFinite(n));
+                }
+            } catch {
+                myWatchProviderIds = [];
+            }
+        }
+
         return {
             topCastCount: cast ? Number(cast) : 5,
             topRoleCount: role ? Number(role) : 5,
@@ -70,7 +86,9 @@ function getInitialSettings(): GlobalSettings {
             excludeSelfRoles: esr === 'true',
             useSpotlightBackground: usb === 'true',
             showHomepageFlag: shf !== 'false',
-            dismissedHomepageFlags
+            dismissedHomepageFlags,
+            watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
+            myWatchProviderIds
         };
     } catch {
         return {
@@ -84,7 +102,9 @@ function getInitialSettings(): GlobalSettings {
             excludeSelfRoles: false,
             useSpotlightBackground: false,
             showHomepageFlag: true,
-            dismissedHomepageFlags: []
+            dismissedHomepageFlags: [],
+            watchRegion: 'US',
+            myWatchProviderIds: []
         };
     }
 }
@@ -155,6 +175,8 @@ export function SettingsProvider({
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
                 if (updates.showHomepageFlag !== undefined) localStorage.setItem('clastone-showHomepageFlag', String(next.showHomepageFlag));
                 if (updates.dismissedHomepageFlags !== undefined) localStorage.setItem('clastone-dismissedHomepageFlags', JSON.stringify(next.dismissedHomepageFlags));
+                if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
+                if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
 
             } catch { /* ignore */ }
             return next;

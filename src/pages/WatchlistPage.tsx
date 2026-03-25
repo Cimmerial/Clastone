@@ -22,7 +22,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviderCatalog, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { db } from '../lib/firebase';
 import { loadWatchlist, type WatchlistData } from '../lib/firestoreWatchlist';
@@ -32,6 +32,20 @@ type WatchlistSectionKey = 'default' | 'rewatch' | 'unreleased';
 type WatchlistVisibilityMode = 'ALL' | 'FREE';
 
 const WATCH_PROVIDERS_SESSION_KEY = 'clastone_watchProviders_v2';
+const WATCH_PROVIDER_CATALOG_SESSION_KEY = 'clastone_watchProviderCatalog_v1';
+
+function normalizeProviderName(name: string) {
+  return name.trim();
+}
+
+function uniqProviders(list: TmdbWatchProvider[]) {
+  const byId = new Map<number, TmdbWatchProvider>();
+  for (const p of list) {
+    const existing = byId.get(p.provider_id);
+    if (!existing) byId.set(p.provider_id, p);
+  }
+  return Array.from(byId.values()).sort((a, b) => (a.display_priority ?? 9999) - (b.display_priority ?? 9999));
+}
 
 function FriendOverlapModal({
   isOpen,
@@ -202,6 +216,120 @@ function FriendOverlapModal({
             title={friends.length === 0 ? 'Add friends first' : undefined}
           >
             {isLoading ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MyServicesModal({
+  isOpen,
+  onClose,
+  providers,
+  selectedProviderIds,
+  onSelectionChange,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  providers: TmdbWatchProvider[];
+  selectedProviderIds: number[];
+  onSelectionChange: (ids: number[]) => void;
+  isLoading: boolean;
+}) {
+  const [query, setQuery] = useState('');
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = orig || 'unset';
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  const selected = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return providers;
+    return providers.filter((p) => normalizeProviderName(p.provider_name).toLowerCase().includes(q));
+  }, [providers, query]);
+
+  const toggle = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange(Array.from(next));
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="watchlist-overlap-backdrop" onClick={onClose}>
+      <div className="watchlist-services-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="watchlist-overlap-modal-header">
+          <div className="watchlist-overlap-modal-title">My streaming services</div>
+          <button type="button" className="watchlist-overlap-modal-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        <div className="watchlist-overlap-modal-body">
+          <div className="watchlist-services-top">
+            <input
+              className="watchlist-services-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search services…"
+            />
+            <div className="watchlist-services-meta">
+              Selected: {selected.size}
+              {isLoading ? ' · Loading…' : ''}
+            </div>
+          </div>
+
+          {providers.length === 0 && !isLoading ? (
+            <div className="watchlist-overlap-empty">No providers loaded.</div>
+          ) : (
+            <div className="watchlist-services-list" role="list">
+              {filtered.map((p) => {
+                const checked = selected.has(p.provider_id);
+                return (
+                  <label key={p.provider_id} className="watchlist-services-row" role="listitem">
+                    <input type="checkbox" checked={checked} onChange={() => toggle(p.provider_id)} />
+                    {p.logo_path ? (
+                      <img
+                        className="watchlist-services-logo"
+                        src={tmdbImagePath(p.logo_path, 'w45') || undefined}
+                        alt=""
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="watchlist-services-logo watchlist-services-logo--placeholder" />
+                    )}
+                    <div className="watchlist-services-name">{p.provider_name}</div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="watchlist-overlap-modal-footer">
+          <button type="button" className="watchlist-overlap-btn watchlist-overlap-btn--ghost" onClick={onClose}>
+            Done
           </button>
         </div>
       </div>
@@ -588,7 +716,7 @@ function WatchlistRow({
 export function WatchlistPage() {
   const navigate = useNavigate();
   const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
-  const { settings } = useSettingsStore();
+  const { settings, updateSettings } = useSettingsStore();
   const mobileViewMode = useMobileViewMode();
   const { friends } = useFriends();
   const {
@@ -623,6 +751,17 @@ export function WatchlistPage() {
   const [isLoadingOverlap, setIsLoadingOverlap] = useState(false);
   const [friendWatchlists, setFriendWatchlists] = useState<Record<string, WatchlistData>>({});
   const [friendWatchlistErrors, setFriendWatchlistErrors] = useState<Record<string, true | undefined>>({});
+  const [isMyServicesModalOpen, setIsMyServicesModalOpen] = useState(false);
+  const [providerCatalogLoading, setProviderCatalogLoading] = useState(false);
+  const [providerCatalog, setProviderCatalog] = useState<TmdbWatchProvider[]>(() => {
+    try {
+      const raw = sessionStorage.getItem(WATCH_PROVIDER_CATALOG_SESSION_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw) as TmdbWatchProvider[];
+    } catch {
+      return [];
+    }
+  });
   const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>>>(() => {
     try {
       const raw = sessionStorage.getItem(WATCH_PROVIDERS_SESSION_KEY);
@@ -700,7 +839,40 @@ export function WatchlistPage() {
   };
 
   // Track modal state
-  const hasActiveModal = !!recordTarget || !!infoModalTarget || isOverlapModalOpen;
+  const hasActiveModal = !!recordTarget || !!infoModalTarget || isOverlapModalOpen || isMyServicesModalOpen;
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(WATCH_PROVIDER_CATALOG_SESSION_KEY, JSON.stringify(providerCatalog));
+    } catch {
+      /* ignore */
+    }
+  }, [providerCatalog]);
+
+  useEffect(() => {
+    if (!isMyServicesModalOpen) return;
+    if (providerCatalog.length > 0) return;
+    let cancelled = false;
+    const loadCatalog = async () => {
+      setProviderCatalogLoading(true);
+      try {
+        const [movie, tv] = await Promise.all([
+          tmdbWatchProviderCatalog('movie', { watchRegion: settings.watchRegion }),
+          tmdbWatchProviderCatalog('tv', { watchRegion: settings.watchRegion }),
+        ]);
+        if (cancelled) return;
+        setProviderCatalog(uniqProviders([...movie, ...tv]));
+      } catch (err) {
+        console.error('[Clastone] Failed to load provider catalog', err);
+      } finally {
+        if (!cancelled) setProviderCatalogLoading(false);
+      }
+    };
+    loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [isMyServicesModalOpen, providerCatalog.length, settings.watchRegion]);
 
   useEffect(() => {
     if (!db) return;
@@ -948,9 +1120,11 @@ export function WatchlistPage() {
 
   const isFreeEntry = (entry: WatchlistEntry): boolean => {
     if (watchlistVisibilityMode === 'ALL') return true;
+    if ((settings.myWatchProviderIds?.length ?? 0) === 0) return false;
     const providers = watchProviders[entry.id];
-    // Free = included with subscription services (no ad-supported-only matches).
-    return !!providers?.some((p) => p.type === 'subs');
+    const allowed = new Set(settings.myWatchProviderIds);
+    // "FREE" here means: available on one of *my* subscription services.
+    return !!providers?.some((p) => p.type === 'subs' && allowed.has(p.provider_id));
   };
 
   const overlapMovieIdSet = useMemo(() => {
@@ -1290,6 +1464,14 @@ export function WatchlistPage() {
             >
               View overlap with friends
             </button>
+            <button
+              type="button"
+              className={`watchlist-services-open-btn ${(settings.myWatchProviderIds?.length ?? 0) > 0 ? 'watchlist-services-open-btn--active' : ''}`}
+              onClick={() => setIsMyServicesModalOpen(true)}
+              title="Pick which streaming services you have"
+            >
+              My services
+            </button>
             <div className="watchlist-visibility-toggle">
               <button
                 type="button"
@@ -1301,7 +1483,15 @@ export function WatchlistPage() {
               <button
                 type="button"
                 className={`watchlist-visibility-btn ${watchlistVisibilityMode === 'FREE' ? 'watchlist-visibility-btn--active' : ''}`}
-                onClick={() => setWatchlistVisibilityMode('FREE')}
+                onClick={() => {
+                  if ((settings.myWatchProviderIds?.length ?? 0) === 0) {
+                    setIsMyServicesModalOpen(true);
+                    return;
+                  }
+                  setWatchlistVisibilityMode('FREE');
+                }}
+                disabled={(settings.myWatchProviderIds?.length ?? 0) === 0}
+                title={(settings.myWatchProviderIds?.length ?? 0) === 0 ? 'Select services first' : undefined}
               >
                 FREE
               </button>
@@ -1434,6 +1624,17 @@ export function WatchlistPage() {
         myTvIds={tv.map((t) => t.id)}
         friendWatchlists={friendWatchlists}
         friendWatchlistErrors={friendWatchlistErrors}
+      />
+
+      <MyServicesModal
+        isOpen={isMyServicesModalOpen}
+        onClose={() => setIsMyServicesModalOpen(false)}
+        providers={providerCatalog}
+        selectedProviderIds={settings.myWatchProviderIds ?? []}
+        onSelectionChange={(ids) => {
+          updateSettings({ myWatchProviderIds: ids });
+        }}
+        isLoading={providerCatalogLoading}
       />
     </section>
   );

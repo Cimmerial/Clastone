@@ -84,6 +84,10 @@ export type TmdbWatchProvidersResponse = {
   };
 };
 
+export type TmdbWatchProviderCatalogResponse = {
+  results: TmdbWatchProvider[];
+};
+
 type TmdbSearchMovieResponse = {
   results: TmdbMovieResult[];
 };
@@ -650,6 +654,22 @@ export async function tmdbWatchProviders(
   return tmdbGet<TmdbWatchProvidersResponse>(`/${mediaType}/${id}/watch/providers`, signal).catch(
     () => null
   );
+}
+
+/** Fetch the full watch provider catalog for region/media type. */
+export async function tmdbWatchProviderCatalog(
+  mediaType: 'movie' | 'tv',
+  opts?: { watchRegion?: string; language?: string; signal?: AbortSignal }
+): Promise<TmdbWatchProvider[]> {
+  const watchRegion = opts?.watchRegion ?? 'US';
+  const language = opts?.language ?? 'en-US';
+  const signal = opts?.signal;
+  const url = new URL(`${TMDB_BASE}/watch/providers/${mediaType}`);
+  url.searchParams.set('watch_region', watchRegion);
+  url.searchParams.set('language', language);
+  const path = url.toString().replace(TMDB_BASE, '');
+  const res = await tmdbGet<TmdbWatchProviderCatalogResponse>(path, signal);
+  return res?.results ?? [];
 }
 
 /** Discover top movies by year */
