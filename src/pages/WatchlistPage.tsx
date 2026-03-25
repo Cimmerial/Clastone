@@ -25,6 +25,8 @@ import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProvid
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import './WatchlistPage.css';
 
+type WatchlistSectionKey = 'default' | 'rewatch' | 'unreleased';
+
 function formatYear(releaseDate?: string): string {
   if (!releaseDate) return '—';
   const y = releaseDate.slice(0, 4);
@@ -74,6 +76,10 @@ function separateReleasedAndUnreleased(entries: WatchlistEntry[], hasWatched: (i
   });
   
   return { released, rewatch, unreleased: sortUnreleasedByDate(unreleased) };
+}
+
+function getWatchlistSectionId(type: WatchlistType, section: WatchlistSectionKey): string {
+  return `watchlist-section-${type}-${section}`;
 }
 
 function WatchlistTile({
@@ -693,6 +699,26 @@ export function WatchlistPage() {
     }
   };
 
+  const movieSections = separateReleasedAndUnreleased(movies, hasWatched);
+  const tvSections = separateReleasedAndUnreleased(tv, hasWatched);
+  const jumpButtons = [
+    { id: 'movies-default', label: 'New Movies', type: 'movies' as const, section: 'default' as const, count: movieSections.released.length },
+    { id: 'movies-rewatch', label: 'Movie Rewatch', type: 'movies' as const, section: 'rewatch' as const, count: movieSections.rewatch.length },
+    { id: 'movies-unreleased', label: 'Movie Unreleased', type: 'movies' as const, section: 'unreleased' as const, count: movieSections.unreleased.length },
+    { id: 'tv-default', label: 'New Shows', type: 'tv' as const, section: 'default' as const, count: tvSections.released.length },
+    { id: 'tv-rewatch', label: 'Show Rewatch', type: 'tv' as const, section: 'rewatch' as const, count: tvSections.rewatch.length },
+    { id: 'tv-unreleased', label: 'Show Unreleased', type: 'tv' as const, section: 'unreleased' as const, count: tvSections.unreleased.length }
+  ];
+
+  const handleWatchlistJump = (type: WatchlistType, section: WatchlistSectionKey) => {
+    const targetId = getWatchlistSectionId(type, section);
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const offset = 72;
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+
   const renderSeparatedWatchlist = (
     entries: WatchlistEntry[],
     type: WatchlistType
@@ -705,7 +731,7 @@ export function WatchlistPage() {
     return (
       <>
         {hasReleased && (
-          <>
+          <div id={getWatchlistSectionId(type, 'default')}>
             {settings.viewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile">
                 <SortableContext items={released.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
@@ -767,7 +793,7 @@ export function WatchlistPage() {
                 </SortableContext>
               </div>
             )}
-          </>
+          </div>
         )}
         
         {(hasReleased && hasRewatch) && (
@@ -779,7 +805,7 @@ export function WatchlistPage() {
         )}
         
         {hasRewatch && (
-          <>
+          <div id={getWatchlistSectionId(type, 'rewatch')}>
             {settings.viewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile class-section-rows--rewatch">
                 <SortableContext items={rewatch.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
@@ -841,7 +867,7 @@ export function WatchlistPage() {
                 </SortableContext>
               </div>
             )}
-          </>
+          </div>
         )}
         
         {((hasReleased || hasRewatch) && hasUnreleased) && (
@@ -853,7 +879,7 @@ export function WatchlistPage() {
         )}
         
         {hasUnreleased && (
-          <>
+          <div id={getWatchlistSectionId(type, 'unreleased')}>
             {settings.viewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
                 {unreleased.map((entry) => (
@@ -909,7 +935,7 @@ export function WatchlistPage() {
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
       </>
     );
@@ -962,6 +988,20 @@ export function WatchlistPage() {
             </section>
           </div>
         </DndContext>
+      </div>
+      <div className="watchlist-jump-bar">
+        {jumpButtons.map((btn) => (
+          <button
+            key={btn.id}
+            type="button"
+            className="watchlist-jump-btn"
+            onClick={() => handleWatchlistJump(btn.type, btn.section)}
+            disabled={btn.count === 0}
+            title={btn.label}
+          >
+            {btn.label}
+          </button>
+        ))}
       </div>
 
       {recordTarget && (
