@@ -36,24 +36,29 @@ const WATCH_PROVIDERS_SESSION_KEY = 'clastone_watchProviders_v2';
 function FriendOverlapModal({
   isOpen,
   friends,
-  initialSelectedUids,
+  selectedUids,
   onClose,
-  onSave,
+  onSelectionChange,
+  onCommit,
   isLoading,
+  myMovieIds,
+  myTvIds,
+  friendWatchlists,
+  friendWatchlistErrors,
 }: {
   isOpen: boolean;
-  friends: Array<{ uid: string; username: string; email: string }>;
-  initialSelectedUids: string[];
+  friends: Array<{ uid: string; username: string }>;
+  selectedUids: string[];
   onClose: () => void;
-  onSave: (uids: string[]) => void;
+  onSelectionChange: (uids: string[]) => void;
+  onCommit: (uids: string[]) => void;
   isLoading: boolean;
+  myMovieIds: string[];
+  myTvIds: string[];
+  friendWatchlists: Record<string, WatchlistData>;
+  friendWatchlistErrors: Record<string, true | undefined>;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelectedUids));
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setSelected(new Set(initialSelectedUids));
-  }, [isOpen, initialSelectedUids]);
+  const selected = useMemo(() => new Set(selectedUids), [selectedUids]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -74,18 +79,54 @@ function FriendOverlapModal({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const toggleUid = (uid: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
+    const next = new Set(selected);
+    if (next.has(uid)) next.delete(uid);
+    else next.add(uid);
+    onSelectionChange(Array.from(next));
   };
 
-  const selectedArray = Array.from(selected);
+  const selectedArray = selectedUids;
+  const selectedCount = selectedArray.length;
+
+  const preview = useMemo(() => {
+    // Preview is computed from "my list" intersected with all selected friends.
+    // If any selected friend data isn't loaded yet, show loading state.
+    if (selectedCount === 0) {
+      return { loading: false, unavailable: false, movies: myMovieIds.length, tv: myTvIds.length };
+    }
+
+    const hasError = selectedArray.some((uid) => friendWatchlistErrors[uid]);
+    if (hasError) return { loading: false, unavailable: true, movies: 0, tv: 0 };
+
+    const missing = selectedArray.some((uid) => !friendWatchlists[uid]);
+    if (missing) return { loading: true, unavailable: false, movies: 0, tv: 0 };
+
+    const movieIntersection = new Set<string>(myMovieIds);
+    const tvIntersection = new Set<string>(myTvIds);
+
+    for (const uid of selectedArray) {
+      const wl = friendWatchlists[uid];
+      const friendMovieIds = new Set(wl.movies.map((m) => m.id));
+      const friendTvIds = new Set(wl.tv.map((t) => t.id));
+
+      for (const id of Array.from(movieIntersection)) {
+        if (!friendMovieIds.has(id)) movieIntersection.delete(id);
+      }
+      for (const id of Array.from(tvIntersection)) {
+        if (!friendTvIds.has(id)) tvIntersection.delete(id);
+      }
+    }
+
+    return {
+      loading: false,
+      unavailable: false,
+      movies: movieIntersection.size,
+      tv: tvIntersection.size,
+    };
+  }, [selectedArray, selectedCount, friendWatchlists, friendWatchlistErrors, myMovieIds, myTvIds]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="watchlist-overlap-backdrop" onClick={onClose}>
@@ -98,6 +139,27 @@ function FriendOverlapModal({
         </div>
 
         <div className="watchlist-overlap-modal-body">
+          <div className="watchlist-overlap-preview">
+            <div className="watchlist-overlap-preview-row">
+              <span className="watchlist-overlap-preview-label">Your watchlist</span>
+              <span className="watchlist-overlap-preview-value">Movies {myMovieIds.length} · Shows {myTvIds.length}</span>
+            </div>
+            <div className="watchlist-overlap-preview-row">
+              <span className="watchlist-overlap-preview-label">After overlap</span>
+              <span className="watchlist-overlap-preview-value">
+                {preview.loading
+                  ? 'Loading…'
+                  : preview.unavailable
+                    ? 'Unavailable'
+                    : `Movies ${preview.movies} · Shows ${preview.tv}`}
+              </span>
+            </div>
+            <div className="watchlist-overlap-preview-row watchlist-overlap-preview-row--muted">
+              <span className="watchlist-overlap-preview-label">Selected friends</span>
+              <span className="watchlist-overlap-preview-value">{selectedCount}</span>
+            </div>
+          </div>
+
           {friends.length === 0 ? (
             <div className="watchlist-overlap-empty">
               You don&apos;t have any friends added yet.
@@ -115,7 +177,6 @@ function FriendOverlapModal({
                     />
                     <div className="watchlist-overlap-friend-meta">
                       <div className="watchlist-overlap-friend-name">{f.username}</div>
-                      <div className="watchlist-overlap-friend-sub">{f.email}</div>
                     </div>
                   </label>
                 );
@@ -136,7 +197,7 @@ function FriendOverlapModal({
           <button
             type="button"
             className="watchlist-overlap-btn watchlist-overlap-btn--primary"
-            onClick={() => onSave(selectedArray)}
+            onClick={() => onCommit(selectedArray)}
             disabled={isLoading}
             title={friends.length === 0 ? 'Add friends first' : undefined}
           >
@@ -558,8 +619,10 @@ export function WatchlistPage() {
   const [watchlistVisibilityMode, setWatchlistVisibilityMode] = useState<WatchlistVisibilityMode>('ALL');
   const [isOverlapModalOpen, setIsOverlapModalOpen] = useState(false);
   const [overlapFriendUids, setOverlapFriendUids] = useState<string[]>([]);
+  const [overlapFriendUidsDraft, setOverlapFriendUidsDraft] = useState<string[]>([]);
   const [isLoadingOverlap, setIsLoadingOverlap] = useState(false);
   const [friendWatchlists, setFriendWatchlists] = useState<Record<string, WatchlistData>>({});
+  const [friendWatchlistErrors, setFriendWatchlistErrors] = useState<Record<string, true | undefined>>({});
   const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>>>(() => {
     try {
       const raw = sessionStorage.getItem(WATCH_PROVIDERS_SESSION_KEY);
@@ -641,9 +704,10 @@ export function WatchlistPage() {
 
   useEffect(() => {
     if (!db) return;
-    if (overlapFriendUids.length === 0) return;
+    const active = isOverlapModalOpen ? overlapFriendUidsDraft : overlapFriendUids;
+    if (active.length === 0) return;
 
-    const missing = overlapFriendUids.filter((uid) => !friendWatchlists[uid]);
+    const missing = active.filter((uid) => !friendWatchlists[uid]);
     if (missing.length === 0) return;
 
     let cancelled = false;
@@ -663,6 +727,8 @@ export function WatchlistPage() {
               ] as const;
             } catch (err) {
               console.error('[Watchlist overlap] Failed to load friend watchlist', { uid, err });
+              // This frequently happens if an ad blocker blocks Firestore requests.
+              setFriendWatchlistErrors((prev) => ({ ...prev, [uid]: true }));
               return [uid, { movies: [] as WatchlistData['movies'], tv: [] as WatchlistData['tv'] }] as const;
             }
           })
@@ -682,7 +748,7 @@ export function WatchlistPage() {
     return () => {
       cancelled = true;
     };
-  }, [overlapFriendUids, friendWatchlists]);
+  }, [overlapFriendUids, overlapFriendUidsDraft, isOverlapModalOpen, friendWatchlists]);
 
   const movieRankedClasses = useMemo(
     () => classOrder.map((k) => ({
@@ -1216,7 +1282,10 @@ export function WatchlistPage() {
             <button
               type="button"
               className={`watchlist-overlap-open-btn ${overlapFriendUids.length > 0 ? 'watchlist-overlap-open-btn--active' : ''}`}
-              onClick={() => setIsOverlapModalOpen(true)}
+              onClick={() => {
+                setOverlapFriendUidsDraft(overlapFriendUids);
+                setIsOverlapModalOpen(true);
+              }}
               title="Show only items on all selected friends' watchlists"
             >
               View overlap with friends
@@ -1350,13 +1419,21 @@ export function WatchlistPage() {
       <FriendOverlapModal
         isOpen={isOverlapModalOpen}
         friends={friends}
-        initialSelectedUids={overlapFriendUids}
+        selectedUids={overlapFriendUidsDraft}
         isLoading={isLoadingOverlap}
-        onClose={() => setIsOverlapModalOpen(false)}
-        onSave={(uids) => {
+        onClose={() => {
+          setIsOverlapModalOpen(false);
+          setOverlapFriendUidsDraft(overlapFriendUids);
+        }}
+        onSelectionChange={(uids) => setOverlapFriendUidsDraft(uids)}
+        onCommit={(uids) => {
           setOverlapFriendUids(uids);
           setIsOverlapModalOpen(false);
         }}
+        myMovieIds={movies.map((m) => m.id)}
+        myTvIds={tv.map((t) => t.id)}
+        friendWatchlists={friendWatchlists}
+        friendWatchlistErrors={friendWatchlistErrors}
       />
     </section>
   );

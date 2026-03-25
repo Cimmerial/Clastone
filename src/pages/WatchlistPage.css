@@ -126,6 +126,40 @@
   overflow: auto;
 }
 
+.watchlist-overlap-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(26, 26, 26, 0.16);
+  margin-bottom: 12px;
+}
+
+.watchlist-overlap-preview-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.watchlist-overlap-preview-row--muted {
+  opacity: 0.85;
+}
+
+.watchlist-overlap-preview-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.watchlist-overlap-preview-value {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .watchlist-overlap-empty {
   color: var(--text-muted);
   font-size: 13px;
