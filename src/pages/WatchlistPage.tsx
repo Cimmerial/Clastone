@@ -26,6 +26,9 @@ import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSavePar
 import './WatchlistPage.css';
 
 type WatchlistSectionKey = 'default' | 'rewatch' | 'unreleased';
+type WatchlistVisibilityMode = 'ALL' | 'FREE';
+
+const WATCH_PROVIDERS_SESSION_KEY = 'clastone_watchProviders_v2';
 
 function formatYear(releaseDate?: string): string {
   if (!releaseDate) return '—';
@@ -89,22 +92,25 @@ function WatchlistTile({
   onRemove,
   hasWatched,
   providers,
-  onInfo
+  onInfo,
+  sortableEnabled = true
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
   onRecordWatch: () => void;
   onRemove: () => void;
   hasWatched: boolean;
-  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
+  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>;
   onInfo?: () => void;
+  sortableEnabled?: boolean;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
-    data: { type }
+    data: { type },
+    disabled: !sortableEnabled
   });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
 
@@ -216,7 +222,8 @@ function WatchlistRow({
   canMoveDown,
   providers,
   minimized = false,
-  onInfo
+  onInfo,
+  sortableEnabled = true
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -227,9 +234,10 @@ function WatchlistRow({
   hasWatched: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>;
+  providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>;
   minimized?: boolean;
   onInfo?: () => void;
+  sortableEnabled?: boolean;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -258,7 +266,8 @@ function WatchlistRow({
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
-    data: { type }
+    data: { type },
+    disabled: !sortableEnabled
   });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
 
@@ -427,14 +436,27 @@ export function WatchlistPage() {
   const [recordTarget, setRecordTarget] = useState<UniversalEditTarget | null>(null);
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }>>>({});
+  const [watchlistVisibilityMode, setWatchlistVisibilityMode] = useState<WatchlistVisibilityMode>('ALL');
+  const [watchProviders, setWatchProviders] = useState<Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>>>(() => {
+    try {
+      const raw = sessionStorage.getItem(WATCH_PROVIDERS_SESSION_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>>;
+    } catch {
+      return {};
+    }
+  });
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
 
   useEffect(() => {
     const fetchAllProviders = async () => {
       const allEntries = [...movies, ...tv];
+      const existingIds = new Set(Object.keys(watchProviders));
+      const newProvidersById: Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>> = {};
+
       for (const entry of allEntries) {
-        if (watchProviders[entry.id]) continue;
+        if (existingIds.has(entry.id)) continue;
+        existingIds.add(entry.id);
         const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
         if (!match) continue;
         const [, media, idStr] = match;
@@ -445,26 +467,35 @@ export function WatchlistPage() {
           const res = await tmdbWatchProviders(tmdbId, media as 'movie' | 'tv');
           const us = res?.results?.US;
           if (us) {
-            const combined: Array<TmdbWatchProvider & { type: 'subs' | 'rent' | 'ads' }> = [
+            const combined: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }> = [
               ...(us.flatrate || []).map(p => ({ ...p, type: 'subs' as const })),
-              ...(us.ads || []).map(p => ({ ...p, type: 'ads' as const })),
               ...(us.rent || []).map(p => ({ ...p, type: 'rent' as const }))
             ];
 
             if (combined.length > 0) {
-              setWatchProviders((prev) => ({
-                ...prev,
-                [entry.id]: combined
-              }));
+              newProvidersById[entry.id] = combined;
             }
           }
         } catch (err) {
           console.error(`Failed to fetch providers for ${entry.id}`, err);
         }
       }
+
+      const newIds = Object.keys(newProvidersById);
+      if (newIds.length > 0) {
+        setWatchProviders((prev) => ({ ...prev, ...newProvidersById }));
+      }
     };
     fetchAllProviders();
   }, [movies, tv]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(WATCH_PROVIDERS_SESSION_KEY, JSON.stringify(watchProviders));
+    } catch {
+      /* ignore cache write errors */
+    }
+  }, [watchProviders]);
 
   const handleInfo = (entry: WatchlistEntry, mediaType: 'movie' | 'tv') => {
     const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
@@ -681,11 +712,27 @@ export function WatchlistPage() {
     return !!(show?.watchRecords && show.watchRecords.length > 0);
   };
 
+  const isFreeEntry = (entry: WatchlistEntry): boolean => {
+    if (watchlistVisibilityMode === 'ALL') return true;
+    const providers = watchProviders[entry.id];
+    // Free = included with subscription services (no ad-supported-only matches).
+    return !!providers?.some((p) => p.type === 'subs');
+  };
+
+  const visibleMovies = useMemo(
+    () => movies.filter(isFreeEntry),
+    [movies, watchProviders, watchlistVisibilityMode]
+  );
+  const visibleTv = useMemo(
+    () => tv.filter(isFreeEntry),
+    [tv, watchProviders, watchlistVisibilityMode]
+  );
+
   // Prepare search items
   const searchItems: SearchableItem[] = useMemo(() => [
-    ...movies.map(entry => ({ id: entry.id, title: entry.title })),
-    ...tv.map(entry => ({ id: entry.id, title: entry.title }))
-  ], [movies, tv]);
+    ...visibleMovies.map(entry => ({ id: entry.id, title: entry.title })),
+    ...visibleTv.map(entry => ({ id: entry.id, title: entry.title }))
+  ], [visibleMovies, visibleTv]);
 
   const handleSearchSelect = (id: string) => {
     const el = document.querySelector(`[data-watchlist-id="${id}"]`);
@@ -699,13 +746,13 @@ export function WatchlistPage() {
     }
   };
 
-  const movieSections = separateReleasedAndUnreleased(movies, hasWatched);
-  const tvSections = separateReleasedAndUnreleased(tv, hasWatched);
+  const movieSections = separateReleasedAndUnreleased(visibleMovies, hasWatched);
+  const tvSections = separateReleasedAndUnreleased(visibleTv, hasWatched);
   const jumpButtons = [
-    { id: 'movies-default', label: 'New Movies', type: 'movies' as const, section: 'default' as const, count: movieSections.released.length },
+    { id: 'movies-default', label: 'Unwatched Movies', type: 'movies' as const, section: 'default' as const, count: movieSections.released.length },
     { id: 'movies-rewatch', label: 'Movie Rewatch', type: 'movies' as const, section: 'rewatch' as const, count: movieSections.rewatch.length },
     { id: 'movies-unreleased', label: 'Movie Unreleased', type: 'movies' as const, section: 'unreleased' as const, count: movieSections.unreleased.length },
-    { id: 'tv-default', label: 'New Shows', type: 'tv' as const, section: 'default' as const, count: tvSections.released.length },
+    { id: 'tv-default', label: 'Unwatched Shows', type: 'tv' as const, section: 'default' as const, count: tvSections.released.length },
     { id: 'tv-rewatch', label: 'Show Rewatch', type: 'tv' as const, section: 'rewatch' as const, count: tvSections.rewatch.length },
     { id: 'tv-unreleased', label: 'Show Unreleased', type: 'tv' as const, section: 'unreleased' as const, count: tvSections.unreleased.length }
   ];
@@ -718,6 +765,8 @@ export function WatchlistPage() {
     const top = el.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top, behavior: 'smooth' });
   };
+
+  const sortableEnabled = watchlistVisibilityMode === 'ALL';
 
   const renderSeparatedWatchlist = (
     entries: WatchlistEntry[],
@@ -744,6 +793,7 @@ export function WatchlistPage() {
                       onRemove={() => removeFromWatchlist(entry.id)}
                       hasWatched={hasWatched(entry.id)}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
                   ))}
@@ -765,6 +815,7 @@ export function WatchlistPage() {
                       canMoveUp={index > 0}
                       canMoveDown={index < released.length - 1}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       minimized={true}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
@@ -787,6 +838,7 @@ export function WatchlistPage() {
                       canMoveUp={index > 0}
                       canMoveDown={index < released.length - 1}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
                   ))}
@@ -818,6 +870,7 @@ export function WatchlistPage() {
                       onRemove={() => removeFromWatchlist(entry.id)}
                       hasWatched={hasWatched(entry.id)}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
                   ))}
@@ -839,6 +892,7 @@ export function WatchlistPage() {
                       canMoveUp={index > 0}
                       canMoveDown={index < rewatch.length - 1}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       minimized={true}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
@@ -861,6 +915,7 @@ export function WatchlistPage() {
                       canMoveUp={index > 0}
                       canMoveDown={index < rewatch.length - 1}
                       providers={watchProviders[entry.id]}
+                      sortableEnabled={sortableEnabled}
                       onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                     />
                   ))}
@@ -891,6 +946,7 @@ export function WatchlistPage() {
                     onRemove={() => removeFromWatchlist(entry.id)}
                     hasWatched={hasWatched(entry.id)}
                     providers={watchProviders[entry.id]}
+                    sortableEnabled={sortableEnabled}
                     onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                   />
                 ))}
@@ -910,6 +966,7 @@ export function WatchlistPage() {
                     canMoveUp={false}
                     canMoveDown={false}
                     providers={watchProviders[entry.id]}
+                    sortableEnabled={sortableEnabled}
                     minimized={true}
                     onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                   />
@@ -930,6 +987,7 @@ export function WatchlistPage() {
                     canMoveUp={false}
                     canMoveDown={false}
                     providers={watchProviders[entry.id]}
+                    sortableEnabled={sortableEnabled}
                     onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
                   />
                 ))}
@@ -951,6 +1009,22 @@ export function WatchlistPage() {
         {!hasActiveModal && (
           <div className="page-actions-row">
             <ViewToggle />
+            <div className="watchlist-visibility-toggle">
+              <button
+                type="button"
+                className={`watchlist-visibility-btn ${watchlistVisibilityMode === 'ALL' ? 'watchlist-visibility-btn--active' : ''}`}
+                onClick={() => setWatchlistVisibilityMode('ALL')}
+              >
+                ALL
+              </button>
+              <button
+                type="button"
+                className={`watchlist-visibility-btn ${watchlistVisibilityMode === 'FREE' ? 'watchlist-visibility-btn--active' : ''}`}
+                onClick={() => setWatchlistVisibilityMode('FREE')}
+              >
+                FREE
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -974,17 +1048,17 @@ export function WatchlistPage() {
             <section className="watchlist-section class-section">
               <header className="class-section-header">
                 <h3 className="class-section-title">Movies</h3>
-                <p className="class-section-count">{movies.length} entries</p>
+                <p className="class-section-count">{visibleMovies.length} entries</p>
               </header>
-              {renderSeparatedWatchlist(movies, 'movies')}
+              {renderSeparatedWatchlist(visibleMovies, 'movies')}
             </section>
 
             <section className="watchlist-section class-section">
               <header className="class-section-header">
                 <h3 className="class-section-title">TV Shows</h3>
-                <p className="class-section-count">{tv.length} entries</p>
+                <p className="class-section-count">{visibleTv.length} entries</p>
               </header>
-              {renderSeparatedWatchlist(tv, 'tv')}
+              {renderSeparatedWatchlist(visibleTv, 'tv')}
             </section>
           </div>
         </DndContext>

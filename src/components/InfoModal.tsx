@@ -224,13 +224,24 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
 
     if (!selectedCountryData) return null;
 
+    const uniqByProviderId = (list: TmdbWatchProvider[]) => {
+      const byId = new Map<number, TmdbWatchProvider>();
+      for (const p of list) {
+        const existing = byId.get(p.provider_id);
+        // Prefer whichever entry has a usable price (rent/buy sometimes include it).
+        if (!existing) byId.set(p.provider_id, p);
+        else if (!existing.price && p.price) byId.set(p.provider_id, p);
+      }
+      return Array.from(byId.values()).sort((a, b) => (a.display_priority ?? 9999) - (b.display_priority ?? 9999));
+    };
+
     return {
       countryCode: selectedCountryCode ?? '',
       groups: {
-        flatrate: selectedCountryData.flatrate ?? [],
-        rent: selectedCountryData.rent ?? [],
-        buy: selectedCountryData.buy ?? [],
-        ads: selectedCountryData.ads ?? [],
+        flatrate: uniqByProviderId(selectedCountryData.flatrate ?? []),
+        rent: uniqByProviderId(selectedCountryData.rent ?? []),
+        buy: uniqByProviderId(selectedCountryData.buy ?? []),
+        ads: uniqByProviderId(selectedCountryData.ads ?? []),
       } as Record<WatchProviderCategory, TmdbWatchProvider[]>,
     };
   };
@@ -338,7 +349,11 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                     <div className="info-modal-watch-options-provider-list">
                                       {providers.map(provider => {
                                         const showPrice = category === 'rent' || category === 'buy';
-                                        const priceText = showPrice ? provider.price : undefined;
+                                        const priceCandidate = showPrice ? provider.price?.trim() : undefined;
+                                        const priceText =
+                                          priceCandidate && /(\$|£|€)\s*\d|\d+\.\d{2}/.test(priceCandidate)
+                                            ? priceCandidate
+                                            : undefined;
                                         return (
                                           <div
                                             key={provider.provider_id}

@@ -4,6 +4,40 @@
   width: 100%;
 }
 
+/* ALL / FREE watchlist visibility toggle */
+.watchlist-visibility-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.watchlist-visibility-btn {
+  background: rgba(26, 26, 26, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 18px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.watchlist-visibility-btn:hover {
+  background: rgba(26, 26, 26, 0.8);
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.watchlist-visibility-btn--active {
+  border-color: var(--accent-soft);
+  background: rgba(26, 26, 26, 0.95);
+  color: var(--text-primary);
+}
+
 /* Use the same styles as ranked lists for consistency */
 .watchlist-sections {
   display: flex;
