@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useWatchlistStore, type WatchlistEntry } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
-import { tmdbImagePath, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
+import { getMovieImageSrc, isBigMovie } from '../lib/tmdb';
+import type { WatchRecord } from './EntryRowMovieShow';
 import './ProfileWatchlist.css';
 
 interface ProfileWatchlistProps {
@@ -13,11 +14,27 @@ interface ProfileWatchlistProps {
   } | null;
   onMovieClick?: (movie: WatchlistEntry) => void;
   onShowClick?: (show: WatchlistEntry) => void;
-  getUserMovieStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string };
-  getUserShowStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string };
+  getUserMovieStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] };
+  getUserShowStatus?: (tmdbId: number) => { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] };
 }
 
 type WatchlistViewType = 'movies' | 'shows';
+
+function isUnreleased(releaseDate?: string): boolean {
+  if (!releaseDate) return false;
+  const release = new Date(releaseDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return release > today;
+}
+
+function entryIdToTmdbId(id: string): number {
+  return (
+    (id.includes('-')
+      ? parseInt(id.split('-').pop() || '0', 10)
+      : parseInt(id.replace(/\D/g, ''), 10)) || 0
+  );
+}
 
 function formatYear(releaseDate?: string): string {
   if (!releaseDate) return '—';
@@ -86,6 +103,132 @@ export function ProfileWatchlist({
     );
   }
 
+  type EntryWithStatus = {
+    entry: WatchlistEntry;
+    tmdbId: number;
+    userStatus: { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] };
+    watched: boolean;
+  };
+
+  const categorizedMovies = useMemo((): { defaultWatchlist: EntryWithStatus[]; rewatch: EntryWithStatus[]; unreleased: EntryWithStatus[] } => {
+    const defaultWatchlist: EntryWithStatus[] = [];
+    const rewatch: EntryWithStatus[] = [];
+    const unreleased: EntryWithStatus[] = [];
+
+    for (const entry of filteredMovies) {
+      const tmdbId = entryIdToTmdbId(entry.id);
+      const userStatus = getUserMovieStatus?.(tmdbId) ?? { isRanked: false };
+      const watched = (userStatus.watchRecords?.length ?? 0) > 0;
+
+      const bucket = isUnreleased(entry.releaseDate)
+        ? unreleased
+        : watched
+          ? rewatch
+          : defaultWatchlist;
+
+      bucket.push({ entry, tmdbId, userStatus, watched });
+    }
+
+    unreleased.sort((a, b) => {
+      if (!a.entry.releaseDate) return 1;
+      if (!b.entry.releaseDate) return -1;
+      return new Date(a.entry.releaseDate).getTime() - new Date(b.entry.releaseDate).getTime();
+    });
+
+    return { defaultWatchlist, rewatch, unreleased };
+  }, [filteredMovies, getUserMovieStatus]);
+
+  const categorizedTv = useMemo((): { defaultWatchlist: EntryWithStatus[]; rewatch: EntryWithStatus[]; unreleased: EntryWithStatus[] } => {
+    const defaultWatchlist: EntryWithStatus[] = [];
+    const rewatch: EntryWithStatus[] = [];
+    const unreleased: EntryWithStatus[] = [];
+
+    for (const entry of filteredTv) {
+      const tmdbId = entryIdToTmdbId(entry.id);
+      const userStatus = getUserShowStatus?.(tmdbId) ?? { isRanked: false };
+      const watched = (userStatus.watchRecords?.length ?? 0) > 0;
+
+      const bucket = isUnreleased(entry.releaseDate)
+        ? unreleased
+        : watched
+          ? rewatch
+          : defaultWatchlist;
+
+      bucket.push({ entry, tmdbId, userStatus, watched });
+    }
+
+    unreleased.sort((a, b) => {
+      if (!a.entry.releaseDate) return 1;
+      if (!b.entry.releaseDate) return -1;
+      return new Date(a.entry.releaseDate).getTime() - new Date(b.entry.releaseDate).getTime();
+    });
+
+    return { defaultWatchlist, rewatch, unreleased };
+  }, [filteredTv, getUserShowStatus]);
+
+  const currentCategorized = viewType === 'movies' ? categorizedMovies : categorizedTv;
+
+  const renderTiles = (items: EntryWithStatus[], isMovie: boolean) => (
+    <div className="profile-recent-grid">
+      {items.map(({ entry, userStatus, watched }) => {
+        const handleClick = () => {
+          if (isMovie && onMovieClick) onMovieClick(entry);
+          if (!isMovie && onShowClick) onShowClick(entry);
+        };
+
+        // Get percentile ranking or special class text - only show if seen
+        let displayText = null;
+        if (userStatus.isRanked) {
+          const globalRanks = isMovie ? moviesGlobalRanks : tvGlobalRanks;
+          const rankInfo = globalRanks.get(entry.id);
+          displayText = rankInfo?.percentileRank;
+        } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
+          displayText = 'GARB';
+        } else if (userStatus.classKey === 'BABY') {
+          displayText = 'BABY';
+        } else if (userStatus.classKey) {
+          displayText = 'N/A';
+        }
+
+        return (
+          <div
+            key={entry.id}
+            className="profile-recent-tile profile-top-item--clickable"
+            onClick={handleClick}
+          >
+            <div className="profile-recent-tile-poster">
+              {getMovieImageSrc(entry.posterPath, entry.title) ? (
+                <img
+                  src={getMovieImageSrc(entry.posterPath, entry.title) ?? ''}
+                  alt=""
+                  loading="lazy"
+                />
+              ) : (
+                <span>{isBigMovie(entry.title) ? 'B' : (isMovie ? '🎬' : '📺')}</span>
+              )}
+              <div className="profile-top-overlay">
+                <span className={watched ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                  {watched ? 'SEEN' : 'SAVE'}
+                </span>
+              </div>
+              {displayText && (
+                <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
+                  {displayText}
+                </div>
+              )}
+            </div>
+            <div className="profile-recent-tile-info">
+              <span className="profile-recent-tile-title">{entry.title}</span>
+              <span className="profile-recent-tile-date">
+                {formatYear(entry.releaseDate)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="profile-watchlist profile-card card-surface">
       <div className="profile-watchlist-header">
@@ -136,71 +279,31 @@ export function ProfileWatchlist({
             }
           </p>
         ) : (
-          <div className="profile-recent-grid">
-            {currentItems.map((entry) => {
-              const tmdbId = (entry.id.includes('-') ? parseInt(entry.id.split('-').pop() || '0', 10) : parseInt(entry.id.replace(/\D/g, ''), 10)) || 0;
-              const isMovie = viewType === 'movies';
-              const userStatus = isMovie 
-                ? (getUserMovieStatus?.(tmdbId) || { isRanked: false })
-                : (getUserShowStatus?.(tmdbId) || { isRanked: false });
-              const handleClick = () => {
-                if (isMovie && onMovieClick) {
-                  onMovieClick(entry);
-                } else if (!isMovie && onShowClick) {
-                  onShowClick(entry);
-                }
-              };
-              
-              // Get percentile ranking or special class text - only show if seen
-              let displayText = null;
-              if (userStatus.isRanked) {
-                const globalRanks = isMovie ? moviesGlobalRanks : tvGlobalRanks;
-                const rankInfo = globalRanks.get(entry.id);
-                displayText = rankInfo?.percentileRank;
-              } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
-                displayText = 'GARB';
-              } else if (userStatus.classKey === 'BABY') {
-                displayText = 'BABY';
-              } else if (userStatus.classKey) {
-                displayText = 'N/A';
-              }
-              
-              return (
-                <div 
-                  key={entry.id} 
-                  className="profile-recent-tile profile-top-item--clickable"
-                  onClick={handleClick}
-                >
-                  <div className="profile-recent-tile-poster">
-                    {getMovieImageSrc(entry.posterPath, entry.title) ? (
-                      <img 
-                        src={getMovieImageSrc(entry.posterPath, entry.title) ?? ''} 
-                        alt="" 
-                        loading="lazy" 
-                      />
-                    ) : (
-                      <span>{isBigMovie(entry.title) ? 'B' : (isMovie ? '🎬' : '📺')}</span>
-                    )}
-                    <div className="profile-top-overlay">
-                      <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                        {userStatus.isRanked ? 'SEEN' : 'SAVE'}
-                      </span>
-                    </div>
-                    {displayText && (
-                      <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
-                        {displayText}
-                      </div>
-                    )}
-                  </div>
-                  <div className="profile-recent-tile-info">
-                    <span className="profile-recent-tile-title">{entry.title}</span>
-                    <span className="profile-recent-tile-date">
-                      {formatYear(entry.releaseDate)}
-                    </span>
-                  </div>
+          <div className="profile-watchlist-sections">
+            {currentCategorized.defaultWatchlist.length > 0 && (
+              <div className="profile-watchlist-category profile-watchlist-category--default">
+                <div className="profile-watchlist-category-label">Default watchlist</div>
+                {renderTiles(currentCategorized.defaultWatchlist, viewType === 'movies')}
+              </div>
+            )}
+
+            {currentCategorized.rewatch.length > 0 && (
+              <div className="profile-watchlist-category profile-watchlist-category--rewatch">
+                <div className="profile-watchlist-category-label profile-watchlist-category-label--rewatch">
+                  Rewatch
                 </div>
-              );
-            })}
+                {renderTiles(currentCategorized.rewatch, viewType === 'movies')}
+              </div>
+            )}
+
+            {currentCategorized.unreleased.length > 0 && (
+              <div className="profile-watchlist-category profile-watchlist-category--unreleased">
+                <div className="profile-watchlist-category-label profile-watchlist-category-label--unreleased">
+                  Unreleased
+                </div>
+                {renderTiles(currentCategorized.unreleased, viewType === 'movies')}
+              </div>
+            )}
           </div>
         )}
       </div>

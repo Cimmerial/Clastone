@@ -23,6 +23,35 @@
   padding: 32px;
 }
 
+/* Watchlist categories (Default / Rewatch / Unreleased) */
+.profile-watchlist-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-watchlist-category {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-watchlist-category-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.profile-watchlist-category-label--rewatch {
+  color: rgba(74, 222, 128, 0.95);
+}
+
+.profile-watchlist-category-label--unreleased {
+  color: rgba(244, 162, 97, 0.95);
+}
+
 /* Use existing profile-recent classes for consistent styling */
 .profile-recent-controls {
   margin-bottom: 16px;

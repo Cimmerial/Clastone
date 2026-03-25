@@ -66,6 +66,9 @@ export type TmdbWatchProvider = {
   logo_path: string;
   provider_id: number;
   provider_name: string;
+  // TMDB includes a `price` field for rent/buy providers.
+  // This is optional because it is not present for flat-rate ("Stream") providers.
+  price?: string;
 };
 
 export type TmdbWatchProvidersResponse = {

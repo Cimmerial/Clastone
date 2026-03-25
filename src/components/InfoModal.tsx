@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Info, ChevronDown, ChevronUp, Clock, Calendar, PlayCircle, DollarSign, Edit } from 'lucide-react';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
 import './InfoModal.css';
@@ -40,6 +40,9 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [error, setError] = useState<string | null>(null);
   const [showSynopsis, setShowSynopsis] = useState(false);
   const [showGenres, setShowGenres] = useState(false);
+  const [watchOptionsOpen, setWatchOptionsOpen] = useState(false);
+  const watchOptionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const watchOptionsTooltipRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -111,6 +114,31 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!watchOptionsOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setWatchOptionsOpen(false);
+    };
+
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+
+      if (watchOptionsButtonRef.current?.contains(target)) return;
+      if (watchOptionsTooltipRef.current?.contains(target)) return;
+
+      setWatchOptionsOpen(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [watchOptionsOpen]);
+
   if (!isOpen) return null;
 
   const formatRuntime = (minutes?: number) => {
@@ -147,23 +175,67 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
     return date.split('-')[0];
   };
 
-  const getWatchProviders = () => {
-    if (!details?.watchProviders?.results) return [];
-    
-    // Try US first, then CA, then GB, then first available
+  type WatchProviderCategory = 'flatrate' | 'rent' | 'buy' | 'ads';
+  const WATCH_PROVIDER_CATEGORY_LABELS: Record<WatchProviderCategory, string> = {
+    flatrate: 'Stream',
+    rent: 'Rent',
+    buy: 'Buy',
+    ads: 'Ads',
+  };
+  const WATCH_PROVIDER_CATEGORY_ORDER: WatchProviderCategory[] = ['flatrate', 'rent', 'buy', 'ads'];
+
+  const getWatchProviderGroups = () => {
+    if (!details?.watchProviders?.results) return null;
+
+    const results = details.watchProviders.results;
+    type CountryData = (typeof results)[string];
+
     const countries = ['US', 'CA', 'GB'];
-    let providers: TmdbWatchProvider[] = [];
-    
+
+    let selectedCountryCode: string | null = null;
+    let selectedCountryData: CountryData | null = null;
+
+    // Prefer the first country in our priority list that has at least one watch provider category.
     for (const country of countries) {
-      const countryData = details.watchProviders.results[country];
-      if (countryData?.flatrate?.length) {
-        providers = countryData.flatrate;
+      const countryData = results[country];
+      if (!countryData) continue;
+
+      const hasAny =
+        (countryData.flatrate?.length ?? 0) +
+          (countryData.rent?.length ?? 0) +
+          (countryData.buy?.length ?? 0) +
+          (countryData.ads?.length ?? 0) >
+        0;
+
+      if (hasAny) {
+        selectedCountryCode = country;
+        selectedCountryData = countryData;
         break;
       }
     }
-    
-    return providers.slice(0, 5); // Limit to 5 providers
+
+    if (!selectedCountryData) {
+      const firstKey = Object.keys(results)[0];
+      if (firstKey) {
+        selectedCountryCode = firstKey;
+        selectedCountryData = results[firstKey];
+      }
+    }
+
+    if (!selectedCountryData) return null;
+
+    return {
+      countryCode: selectedCountryCode ?? '',
+      groups: {
+        flatrate: selectedCountryData.flatrate ?? [],
+        rent: selectedCountryData.rent ?? [],
+        buy: selectedCountryData.buy ?? [],
+        ads: selectedCountryData.ads ?? [],
+      } as Record<WatchProviderCategory, TmdbWatchProvider[]>,
+    };
   };
+
+  const watchProviderGroups = getWatchProviderGroups();
 
   return (
     <div className="info-modal-backdrop" onClick={onClose}>
@@ -219,13 +291,86 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                 
                 <div className="info-modal-basic-info">
                   <h1 className="info-modal-title">{details.title}</h1>
-                  <div className="info-modal-meta">
-                    <span className="info-modal-year">{getYear(details.releaseDate)}</span>
-                    {details.genres.length > 0 && (
-                      <div className="info-modal-genres-inline">
-                        {details.genres.slice(0, 3).map(genre => (
-                          <span key={genre} className="info-modal-genre-tag-inline">{genre}</span>
-                        ))}
+                  <div className="info-modal-meta-row">
+                    <div className="info-modal-meta">
+                      <span className="info-modal-year">{getYear(details.releaseDate)}</span>
+                      {details.genres.length > 0 && (
+                        <div className="info-modal-genres-inline">
+                          {details.genres.slice(0, 3).map(genre => (
+                            <span key={genre} className="info-modal-genre-tag-inline">{genre}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {watchProviderGroups && (
+                      <div className="info-modal-watch-right">
+                        <button
+                          ref={watchOptionsButtonRef}
+                          type="button"
+                          className="info-modal-watch-options-btn"
+                          onClick={() => setWatchOptionsOpen(o => !o)}
+                          aria-haspopup="dialog"
+                          aria-expanded={watchOptionsOpen}
+                        >
+                          View watch options
+                          {watchOptionsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+
+                        {watchOptionsOpen && (
+                          <div
+                            ref={watchOptionsTooltipRef}
+                            className="info-modal-watch-options-tooltip"
+                            role="dialog"
+                            aria-label="Watch options"
+                          >
+                            <div className="info-modal-watch-options-tooltip-title">Watch options</div>
+                            <div className="info-modal-watch-options-tooltip-sections">
+                              {WATCH_PROVIDER_CATEGORY_ORDER.map(category => {
+                                const providers = watchProviderGroups.groups[category];
+                                if (!providers.length) return null;
+
+                                return (
+                                  <div key={category} className="info-modal-watch-options-section">
+                                    <div className="info-modal-watch-options-section-title">
+                                      {WATCH_PROVIDER_CATEGORY_LABELS[category]}
+                                    </div>
+                                    <div className="info-modal-watch-options-provider-list">
+                                      {providers.map(provider => {
+                                        const showPrice = category === 'rent' || category === 'buy';
+                                        const priceText = showPrice ? provider.price : undefined;
+                                        return (
+                                          <div
+                                            key={provider.provider_id}
+                                            className="info-modal-watch-options-provider"
+                                          >
+                                            {provider.logo_path && (
+                                              <img
+                                                src={tmdbImagePath(provider.logo_path, 'w45')!}
+                                                alt={provider.provider_name}
+                                                className="info-modal-watch-options-provider-logo"
+                                              />
+                                            )}
+                                            <div className="info-modal-watch-options-provider-info">
+                                              <span className="info-modal-watch-options-provider-name">
+                                                {provider.provider_name}
+                                              </span>
+                                              {priceText && (
+                                                <span className="info-modal-watch-options-provider-price">
+                                                  {priceText}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -303,26 +448,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
 
               {/* Genres - Moved to top */}
 
-              {/* Watch Providers Section */}
-              {getWatchProviders().length > 0 && (
-                <div className="info-modal-section">
-                  <h3 className="info-modal-section-title">Where to Watch</h3>
-                  <div className="info-modal-providers">
-                    {getWatchProviders().map(provider => (
-                      <div key={provider.provider_id} className="info-modal-provider">
-                        {provider.logo_path && (
-                          <img 
-                            src={tmdbImagePath(provider.logo_path, 'w45')!} 
-                            alt={provider.provider_name}
-                            title={provider.provider_name}
-                          />
-                        )}
-                        <span className="info-modal-provider-name">{provider.provider_name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Watch Providers moved to the top (right of genre tags) */}
 
               {/* Additional Info - Removed since moved to top */}
             </>

@@ -225,6 +225,195 @@
   font-size: 0.9rem;
 }
 
+.info-modal-meta-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.info-modal-watch-right {
+  flex: 0 0 auto;
+  min-width: 260px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.info-modal-watch-options-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.info-modal-watch-options-btn:hover {
+  background: var(--surface);
+  border-color: var(--accent-muted);
+  transform: translateY(-1px);
+}
+
+.info-modal-watch-options-tooltip {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  width: 340px;
+  max-width: 80vw;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft);
+  z-index: 10;
+  padding: 0.75rem;
+}
+
+.info-modal-watch-options-tooltip-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.info-modal-watch-options-tooltip-sections {
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.25rem;
+}
+
+.info-modal-watch-options-section-title {
+  color: var(--accent-muted);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.35rem;
+}
+
+.info-modal-watch-options-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.info-modal-watch-options-provider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.info-modal-watch-options-provider-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.info-modal-watch-options-provider-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.info-modal-watch-options-provider-name {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-primary);
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-modal-watch-options-provider-price {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.info-modal-watch-right-title {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.info-modal-watch-right-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.info-modal-watch-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.info-modal-watch-option-label {
+  min-width: 50px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-top: 0.1rem;
+}
+
+.info-modal-watch-option-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.info-modal-watch-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+}
+
+.info-modal-watch-provider-logo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: inline-block;
+}
+
+.info-modal-watch-provider-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .info-modal-year {
   color: var(--text-primary);
   font-weight: 600;
@@ -534,6 +723,35 @@
     align-items: center;
     text-align: center;
     gap: 1rem;
+  }
+
+  .info-modal-meta-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+  }
+
+  .info-modal-watch-right {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+  }
+
+  .info-modal-watch-options-tooltip {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .info-modal-watch-option-label {
+    min-width: 0;
+  }
+
+  .info-modal-watch-option-providers {
+    justify-content: center;
   }
 
   .info-modal-poster {
