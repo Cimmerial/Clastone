@@ -56,6 +56,20 @@
   background: rgba(244, 162, 97, 0.1);
 }
 
+/* Rewatch section */
+.class-section-rows--rewatch {
+  opacity: 0.9;
+}
+
+.class-section-rows--rewatch .entry-row {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.15), transparent);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.class-section-rows--rewatch .entry-tile {
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
 /* Unreleased sections */
 .watchlist-tiles--unreleased {
   opacity: 0.8;

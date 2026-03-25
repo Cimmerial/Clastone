@@ -55,19 +55,25 @@ function sortUnreleasedByDate(entries: WatchlistEntry[]): WatchlistEntry[] {
     });
 }
 
-function separateReleasedAndUnreleased(entries: WatchlistEntry[]): { released: WatchlistEntry[]; unreleased: WatchlistEntry[] } {
+function separateReleasedAndUnreleased(entries: WatchlistEntry[], hasWatched: (id: string) => boolean): { released: WatchlistEntry[]; rewatch: WatchlistEntry[]; unreleased: WatchlistEntry[] } {
   const released: WatchlistEntry[] = [];
+  const rewatch: WatchlistEntry[] = [];
   const unreleased: WatchlistEntry[] = [];
   
   entries.forEach(entry => {
     if (isUnreleased(entry.releaseDate)) {
       unreleased.push(entry);
     } else {
-      released.push(entry);
+      const hasBeenWatched = hasWatched(entry.id);
+      if (hasBeenWatched) {
+        rewatch.push(entry);
+      } else {
+        released.push(entry);
+      }
     }
   });
   
-  return { released, unreleased: sortUnreleasedByDate(unreleased) };
+  return { released, rewatch, unreleased: sortUnreleasedByDate(unreleased) };
 }
 
 function WatchlistTile({
@@ -691,12 +697,14 @@ export function WatchlistPage() {
     entries: WatchlistEntry[],
     type: WatchlistType
   ) => {
-    const { released, unreleased } = separateReleasedAndUnreleased(entries);
-    const hasBoth = released.length > 0 && unreleased.length > 0;
+    const { released, rewatch, unreleased } = separateReleasedAndUnreleased(entries, hasWatched);
+    const hasReleased = released.length > 0;
+    const hasRewatch = rewatch.length > 0;
+    const hasUnreleased = unreleased.length > 0;
 
     return (
       <>
-        {released.length > 0 && (
+        {hasReleased && (
           <>
             {settings.viewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile">
@@ -762,7 +770,81 @@ export function WatchlistPage() {
           </>
         )}
         
-        {hasBoth && (
+        {(hasReleased && hasRewatch) && (
+          <div className="watchlist-divider">
+            <div className="watchlist-divider-line"></div>
+            <div className="watchlist-divider-label">Rewatch</div>
+            <div className="watchlist-divider-line"></div>
+          </div>
+        )}
+        
+        {hasRewatch && (
+          <>
+            {settings.viewMode === 'tile' ? (
+              <div className="class-section-rows class-section-rows--tile class-section-rows--rewatch">
+                <SortableContext items={rewatch.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
+                  {rewatch.map((entry, index) => (
+                    <WatchlistTile
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      providers={watchProviders[entry.id]}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            ) : settings.viewMode === 'minimized' ? (
+              <div className="class-section-rows class-section-rows--rewatch">
+                <SortableContext items={rewatch.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  {rewatch.map((entry, index) => (
+                    <WatchlistRow
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
+                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < rewatch.length - 1}
+                      providers={watchProviders[entry.id]}
+                      minimized={true}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            ) : (
+              <div className="class-section-rows class-section-rows--rewatch">
+                <SortableContext items={rewatch.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  {rewatch.map((entry, index) => (
+                    <WatchlistRow
+                      key={entry.id}
+                      entry={entry}
+                      type={type}
+                      onRecordWatch={() => handleRecordWatch(entry, type)}
+                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
+                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
+                      onRemove={() => removeFromWatchlist(entry.id)}
+                      hasWatched={hasWatched(entry.id)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < rewatch.length - 1}
+                      providers={watchProviders[entry.id]}
+                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            )}
+          </>
+        )}
+        
+        {((hasReleased || hasRewatch) && hasUnreleased) && (
           <div className="watchlist-divider">
             <div className="watchlist-divider-line"></div>
             <div className="watchlist-divider-label">Unreleased</div>
@@ -770,7 +852,7 @@ export function WatchlistPage() {
           </div>
         )}
         
-        {unreleased.length > 0 && (
+        {hasUnreleased && (
           <>
             {settings.viewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
