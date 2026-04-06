@@ -11,7 +11,7 @@ import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
-import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, getMovieImageSrc } from '../lib/tmdb';
 import { 
   useMoviesStore,
   getTotalMinutesFromRecords, 
@@ -102,6 +102,29 @@ function getDateRangeFilter(
   return { min: toYMD(from), max: toYMD(now) };
 }
 
+function getItemReleaseYear(item: MovieShowItem): number | null {
+  if (!item.releaseDate) return null;
+  const year = parseInt(item.releaseDate.slice(0, 4), 10);
+  if (Number.isNaN(year)) return null;
+  return year;
+}
+
+function buildTopFiveByYear(items: MovieShowItem[]) {
+  const byYear = new Map<number, MovieShowItem[]>();
+  for (const item of items) {
+    const year = getItemReleaseYear(item);
+    if (year == null) continue;
+    const current = byYear.get(year) ?? [];
+    if (current.length < 5) {
+      current.push(item);
+      byYear.set(year, current);
+    }
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, yearItems]) => ({ year, items: yearItems }));
+}
+
 export function FriendProfilePage() {
   const { friendId } = useParams<{ friendId: string }>();
   const navigate = useNavigate();
@@ -178,8 +201,8 @@ export function FriendProfilePage() {
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
-  const [showAllMoviesWithClasses, setShowAllMoviesWithClasses] = useState(false);
-  const [showAllShowsWithClasses, setShowAllShowsWithClasses] = useState(false);
+  const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
+  const [showViewMode, setShowViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
 
@@ -461,6 +484,17 @@ export function FriendProfilePage() {
     }
     return list;
   }, [friendTvData]);
+
+  const topMoviesByYear = useMemo(() => buildTopFiveByYear(allMoviesExceptUnranked), [allMoviesExceptUnranked]);
+  const topShowsByYear = useMemo(() => buildTopFiveByYear(allShowsExceptUnranked), [allShowsExceptUnranked]);
+
+  const getMoviePosterSrc = useCallback(
+    (item: MovieShowItem) =>
+      getMovieImageSrc(item.posterPath, item.title, item.tmdbId) ??
+      tmdbImagePath(item.posterPath) ??
+      null,
+    []
+  );
 
   const rankedActors = useMemo(() => {
     if (!friendPeopleData || !friendPeopleData.byClass || !friendPeopleData.classes) return [];
@@ -1026,6 +1060,19 @@ export function FriendProfilePage() {
     return map;
   }, [friendTvData]);
 
+  const getFriendPercentileBadge = useCallback(
+    (item: MovieShowItem, isMovie: boolean, classKey?: string, isRanked?: boolean) => {
+      if (isRanked) {
+        const globalRanks = isMovie ? friendMoviesGlobalRanks : friendTvGlobalRanks;
+        return globalRanks.get(item.id)?.percentileRank ?? null;
+      }
+      if (classKey === 'DELICIOUS_GARBAGE') return 'GARB';
+      if (classKey === 'BABY') return 'BABY';
+      return 'N/A';
+    },
+    [friendMoviesGlobalRanks, friendTvGlobalRanks]
+  );
+
   // Handle clicking a top 10 movie
   const handleMovieClick = (movie: MovieShowItem) => {
     const tmdbId = (movie.tmdbId ?? parseInt(movie.id.replace(/\D/g, ''), 10)) || 0;
@@ -1420,6 +1467,14 @@ export function FriendProfilePage() {
             <span className="profile-stat-value profile-stat-value--hero">{stats.directorsSaved}</span>
             <span className="profile-stat-label">Directors saved</span>
           </div>
+          <div className="profile-stat">
+            <span className="profile-stat-value profile-stat-value--hero">{friendWatchlistData?.movies?.length ?? 0}</span>
+            <span className="profile-stat-label">Movie watchlist</span>
+          </div>
+          <div className="profile-stat">
+            <span className="profile-stat-value profile-stat-value--hero">{friendWatchlistData?.tv?.length ?? 0}</span>
+            <span className="profile-stat-label">Show watchlist</span>
+          </div>
         </div>
 
         {showExpandedStats && (
@@ -1695,17 +1750,34 @@ export function FriendProfilePage() {
         <div className="profile-card card-surface">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
-              {showAllMoviesWithClasses ? `All ${rankedMoviesCount} Movies` : 'Top 10 Movies'}
+              {movieViewMode === 'all_with_classes'
+                ? `All ${rankedMoviesCount} Movies`
+                : movieViewMode === 'top5_each_year'
+                  ? 'Top 5 Movies Each Year'
+                  : 'Top 10 Movies'}
             </h2>
-            <button
-              type="button"
-              className="profile-stats-expand-btn profile-tiny-expand-btn"
-              onClick={() => setShowAllMoviesWithClasses(!showAllMoviesWithClasses)}
-            >
-              {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
-            </button>
+            <div className="profile-card-actions">
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setMovieViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
+                }
+              >
+                {movieViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
+              </button>
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setMovieViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
+                }
+              >
+                {movieViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
+              </button>
+            </div>
           </div>
-          {showAllMoviesWithClasses && (
+          {movieViewMode === 'all_with_classes' && (
             <PageSearch 
               items={searchableMovies} 
               onSelect={handleScrollToId} 
@@ -1714,7 +1786,7 @@ export function FriendProfilePage() {
               pageKey="friend-profile-movies"
             />
           )}
-          {showAllMoviesWithClasses ? (
+          {movieViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
               {friendMoviesData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendMoviesData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
@@ -1731,16 +1803,61 @@ export function FriendProfilePage() {
                           onClick={() => handleMovieClick(m)}
                         >
                           <div className="profile-top-poster">
-                            {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
-                              <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
+                            {getMoviePosterSrc(m) ? (
+                              <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
                             ) : (
-                              <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
+                              <span className="profile-top-poster-placeholder">🎬</span>
                             )}
                             <div className="profile-top-overlay">
                               <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
                                 {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                               </span>
                             </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{m.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : movieViewMode === 'top5_each_year' ? (
+            <div className="profile-classes-view">
+              {topMoviesByYear.map(({ year, items }) => (
+                <div key={year} className="profile-class-section">
+                  <h3 className="profile-class-title">{year}</h3>
+                  <div className="profile-class-grid profile-class-grid--yearly">
+                    {items.map((m) => {
+                      const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserMovieStatus(tmdbId);
+                      const friendStatus = getFriendMovieStatus(m.id);
+                      const displayText = getFriendPercentileBadge(m, true, friendStatus.classKey, friendStatus.isRanked);
+                      return (
+                        <div
+                          key={m.id}
+                          id={`profile-entry-${m.id}`}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleMovieClick(m)}
+                        >
+                          <div className="profile-top-poster">
+                            {getMoviePosterSrc(m) ? (
+                              <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">🎬</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                            {displayText && (
+                              <div className={`profile-recent-percentile ${!friendStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} profile-recent-percentile--movie`}>
+                                {displayText}
+                              </div>
+                            )}
                           </div>
                           <div className="profile-top-info">
                             <span className="profile-top-title">{m.title}</span>
@@ -1764,10 +1881,10 @@ export function FriendProfilePage() {
                     onClick={() => handleMovieClick(m)}
                   >
                     <div className="profile-top-poster">
-                      {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
-                        <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
+                      {getMoviePosterSrc(m) ? (
+                        <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
                       ) : (
-                        <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
+                        <span className="profile-top-poster-placeholder">🎬</span>
                       )}
                       <span className="profile-top-rank">#{i + 1}</span>
                       <div className="profile-top-overlay">
@@ -1789,17 +1906,34 @@ export function FriendProfilePage() {
         <div className="profile-card card-surface">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
-              {showAllShowsWithClasses ? `All ${rankedShowsCount} Shows` : 'Top 10 Shows'}
+              {showViewMode === 'all_with_classes'
+                ? `All ${rankedShowsCount} Shows`
+                : showViewMode === 'top5_each_year'
+                  ? 'Top 5 Shows Each Year'
+                  : 'Top 10 Shows'}
             </h2>
-            <button
-              type="button"
-              className="profile-stats-expand-btn profile-tiny-expand-btn"
-              onClick={() => setShowAllShowsWithClasses(!showAllShowsWithClasses)}
-            >
-              {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
-            </button>
+            <div className="profile-card-actions">
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setShowViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
+                }
+              >
+                {showViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
+              </button>
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setShowViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
+                }
+              >
+                {showViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
+              </button>
+            </div>
           </div>
-          {showAllShowsWithClasses && (
+          {showViewMode === 'all_with_classes' && (
             <PageSearch 
               items={searchableShows} 
               onSelect={handleScrollToId} 
@@ -1808,7 +1942,7 @@ export function FriendProfilePage() {
               pageKey="friend-profile-shows"
             />
           )}
-          {showAllShowsWithClasses ? (
+          {showViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
               {friendTvData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendTvData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
@@ -1835,6 +1969,51 @@ export function FriendProfilePage() {
                                 {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                               </span>
                             </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{s.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : showViewMode === 'top5_each_year' ? (
+            <div className="profile-classes-view">
+              {topShowsByYear.map(({ year, items }) => (
+                <div key={year} className="profile-class-section">
+                  <h3 className="profile-class-title">{year}</h3>
+                  <div className="profile-class-grid profile-class-grid--yearly">
+                    {items.map((s) => {
+                      const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserShowStatus(tmdbId);
+                      const friendStatus = getFriendShowStatus(s.id);
+                      const displayText = getFriendPercentileBadge(s, false, friendStatus.classKey, friendStatus.isRanked);
+                      return (
+                        <div
+                          key={s.id}
+                          id={`profile-entry-${s.id}`}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleShowClick(s)}
+                        >
+                          <div className="profile-top-poster">
+                            {s.posterPath ? (
+                              <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">📺</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                            {displayText && (
+                              <div className={`profile-recent-percentile ${!friendStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} profile-recent-percentile--tv`}>
+                                {displayText}
+                              </div>
+                            )}
                           </div>
                           <div className="profile-top-info">
                             <span className="profile-top-title">{s.title}</span>
@@ -2147,10 +2326,10 @@ export function FriendProfilePage() {
                       onClick={handleClick}
                     >
                       <div className="profile-recent-tile-poster">
-                        {getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ? (
-                          <img src={getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ?? ''} alt="" loading="lazy" />
+                        {getMoviePosterSrc(w.item) ? (
+                          <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
                         ) : (
-                          <span>{isBigMovie(w.item.title, w.item.tmdbId) ? 'B' : (w.isMovie ? '🎬' : '📺')}</span>
+                          <span>{w.isMovie ? '🎬' : '📺'}</span>
                         )}
                         <div className="profile-top-overlay">
                           <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>

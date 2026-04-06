@@ -288,6 +288,21 @@
   margin-bottom: 0.85rem;
 }
 
+.profile-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profile-tiny-expand-btn {
+  font-size: 0.68rem;
+  padding: 0.22rem 0.45rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
 .profile-show-all-toggle {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -337,6 +352,11 @@
   gap: 0.5rem;
 }
 
+.profile-class-grid--yearly {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 0.55rem;
+}
+
 .profile-class-grid .profile-top-item {
   aspect-ratio: 2/3;
 }
@@ -358,11 +378,17 @@
   .profile-class-grid {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
+  .profile-class-grid--yearly {
+    grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
   .profile-class-grid {
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  }
+  .profile-class-grid--yearly {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   }
 }
 

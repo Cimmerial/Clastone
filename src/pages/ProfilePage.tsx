@@ -16,7 +16,7 @@ import { useDirectorsStore, type DirectorItem } from '../state/directorsStore';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
-import { tmdbImagePath, getMovieImageSrc, isBigMovie } from '../lib/tmdb';
+import { tmdbImagePath, getMovieImageSrc } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
@@ -80,6 +80,29 @@ function getDateRangeFilter(
   return { min: toYMD(from), max: toYMD(now) };
 }
 
+function getItemReleaseYear(item: MovieShowItem): number | null {
+  if (!item.releaseDate) return null;
+  const year = parseInt(item.releaseDate.slice(0, 4), 10);
+  if (Number.isNaN(year)) return null;
+  return year;
+}
+
+function buildTopFiveByYear(items: MovieShowItem[]) {
+  const byYear = new Map<number, MovieShowItem[]>();
+  for (const item of items) {
+    const year = getItemReleaseYear(item);
+    if (year == null) continue;
+    const current = byYear.get(year) ?? [];
+    if (current.length < 5) {
+      current.push(item);
+      byYear.set(year, current);
+    }
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, yearItems]) => ({ year, items: yearItems }));
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
@@ -132,8 +155,8 @@ export function ProfilePage() {
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
-  const [showAllMoviesWithClasses, setShowAllMoviesWithClasses] = useState(false);
-  const [showAllShowsWithClasses, setShowAllShowsWithClasses] = useState(false);
+  const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
+  const [showViewMode, setShowViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
 
@@ -546,6 +569,30 @@ export function ProfilePage() {
     }
     return list.slice(0, 10);
   }, [tvByClass, tvClassOrder, isRankedTvClass]);
+  
+  const topMoviesByYear = useMemo(() => buildTopFiveByYear(rankedMovies), [rankedMovies]);
+  const topShowsByYear = useMemo(() => buildTopFiveByYear(rankedShows), [rankedShows]);
+
+  const getMoviePosterSrc = useCallback(
+    (item: MovieShowItem) =>
+      getMovieImageSrc(item.posterPath, item.title, item.tmdbId) ??
+      tmdbImagePath(item.posterPath) ??
+      null,
+    []
+  );
+
+  const getPercentileBadge = useCallback(
+    (item: MovieShowItem, isMovie: boolean, classKey?: string, isRanked?: boolean) => {
+      if (isRanked) {
+        const globalRanks = isMovie ? moviesGlobalRanks : tvGlobalRanks;
+        return globalRanks.get(item.id)?.percentileRank ?? null;
+      }
+      if (classKey === 'DELICIOUS_GARBAGE') return 'GARB';
+      if (classKey === 'BABY') return 'BABY';
+      return 'N/A';
+    },
+    [moviesGlobalRanks, tvGlobalRanks]
+  );
 
   const hasActors = top5Actors.length > 0;
   const hasDirectors = top5Directors.length > 0;
@@ -920,6 +967,14 @@ export function ProfilePage() {
               <span className="profile-stat-label">Directors saved</span>
             </div>
           )}
+          <div className="profile-stat">
+            <span className="profile-stat-value profile-stat-value--hero">{watchlist.movies.length}</span>
+            <span className="profile-stat-label">Movie watchlist</span>
+          </div>
+          <div className="profile-stat">
+            <span className="profile-stat-value profile-stat-value--hero">{watchlist.tv.length}</span>
+            <span className="profile-stat-label">Show watchlist</span>
+          </div>
         </div>
 
         {showExpandedStats && (
@@ -1195,21 +1250,38 @@ export function ProfilePage() {
         <div className="profile-card card-surface">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
-              {showAllMoviesWithClasses ? `All ${rankedMovies.length} Movies` : 'Top 10 Movies'}
+              {movieViewMode === 'all_with_classes'
+                ? `All ${rankedMovies.length} Movies`
+                : movieViewMode === 'top5_each_year'
+                  ? 'Top 5 Movies Each Year'
+                  : 'Top 10 Movies'}
             </h2>
-            <button
-              type="button"
-              className="profile-stats-expand-btn profile-tiny-expand-btn"
-              onClick={() => setShowAllMoviesWithClasses(!showAllMoviesWithClasses)}
-            >
-              {showAllMoviesWithClasses ? 'Show Top 10' : 'Show all with classes'}
-            </button>
+            <div className="profile-card-actions">
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setMovieViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
+                }
+              >
+                {movieViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
+              </button>
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setMovieViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
+                }
+              >
+                {movieViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
+              </button>
+            </div>
           </div>
-          {!showAllMoviesWithClasses ? (
+          {movieViewMode === 'top10' ? (
             <Link to="/movies" className="profile-preview-link">
               View all movies →
             </Link>
-          ) : (
+          ) : movieViewMode === 'all_with_classes' ? (
             <PageSearch 
               items={searchableMovies} 
               onSelect={handleScrollToId} 
@@ -1217,8 +1289,8 @@ export function ProfilePage() {
               className="profile-section-search"
               pageKey="profile-movies"
             />
-          )}
-          {showAllMoviesWithClasses ? (
+          ) : null}
+          {movieViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
               {movieClassOrder.filter(k => isRankedMovieClass(k) && moviesByClass[k]?.length > 0).map((classKey) => (
                 <div key={classKey} className="profile-class-section">
@@ -1235,16 +1307,60 @@ export function ProfilePage() {
                           onClick={() => handleMovieClick(m)}
                         >
                           <div className="profile-top-poster">
-                            {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
-                              <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
+                            {getMoviePosterSrc(m) ? (
+                              <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
                             ) : (
-                              <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
+                              <span className="profile-top-poster-placeholder">🎬</span>
                             )}
                             <div className="profile-top-overlay">
                               <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
                                 {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                               </span>
                             </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{m.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : movieViewMode === 'top5_each_year' ? (
+            <div className="profile-classes-view">
+              {topMoviesByYear.map(({ year, items }) => (
+                <div key={year} className="profile-class-section">
+                  <h3 className="profile-class-title">{year}</h3>
+                  <div className="profile-class-grid profile-class-grid--yearly">
+                    {items.map((m) => {
+                      const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserMovieStatus(tmdbId);
+                      const displayText = getPercentileBadge(m, true, userStatus.classKey, userStatus.isRanked);
+                      return (
+                        <div
+                          key={m.id}
+                          id={`profile-entry-${m.id}`}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleMovieClick(m)}
+                        >
+                          <div className="profile-top-poster">
+                            {getMoviePosterSrc(m) ? (
+                              <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">🎬</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                            {displayText && (
+                              <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} profile-recent-percentile--movie`}>
+                                {displayText}
+                              </div>
+                            )}
                           </div>
                           <div className="profile-top-info">
                             <span className="profile-top-title">{m.title}</span>
@@ -1268,10 +1384,10 @@ export function ProfilePage() {
                     onClick={() => handleMovieClick(m)}
                   >
                     <div className="profile-top-poster">
-                      {getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ? (
-                        <img src={getMovieImageSrc(m.posterPath, m.title, m.tmdbId) ?? ''} alt={m.title} loading="lazy" />
+                      {getMoviePosterSrc(m) ? (
+                        <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
                       ) : (
-                        <span className="profile-top-poster-placeholder">{isBigMovie(m.title, m.tmdbId) ? 'B' : '🎬'}</span>
+                        <span className="profile-top-poster-placeholder">🎬</span>
                       )}
                       <span className="profile-top-rank">#{i + 1}</span>
                       <div className="profile-top-overlay">
@@ -1293,21 +1409,38 @@ export function ProfilePage() {
         <div className="profile-card card-surface">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
-              {showAllShowsWithClasses ? `All ${rankedShows.length} Shows` : 'Top 10 Shows'}
+              {showViewMode === 'all_with_classes'
+                ? `All ${rankedShows.length} Shows`
+                : showViewMode === 'top5_each_year'
+                  ? 'Top 5 Shows Each Year'
+                  : 'Top 10 Shows'}
             </h2>
-            <button
-              type="button"
-              className="profile-stats-expand-btn profile-tiny-expand-btn"
-              onClick={() => setShowAllShowsWithClasses(!showAllShowsWithClasses)}
-            >
-              {showAllShowsWithClasses ? 'Show Top 10' : 'Show all with classes'}
-            </button>
+            <div className="profile-card-actions">
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setShowViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
+                }
+              >
+                {showViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
+              </button>
+              <button
+                type="button"
+                className="profile-stats-expand-btn profile-tiny-expand-btn"
+                onClick={() =>
+                  setShowViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
+                }
+              >
+                {showViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
+              </button>
+            </div>
           </div>
-          {!showAllShowsWithClasses ? (
+          {showViewMode === 'top10' ? (
             <Link to="/tv" className="profile-preview-link">
               View all shows →
             </Link>
-          ) : (
+          ) : showViewMode === 'all_with_classes' ? (
             <PageSearch 
               items={searchableShows} 
               onSelect={handleScrollToId} 
@@ -1315,8 +1448,8 @@ export function ProfilePage() {
               className="profile-section-search"
               pageKey="profile-shows"
             />
-          )}
-          {showAllShowsWithClasses ? (
+          ) : null}
+          {showViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
               {tvClassOrder.filter(k => isRankedTvClass(k) && tvByClass[k]?.length > 0).map((classKey) => (
                 <div key={classKey} className="profile-class-section">
@@ -1343,6 +1476,50 @@ export function ProfilePage() {
                                 {userStatus.isRanked ? 'SEEN' : 'SAVE'}
                               </span>
                             </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{s.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : showViewMode === 'top5_each_year' ? (
+            <div className="profile-classes-view">
+              {topShowsByYear.map(({ year, items }) => (
+                <div key={year} className="profile-class-section">
+                  <h3 className="profile-class-title">{year}</h3>
+                  <div className="profile-class-grid profile-class-grid--yearly">
+                    {items.map((s) => {
+                      const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserShowStatus(tmdbId);
+                      const displayText = getPercentileBadge(s, false, userStatus.classKey, userStatus.isRanked);
+                      return (
+                        <div
+                          key={s.id}
+                          id={`profile-entry-${s.id}`}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleShowClick(s)}
+                        >
+                          <div className="profile-top-poster">
+                            {s.posterPath ? (
+                              <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">📺</span>
+                            )}
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              </span>
+                            </div>
+                            {displayText && (
+                              <div className={`profile-recent-percentile ${!userStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} profile-recent-percentile--tv`}>
+                                {displayText}
+                              </div>
+                            )}
                           </div>
                           <div className="profile-top-info">
                             <span className="profile-top-title">{s.title}</span>
@@ -1647,10 +1824,10 @@ export function ProfilePage() {
                       onClick={handleClick}
                     >
                       <div className="profile-recent-tile-poster">
-                        {getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ? (
-                          <img src={getMovieImageSrc(w.item.posterPath, w.item.title, w.item.tmdbId) ?? ''} alt="" loading="lazy" />
+                        {getMoviePosterSrc(w.item) ? (
+                          <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
                         ) : (
-                          <span>{isBigMovie(w.item.title, w.item.tmdbId) ? 'B' : (w.isMovie ? '🎬' : '📺')}</span>
+                          <span>{w.isMovie ? '🎬' : '📺'}</span>
                         )}
                         <div className="profile-top-overlay">
                           <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
