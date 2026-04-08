@@ -218,6 +218,35 @@
   transition: all 0.3s ease;
 }
 
+/* Recently watched milestone badge (shared classnames with ProfilePage) */
+.profile-recent-tile-poster {
+  position: relative;
+}
+
+.profile-recent-milestone {
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.75);
+  color: #f5d36a;
+  border: 1px solid rgba(245, 211, 106, 0.65);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.75rem;
+  line-height: 1;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.profile-recent-milestone svg {
+  width: 12px;
+  height: 12px;
+}
+
 .friends-of-friend-item:hover {
   background: rgba(26, 10, 0, 0.8);
   border-color: rgba(232, 93, 4, 0.4);

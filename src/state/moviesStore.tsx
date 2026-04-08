@@ -8,19 +8,6 @@ import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isVali
 import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 
-function mergeInMissingDefaultClasses(existing: MovieClassDef[]): MovieClassDef[] {
-  // Some older user payloads may be missing newer default classes (e.g. DONT_REMEMBER).
-  // Friend profiles load their saved class lists; the local store should also guarantee
-  // these defaults exist so UI can render those buckets.
-  const existingKeys = new Set(existing.map((c) => c.key));
-  const missing = defaultMovieClassDefs.filter((c) => !existingKeys.has(c.key));
-  if (missing.length === 0) return existing;
-
-  const unrankedIndex = existing.findIndex((c) => c.key === 'UNRANKED');
-  if (unrankedIndex === -1) return [...existing, ...missing];
-  return [...existing.slice(0, unrankedIndex), ...missing, ...existing.slice(unrankedIndex)];
-}
-
 function dateParts(r: WatchRecord, useEnd = false): { y: number; m: number; d: number } {
   const y = useEnd ? (r.endYear ?? r.year ?? 0) : (r.year ?? 0);
   const m = useEnd ? (r.endMonth ?? r.month ?? 0) : (r.month ?? 0);
@@ -251,9 +238,9 @@ type MoviesProviderProps = {
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
-  const [classes, setClasses] = useState<MovieClassDef[]>(
-    mergeInMissingDefaultClasses(initialClasses ?? defaultMovieClassDefs)
-  );
+  // Trust Firestore's metadata for existing users; only use defaults when there
+  // is no stored class list at all (brand new user or legacy import).
+  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(
     initialByClass ?? initialMoviesByClass
@@ -450,15 +437,35 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
   }, []);
 
   const deleteClass = useCallback((classKey: ClassKey) => {
-    setByClass((prev) => {
-      const list = prev[classKey] ?? [];
-      if (list.length > 0) return prev; // only delete empty
-      const next = { ...prev };
-      delete next[classKey];
-      return next;
-    });
-    setClasses((prev) => prev.filter((c) => c.key !== classKey));
-  }, []);
+    const current = currentStateRef.current;
+    const list = current.byClass[classKey] ?? [];
+    // Only delete empty buckets (guards against accidental data loss).
+    if (list.length > 0) return;
+
+    const nextClasses = current.classes.filter((c) => c.key !== classKey);
+    const nextByClass: Record<ClassKey, MovieShowItem[]> = { ...current.byClass };
+    delete nextByClass[classKey];
+
+    setByClass(nextByClass);
+    setClasses(nextClasses);
+
+    // Important: ensure metadata deletion reaches Firestore immediately.
+    // The default debounced persistence can lag behind user navigation/reload.
+    if (onPersist) {
+      void onPersist({
+        byClass: nextByClass,
+        classes: nextClasses,
+        classesMetadataChanged: true,
+        pendingCount: 1
+      })
+        .then(() => {
+          lastSavedStateRef.current = { byClass: nextByClass, classes: nextClasses };
+        })
+        .catch(() => {
+          // If the save fails, we'll still have the local state; the user can retry via refresh.
+        });
+    }
+  }, [onPersist]);
 
   const moveWithinClass = useCallback((itemId: string, delta: number) => {
     setByClass((prev) => {

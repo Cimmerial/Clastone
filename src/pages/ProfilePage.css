@@ -556,6 +556,7 @@
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: rgba(255, 255, 255, 0.08);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -620,6 +621,30 @@
   background: #daa520;
   color: var(--bg);
   border: 1px solid var(--bg);
+}
+
+.profile-recent-milestone {
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.75);
+  color: #f5d36a;
+  border: 1px solid rgba(245, 211, 106, 0.65);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.75rem;
+  line-height: 1;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.profile-recent-milestone svg {
+  width: 12px;
+  height: 12px;
 }
 
 .profile-muted {

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFriends, type UserProfile } from '../context/FriendsContext';
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus } from 'lucide-react';
+import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus, Award } from 'lucide-react';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
@@ -76,6 +76,30 @@ function getRecentWatches(
   return out.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 }
 
+function getAllWatches(
+  moviesByClass: Record<string, MovieShowItem[]>,
+  tvByClass: Record<string, MovieShowItem[]>,
+  movieClassOrder: string[],
+  tvClassOrder: string[]
+): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
+  const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
+    const key = getWatchRecordSortKey(record);
+    out.push({ item, record, sortKey: key, isMovie });
+  };
+  for (const classKey of movieClassOrder) {
+    for (const item of moviesByClass[classKey] ?? []) {
+      for (const r of item.watchRecords ?? []) push(item, r, true);
+    }
+  }
+  for (const classKey of tvClassOrder) {
+    for (const item of tvByClass[classKey] ?? []) {
+      for (const r of item.watchRecords ?? []) push(item, r, false);
+    }
+  }
+  return out.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+}
+
 function toYMD(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -107,6 +131,82 @@ function getItemReleaseYear(item: MovieShowItem): number | null {
   const year = parseInt(item.releaseDate.slice(0, 4), 10);
   if (Number.isNaN(year)) return null;
   return year;
+}
+
+function watchEventKey(w: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }) {
+  const t = w.record.type ?? 'DATE';
+  const idPart = (w as any).record?.id ? `::${(w as any).record.id}` : '';
+  return `${w.item.id}::${t}::${w.sortKey}${idPart}`;
+}
+
+function buildUniqueWatchMilestoneData(
+  allWatches: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[],
+  username: string
+): { badgeMap: Map<string, { n: number }> } {
+  const firstMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const lastMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const firstShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const lastShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+
+  const tieValue = (r: WatchRecord) => r.id ?? '';
+
+  for (const w of allWatches) {
+    const firstMap = w.isMovie ? firstMovieByTitle : firstShowByTitle;
+    const lastMap = w.isMovie ? lastMovieByTitle : lastShowByTitle;
+    const key = w.item.id;
+
+    const firstExisting = firstMap.get(key);
+    const lastExisting = lastMap.get(key);
+
+    if (!firstExisting) {
+      firstMap.set(key, w);
+    } else {
+      const earlierSort = w.sortKey.localeCompare(firstExisting.sortKey) < 0;
+      const sameSortFirst = w.sortKey === firstExisting.sortKey;
+      const earlierTie = tieValue(w.record).localeCompare(tieValue(firstExisting.record)) < 0;
+      if (earlierSort || (sameSortFirst && earlierTie)) {
+        firstMap.set(key, w);
+      }
+    }
+
+    if (!lastExisting) {
+      lastMap.set(key, w);
+    } else {
+      const laterSort = w.sortKey.localeCompare(lastExisting.sortKey) > 0;
+      const sameSortLast = w.sortKey === lastExisting.sortKey;
+      const laterTie = tieValue(w.record).localeCompare(tieValue(lastExisting.record)) > 0;
+      if (laterSort || (sameSortLast && laterTie)) {
+        lastMap.set(key, w);
+      }
+    }
+  }
+
+  const firstMovieEntries = Array.from(firstMovieByTitle.values()).sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
+  );
+  const firstShowEntries = Array.from(firstShowByTitle.values()).sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
+  );
+
+  const badgeMap = new Map<string, { n: number }>();
+
+  for (let i = 0; i < firstMovieEntries.length; i++) {
+    const first = firstMovieEntries[i];
+    const n = i + 1;
+    if (n % 50 !== 0) continue;
+    const last = lastMovieByTitle.get(first.item.id) ?? first;
+    badgeMap.set(watchEventKey(last), { n });
+  }
+
+  for (let i = 0; i < firstShowEntries.length; i++) {
+    const first = firstShowEntries[i];
+    const n = i + 1;
+    if (n % 50 !== 0) continue;
+    const last = lastShowByTitle.get(first.item.id) ?? first;
+    badgeMap.set(watchEventKey(last), { n });
+  }
+
+  return { badgeMap };
 }
 
 function buildTopFiveByYear(items: MovieShowItem[]) {
@@ -939,6 +1039,14 @@ export function FriendProfilePage() {
       return key >= range.min && key <= range.max;
     });
   }, [stats.recentWatches, recentRange]);
+
+  const uniqueWatchMilestones = useMemo(() => {
+    const name = friendProfile?.username ?? 'User';
+    const movieKeys = friendMoviesData?.classes?.map((c: any) => c.key) ?? [];
+    const tvKeys = friendTvData?.classes?.map((c: any) => c.key) ?? [];
+    const all = getAllWatches(friendMoviesData?.byClass ?? {}, friendTvData?.byClass ?? {}, movieKeys, tvKeys);
+    return buildUniqueWatchMilestoneData(all, name).badgeMap;
+  }, [friendProfile?.username, friendMoviesData?.byClass, friendMoviesData?.classes, friendTvData?.byClass, friendTvData?.classes]);
 
   // Helper to check if current user has a movie ranked (using MY stores, not friend's)
   const getUserMovieStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
@@ -2430,6 +2538,16 @@ export function FriendProfilePage() {
                             {displayText}
                           </div>
                         )}
+                        {(() => {
+                          const ms = uniqueWatchMilestones.get(watchEventKey(w));
+                          if (!ms) return null;
+                          return (
+                            <div className="profile-recent-milestone">
+                              <Award />
+                              <span>#{ms.n}</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="profile-recent-tile-info">
                         <span className="profile-recent-tile-title">{w.item.title}</span>

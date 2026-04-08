@@ -10,15 +10,6 @@ import { tvClasses, tvByClass as initialTvByClass } from '../mock/tvShows';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { formatViewingFromRecords } from './moviesStore';
 
-function mergeInMissingDefaultClasses(existing: MovieClassDef[]): MovieClassDef[] {
-  const existingKeys = new Set(existing.map((c) => c.key));
-  const missing = defaultMovieClassDefs.filter((c) => !existingKeys.has(c.key));
-  if (missing.length === 0) return existing;
-  const unrankedIndex = existing.findIndex((c) => c.key === 'UNRANKED');
-  if (unrankedIndex === -1) return [...existing, ...missing];
-  return [...existing.slice(0, unrankedIndex), ...missing, ...existing.slice(unrankedIndex)];
-}
-
 type TvStore = {
   classes: MovieClassDef[];
   classOrder: ClassKey[];
@@ -91,9 +82,7 @@ type TvProviderProps = {
 const TvContext = createContext<TvStore | null>(null);
 
 export function TvProvider({ children, initialByClass, initialClasses, onPersist }: TvProviderProps) {
-  const [classes, setClasses] = useState<MovieClassDef[]>(
-    mergeInMissingDefaultClasses(initialClasses ?? defaultMovieClassDefs)
-  );
+  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(initialByClass ?? {});
   const [pendingChanges, setPendingChanges] = useState(0);
@@ -282,15 +271,32 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
   }, []);
 
   const deleteClass = useCallback((classKey: ClassKey) => {
-    setByClass((prev) => {
-      const list = prev[classKey] ?? [];
-      if (list.length > 0) return prev;
-      const next = { ...prev };
-      delete next[classKey];
-      return next;
-    });
-    setClasses((prev) => prev.filter((c) => c.key !== classKey));
-  }, []);
+    const current = currentStateRef.current;
+    const list = current.byClass[classKey] ?? [];
+    if (list.length > 0) return;
+
+    const nextClasses = current.classes.filter((c) => c.key !== classKey);
+    const nextByClass: Record<ClassKey, MovieShowItem[]> = { ...current.byClass };
+    delete nextByClass[classKey];
+
+    setByClass(nextByClass);
+    setClasses(nextClasses);
+
+    if (onPersist) {
+      void onPersist({
+        byClass: nextByClass,
+        classes: nextClasses,
+        classesMetadataChanged: true,
+        pendingCount: 1
+      })
+        .then(() => {
+          lastSavedStateRef.current = { byClass: nextByClass, classes: nextClasses };
+        })
+        .catch(() => {
+          // If immediate save fails, user can retry later.
+        });
+    }
+  }, [onPersist]);
 
   const moveWithinClass = useCallback(
     (itemId: string, delta: number) => {

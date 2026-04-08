@@ -20,6 +20,8 @@ import { tmdbImagePath, getMovieImageSrc } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
+import { Award } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -34,6 +36,35 @@ function getRecentWatches(
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
     if (key === '0000-00-00') return;
+    out.push({ item, record, sortKey: key, isMovie });
+  };
+  for (const classKey of movieClassOrder) {
+    for (const item of moviesByClass[classKey] ?? []) {
+      for (const r of item.watchRecords ?? []) {
+        push(item, r, true);
+      }
+    }
+  }
+  for (const classKey of tvClassOrder) {
+    for (const item of tvByClass[classKey] ?? []) {
+      for (const r of item.watchRecords ?? []) {
+        push(item, r, false);
+      }
+    }
+  }
+  return out.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+}
+
+/** Flatten *all* watches (includes LONG_AGO/UNKNOWN -> sortKey "0000-00-00"). */
+function getAllWatches(
+  moviesByClass: Record<string, MovieShowItem[]>,
+  tvByClass: Record<string, MovieShowItem[]>,
+  movieClassOrder: string[],
+  tvClassOrder: string[]
+): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
+  const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
+    const key = getWatchRecordSortKey(record);
     out.push({ item, record, sortKey: key, isMovie });
   };
   for (const classKey of movieClassOrder) {
@@ -129,8 +160,127 @@ function buildTopFiveByYearWithFill(primary: MovieShowItem[], filler: MovieShowI
     .map(([year, yearItems]) => ({ year, items: yearItems }));
 }
 
+function watchEventKey(w: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }) {
+  // Must be stable even if some old records lack an id.
+  const t = w.record.type ?? 'DATE';
+  const idPart = w.record.id ? `::${w.record.id}` : '';
+  return `${w.item.id}::${t}::${w.sortKey}${idPart}`;
+}
+
+function buildUniqueWatchMilestoneData(
+  allWatches: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[],
+  username: string
+): {
+  badgeMap: Map<string, { n: number; tooltip: string }>;
+  movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
+  showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
+  totalMovies: number;
+  totalShows: number;
+} {
+  // Milestones are based on the UNIQUE titles ordered by their FIRST-EVER watch,
+  // but badges are attached to the MOST RECENT watch for that title so users
+  // actually see the badge in the "Recently watched" grid.
+  const firstMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const lastMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const firstShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+  const lastShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
+
+  const tieValue = (r: WatchRecord) => r.id ?? '';
+
+  for (const w of allWatches) {
+    const firstMap = w.isMovie ? firstMovieByTitle : firstShowByTitle;
+    const lastMap = w.isMovie ? lastMovieByTitle : lastShowByTitle;
+    const key = w.item.id;
+    const firstExisting = firstMap.get(key);
+    const lastExisting = lastMap.get(key);
+
+    // Earliest by sortKey (then tie-break by id) -> first watch
+    if (!firstExisting) {
+      firstMap.set(key, w);
+    } else {
+      const earlierSort = w.sortKey.localeCompare(firstExisting.sortKey) < 0;
+      const sameSortFirst = w.sortKey === firstExisting.sortKey;
+      const earlierTie = tieValue(w.record).localeCompare(tieValue(firstExisting.record)) < 0;
+      if (earlierSort || (sameSortFirst && earlierTie)) {
+        firstMap.set(key, w);
+      }
+    }
+
+    // Latest by sortKey (then tie-break by id) -> most recent watch
+    if (!lastExisting) {
+      lastMap.set(key, w);
+    } else {
+      const laterSort = w.sortKey.localeCompare(lastExisting.sortKey) > 0;
+      const sameSortLast = w.sortKey === lastExisting.sortKey;
+      const laterTie = tieValue(w.record).localeCompare(tieValue(lastExisting.record)) > 0;
+      if (laterSort || (sameSortLast && laterTie)) {
+        lastMap.set(key, w);
+      }
+    }
+  }
+
+  // Order titles by first-watch ascending (oldest -> newest)
+  const firstMovieEntries = Array.from(firstMovieByTitle.values()).sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
+  );
+  const firstShowEntries = Array.from(firstShowByTitle.values()).sort(
+    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
+  );
+
+  const totalMovies = firstMovieEntries.length;
+  const totalShows = firstShowEntries.length;
+
+  const badgeMap = new Map<string, { n: number; tooltip: string }>();
+  const movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
+  const showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
+
+  // Movies: n is "first watch index" (1-based) so rewatches tomorrow don't change n.
+  for (let i = 0; i < firstMovieEntries.length; i++) {
+    const first = firstMovieEntries[i];
+    const n = i + 1;
+    if (n % 50 !== 0) continue;
+    const last = lastMovieByTitle.get(first.item.id) ?? first;
+    badgeMap.set(watchEventKey(last), {
+      n,
+      tooltip: `${username}'s ${n}th movie watch`
+    });
+    movieMilestones.push({
+      n,
+      item: first.item,
+      sortKey: first.sortKey,
+      recordType: first.record.type ?? 'DATE',
+      recordId: first.record.id
+    });
+  }
+
+  // Shows: same idea, milestones every 50 unique titles by first-watch ordering.
+  for (let i = 0; i < firstShowEntries.length; i++) {
+    const first = firstShowEntries[i];
+    const n = i + 1;
+    if (n % 50 !== 0) continue;
+    const last = lastShowByTitle.get(first.item.id) ?? first;
+    badgeMap.set(watchEventKey(last), {
+      n,
+      tooltip: `${username}'s ${n}th show watch`
+    });
+    showMilestones.push({
+      n,
+      item: first.item,
+      sortKey: first.sortKey,
+      recordType: first.record.type ?? 'DATE',
+      recordId: first.record.id
+    });
+  }
+
+  movieMilestones.sort((a, b) => a.n - b.n);
+  showMilestones.sort((a, b) => a.n - b.n);
+
+  return { badgeMap, movieMilestones, showMilestones, totalMovies, totalShows };
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
+  const { username } = useAuth();
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
   const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
@@ -541,12 +691,30 @@ export function ProfilePage() {
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass]);
 
+  const allRecentWatches = useMemo(() => {
+    // Use the same "all classes except UNRANKED" behavior as the profile views,
+    // so Recently watched + milestones include unranked buckets too.
+    const all = getRecentWatches(moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys);
+    return all;
+  }, [moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys]);
+
+  const allWatchesForMilestones = useMemo(() => {
+    // Includes LONG_AGO/UNKNOWN so milestone numbering matches Quick stats.
+    return getAllWatches(moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys);
+  }, [moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys]);
+
   const recentWatches = useMemo(() => {
-    const all = getRecentWatches(moviesByClass, tvByClass, movieClassOrder, tvClassOrder);
     const range = getDateRangeFilter(recentRange);
-    if (!range) return all;
-    return all.filter((w) => w.sortKey >= range.min && w.sortKey <= range.max);
-  }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, recentRange]);
+    if (!range) return allRecentWatches;
+    return allRecentWatches.filter((w) => w.sortKey >= range.min && w.sortKey <= range.max);
+  }, [allRecentWatches, recentRange]);
+
+  const milestoneData = useMemo(() => {
+    const name = username ?? 'You';
+    return buildUniqueWatchMilestoneData(allWatchesForMilestones, name);
+  }, [allWatchesForMilestones, username]);
+
+  const uniqueWatchMilestones = milestoneData.badgeMap;
 
   const getUserMovieStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
     if (!tmdbId) return { isRanked: false };
@@ -1970,6 +2138,16 @@ export function ProfilePage() {
                             {displayText}
                           </div>
                         )}
+                        {(() => {
+                          const ms = uniqueWatchMilestones.get(watchEventKey(w));
+                          if (!ms) return null;
+                          return (
+                            <div className="profile-recent-milestone">
+                              <Award />
+                              <span>#{ms.n}</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="profile-recent-tile-info">
                         <span className="profile-recent-tile-title">{w.item.title}</span>

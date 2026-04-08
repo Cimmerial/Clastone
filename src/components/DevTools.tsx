@@ -14,15 +14,18 @@ import { tmdbPersonDetailsFull } from '../lib/tmdb';
 import type { MovieShowItem } from './EntryRowMovieShow';
 import type { ClassKey } from './RankedList';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/firebase';
 import './DevTools.css';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 
 export function DevTools() {
-  const { isAdmin } = useAuth();
-  const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache } = useMoviesStore();
-  const { byClass: tvByClass, classOrder: tvClassOrder, updateBatchShowCache } = useTvStore();
+  const { isAdmin, user } = useAuth();
+  const { byClass: moviesByClass, classOrder: movieClassOrder, updateBatchMovieCache, classes: movieClasses } = useMoviesStore();
+  const { byClass: tvByClass, classOrder: tvClassOrder, updateBatchShowCache, classes: tvClasses } = useTvStore();
   const { byClass: peopleByClass, forceRefreshPerson } = usePeopleStore();
   const [open, setOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isDumping, setIsDumping] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -165,6 +168,80 @@ export function DevTools() {
     }
   };
 
+  const dumpClassPersistence = async () => {
+    const firestoreDb = db;
+    if (!user?.uid || !firestoreDb) return;
+    setIsDumping(true);
+    try {
+      const uid = user.uid;
+
+      const summarizeLocal = (name: string, classes: any[], byClass: Record<string, MovieShowItem[]>, classOrder: string[]) => {
+        const byClassKeys = Object.keys(byClass);
+        const emptyKeys = byClassKeys.filter((k) => (byClass[k] ?? []).length === 0);
+        const nonEmptyKeys = byClassKeys.filter((k) => (byClass[k] ?? []).length > 0);
+        const labelGroups = classes.reduce<Record<string, number>>((acc, c) => {
+          const label = c?.label ?? '';
+          acc[label] = (acc[label] ?? 0) + 1;
+          return acc;
+        }, {});
+        const dupLabels = Object.entries(labelGroups)
+          .filter(([, count]) => count > 1)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 20);
+
+        console.info(`[DEV dump] ${name} local summary`, {
+          classesCount: classes.length,
+          classesKeys: classes.map((c) => c.key),
+          classOrder,
+          byClassKeysCount: byClassKeys.length,
+          nonEmptyKeysCount: nonEmptyKeys.length,
+          emptyKeysCount: emptyKeys.length,
+          emptyKeys: emptyKeys.slice(0, 100),
+          dupLabels
+        });
+      };
+
+      summarizeLocal('movies', movieClasses, moviesByClass, movieClassOrder);
+      summarizeLocal('tv', tvClasses, tvByClass, tvClassOrder);
+
+      const dumpFirestoreStore = async (label: string, rootCollection: string) => {
+        // rootCollection examples: "movieData" and "tvData"
+        const metadataRef = doc(firestoreDb, 'users', uid, rootCollection, 'metadata');
+        const metadataSnap = await getDoc(metadataRef);
+        const metadata = metadataSnap.exists() ? (metadataSnap.data() as any) : null;
+        console.info(`[DEV dump] ${label} firestore metadata`, {
+          exists: metadataSnap.exists(),
+          classes: metadata?.classes?.map((c: any) => ({ key: c.key, label: c.label, isRanked: c.isRanked })) ?? []
+        });
+
+        const colRef = collection(firestoreDb, 'users', uid, rootCollection);
+        const docsSnap = await getDocs(colRef);
+        const classDocs = docsSnap.docs
+          .filter((d) => d.id.startsWith('class_'))
+          .map((d) => ({
+            id: d.id,
+            key: d.id.replace('class_', ''),
+            itemsCount: (d.data() as any)?.items?.length ?? 0
+          }))
+          .sort((a, b) => b.itemsCount - a.itemsCount);
+
+        console.info(`[DEV dump] ${label} firestore class_* docs`, {
+          totalClassDocs: classDocs.length,
+          topByItemsCount: classDocs.slice(0, 50),
+          emptyClassDocs: classDocs.filter((x) => x.itemsCount === 0).slice(0, 200),
+          hint: 'If you deleted a class in UI but it still appears on reload, it is likely because class_* docs still exist in Firestore.'
+        });
+      };
+
+      await dumpFirestoreStore('movies', 'movieData');
+      await dumpFirestoreStore('tv', 'tvData');
+    } catch (e) {
+      console.error('[DEV dump] Failed', e);
+    } finally {
+      setIsDumping(false);
+    }
+  };
+
   if (!import.meta.env.DEV || !isAdmin) return null;
 
   return (
@@ -215,6 +292,14 @@ export function DevTools() {
                   onClick={handleRefreshPeople}
                 >
                   Force refresh actors
+                </button>
+                <button
+                  type="button"
+                  className="dev-secondary"
+                  disabled={isRunning || isDumping || !user?.uid}
+                  onClick={() => void dumpClassPersistence()}
+                >
+                  Dump class persistence
                 </button>
               </div>
 
