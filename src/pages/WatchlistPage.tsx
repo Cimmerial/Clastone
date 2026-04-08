@@ -343,6 +343,13 @@ function formatYear(releaseDate?: string): string {
   return /^\d{4}$/.test(y) ? y : releaseDate;
 }
 
+function formatRuntimeMinutes(minutes?: number): string | null {
+  if (!minutes) return null;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 function isUnreleased(releaseDate?: string): boolean {
   if (!releaseDate) return false;
   const release = new Date(releaseDate);
@@ -400,7 +407,8 @@ function WatchlistTile({
   hasWatched,
   providers,
   onInfo,
-  sortableEnabled = true
+  sortableEnabled = true,
+  runtimeMinutes
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -410,9 +418,28 @@ function WatchlistTile({
   providers?: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>;
   onInfo?: () => void;
   sortableEnabled?: boolean;
+  runtimeMinutes?: number;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [fetchedRuntime, setFetchedRuntime] = useState<number | null>(null);
+
+  const handlePointerEnter = async () => {
+    if (runtimeMinutes || fetchedRuntime) return;
+    const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
+    if (!match) return;
+    const [, media, idStr] = match;
+    const tmdbId = parseInt(idStr, 10);
+    if (media === 'movie') {
+      try {
+        const { tmdbMovieDetails } = await import('../lib/tmdb');
+        const res = await tmdbMovieDetails(tmdbId);
+        if (res.runtime) setFetchedRuntime(res.runtime);
+      } catch (e) {
+        // ignore
+      }
+    }
+  };
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
@@ -449,6 +476,7 @@ function WatchlistTile({
       data-watchlist-id={entry.id}
       ref={setNodeRef}
       style={style}
+      onPointerEnter={handlePointerEnter}
       {...attributes}
       {...listeners}
     >
@@ -471,6 +499,11 @@ function WatchlistTile({
           {isUnreleased(entry.releaseDate) && (
             <div className="entry-stat-pill">
               {formatDate(entry.releaseDate)}
+            </div>
+          )}
+          {(runtimeMinutes || fetchedRuntime) && (
+            <div className="entry-stat-pill">
+              {formatRuntimeMinutes(runtimeMinutes || fetchedRuntime!)}
             </div>
           )}
         </div>
@@ -530,7 +563,8 @@ function WatchlistRow({
   providers,
   minimized = false,
   onInfo,
-  sortableEnabled = true
+  sortableEnabled = true,
+  runtimeMinutes
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -545,9 +579,28 @@ function WatchlistRow({
   minimized?: boolean;
   onInfo?: () => void;
   sortableEnabled?: boolean;
+  runtimeMinutes?: number;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [fetchedRuntime, setFetchedRuntime] = useState<number | null>(null);
+
+  const handlePointerEnter = async () => {
+    if (runtimeMinutes || fetchedRuntime) return;
+    const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
+    if (!match) return;
+    const [, media, idStr] = match;
+    const tmdbId = parseInt(idStr, 10);
+    if (media === 'movie') {
+      try {
+        const { tmdbMovieDetails } = await import('../lib/tmdb');
+        const res = await tmdbMovieDetails(tmdbId);
+        if (res.runtime) setFetchedRuntime(res.runtime);
+      } catch (e) {
+        // ignore
+      }
+    }
+  };
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -584,6 +637,7 @@ function WatchlistRow({
       className={`entry-row-wrapper ${isDragging ? 'entry-row-wrapper--dragging' : ''}`}
       style={style}
       data-watchlist-id={entry.id}
+      onPointerEnter={handlePointerEnter}
       {...attributes}
       {...listeners}
     >
@@ -628,6 +682,11 @@ function WatchlistRow({
                   {isUnreleased(entry.releaseDate) && (
                     <div className="entry-stat-pill">
                       {formatDate(entry.releaseDate)}
+                    </div>
+                  )}
+                  {(runtimeMinutes || fetchedRuntime) && (
+                    <div className="entry-stat-pill">
+                      {formatRuntimeMinutes(runtimeMinutes || fetchedRuntime!)}
                     </div>
                   )}
                 </div>
@@ -717,7 +776,9 @@ export function WatchlistPage() {
   const navigate = useNavigate();
   const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { settings, updateSettings } = useSettingsStore();
-  const mobileViewMode = useMobileViewMode();
+  const { mode: mobileViewMode } = useMobileViewMode();
+  // On mobile this is forced to 'tile'; on desktop it follows user settings
+  const activeViewMode = mobileViewMode;
   const { friends } = useFriends();
   const {
     getMovieById,
@@ -1225,13 +1286,14 @@ export function WatchlistPage() {
       <>
         {hasReleased && (
           <div id={getWatchlistSectionId(type, 'default')}>
-            {settings.viewMode === 'tile' ? (
+            {activeViewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile">
                 <SortableContext items={released.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
                   {released.map((entry, index) => (
                     <WatchlistTile
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onRemove={() => removeFromWatchlist(entry.id)}
@@ -1243,13 +1305,14 @@ export function WatchlistPage() {
                   ))}
                 </SortableContext>
               </div>
-            ) : settings.viewMode === 'minimized' ? (
+            ) : activeViewMode === 'minimized' ? (
               <div className="class-section-rows">
                 <SortableContext items={released.map((e) => e.id)} strategy={verticalListSortingStrategy}>
                   {released.map((entry, index) => (
                     <WatchlistRow
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onMoveUp={() => moveWatchlistEntry(type, index, -1)}
@@ -1273,6 +1336,7 @@ export function WatchlistPage() {
                     <WatchlistRow
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onMoveUp={() => moveWatchlistEntry(type, index, -1)}
@@ -1302,13 +1366,14 @@ export function WatchlistPage() {
         
         {hasRewatch && (
           <div id={getWatchlistSectionId(type, 'rewatch')}>
-            {settings.viewMode === 'tile' ? (
+            {activeViewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile class-section-rows--rewatch">
                 <SortableContext items={rewatch.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
                   {rewatch.map((entry, index) => (
                     <WatchlistTile
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onRemove={() => removeFromWatchlist(entry.id)}
@@ -1320,13 +1385,14 @@ export function WatchlistPage() {
                   ))}
                 </SortableContext>
               </div>
-            ) : settings.viewMode === 'minimized' ? (
+            ) : activeViewMode === 'minimized' ? (
               <div className="class-section-rows class-section-rows--rewatch">
                 <SortableContext items={rewatch.map((e) => e.id)} strategy={verticalListSortingStrategy}>
                   {rewatch.map((entry, index) => (
                     <WatchlistRow
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onMoveUp={() => moveWatchlistEntry(type, index, -1)}
@@ -1350,6 +1416,7 @@ export function WatchlistPage() {
                     <WatchlistRow
                       key={entry.id}
                       entry={entry}
+                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                       type={type}
                       onRecordWatch={() => handleRecordWatch(entry, type)}
                       onMoveUp={() => moveWatchlistEntry(type, index, -1)}
@@ -1379,12 +1446,13 @@ export function WatchlistPage() {
         
         {hasUnreleased && (
           <div id={getWatchlistSectionId(type, 'unreleased')}>
-            {settings.viewMode === 'tile' ? (
+            {activeViewMode === 'tile' ? (
               <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
                 {unreleased.map((entry) => (
                   <WatchlistTile
                     key={entry.id}
                     entry={entry}
+                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                     type={type}
                     onRecordWatch={() => handleRecordWatch(entry, type)}
                     onRemove={() => removeFromWatchlist(entry.id)}
@@ -1395,12 +1463,13 @@ export function WatchlistPage() {
                   />
                 ))}
               </div>
-            ) : settings.viewMode === 'minimized' ? (
+            ) : activeViewMode === 'minimized' ? (
               <div className="class-section-rows class-section-rows--unreleased">
                 {unreleased.map((entry, index) => (
                   <WatchlistRow
                     key={entry.id}
                     entry={entry}
+                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                     type={type}
                     onRecordWatch={() => handleRecordWatch(entry, type)}
                     onMoveUp={() => {}} // Disabled for unreleased
@@ -1422,6 +1491,7 @@ export function WatchlistPage() {
                   <WatchlistRow
                     key={entry.id}
                     entry={entry}
+                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
                     type={type}
                     onRecordWatch={() => handleRecordWatch(entry, type)}
                     onMoveUp={() => {}} // Disabled for unreleased

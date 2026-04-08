@@ -1,5 +1,5 @@
 import { AppRoutes } from './router';
-import { NavBar } from './components/NavBar';
+import { NavBar, MobileBottomNav } from './components/NavBar';
 import { useAuth } from './context/AuthContext';
 import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
 import { FirestoreTvGate } from './components/FirestoreTvGate';
@@ -74,6 +74,7 @@ function App() {
                       <main className="app-main">
                         <AppRoutes />
                       </main>
+                      <MobileBottomNav />
                       <DevTools />
                     </FilterProvider>
                   </FirestoreWatchlistGate>

@@ -680,7 +680,7 @@
 
 @media (max-width: 768px) {
   .class-section-rows--tile {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     gap: 0.5rem !important;
     padding: 0.4rem 0 !important;
   }

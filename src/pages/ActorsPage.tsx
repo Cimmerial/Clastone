@@ -36,7 +36,7 @@ export function ActorsPage() {
   const { byClass: tvByClass, addWatchToShow, moveItemToClass: moveTvToClass, classes: tvClasses, addShowFromSearch } = useTvStore();
   const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
-  const mobileViewMode = useMobileViewMode();
+  const { mode: mobileViewMode } = useMobileViewMode();
   const navigate = useNavigate();
   const [recordTarget, setRecordTarget] = useState<PersonItem | null>(null);
   const [recordMediaTarget, setRecordMediaTarget] = useState<{ id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string } | null>(null);
@@ -195,7 +195,7 @@ export function ActorsPage() {
 
       <RankedList<PersonItem>
         ref={scrollContainerRef}
-        viewMode={settings.viewMode}
+        viewMode={mobileViewMode}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -205,7 +205,7 @@ export function ActorsPage() {
         renderRow={(item) => (
           <EntryRowPerson
             item={item as any}
-            viewMode={settings.viewMode}
+            viewMode={mobileViewMode}
             onUpdateCache={updatePersonCache}
             onOpenSettings={handleOpenSettings}
             onRecordMedia={handleRecordMedia}

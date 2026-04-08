@@ -238,6 +238,7 @@ export function ProfilePage() {
         );
         return {
           key: k,
+          label: getMovieClassLabel(k),
           count: items.length,
           watchTime
         };
@@ -252,6 +253,7 @@ export function ProfilePage() {
         );
         return {
           key: k,
+          label: getTvClassLabel(k),
           count: items.length,
           watchTime
         };
@@ -408,6 +410,7 @@ export function ProfilePage() {
         const avgRuntime = runtimes.length > 0 ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : 0;
         return {
           key: k,
+          label: getMovieClassLabel(k),
           avgRuntime,
           count: items.length
         };
@@ -424,10 +427,40 @@ export function ProfilePage() {
         const avgRuntime = runtimes.length > 0 ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : 0;
         return {
           key: k,
+          label: getTvClassLabel(k),
           avgRuntime,
           count: items.length
         };
       });
+
+    // Calculate genre distribution
+    const movieGenreCounts: Record<string, number> = {};
+    for (const k of movieClassOrder) {
+      for (const item of moviesByClass[k] ?? []) {
+        if (item.genres) {
+          item.genres.forEach(g => {
+            movieGenreCounts[g] = (movieGenreCounts[g] || 0) + 1;
+          });
+        }
+      }
+    }
+    const movieGenreData = Object.entries(movieGenreCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const tvGenreCounts: Record<string, number> = {};
+    for (const k of tvClassOrder) {
+      for (const item of tvByClass[k] ?? []) {
+        if (item.genres) {
+          item.genres.forEach(g => {
+            tvGenreCounts[g] = (tvGenreCounts[g] || 0) + 1;
+          });
+        }
+      }
+    }
+    const tvGenreData = Object.entries(tvGenreCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
 
     return {
       totalMinutes,
@@ -445,6 +478,7 @@ export function ProfilePage() {
       tvReleaseYearData,
       movieWatchYearData,
       tvWatchYearData,
+      avgRewatchCount: movieRewatchCount, // placeholder name fix if needed
       movieTotalWatches,
       movieDNFCount,
       movieRewatchCount,
@@ -454,7 +488,9 @@ export function ProfilePage() {
       avgWatchtimePerMovie,
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
-      showAvgRuntimeByCategory
+      showAvgRuntimeByCategory,
+      movieGenreData,
+      tvGenreData
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass]);
 
@@ -849,7 +885,7 @@ export function ProfilePage() {
       const data = payload[0].payload;
       return (
         <div className="profile-chart-tooltip">
-          <p className="profile-chart-tooltip-category">{data.key}</p>
+          <p className="profile-chart-tooltip-category">{data.label}</p>
           <p className="profile-chart-tooltip-count">{data.count} items</p>
           <p className="profile-chart-tooltip-watchtime">{formatDuration(data.watchTime)}</p>
         </div>
@@ -1111,14 +1147,10 @@ export function ProfilePage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieRankedCategories}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)">
-                      {stats.movieRankedCategories.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(${30 + index * 40}, 70%, 60%)`} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1146,14 +1178,74 @@ export function ProfilePage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.tvRankedCategories}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)">
-                      {stats.tvRankedCategories.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(${200 + index * 40}, 70%, 60%)`} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">Movies by Genre</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.movieGenreData} barCategoryGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="rgba(255,255,255,0.5)" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80} 
+                      fontSize={10}
+                    />
+                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
+                              <p className="profile-chart-tooltip-count">{payload[0].value} movies</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }} 
+                    />
+                    <Bar dataKey="count" fill="var(--accent)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">Shows by Genre</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.tvGenreData} barCategoryGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="rgba(255,255,255,0.5)" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80} 
+                      fontSize={10}
+                    />
+                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
+                              <p className="profile-chart-tooltip-count">{payload[0].value} shows</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }} 
+                    />
+                    <Bar dataKey="count" fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1189,7 +1281,7 @@ export function ProfilePage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1204,11 +1296,7 @@ export function ProfilePage() {
                       }
                       return null;
                     }} />
-                    <Bar dataKey="avgRuntime" fill="var(--accent)">
-                      {stats.movieAvgRuntimeByCategory.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(${30 + index * 40}, 70%, 60%)`} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="avgRuntime" fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1218,7 +1306,7 @@ export function ProfilePage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.showAvgRuntimeByCategory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="key" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
                     <YAxis stroke="rgba(255,255,255,0.5)" />
                     <Tooltip content={({ active, payload }) => {
                       if (active && payload && payload.length) {
@@ -1233,11 +1321,7 @@ export function ProfilePage() {
                       }
                       return null;
                     }} />
-                    <Bar dataKey="avgRuntime" fill="var(--accent)">
-                      {stats.showAvgRuntimeByCategory.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(${200 + index * 40}, 70%, 60%)`} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="avgRuntime" fill="var(--accent)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

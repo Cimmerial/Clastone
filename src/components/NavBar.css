@@ -341,3 +341,165 @@
     display: none;
   }
 }
+
+/* =========================================================
+   MOBILE BOTTOM TAB BAR — only active on screens ≤ 719px
+   Zero impact on desktop.
+   ========================================================= */
+@media (max-width: 719px) {
+  /* Extra padding so content doesn't hide behind the tab bar */
+  .app-main {
+    padding-bottom: 5rem !important;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    height: 56px;
+    background: linear-gradient(to top, rgba(3, 0, 10, 0.98), rgba(3, 0, 10, 0.92));
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex: 1;
+    color: var(--text-muted);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0;
+    font-family: inherit;
+  }
+
+  .mobile-tab:active {
+    opacity: 0.7;
+  }
+
+  .mobile-tab-active {
+    color: var(--accent-soft);
+  }
+
+  .mobile-tab-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* "More" bottom sheet backdrop */
+  .mobile-more-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    animation: fadeInBackdrop 0.2s ease;
+  }
+
+  @keyframes fadeInBackdrop {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Bottom sheet panel */
+  .mobile-more-sheet {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: radial-gradient(circle at top left, #2b1635 0, #0c050f 55%, #050308 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    padding: 0.75rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    animation: slideUpSheet 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes slideUpSheet {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  /* Drag handle pill */
+  .mobile-more-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 auto 1.25rem;
+  }
+
+  /* Grid of icon items in the sheet */
+  .mobile-more-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem 0.5rem;
+  }
+
+  .mobile-more-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+  }
+
+  .mobile-more-item-active {
+    color: var(--accent-soft);
+  }
+
+  .mobile-more-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .mobile-more-item-active .mobile-more-icon {
+    background: rgba(244, 162, 97, 0.15);
+    border-color: rgba(244, 162, 97, 0.4);
+  }
+
+  .mobile-more-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  /* Hide the old hamburger overlay if any remnant remains */
+  .nav-mobile-more-overlay {
+    display: none !important;
+  }
+}
+
+/* Desktop: guarantee bottom nav is never shown */
+@media (min-width: 720px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+  .mobile-more-backdrop {
+    display: none !important;
+  }
+}

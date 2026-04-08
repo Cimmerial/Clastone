@@ -1,6 +1,43 @@
 /* Mobile-specific optimizations for Clastone */
 
 @media (max-width: 768px) {
+  /* ── Disable text selection & image long-press on mobile ──────────────────
+     Prevents accidental text highlights and the iOS "save image" popup
+     when the user tries to drag / scroll an entry card.
+     -------------------------------------------------------------------------- */
+  .entry-tile,
+  .entry-tile *,
+  .entry-tile-person,
+  .entry-tile-person *,
+  .entry-row-wrapper,
+  .entry-row-wrapper *,
+  .ranked-list,
+  .ranked-list *,
+  .class-section,
+  .class-section * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* iOS: disables "open/save image" popup on long-press */
+  }
+
+  /* Re-enable selection on modal inputs so the user can still type */
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Prevent images from being draggable (long-press drag on iOS) */
+  .entry-tile img,
+  .entry-tile-person img,
+  .entry-poster img,
+  .entry-tile-poster img {
+    pointer-events: none;
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   /* Hide class jump buttons on mobile */
   .class-jump-bar {
     display: none !important;
@@ -8,6 +45,56 @@
 
   .class-jump-buttons-mobile-hidden {
     display: none !important;
+  }
+
+  /* ── Hide filter button on mobile ────────────────────────────── */
+  .filter-button,
+  .filter-toggle-btn {
+    display: none !important;
+  }
+
+  /* ── Hide RandomQuote on mobile ──────────────────────────────── */
+  .random-quote-text,
+  .page-tagline.random-quote-text {
+    display: none !important;
+  }
+
+  /* ── Tap-to-reveal entry action buttons ──────────────────────────
+     Info (ℹ) and settings cog buttons are hidden by default.
+     They appear when the user taps an entry card (:active state).
+     We use a sibling / parent active trick via the entry wrapper.
+     ---------------------------------------------------------------- */
+
+  /* Force buttons to be permanently visible on mobile for ease of use 
+     (overriding the desktop hover/tap-to-reveal behavior) */
+  .entry-tile-info-btn,
+  .entry-tile-quick-actions,
+  .entry-title-info-btn,
+  .entry-config-btn,
+  .entry-record-first {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* ── Watchlist mobile header restructure ─────────────────────────
+     Move 'View overlap' below title and hide other action buttons.
+     ---------------------------------------------------------------- */
+  .watchlist-services-open-btn,
+  .watchlist-visibility-toggle,
+  .view-toggle-btn {
+    display: none !important;
+  }
+  
+  /* Make the header column-based so actions go below title */
+  .page-heading {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem;
+  }
+
+  .page-actions-row {
+    width: 100%;
+    justify-content: flex-start !important;
   }
 
   /* Force tile view only on mobile */
@@ -25,8 +112,8 @@
   .ranked-list .class-section-rows,
   .class-section-rows {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
-    gap: 0.6rem !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.35rem !important;
     justify-content: start !important;
     padding: 0 0.5rem !important;
   }
@@ -152,10 +239,12 @@
     font-size: 0.7rem !important;
   }
 
-  .entry-stat-pill {
-    font-size: 0.65rem !important;
-    min-width: 45px !important;
-    padding: 0.1rem 0.35rem !important;
+  .entry-stat-pill,
+  .entry-tile-stats-overlay .entry-stat-pill {
+    font-size: 0.55rem !important;
+    min-width: 0 !important;
+    padding: 0.1rem 0.2rem !important;
+    line-height: 1 !important;
   }
 
   .class-section-title {
@@ -223,13 +312,13 @@
 @media (max-width: 480px) {
   /* Even more compact for very small screens - match profile recent grid */
   .ranked-list .class-section-rows {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
-    gap: 0.5rem !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.25rem !important;
   }
 
   .class-section-rows {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
-    gap: 0.5rem !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.25rem !important;
   }
 
   .entry-tile {

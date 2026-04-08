@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Menu, X } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
@@ -78,14 +78,7 @@ export function NavBar() {
               </nav>
             </div>
           </div>
-          {/* Mobile hamburger menu */}
-          <button 
-            className="nav-mobile-toggle"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {/* Mobile hamburger — hidden on mobile, bottom tab bar is used instead */}
         </div>
         <div className="nav-right nav-right-inline">
           <nav className="nav-menu nav-menu-inline">
@@ -103,19 +96,16 @@ export function NavBar() {
             ))}
           </nav>
         </div>
-        {/* Mobile menu overlay */}
+        {/* Mobile "More" overlay — shown when More tab is tapped */}
         {isMobileMenuOpen && (
-          <div className="nav-mobile-overlay">
-            <nav className="nav-mobile-menu">
-              {mainLinks.map((link) => (
-                <NavItem 
-                  key={link.to} 
-                  to={link.to} 
-                  label={link.label} 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                />
-              ))}
-              <span className="nav-sep" aria-hidden role="separator" />
+          <div className="nav-mobile-more-overlay" onClick={() => setIsMobileMenuOpen(false)}>
+            <nav className="nav-mobile-more-menu" onClick={(e) => e.stopPropagation()}>
+              <div className="nav-mobile-more-header">
+                <span className="nav-mobile-more-title">More</span>
+                <button className="nav-mobile-more-close" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close">
+                  <X size={18} />
+                </button>
+              </div>
               {filteredIconLinks.map((link) => (
                 <NavItem
                   key={link.to}
@@ -133,6 +123,76 @@ export function NavBar() {
   );
 }
 
+const mobileTabLinks = [
+  { to: '/movies', label: 'Movies', icon: Film as React.ComponentType<{ size?: number }> },
+  { to: '/tv', label: 'TV', icon: Tv as React.ComponentType<{ size?: number }> },
+  { to: '/actors', label: 'Actors', icon: UserRound as React.ComponentType<{ size?: number }> },
+  { to: '/directors', label: 'Direct.', icon: Video as React.ComponentType<{ size?: number }> },
+  { to: '/watchlist', label: 'Watchlist', icon: Bookmark as React.ComponentType<{ size?: number }> },
+];
+
+export function MobileBottomNav() {
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const { isAdmin } = useAuth();
+
+  const filteredIconLinks = useMemo(() => {
+    return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
+  }, [isAdmin]);
+
+  return (
+    <>
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        {mobileTabLinks.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              ['mobile-tab', isActive ? 'mobile-tab-active' : ''].filter(Boolean).join(' ')
+            }
+            aria-label={label}
+          >
+            <Icon size={22} />
+            <span className="mobile-tab-label">{label}</span>
+          </NavLink>
+        ))}
+        <button
+          className="mobile-tab"
+          onClick={() => setIsMoreOpen(true)}
+          aria-label="More options"
+        >
+          <MoreHorizontal size={22} />
+          <span className="mobile-tab-label">More</span>
+        </button>
+      </nav>
+
+      {isMoreOpen && (
+        <div className="mobile-more-backdrop" onClick={() => setIsMoreOpen(false)}>
+          <div className="mobile-more-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-more-handle" />
+            <div className="mobile-more-grid">
+              {filteredIconLinks.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    ['mobile-more-item', isActive ? 'mobile-more-item-active' : ''].filter(Boolean).join(' ')
+                  }
+                  onClick={() => setIsMoreOpen(false)}
+                  aria-label={label}
+                >
+                  <div className="mobile-more-icon">
+                    <Icon size={24} />
+                  </div>
+                  <span className="mobile-more-label">{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 type NavItemProps = {
   to: string;
