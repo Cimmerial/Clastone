@@ -10,6 +10,15 @@ import { tvClasses, tvByClass as initialTvByClass } from '../mock/tvShows';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { formatViewingFromRecords } from './moviesStore';
 
+function mergeInMissingDefaultClasses(existing: MovieClassDef[]): MovieClassDef[] {
+  const existingKeys = new Set(existing.map((c) => c.key));
+  const missing = defaultMovieClassDefs.filter((c) => !existingKeys.has(c.key));
+  if (missing.length === 0) return existing;
+  const unrankedIndex = existing.findIndex((c) => c.key === 'UNRANKED');
+  if (unrankedIndex === -1) return [...existing, ...missing];
+  return [...existing.slice(0, unrankedIndex), ...missing, ...existing.slice(unrankedIndex)];
+}
+
 type TvStore = {
   classes: MovieClassDef[];
   classOrder: ClassKey[];
@@ -82,7 +91,9 @@ type TvProviderProps = {
 const TvContext = createContext<TvStore | null>(null);
 
 export function TvProvider({ children, initialByClass, initialClasses, onPersist }: TvProviderProps) {
-  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
+  const [classes, setClasses] = useState<MovieClassDef[]>(
+    mergeInMissingDefaultClasses(initialClasses ?? defaultMovieClassDefs)
+  );
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(initialByClass ?? {});
   const [pendingChanges, setPendingChanges] = useState(0);

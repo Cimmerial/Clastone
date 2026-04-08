@@ -8,6 +8,19 @@ import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isVali
 import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 
+function mergeInMissingDefaultClasses(existing: MovieClassDef[]): MovieClassDef[] {
+  // Some older user payloads may be missing newer default classes (e.g. DONT_REMEMBER).
+  // Friend profiles load their saved class lists; the local store should also guarantee
+  // these defaults exist so UI can render those buckets.
+  const existingKeys = new Set(existing.map((c) => c.key));
+  const missing = defaultMovieClassDefs.filter((c) => !existingKeys.has(c.key));
+  if (missing.length === 0) return existing;
+
+  const unrankedIndex = existing.findIndex((c) => c.key === 'UNRANKED');
+  if (unrankedIndex === -1) return [...existing, ...missing];
+  return [...existing.slice(0, unrankedIndex), ...missing, ...existing.slice(unrankedIndex)];
+}
+
 function dateParts(r: WatchRecord, useEnd = false): { y: number; m: number; d: number } {
   const y = useEnd ? (r.endYear ?? r.year ?? 0) : (r.year ?? 0);
   const m = useEnd ? (r.endMonth ?? r.month ?? 0) : (r.month ?? 0);
@@ -238,7 +251,9 @@ type MoviesProviderProps = {
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
-  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
+  const [classes, setClasses] = useState<MovieClassDef[]>(
+    mergeInMissingDefaultClasses(initialClasses ?? defaultMovieClassDefs)
+  );
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(
     initialByClass ?? initialMoviesByClass

@@ -103,6 +103,32 @@ function buildTopFiveByYear(items: MovieShowItem[]) {
     .map(([year, yearItems]) => ({ year, items: yearItems }));
 }
 
+function buildTopFiveByYearWithFill(primary: MovieShowItem[], filler: MovieShowItem[]) {
+  const byYear = new Map<number, MovieShowItem[]>();
+  const ensure = (year: number) => {
+    const current = byYear.get(year);
+    if (current) return current;
+    const next: MovieShowItem[] = [];
+    byYear.set(year, next);
+    return next;
+  };
+
+  const pushIfSpace = (item: MovieShowItem) => {
+    const year = getItemReleaseYear(item);
+    if (year == null) return;
+    const current = ensure(year);
+    if (current.length >= 5) return;
+    current.push(item);
+  };
+
+  for (const item of primary) pushIfSpace(item);
+  for (const item of filler) pushIfSpace(item);
+
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, yearItems]) => ({ year, items: yearItems }));
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
@@ -160,23 +186,44 @@ export function ProfilePage() {
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
 
+  // On your own profile, include "unranked-but-curated" classes in top lists,
+  // but never include the literal UNRANKED bucket.
+  const isTopListEligibleClassKey = useCallback(
+    (classKey: string, isRankedFn: (k: string) => boolean) => {
+      if (classKey === 'UNRANKED') return false;
+      if (isRankedFn(classKey)) return true;
+      return classKey === 'DELICIOUS_GARBAGE' || classKey === 'BABY' || classKey === 'DONT_REMEMBER';
+    },
+    []
+  );
+
+  const movieProfileClassKeys = useMemo(() => {
+    const known = movieClassOrder;
+    const fromData = Object.keys(moviesByClass ?? {});
+    return Array.from(new Set([...known, ...fromData])).filter((k) => k !== 'UNRANKED');
+  }, [movieClassOrder, moviesByClass]);
+
+  const tvProfileClassKeys = useMemo(() => {
+    const known = tvClassOrder;
+    const fromData = Object.keys(tvByClass ?? {});
+    return Array.from(new Set([...known, ...fromData])).filter((k) => k !== 'UNRANKED');
+  }, [tvClassOrder, tvByClass]);
+
   const rankedMovies = useMemo(() => {
     const list: MovieShowItem[] = [];
-    for (const k of movieClassOrder) {
-      if (!isRankedMovieClass(k)) continue;
+    for (const k of movieProfileClassKeys) {
       for (const item of moviesByClass[k] ?? []) list.push(item);
     }
     return list;
-  }, [moviesByClass, movieClassOrder, isRankedMovieClass]);
+  }, [moviesByClass, movieProfileClassKeys]);
 
   const rankedShows = useMemo(() => {
     const list: MovieShowItem[] = [];
-    for (const k of tvClassOrder) {
-      if (!isRankedTvClass(k)) continue;
+    for (const k of tvProfileClassKeys) {
       for (const item of tvByClass[k] ?? []) list.push(item);
     }
     return list;
-  }, [tvByClass, tvClassOrder, isRankedTvClass]);
+  }, [tvByClass, tvProfileClassKeys]);
 
   const stats = useMemo(() => {
     let totalMinutes = 0;
@@ -588,23 +635,19 @@ export function ProfilePage() {
   // Create top 10 movies and shows (only ranked items)
   const top10Movies = useMemo(() => {
     const list: MovieShowItem[] = [];
-    for (const k of movieClassOrder) {
-      if (isRankedMovieClass(k)) {
-        for (const item of moviesByClass[k] ?? []) list.push(item);
-      }
+    for (const k of movieProfileClassKeys) {
+      for (const item of moviesByClass[k] ?? []) list.push(item);
     }
     return list.slice(0, 10);
-  }, [moviesByClass, movieClassOrder, isRankedMovieClass]);
+  }, [moviesByClass, movieProfileClassKeys]);
 
   const top10Shows = useMemo(() => {
     const list: MovieShowItem[] = [];
-    for (const k of tvClassOrder) {
-      if (isRankedTvClass(k)) {
-        for (const item of tvByClass[k] ?? []) list.push(item);
-      }
+    for (const k of tvProfileClassKeys) {
+      for (const item of tvByClass[k] ?? []) list.push(item);
     }
     return list.slice(0, 10);
-  }, [tvByClass, tvClassOrder, isRankedTvClass]);
+  }, [tvByClass, tvProfileClassKeys]);
   
   const topMoviesByYear = useMemo(() => buildTopFiveByYear(rankedMovies), [rankedMovies]);
   const topShowsByYear = useMemo(() => buildTopFiveByYear(rankedShows), [rankedShows]);
@@ -1376,7 +1419,9 @@ export function ProfilePage() {
           ) : null}
           {movieViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
-              {movieClassOrder.filter(k => isRankedMovieClass(k) && moviesByClass[k]?.length > 0).map((classKey) => (
+              {movieClassOrder
+                .filter((k) => movieProfileClassKeys.includes(k) && moviesByClass[k]?.length > 0)
+                .map((classKey) => (
                 <div key={classKey} className="profile-class-section">
                   <h3 className="profile-class-title">{getMovieClassLabel(classKey)}</h3>
                   <div className="profile-class-grid">
@@ -1535,7 +1580,9 @@ export function ProfilePage() {
           ) : null}
           {showViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
-              {tvClassOrder.filter(k => isRankedTvClass(k) && tvByClass[k]?.length > 0).map((classKey) => (
+              {tvClassOrder
+                .filter((k) => tvProfileClassKeys.includes(k) && tvByClass[k]?.length > 0)
+                .map((classKey) => (
                 <div key={classKey} className="profile-class-section">
                   <h3 className="profile-class-title">{getTvClassLabel(classKey)}</h3>
                   <div className="profile-class-grid">
