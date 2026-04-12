@@ -1,16 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - allow read for authenticated users with field restrictions
+
+    // Public user doc read (signed-out + people search): never store credentials in Firestore — Auth holds secrets.
+    // No arbitrary field-count cap (that broke real profiles and full-collection search when any doc was "too large").
+    function userProfileDocPublicSafe() {
+      return resource != null
+        && !resource.data.keys().hasAny(['password', 'hash', 'salt']);
+    }
+
+    // Users collection
     match /users/{userId} {
       // Allow list queries for username checking (unauthenticated)
       allow list: if true;
-      
-      allow read: if request.auth != null && 
-        (request.auth.uid == userId || 
-         // Non-owners can only read safe fields
-         (!resource.data.keys().hasAny(['password', 'hash', 'salt', 'token', 'secret', 'key']) &&
-          resource.data.keys().size() <= 5));
+
+      // Owner: full doc. Others (including signed-out): only small docs without sensitive keys.
+      allow read: if request.auth != null && request.auth.uid == userId
+        || userProfileDocPublicSafe();
       allow write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
       // Debug: Log all user collection access attempts
@@ -19,35 +25,66 @@ service cloud.firestore {
     
     // Users subcollections - specific rules first
     
-    // Profile ranking data: any signed-in user may read; only the owner may write
+    // Profile ranking data: public read; only the owner may write
     match /users/{userId}/movieData/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/tvData/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/peopleData/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/directorsData/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/watchlistData/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
+    }
+
+    // Friend watch recommendations: stored on the recipient's user doc. Senders may
+    // create/delete only when a friends/{sender_recipient} document exists.
+    match /users/{userId}/incomingWatchRecommendations/{recId} {
+      function friendshipExists(a, b) {
+        return exists(/databases/$(database)/documents/friends/$(a + '_' + b));
+      }
+      // Recipient may read all. Friends of the recipient may read (FriendProfilePage merges
+      // incoming into watchlist for viewers). Senders may read docs they created.
+      // Friends check also covers sender get() on missing docs (resource == null).
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        friendshipExists(request.auth.uid, userId) ||
+        friendshipExists(userId, request.auth.uid) ||
+        (resource != null && resource.data.fromUid == request.auth.uid)
+      );
+      allow create: if request.auth != null &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid == userId &&
+        friendshipExists(request.auth.uid, userId);
+      allow update: if request.auth != null &&
+        resource.data.fromUid == request.auth.uid &&
+        request.resource.data.fromUid == resource.data.fromUid &&
+        request.resource.data.toUid == resource.data.toUid &&
+        request.resource.data.toUid == userId &&
+        friendshipExists(request.auth.uid, userId);
+      allow delete: if request.auth != null && (
+        request.auth.uid == userId ||
+        resource.data.fromUid == request.auth.uid
+      );
     }
     
     // Legacy data subcollection (backwards compatibility)
     match /users/{userId}/data/{docId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     

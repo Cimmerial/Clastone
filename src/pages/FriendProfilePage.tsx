@@ -29,6 +29,7 @@ import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSavePar
 import { RandomQuote } from '../components/RandomQuote';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
+import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import './FriendProfilePage.css';
 import '../components/ProfileSplitLayout.css';
@@ -440,14 +441,19 @@ export function FriendProfilePage() {
         console.log('✅ Directors loaded:', directorsData);
 
         console.log('📝 Loading friend watchlist data...');
-        const watchlistData = await loadWatchlist(db!, actualFriendUid);
-        console.log('✅ Watchlist loaded:', watchlistData);
+        // Use watchlistData only (read: true in rules). recommendedBy is persisted there when they sync;
+        // avoids listing incomingWatchRecommendations (stricter rules / deploy drift).
+        const watchlistLoaded = await loadWatchlist(db!, actualFriendUid);
+        console.log('✅ Watchlist loaded:', {
+          movies: watchlistLoaded.movies.length,
+          tv: watchlistLoaded.tv.length
+        });
 
         setFriendMoviesData(moviesData);
         setFriendTvData(tvData);
         setFriendPeopleData(peopleData);
         setFriendDirectorsData(directorsData);
-        setFriendWatchlistData(watchlistData);
+        setFriendWatchlistData({ movies: watchlistLoaded.movies, tv: watchlistLoaded.tv });
 
         console.log('🎉 All friend data loaded successfully!');
 
@@ -458,6 +464,12 @@ export function FriendProfilePage() {
           message: err.message,
           stack: err.stack
         });
+        if (err?.code === 'permission-denied') {
+          console.warn(
+            '[Clastone] permission-denied: deploy firestore.rules (public user + subcollection reads). ' +
+              'People search needs every /users/{id} doc to pass userProfileDocPublicSafe() (no fields named password, hash, salt).'
+          );
+        }
         setError(err.message);
         setResolvedProfileUid(null);
       } finally {
@@ -565,6 +577,46 @@ export function FriendProfilePage() {
     }
     return list;
   }, [friendTvData]);
+
+  const profileCopyFriendMovieClassOrder = useMemo(() => {
+    if (!friendMoviesData?.classes || !friendMoviesData.byClass) return [];
+    return friendMoviesData.classes
+      .filter(
+        (c: { key: string }) =>
+          c.key !== 'UNRANKED' && (friendMoviesData.byClass[c.key]?.length ?? 0) > 0
+      )
+      .map((c: { key: string }) => c.key);
+  }, [friendMoviesData]);
+
+  const profileCopyFriendTvClassOrder = useMemo(() => {
+    if (!friendTvData?.classes || !friendTvData.byClass) return [];
+    return friendTvData.classes
+      .filter(
+        (c: { key: string }) =>
+          c.key !== 'UNRANKED' && (friendTvData.byClass[c.key]?.length ?? 0) > 0
+      )
+      .map((c: { key: string }) => c.key);
+  }, [friendTvData]);
+
+  const profileCopyFriendPeopleClassOrder = useMemo(() => {
+    if (!friendPeopleData?.classes || !friendPeopleData.byClass) return [];
+    return friendPeopleData.classes
+      .filter(
+        (c: { key: string }) =>
+          c.key !== 'UNRANKED' && (friendPeopleData.byClass[c.key]?.length ?? 0) > 0
+      )
+      .map((c: { key: string }) => c.key);
+  }, [friendPeopleData]);
+
+  const profileCopyFriendDirectorsClassOrder = useMemo(() => {
+    if (!friendDirectorsData?.classes || !friendDirectorsData.byClass) return [];
+    return friendDirectorsData.classes
+      .filter(
+        (c: { key: string }) =>
+          c.key !== 'UNRANKED' && (friendDirectorsData.byClass[c.key]?.length ?? 0) > 0
+      )
+      .map((c: { key: string }) => c.key);
+  }, [friendDirectorsData]);
 
   const topMoviesByYear = useMemo(() => buildTopFiveByYear(allMoviesExceptUnranked), [allMoviesExceptUnranked]);
   const topShowsByYear = useMemo(() => buildTopFiveByYear(allShowsExceptUnranked), [allShowsExceptUnranked]);
@@ -1508,9 +1560,13 @@ export function FriendProfilePage() {
     return null;
   };
 
+  const viewerLoggedIn = !!user;
+  const profilePageClass =
+    'friend-profile-page' + (!viewerLoggedIn ? ' friend-profile-page--public' : '');
+
   if (loading) {
     return (
-      <div className="friend-profile-page">
+      <div className={profilePageClass}>
         <div className="loading">Loading profile...</div>
       </div>
     );
@@ -1518,10 +1574,10 @@ export function FriendProfilePage() {
 
   if (error || !friendProfile) {
     return (
-      <div className="friend-profile-page">
+      <div className={profilePageClass}>
         <Link to="/friends" className="back-button">
           <ArrowLeft size={20} />
-          Back to Friends
+          Back to People
         </Link>
         <div className="error">
           {error || 'Friend not found'}
@@ -1531,14 +1587,14 @@ export function FriendProfilePage() {
   }
 
   return (
-    <section>
+    <section className={profilePageClass}>
       <header className="page-heading">
         <div>
           <h1 className="page-title">Profile of {friendProfile?.username}</h1>
           <div className="profile-header-actions">
             <Link to="/friends" className="back-button">
               <ArrowLeft size={20} />
-              Back to Friends
+              Back to People
             </Link>
           </div>
           <RandomQuote />
@@ -1549,15 +1605,17 @@ export function FriendProfilePage() {
         <div className="profile-stats-header">
           <h2 className="profile-card-title">Quick stats</h2>
           <div className="profile-stats-header-actions">
-            <button
-              type="button"
-              className="profile-view-friends-btn"
-              onClick={handleViewFriendsOfFriend}
-              disabled={loadingFriendsOfFriend}
-            >
-              <Users2 size={16} />
-              {showFriendsOfFriendModal ? 'Hide Friends' : 'View Their Friends'}
-            </button>
+            {viewerLoggedIn && (
+              <button
+                type="button"
+                className="profile-view-friends-btn"
+                onClick={handleViewFriendsOfFriend}
+                disabled={loadingFriendsOfFriend}
+              >
+                <Users2 size={16} />
+                {showFriendsOfFriendModal ? 'Hide Friends' : 'View Their Friends'}
+              </button>
+            )}
             {profileSocial &&
               !profileSocial.isOwnProfile &&
               profileSocial.isFriendWithViewed && (
@@ -1950,6 +2008,61 @@ export function FriendProfilePage() {
                 </ResponsiveContainer>
               </div>
             </div>
+
+            <ProfileCopyTopRankedSection
+              movieClassOrder={profileCopyFriendMovieClassOrder}
+              tvClassOrder={profileCopyFriendTvClassOrder}
+              peopleClassOrder={profileCopyFriendPeopleClassOrder}
+              directorsClassOrder={profileCopyFriendDirectorsClassOrder}
+              moviesByClass={friendMoviesData?.byClass ?? {}}
+              tvByClass={friendTvData?.byClass ?? {}}
+              peopleByClass={friendPeopleData?.byClass ?? {}}
+              directorsByClass={friendDirectorsData?.byClass ?? {}}
+              getMovieClassLabel={(k) =>
+                friendMoviesData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+              }
+              getMovieClassTagline={(k) =>
+                friendMoviesData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+              }
+              getTvClassLabel={(k) =>
+                friendTvData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+              }
+              getTvClassTagline={(k) =>
+                friendTvData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+              }
+              getPeopleClassLabel={(k) =>
+                friendPeopleData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+              }
+              getPeopleClassTagline={(k) =>
+                friendPeopleData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+              }
+              getDirectorClassLabel={(k) =>
+                friendDirectorsData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+              }
+              getDirectorClassTagline={(k) =>
+                friendDirectorsData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+              }
+              isMovieClassRanked={(k) =>
+                Boolean(
+                  friendMoviesData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                )
+              }
+              isTvClassRanked={(k) =>
+                Boolean(friendTvData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked)
+              }
+              isPeopleClassRanked={(k) =>
+                Boolean(
+                  friendPeopleData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                )
+              }
+              isDirectorClassRanked={(k) =>
+                Boolean(
+                  friendDirectorsData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                )
+              }
+              watchlistMovies={friendWatchlistData?.movies ?? []}
+              watchlistTv={friendWatchlistData?.tv ?? []}
+            />
           </div>
         )}
       </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FcGoogle } from 'react-icons/fc';
 import { Mail, Lock, LogIn, UserPlus, User } from 'lucide-react';
 import './LoginPage.css';
 
 export function LoginPage() {
-  const { loginWithGoogle, loginWithUsername, signUpWithEmail, loginError } = useAuth();
+  const { user, loginWithGoogle, loginWithUsername, signUpWithEmail, loginError } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,6 +108,10 @@ export function LoginPage() {
     };
   }, []);
 
+  if (user) {
+    return <Navigate to="/home" replace />;
+  }
+
   return (
     <section className="login-root" ref={containerRef}>
       {/* Random moving glow elements */}
@@ -139,9 +144,9 @@ export function LoginPage() {
         <div className="login-card">
           <div className="login-header">
             <h1 className="login-title">Clastone</h1>
-            <p className="login-subtitle">
-              {isSignUp ? 'Create an account to start ranking' : 'Welcome back'}
-            </p>
+            {isSignUp && (
+              <p className="login-subtitle">Create an account to start ranking</p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
@@ -221,8 +226,10 @@ export function LoginPage() {
           </button>
 
           <div className="login-footer">
-            <p>
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <div className="login-footer-account-row">
+              <span>
+                {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+              </span>
               <button
                 type="button"
                 className="login-toggle-btn"
@@ -235,7 +242,15 @@ export function LoginPage() {
               >
                 {isSignUp ? 'Sign In' : 'Create one'}
               </button>
-            </p>
+            </div>
+            <div className="login-footer-public-row">
+              <Link to="/friends" className="login-footer-link-btn">
+                View users
+              </Link>
+              <Link to="/home" className="login-footer-link-btn">
+                Home page
+              </Link>
+            </div>
           </div>
         </div>
       </div>

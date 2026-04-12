@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useFriends } from '../context/FriendsContext';
+import { useAuth } from '../context/AuthContext';
 import { Search, UserPlus, Check, X, Eye, Loader, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './FriendsPage.css';
@@ -12,26 +13,25 @@ interface UserProfile {
 }
 
 export function FriendsPage() {
-  const { 
-    friends, 
-    sentRequests, 
-    receivedRequests, 
-    loading, 
-    refreshFriends, 
-    sendFriendRequest, 
-    acceptFriendRequest, 
-    rejectFriendRequest, 
-    searchUsers, 
-    isDataLoaded 
+  const { user } = useAuth();
+  const {
+    friends,
+    sentRequests,
+    receivedRequests,
+    loading,
+    refreshFriends,
+    sendFriendRequest,
+    acceptFriendRequest,
+    rejectFriendRequest,
+    searchUsers,
   } = useFriends();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Search users with debouncing
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -67,30 +67,33 @@ export function FriendsPage() {
     setRefreshing(false);
   };
 
+  const loggedIn = !!user;
+
   return (
     <div className="friends-page">
       <div className="friends-container">
         <header className="friends-header">
-          <h1>Friends</h1>
-          <div className="friends-header-actions">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="refresh-btn"
-              title="Refresh friends list"
-            >
-              <RefreshCw size={18} className={refreshing ? 'spinning' : ''} />
-            </button>
-          </div>
-          <p>Connect and share your movie rankings</p>
+          <h1>People</h1>
+          {loggedIn && (
+            <div className="friends-header-actions">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="refresh-btn"
+                title="Refresh list"
+              >
+                <RefreshCw size={18} className={refreshing ? 'spinning' : ''} />
+              </button>
+            </div>
+          )}
+          <p>{loggedIn ? 'Connect and share your movie rankings' : 'Browse public profiles by username'}</p>
         </header>
 
-        {/* Friend Requests */}
-        {receivedRequests.length > 0 && (
+        {loggedIn && receivedRequests.length > 0 && (
           <section className="friend-requests">
             <h2>Friend Requests</h2>
             <div className="requests-list">
-              {receivedRequests.map(request => (
+              {receivedRequests.map((request) => (
                 <div key={request.id} className="request-item">
                   <div className="request-info">
                     <strong>{request.fromUsername}</strong>
@@ -118,9 +121,8 @@ export function FriendsPage() {
           </section>
         )}
 
-        {/* Search */}
         <section className="search-section">
-          <h2>Find Friends</h2>
+          <h2>Find people</h2>
           <div className="search-container">
             <input
               type="text"
@@ -133,27 +135,29 @@ export function FriendsPage() {
           </div>
         </section>
 
-        {/* Search Results */}
         {searchResults.length > 0 && (
           <section className="search-results">
             <h3>Search Results</h3>
             <div className="results-list">
-              {searchResults.map(result => {
-                const isFriend = friends.some(f => f.uid === result.uid);
-                const requestSent = sentRequests.includes(result.uid);
-                
+              {searchResults.map((result) => {
+                const isFriend = loggedIn && friends.some((f) => f.uid === result.uid);
+                const requestSent = loggedIn && sentRequests.includes(result.uid);
+
                 return (
                   <div key={result.uid} className="result-item">
                     <div className="user-info">
-                      <div className="user-avatar">
-                        {result.username.charAt(0).toUpperCase()}
-                      </div>
+                      <div className="user-avatar">{result.username.charAt(0).toUpperCase()}</div>
                       <div className="user-details">
                         <strong>{result.username}</strong>
                       </div>
                     </div>
                     <div className="user-actions">
-                      {isFriend ? (
+                      {!loggedIn ? (
+                        <Link to={`/friends/${result.uid}`} className="view-profile-btn">
+                          <Eye size={16} />
+                          View Profile
+                        </Link>
+                      ) : isFriend ? (
                         <Link to={`/friends/${result.uid}`} className="view-profile-btn">
                           <Eye size={16} />
                           View Profile
@@ -199,20 +203,13 @@ export function FriendsPage() {
           </section>
         )}
 
-        {/* Friends List */}
-        {friends.length > 0 && (
+        {loggedIn && friends.length > 0 && (
           <section className="friends-list">
-            <h2>Your Friends ({friends.length})</h2>
+            <h2>Your friends ({friends.length})</h2>
             <div className="friends-grid">
-              {friends.map(friend => (
-                <Link
-                  key={friend.uid}
-                  to={`/friends/${friend.uid}`}
-                  className="friend-card"
-                >
-                  <div className="friend-avatar">
-                    {friend.username.charAt(0).toUpperCase()}
-                  </div>
+              {friends.map((friend) => (
+                <Link key={friend.uid} to={`/friends/${friend.uid}`} className="friend-card">
+                  <div className="friend-avatar">{friend.username.charAt(0).toUpperCase()}</div>
                   <div className="friend-info">
                     <strong>{friend.username}</strong>
                     <span>View profile</span>
@@ -224,11 +221,19 @@ export function FriendsPage() {
           </section>
         )}
 
-        {friends.length === 0 && receivedRequests.length === 0 && !searchQuery && (
+        {loggedIn && friends.length === 0 && receivedRequests.length === 0 && !searchQuery && (
           <div className="empty-state">
             <UserPlus size={48} />
             <h3>No friends yet</h3>
-            <p>Search for users by username to start connecting!</p>
+            <p>Search for people by username to start connecting!</p>
+          </div>
+        )}
+
+        {!loggedIn && !searchQuery && searchResults.length === 0 && (
+          <div className="empty-state">
+            <Search size={48} />
+            <h3>Find someone</h3>
+            <p>Search by username to open a public profile.</p>
           </div>
         )}
       </div>

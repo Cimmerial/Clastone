@@ -24,6 +24,7 @@ import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviderCatalog, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
+import { formatRecommendersLabel } from '../components/RecommendToFriendModal';
 import { db } from '../lib/firebase';
 import { loadWatchlist, type WatchlistData } from '../lib/firestoreWatchlist';
 import './WatchlistPage.css';
@@ -399,6 +400,15 @@ function getWatchlistSectionId(type: WatchlistType, section: WatchlistSectionKey
   return `watchlist-section-${type}-${section}`;
 }
 
+function watchlistRecommendedTitle(entry: WatchlistEntry): string | undefined {
+  if (!entry.recommendedBy?.length) return undefined;
+  return `Recommended by ${formatRecommendersLabel(entry.recommendedBy)}`;
+}
+
+function entryHasFriendRecommendations(e: WatchlistEntry): boolean {
+  return (e.recommendedBy?.length ?? 0) > 0;
+}
+
 function WatchlistTile({
   entry,
   type,
@@ -470,12 +480,17 @@ function WatchlistTile({
     }
   };
 
+  const isRecommended = (entry.recommendedBy?.length ?? 0) > 0;
+  const recTitle = watchlistRecommendedTitle(entry);
+
   return (
     <div 
-      className={`entry-tile ${hasWatched ? 'watched' : ''} ${isDragging ? 'watchlist-tile--dragging' : ''}`}
+      className={`entry-tile ${hasWatched ? 'watched' : ''} ${isRecommended ? 'watchlist-entry--recommended' : ''} ${isDragging ? 'watchlist-tile--dragging' : ''}`}
       data-watchlist-id={entry.id}
+      data-recommended-tooltip={isRecommended && recTitle ? recTitle : undefined}
       ref={setNodeRef}
       style={style}
+      title={recTitle}
       onPointerEnter={handlePointerEnter}
       {...attributes}
       {...listeners}
@@ -631,6 +646,9 @@ function WatchlistRow({
   });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
 
+  const isRecommended = (entry.recommendedBy?.length ?? 0) > 0;
+  const recTitle = watchlistRecommendedTitle(entry);
+
   return (
     <div
       ref={setNodeRef}
@@ -641,7 +659,11 @@ function WatchlistRow({
       {...attributes}
       {...listeners}
     >
-      <div className={`entry-row ${minimized ? 'entry-row-minimized' : ''} ${hasWatched ? 'watched' : ''}`}>
+      <div
+        className={`entry-row ${minimized ? 'entry-row-minimized' : ''} ${hasWatched ? 'watched' : ''} ${isRecommended ? 'watchlist-entry--recommended' : ''}`}
+        data-recommended-tooltip={isRecommended && recTitle ? recTitle : undefined}
+        title={recTitle}
+      >
         <div className="entry-poster">
           {entry.posterPath ? (
             <img
@@ -806,6 +828,7 @@ export function WatchlistPage() {
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [watchlistVisibilityMode, setWatchlistVisibilityMode] = useState<WatchlistVisibilityMode>('ALL');
+  const [showRecommendedOnly, setShowRecommendedOnly] = useState(false);
   const [isOverlapModalOpen, setIsOverlapModalOpen] = useState(false);
   const [overlapFriendUids, setOverlapFriendUids] = useState<string[]>([]);
   const [overlapFriendUidsDraft, setOverlapFriendUidsDraft] = useState<string[]>([]);
@@ -1222,16 +1245,18 @@ export function WatchlistPage() {
   }, [overlapFriendUids, friendWatchlists]);
 
   const visibleMovies = useMemo(() => {
-    const base = movies.filter(isFreeEntry);
+    let base = movies.filter(isFreeEntry);
+    if (showRecommendedOnly) base = base.filter(entryHasFriendRecommendations);
     if (!overlapMovieIdSet) return base;
     return base.filter((e) => overlapMovieIdSet.has(e.id));
-  }, [movies, watchProviders, watchlistVisibilityMode, overlapMovieIdSet]);
+  }, [movies, watchProviders, watchlistVisibilityMode, overlapMovieIdSet, showRecommendedOnly]);
 
   const visibleTv = useMemo(() => {
-    const base = tv.filter(isFreeEntry);
+    let base = tv.filter(isFreeEntry);
+    if (showRecommendedOnly) base = base.filter(entryHasFriendRecommendations);
     if (!overlapTvIdSet) return base;
     return base.filter((e) => overlapTvIdSet.has(e.id));
-  }, [tv, watchProviders, watchlistVisibilityMode, overlapTvIdSet]);
+  }, [tv, watchProviders, watchlistVisibilityMode, overlapTvIdSet, showRecommendedOnly]);
 
   // Prepare search items
   const searchItems: SearchableItem[] = useMemo(() => [
@@ -1533,6 +1558,14 @@ export function WatchlistPage() {
               title="Show only items on all selected friends' watchlists"
             >
               View overlap with friends
+            </button>
+            <button
+              type="button"
+              className={`watchlist-recommended-toggle-btn ${showRecommendedOnly ? 'watchlist-recommended-toggle-btn--active' : ''}`}
+              onClick={() => setShowRecommendedOnly((v) => !v)}
+              title={showRecommendedOnly ? 'Show entire watchlist' : 'Show only titles recommended by friends'}
+            >
+              Recommended
             </button>
             <button
               type="button"

@@ -5,6 +5,7 @@ import { useTvStore } from '../state/tvStore';
 import { getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { PageSearch } from './PageSearch';
+import { formatRecommendersLabel } from './RecommendToFriendModal';
 import './ProfileWatchlist.css';
 
 interface ProfileWatchlistProps {
@@ -208,12 +209,20 @@ export function ProfileWatchlist({
           displayText = 'N/A';
         }
 
+        const recommendedBy = entry.recommendedBy?.filter(Boolean) ?? [];
+        const isFriendRecommended = recommendedBy.length > 0;
+        const recommendedLabel = isFriendRecommended
+          ? `Recommended by ${formatRecommendersLabel(recommendedBy)}`
+          : undefined;
+
         return (
           <div
             key={entry.id}
             id={`profile-watchlist-entry-${entry.id}`}
-            className="profile-recent-tile profile-top-item--clickable"
+            className={`profile-recent-tile profile-top-item--clickable${isFriendRecommended ? ' profile-recent-tile--friend-recommended' : ''}`}
             onClick={handleClick}
+            title={recommendedLabel}
+            data-recommended-tooltip={isFriendRecommended ? recommendedLabel : undefined}
           >
             <div className="profile-recent-tile-poster">
               {getMovieImageSrc(entry.posterPath, entry.title) ? (
@@ -238,6 +247,9 @@ export function ProfileWatchlist({
             </div>
             <div className="profile-recent-tile-info">
               <span className="profile-recent-tile-title">{entry.title}</span>
+              {isFriendRecommended ? (
+                <span className="profile-recent-tile-recommended-by">{recommendedLabel}</span>
+              ) : null}
               <span className="profile-recent-tile-date">
                 {formatYear(entry.releaseDate)}
               </span>

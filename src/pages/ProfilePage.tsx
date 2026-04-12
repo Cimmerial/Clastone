@@ -20,6 +20,7 @@ import { tmdbImagePath, getMovieImageSrc } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
+import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { Award } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './ProfilePage.css';
@@ -291,6 +292,7 @@ export function ProfilePage() {
     classOrder: movieClassOrder,
     isRankedClass: isRankedMovieClass,
     getClassLabel: getMovieClassLabel,
+    getClassTagline: getMovieClassTagline,
     classes: movieClasses,
     globalRanks: moviesGlobalRanks,
     addMovieFromSearch,
@@ -303,6 +305,7 @@ export function ProfilePage() {
     classOrder: tvClassOrder,
     isRankedClass: isRankedTvClass,
     getClassLabel: getTvClassLabel,
+    getClassTagline: getTvClassTagline,
     classes: tvClasses,
     globalRanks: tvGlobalRanks,
     addTvShowFromSearch,
@@ -374,6 +377,44 @@ export function ProfilePage() {
     }
     return list;
   }, [tvByClass, tvProfileClassKeys]);
+
+  const profileCopyMovieClassOrder = useMemo(
+    () =>
+      movieClassOrder.filter(
+        (k) => movieProfileClassKeys.includes(k) && (moviesByClass[k]?.length ?? 0) > 0
+      ),
+    [movieClassOrder, movieProfileClassKeys, moviesByClass]
+  );
+
+  const profileCopyTvClassOrder = useMemo(
+    () =>
+      tvClassOrder.filter(
+        (k) => tvProfileClassKeys.includes(k) && (tvByClass[k]?.length ?? 0) > 0
+      ),
+    [tvClassOrder, tvProfileClassKeys, tvByClass]
+  );
+
+  const profileCopyPeopleClassOrder = useMemo(
+    () =>
+      peopleClassOrder.filter((k) => k !== 'UNRANKED' && (peopleByClass[k]?.length ?? 0) > 0),
+    [peopleClassOrder, peopleByClass]
+  );
+
+  const profileCopyDirectorsClassOrder = useMemo(
+    () =>
+      directorsClassOrder.filter((k) => k !== 'UNRANKED' && (directorsByClass[k]?.length ?? 0) > 0),
+    [directorsClassOrder, directorsByClass]
+  );
+
+  const isPeopleClassRanked = useCallback(
+    (k: string) => peopleClasses.find((c) => c.key === k)?.isRanked ?? false,
+    [peopleClasses]
+  );
+
+  const isDirectorClassRanked = useCallback(
+    (k: string) => directorsClasses.find((c) => c.key === k)?.isRanked ?? false,
+    [directorsClasses]
+  );
 
   const stats = useMemo(() => {
     let totalMinutes = 0;
@@ -1537,6 +1578,31 @@ export function ProfilePage() {
                 </ResponsiveContainer>
               </div>
             </div>
+
+            <ProfileCopyTopRankedSection
+              movieClassOrder={profileCopyMovieClassOrder}
+              tvClassOrder={profileCopyTvClassOrder}
+              peopleClassOrder={profileCopyPeopleClassOrder}
+              directorsClassOrder={profileCopyDirectorsClassOrder}
+              moviesByClass={moviesByClass}
+              tvByClass={tvByClass}
+              peopleByClass={peopleByClass}
+              directorsByClass={directorsByClass}
+              getMovieClassLabel={getMovieClassLabel}
+              getMovieClassTagline={getMovieClassTagline}
+              getTvClassLabel={getTvClassLabel}
+              getTvClassTagline={getTvClassTagline}
+              getPeopleClassLabel={(k) => peopleClasses.find((c) => c.key === k)?.label ?? k}
+              getPeopleClassTagline={(k) => peopleClasses.find((c) => c.key === k)?.tagline}
+              getDirectorClassLabel={(k) => directorsClasses.find((c) => c.key === k)?.label ?? k}
+              getDirectorClassTagline={(k) => directorsClasses.find((c) => c.key === k)?.tagline}
+              isMovieClassRanked={isRankedMovieClass}
+              isTvClassRanked={isRankedTvClass}
+              isPeopleClassRanked={isPeopleClassRanked}
+              isDirectorClassRanked={isDirectorClassRanked}
+              watchlistMovies={watchlist.movies}
+              watchlistTv={watchlist.tv}
+            />
           </div>
         )}
       </div>

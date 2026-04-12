@@ -164,7 +164,7 @@ export function HomePage() {
                 </NavLink>
                 <NavLink to="/friends" className="hero-btn secondary">
                   <Users size={20} />
-                  Add Friends
+                  People
                 </NavLink>
                 
                 <NavLink to="/profile" className="hero-btn secondary">
@@ -309,7 +309,7 @@ export function HomePage() {
                     <li>Can view top 5 per year</li>
                     <li>Can view watchlist overlap between friend(s)</li>
                     <li>Refined mobile Clastone</li>
-                    <li>Simple genre breakdown</li>
+                    <li>Can copy top lists in Detailed Stats in Profile viewer</li>
                     <li>Watchlist split into three sections</li>
                     <li>Can see unique movie/show milestones in Recently Watched</li>
                   </ul>

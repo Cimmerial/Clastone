@@ -36,12 +36,19 @@ function stripUndefined<T>(value: T): T {
 }
 
 function pruneWatchlistEntry(entry: WatchlistEntry): WatchlistEntry {
-  return {
+  const base: WatchlistEntry = {
     id: entry.id,
     title: entry.title,
     posterPath: entry.posterPath,
     releaseDate: entry.releaseDate
   };
+  if (entry.recommendedBy?.length) {
+    base.recommendedBy = entry.recommendedBy.map((r) => ({
+      uid: r.uid,
+      ...(r.username !== undefined && r.username !== '' ? { username: r.username } : {})
+    }));
+  }
+  return base;
 }
 
 export async function loadWatchlist(db: Firestore, userId: string): Promise<{

@@ -1,0 +1,211 @@
+.rtf-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050;
+  padding: 16px;
+}
+
+.rtf-modal {
+  width: min(520px, 100%);
+  max-height: min(80vh, 640px);
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(192, 132, 252, 0.25);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rtf-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rtf-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #f5f5f5);
+}
+
+.rtf-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: rgba(216, 180, 254, 0.9);
+  line-height: 1.35;
+}
+
+.rtf-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted, #aaa);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.rtf-close:hover {
+  border-color: rgba(192, 132, 252, 0.45);
+  color: var(--text-primary, #fff);
+}
+
+.rtf-body {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+}
+
+.rtf-hint {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted, #999);
+}
+
+.rtf-empty,
+.rtf-muted,
+.rtf-error {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.rtf-error {
+  color: #f87171;
+}
+
+.rtf-friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rtf-friend-row--primary .rtf-friend-bubble {
+  border-color: rgba(192, 132, 252, 0.42);
+  background: rgba(88, 28, 135, 0.12);
+}
+
+.rtf-friend-bubble {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(26, 26, 26, 0.55);
+}
+
+.rtf-friend-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rtf-friend-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-primary, #eee);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rtf-friend-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rtf-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted, #999);
+}
+
+.rtf-tag--watchlist {
+  border-color: rgba(129, 140, 248, 0.45);
+  color: rgba(165, 180, 252, 0.95);
+}
+
+.rtf-tag--seen {
+  border-color: rgba(148, 163, 184, 0.35);
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.rtf-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.rtf-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rtf-toggle-ui {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  position: relative;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.rtf-toggle-ui::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e5e5e5;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.rtf-toggle input:checked + .rtf-toggle-ui {
+  background: rgba(147, 51, 234, 0.35);
+  border-color: rgba(192, 132, 252, 0.55);
+}
+
+.rtf-toggle input:checked + .rtf-toggle-ui::after {
+  transform: translateX(18px);
+  background: rgba(216, 180, 254, 0.98);
+}
+
+.rtf-toggle input:disabled + .rtf-toggle-ui {
+  opacity: 0.45;
+}
+
+.rtf-toggle-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(216, 180, 254, 0.85);
+}

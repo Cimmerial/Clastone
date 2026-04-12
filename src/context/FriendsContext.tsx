@@ -189,8 +189,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   }, [user, db, username]);
 
   const rejectFriendRequest = useCallback(async (requestId: string) => {
-    if (!db) return;
-    
+    if (!user || !db) return;
+
     setLoading(true);
     try {
       await deleteDoc(doc(db!, 'friendRequests', requestId));
@@ -205,23 +205,29 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   }, [db]);
 
   const searchUsers = useCallback(async (searchQuery: string): Promise<UserProfile[]> => {
-    if (!searchQuery.trim() || !db || !user) return [];
+    if (!searchQuery.trim() || !db) return [];
 
     try {
       const usersQuery = query(collection(db!, 'users'));
       const snapshot = await getDocs(usersQuery);
-      
+
       return snapshot.docs
-        .map(doc => ({
-          uid: doc.id,
-          username: doc.data().username,
-          email: doc.data().email,
-          createdAt: doc.data().createdAt
+        .map((d) => ({
+          uid: d.id,
+          username: d.data().username,
+          email: d.data().email,
+          createdAt: d.data().createdAt
         }))
-        .filter(u => u.uid !== user.uid)
-        .filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase()));
-    } catch (error) {
+        .filter((u) => (user ? u.uid !== user.uid : true))
+        .filter((u) => u.username?.toLowerCase().includes(searchQuery.toLowerCase()));
+    } catch (error: any) {
       console.error('Error searching users:', error);
+      if (error?.code === 'permission-denied') {
+        console.warn(
+          '[Clastone] People search permission-denied: deploy firestore.rules. ' +
+            'Unfiltered /users list requires every user doc to pass userProfileDocPublicSafe() (no top-level fields named password, hash, salt).'
+        );
+      }
       return [];
     }
   }, [db, user]);

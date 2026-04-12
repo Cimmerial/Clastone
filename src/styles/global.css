@@ -47,6 +47,24 @@ body {
   padding: 0;
 }
 
+/* Logged-out shell: login page below fixed public nav */
+.public-login-route {
+  padding-top: 4.5rem;
+  box-sizing: border-box;
+}
+
+.public-login-route .login-root {
+  min-height: calc(100vh - 4.5rem);
+}
+
+.public-login-route--fullscreen {
+  padding-top: 0;
+}
+
+.public-login-route--fullscreen .login-root {
+  min-height: 100vh;
+}
+
 @media (min-width: 768px) {
   .app-main {
     padding: 0.75rem 0.5rem 1.75rem;

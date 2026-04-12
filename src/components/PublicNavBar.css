@@ -1,0 +1,53 @@
+.nav-root--public .nav-inner--public {
+  justify-content: space-between;
+}
+
+.nav-public-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-public-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, rgba(255, 255, 255, 0.65));
+  text-decoration: none;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.nav-public-link:hover {
+  color: var(--accent-soft, #f4a261);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-public-link.active {
+  color: var(--accent-soft, #f4a261);
+}
+
+.nav-public-signin {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bg, #0f0a06);
+  background: var(--accent-soft, #f4a261);
+  text-decoration: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 162, 97, 0.5);
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.nav-public-signin:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.nav-public-signin.active {
+  filter: brightness(1.12);
+}

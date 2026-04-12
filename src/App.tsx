@@ -1,11 +1,16 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppRoutes } from './router';
 import { NavBar, MobileBottomNav } from './components/NavBar';
+import { PublicAppLayout } from './components/PublicAppLayout';
 import { useAuth } from './context/AuthContext';
 import { FirestoreMoviesGate } from './components/FirestoreMoviesGate';
 import { FirestoreTvGate } from './components/FirestoreTvGate';
 import { FirestoreWatchlistGate } from './components/FirestoreWatchlistGate';
 import { FirestoreSettingsGate } from './components/FirestoreSettingsGate';
 import { LoginPage } from './pages/LoginPage';
+import { HomePage } from './pages/HomePage';
+import { FriendsPage } from './pages/FriendsPage';
+import { FriendProfilePage } from './pages/FriendProfilePage';
 import { UsernameSetup } from './components/UsernameSetup';
 import { DevTools } from './components/DevTools';
 import { SyncStatusProvider } from './context/SyncStatusContext';
@@ -18,46 +23,19 @@ import { useSettingsStore } from './state/settingsStore';
 import { useEffect } from 'react';
 import './components/SpotlightBackground.css';
 
-// Component to handle CSS custom property for tile size
 function TileSizeManager() {
   const { settings } = useSettingsStore();
 
   useEffect(() => {
-    const tileSize = settings.tileViewSize === 'small' ? '100px' : 
-                    settings.tileViewSize === 'big' ? '160px' : '120px';
+    const tileSize =
+      settings.tileViewSize === 'small' ? '100px' : settings.tileViewSize === 'big' ? '160px' : '120px';
     document.documentElement.style.setProperty('--tile-size', tileSize);
   }, [settings.tileViewSize]);
 
   return null;
 }
 
-function App() {
-  const { user, loading, needsUsername } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="app-loading">
-        <p>Loading…</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="app-main-login">
-        <LoginPage />
-      </main>
-    );
-  }
-
-  if (needsUsername) {
-    return (
-      <main className="app-main-login">
-        <UsernameSetup />
-      </main>
-    );
-  }
-
+function LoggedInAppShell({ children }: { children: React.ReactNode }) {
   return (
     <FriendsProvider>
       <SyncStatusProvider>
@@ -72,7 +50,7 @@ function App() {
                       <SpotlightBackground />
                       <NavBar />
                       <main className="app-main">
-                        <AppRoutes />
+                        {children}
                       </main>
                       <MobileBottomNav />
                       <DevTools />
@@ -85,6 +63,71 @@ function App() {
         </FirestoreSettingsGate>
       </SyncStatusProvider>
     </FriendsProvider>
+  );
+}
+
+function PublicAppShell() {
+  return (
+    <FriendsProvider>
+      <SyncStatusProvider>
+        <FirestoreSettingsGate>
+          <TileSizeManager />
+          <FirestoreMoviesGate>
+            <FirestoreTvGate>
+              <FirestorePeopleGate>
+                <FirestoreDirectorsGate>
+                  <FirestoreWatchlistGate>
+                    <FilterProvider>
+                      <SpotlightBackground />
+                      <Routes>
+                        <Route path="/" element={<PublicAppLayout />}>
+                          <Route index element={<Navigate to="/login" replace />} />
+                          <Route path="login" element={<LoginPage />} />
+                          <Route path="home" element={<HomePage />} />
+                          <Route path="friends/:friendId" element={<FriendProfilePage />} />
+                          <Route path="friends" element={<FriendsPage />} />
+                        </Route>
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                      </Routes>
+                    </FilterProvider>
+                  </FirestoreWatchlistGate>
+                </FirestoreDirectorsGate>
+              </FirestorePeopleGate>
+            </FirestoreTvGate>
+          </FirestoreMoviesGate>
+        </FirestoreSettingsGate>
+      </SyncStatusProvider>
+    </FriendsProvider>
+  );
+}
+
+function App() {
+  const { user, loading, needsUsername } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <p>Loading…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <PublicAppShell />;
+  }
+
+  if (needsUsername) {
+    return (
+      <main className="app-main-login">
+        <UsernameSetup />
+      </main>
+    );
+  }
+
+  return (
+    <LoggedInAppShell>
+      <AppRoutes />
+    </LoggedInAppShell>
   );
 }
 

@@ -1,10 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  mergeWatchlistWithIncoming,
+  type IncomingWatchRecommendation
+} from '../lib/mergeWatchlistRecommendations';
 
 export type WatchlistEntry = {
   id: string;
   title: string;
   posterPath?: string;
   releaseDate?: string;
+  /** Populated from friends' incoming recommendation docs (synced in Firestore). */
+  recommendedBy?: { uid: string; username?: string }[];
 };
 
 export type WatchlistType = 'movies' | 'tv';
@@ -18,6 +24,8 @@ type WatchlistStore = {
   isInWatchlist: (id: string) => boolean;
   /** Manually trigger a save to Firestore. */
   forceSync: () => Promise<void>;
+  /** Reconcile `recommendedBy` from active incoming recommendation documents. */
+  applyIncomingRecommendations: (incoming: IncomingWatchRecommendation[]) => void;
 };
 
 const WatchlistContext = createContext<WatchlistStore | null>(null);
@@ -33,13 +41,22 @@ type WatchlistProviderProps = {
     dirtyMovies?: boolean;
     dirtyTv?: boolean;
   }) => Promise<void>;
+  /**
+   * Runs before the entry is removed from state (e.g. delete incoming recommendation Firestore docs).
+   * Awaited so the realtime listener does not re-merge the row before deletes finish.
+   */
+  onBeforeRemoveFromWatchlist?: (args: {
+    id: string;
+    entry: WatchlistEntry | null;
+  }) => Promise<void>;
 };
 
 export function WatchlistProvider({
   children,
   initialMovies = [],
   initialTv = [],
-  onPersist
+  onPersist,
+  onBeforeRemoveFromWatchlist
 }: WatchlistProviderProps) {
   const [movies, setMovies] = useState<WatchlistEntry[]>(initialMovies);
   const [tv, setTv] = useState<WatchlistEntry[]>(initialTv);
@@ -184,10 +201,24 @@ export function WatchlistProvider({
     }
   }, []);
 
-  const removeFromWatchlist = useCallback((id: string) => {
-    setMovies((prev) => prev.filter((m) => m.id !== id));
-    setTv((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const removeFromWatchlist = useCallback(
+    (id: string) => {
+      const { movies: m, tv: t } = currentStateRef.current;
+      const entry = m.find((e) => e.id === id) ?? t.find((e) => e.id === id) ?? null;
+      void (async () => {
+        try {
+          if (onBeforeRemoveFromWatchlist) {
+            await onBeforeRemoveFromWatchlist({ id, entry });
+          }
+        } catch (e) {
+          console.warn('[Clastone] onBeforeRemoveFromWatchlist failed', e);
+        }
+        setMovies((prev) => prev.filter((e) => e.id !== id));
+        setTv((prev) => prev.filter((e) => e.id !== id));
+      })();
+    },
+    [onBeforeRemoveFromWatchlist]
+  );
 
   const reorderWatchlist = useCallback((type: WatchlistType, orderedIds: string[]) => {
     if (type === 'movies') {
@@ -222,6 +253,13 @@ export function WatchlistProvider({
     [movies, tv]
   );
 
+  const applyIncomingRecommendations = useCallback((incoming: IncomingWatchRecommendation[]) => {
+    const { movies: m, tv: t } = currentStateRef.current;
+    const merged = mergeWatchlistWithIncoming(m, t, incoming);
+    setMovies(merged.movies);
+    setTv(merged.tv);
+  }, []);
+
   const value = useMemo<WatchlistStore>(
     () => ({
       movies,
@@ -230,6 +268,7 @@ export function WatchlistProvider({
       removeFromWatchlist,
       reorderWatchlist,
       isInWatchlist,
+      applyIncomingRecommendations,
       forceSync: async () => {
         if (onPersist) {
           const dirtyMovies = currentStateRef.current.movies !== lastSavedStateRef.current.movies;
@@ -246,7 +285,18 @@ export function WatchlistProvider({
         }
       }
     }),
-    [movies, tv, addToWatchlist, removeFromWatchlist, reorderWatchlist, isInWatchlist, onPersist, pendingChanges]
+    [
+      movies,
+      tv,
+      addToWatchlist,
+      removeFromWatchlist,
+      reorderWatchlist,
+      isInWatchlist,
+      applyIncomingRecommendations,
+      onPersist,
+      onBeforeRemoveFromWatchlist,
+      pendingChanges
+    ]
   );
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;

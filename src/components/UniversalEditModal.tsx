@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../lib/dateDropdowns';
 import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
+import { RecommendToFriendModal } from './RecommendToFriendModal';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -466,6 +467,7 @@ export function UniversalEditModal({
   isSaving,
 }: Props) {
   const { isMobile } = useMobileViewMode();
+  const [recommendOpen, setRecommendOpen] = useState(false);
   // Convert WatchRecord[] to WatchMatrixEntry[] for initial state
   const convertRecordsToMatrix = useCallback((records?: WatchRecord[]): WatchMatrixEntry[] => {
     if (!records?.length) {
@@ -855,6 +857,17 @@ export function UniversalEditModal({
                 Add to Watchlist
               </button>
             ) : null}
+            {(target.mediaType === 'movie' || target.mediaType === 'tv') && (
+              <button
+                type="button"
+                className="uem-watchlist-btn uem-watchlist-btn--recommend"
+                onClick={() => setRecommendOpen(true)}
+                title="Recommend this title to friends"
+              >
+                <UserPlus size={14} />
+                Recommend to friend
+              </button>
+            )}
             <button type="button" className="uem-close-btn" onClick={onClose} aria-label="Close">
               <X size={16} />
             </button>
@@ -1053,6 +1066,22 @@ export function UniversalEditModal({
           }}
         />
       )}
+
+      <RecommendToFriendModal
+        isOpen={recommendOpen}
+        target={
+          recommendOpen && (target.mediaType === 'movie' || target.mediaType === 'tv')
+            ? {
+                id: target.id,
+                title: target.title,
+                posterPath: target.posterPath,
+                releaseDate: target.releaseDate,
+                mediaType: target.mediaType
+              }
+            : null
+        }
+        onClose={() => setRecommendOpen(false)}
+      />
     </div>
   );
 }

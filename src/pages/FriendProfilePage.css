@@ -1,3 +1,21 @@
+/* Logged-out viewers: no save/seen affordances or tile clicks */
+.friend-profile-page--public .profile-top-item--clickable,
+.friend-profile-page--public .profile-recent-tile.profile-top-item--clickable {
+  cursor: default;
+  pointer-events: none;
+}
+
+.friend-profile-page--public .profile-top-overlay {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.friend-profile-page--public .profile-recent-tile .profile-top-overlay {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 .friend-profile-loading,
 .friend-profile-error {
   display: flex;

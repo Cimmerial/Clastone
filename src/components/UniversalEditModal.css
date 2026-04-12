@@ -129,13 +129,13 @@
   white-space: nowrap;
 }
 
-.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove) {
+.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove):not(.uem-watchlist-btn--recommend) {
   border-color: rgba(76, 175, 80, 0.5);
   background: rgba(76, 175, 80, 0.12);
   color: #4CAF50;
 }
 
-.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove):hover {
+.uem-watchlist-btn:not(.uem-watchlist-btn--goto):not(.uem-watchlist-btn--remove):not(.uem-watchlist-btn--recommend):hover {
   background: rgba(76, 175, 80, 0.2);
   border-color: rgba(76, 175, 80, 0.7);
 }
@@ -157,6 +157,17 @@
   background: rgba(220, 60, 60, 0.1);
   color: #c06060;
   gap: 4px;
+}
+
+.uem-watchlist-btn--recommend {
+  border-color: rgba(192, 132, 252, 0.35) !important;
+  background: rgba(88, 28, 135, 0.12) !important;
+  color: rgba(216, 180, 254, 0.95) !important;
+}
+
+.uem-watchlist-btn--recommend:hover {
+  border-color: rgba(192, 132, 252, 0.55) !important;
+  background: rgba(88, 28, 135, 0.2) !important;
 }
 
 .uem-watchlist-btn--remove:hover {
