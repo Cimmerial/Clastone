@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useWatchlistStore, type WatchlistEntry } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import type { WatchRecord } from './EntryRowMovieShow';
+import { PageSearch } from './PageSearch';
 import './ProfileWatchlist.css';
 
 interface ProfileWatchlistProps {
   isOwnProfile?: boolean;
+  /** Suffix for PageSearch persistence (e.g. friend Firebase uid); avoids sharing query across profiles. */
+  watchlistPageKeySuffix?: string;
   friendWatchlistData?: {
     movies: WatchlistEntry[];
     tv: WatchlistEntry[];
@@ -43,7 +46,8 @@ function formatYear(releaseDate?: string): string {
 }
 
 export function ProfileWatchlist({ 
-  isOwnProfile = true, 
+  isOwnProfile = true,
+  watchlistPageKeySuffix,
   friendWatchlistData,
   onMovieClick,
   onShowClick,
@@ -82,6 +86,22 @@ export function ProfileWatchlist({
   const currentItems = viewType === 'movies' ? filteredMovies : filteredTv;
   const totalCount = viewType === 'movies' ? filteredMovies.length : filteredTv.length;
   const originalCount = viewType === 'movies' ? movies.length : tv.length;
+
+  const watchlistSearchItems = useMemo(
+    () => currentItems.map((e) => ({ id: e.id, title: e.title })),
+    [currentItems]
+  );
+
+  const watchlistSearchPageKey = `profile-watchlist-${watchlistPageKeySuffix ?? (isOwnProfile ? 'own' : 'friend')}-${viewType}`;
+
+  const handleWatchlistScrollToId = useCallback((id: string) => {
+    const el = document.getElementById(`profile-watchlist-entry-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlighted-entry');
+      setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
+    }
+  }, []);
   
   // Format count display
   const countDisplay = (!isOwnProfile && showOverlapOnly) 
@@ -91,10 +111,8 @@ export function ProfileWatchlist({
   if (movies.length === 0 && tv.length === 0) {
     return (
       <div className="profile-watchlist profile-card card-surface">
-        <div className="profile-watchlist-header">
-          <div className="profile-watchlist-title-group">
-            <h2 className="profile-card-title">Watchlist</h2>
-          </div>
+        <div className="profile-recent-header">
+          <h2 className="profile-card-title">Watchlist</h2>
         </div>
         <div className="profile-watchlist-empty">
           <p className="profile-muted">No items in watchlist</p>
@@ -193,6 +211,7 @@ export function ProfileWatchlist({
         return (
           <div
             key={entry.id}
+            id={`profile-watchlist-entry-${entry.id}`}
             className="profile-recent-tile profile-top-item--clickable"
             onClick={handleClick}
           >
@@ -231,42 +250,52 @@ export function ProfileWatchlist({
 
   return (
     <div className="profile-watchlist profile-card card-surface">
-      <div className="profile-watchlist-header">
-        <div className="profile-watchlist-title-group">
-          <h2 className="profile-card-title">Watchlist</h2>
-          <span className="profile-recent-count profile-watchlist-count">{countDisplay}</span>
-        </div>
+      <div className="profile-recent-header">
+        <h2 className="profile-card-title">Watchlist</h2>
+        <span className="profile-recent-count">{countDisplay}</span>
       </div>
-      
-      <div className="profile-recent-controls">
-        <span className="profile-recent-label">List:</span>
-        {(
-          [
-            { value: 'movies' as const, label: 'Movies' },
-            { value: 'shows' as const, label: 'Shows' }
-          ]
-        ).map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            className={`profile-recent-btn ${viewType === opt.value ? 'profile-recent-btn--active' : ''}`}
-            onClick={() => setViewType(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
-        
-        {!isOwnProfile && (
-          <>
-            <span className="profile-recent-label" style={{ marginLeft: '16px' }}>Show:</span>
+
+      <div className="profile-recent-controls profile-watchlist-toolbar">
+        <div className="profile-watchlist-toolbar__primary">
+          <span className="profile-recent-label">List:</span>
+          {(
+            [
+              { value: 'movies' as const, label: 'Movies' },
+              { value: 'shows' as const, label: 'Shows' }
+            ]
+          ).map((opt) => (
             <button
+              key={opt.value}
               type="button"
-              className={`profile-recent-btn ${showOverlapOnly ? 'profile-recent-btn--active' : ''}`}
-              onClick={() => setShowOverlapOnly(!showOverlapOnly)}
+              className={`profile-recent-btn ${viewType === opt.value ? 'profile-recent-btn--active' : ''}`}
+              onClick={() => setViewType(opt.value)}
             >
-              Overlap with my Watchlist
+              {opt.label}
             </button>
-          </>
+          ))}
+
+          {!isOwnProfile && (
+            <>
+              <span className="profile-recent-label profile-watchlist-toolbar__show-label">Show:</span>
+              <button
+                type="button"
+                className={`profile-recent-btn ${showOverlapOnly ? 'profile-recent-btn--active' : ''}`}
+                onClick={() => setShowOverlapOnly(!showOverlapOnly)}
+              >
+                Overlap with my Watchlist
+              </button>
+            </>
+          )}
+        </div>
+        {currentItems.length > 0 && (
+          <PageSearch
+            items={watchlistSearchItems}
+            onSelect={handleWatchlistScrollToId}
+            placeholder={viewType === 'movies' ? 'Search movies…' : 'Search shows…'}
+            className="profile-watchlist-page-search"
+            offsetRight="0"
+            pageKey={watchlistSearchPageKey}
+          />
         )}
       </div>
 

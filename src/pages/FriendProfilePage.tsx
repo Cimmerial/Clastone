@@ -406,9 +406,8 @@ export function FriendProfilePage() {
           
           let profileData = friendDoc.data();
           
-          // Fix admin username display
-          if (friendId === 'cimmerial@clastone.local' && profileData.username === 'cimmerial@clastone.local') {
-            console.log('🔧 Fixing admin username display');
+          // Featured admin account stores login-style username; show a proper display name everywhere (including /friends/:uid).
+          if (profileData.username === 'cimmerial@clastone.local') {
             profileData = { ...profileData, username: 'Cimmerial' };
           }
           
@@ -2576,7 +2575,8 @@ export function FriendProfilePage() {
         </div>
 
         <ProfileWatchlist 
-          isOwnProfile={false} 
+          isOwnProfile={false}
+          watchlistPageKeySuffix={friendProfile.uid}
           friendWatchlistData={friendWatchlistData}
           onMovieClick={(entry) => {
             const tmdbId = (entry.id.includes('-') ? parseInt(entry.id.split('-').pop() || '0', 10) : parseInt(entry.id.replace(/\D/g, ''), 10)) || 0;
@@ -2725,7 +2725,6 @@ export function FriendProfilePage() {
                         </div>
                         <div className="friends-of-friend-info">
                           <strong>{friend.username}</strong>
-                          <span>{friend.email}</span>
                         </div>
                         <div className="friends-of-friend-actions">
                           {isCurrentUser ? (

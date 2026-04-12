@@ -1170,12 +1170,12 @@ export function ProfilePage() {
 
   return (
     <section>
-      <header className="page-heading">
+      {/* <header className="page-heading">
         <div>
           <h1 className="page-title">Profile</h1>
           <RandomQuote />
         </div>
-      </header>
+      </header> */}
 
       <div className="profile-stats profile-card card-surface">
         <div className="profile-stats-header">

@@ -40,6 +40,8 @@ export function HomePage() {
     showCount: 0,
     actorCount: 0
   });
+  /** Firebase UID for the featured example profile (used in /friends/:id link). */
+  const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
 
   // Load example profile data on component mount
   useEffect(() => {
@@ -61,6 +63,7 @@ export function HomePage() {
         
         const adminUid = adminSnapshot.docs[0].id;
         console.log('Found admin UID:', adminUid);
+        setExampleProfileUid(adminUid);
         
         // Load admin user's data
         const [moviesData, tvData, peopleData, directorsData] = await Promise.all([
@@ -203,7 +206,10 @@ export function HomePage() {
                   </div>
                 </div>
               </div>
-              <NavLink to="/friends/cimmerial@clastone.local" className="profile-view-btn">
+              <NavLink
+                to={exampleProfileUid ? `/friends/${exampleProfileUid}` : '/friends'}
+                className="profile-view-btn"
+              >
                 <span>View Example Profile</span>
                 <ChevronDown className="btn-arrow" size={20} style={{ transform: 'rotate(-90deg)' }} />
               </NavLink>

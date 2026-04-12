@@ -2,25 +2,80 @@
   margin-top: 24px;
 }
 
-.profile-watchlist-header {
+/* Match “Recently watched” title + count (baseline-aligned). */
+.profile-watchlist .profile-recent-header {
   display: flex;
-  align-items: center;
-  margin-bottom: 16px;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.profile-watchlist-title-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.profile-watchlist .profile-recent-header .profile-card-title {
+  margin: 0;
+  line-height: 1.15;
 }
 
-.profile-watchlist-count {
-  margin-left: 0;
+.profile-watchlist .profile-recent-count {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-soft);
+  line-height: 1;
 }
 
 .profile-watchlist-empty {
   text-align: center;
   padding: 32px;
+}
+
+/* List toggles + compact search on one row; search on the right, not full width */
+.profile-watchlist .profile-watchlist-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.profile-watchlist .profile-watchlist-toolbar__primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.profile-watchlist .profile-watchlist-toolbar__show-label {
+  margin-left: 0.5rem;
+}
+
+.profile-watchlist .profile-watchlist-page-search.page-search-container {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  width: 13.5rem !important;
+  max-width: 100%;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  margin-left: auto !important;
+  z-index: 5;
+}
+
+.profile-watchlist .profile-watchlist-page-search .page-search-input-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.profile-watchlist .profile-watchlist-page-search .page-search-results {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
+  margin-top: 0.35rem;
 }
 
 /* Watchlist categories (Default / Rewatch / Unreleased) */
@@ -52,40 +107,35 @@
   color: rgba(244, 162, 97, 0.95);
 }
 
-/* Use existing profile-recent classes for consistent styling */
-.profile-recent-controls {
-  margin-bottom: 16px;
+/* Toolbar controls (scoped so we don’t override Recently watched on other cards) */
+.profile-watchlist .profile-recent-label {
+  font-size: 0.8rem;
+  color: var(--text-muted, var(--color-text-secondary));
+  margin-right: 0.25rem;
 }
 
-.profile-recent-label {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  margin-right: 8px;
-}
-
-.profile-recent-btn {
-  padding: 4px 8px;
-  margin-right: 4px;
-  border: 1px solid var(--color-border-secondary);
-  background: var(--color-surface-primary);
-  color: var(--color-text-primary);
-  border-radius: 4px;
+.profile-watchlist .profile-recent-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text, var(--color-text-primary));
+  border-radius: var(--radius-sm, 4px);
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
 }
 
-.profile-recent-btn:hover {
-  background: var(--color-surface-secondary);
+.profile-watchlist .profile-recent-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.profile-recent-btn--active {
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  border-color: var(--color-primary);
+.profile-watchlist .profile-recent-btn--active {
+  background: var(--accent, var(--color-primary));
+  color: var(--bg, var(--color-primary-text));
+  border-color: var(--accent, var(--color-primary));
 }
 
-.profile-recent-list {
+.profile-watchlist .profile-recent-list {
   min-height: 120px;
 }
 

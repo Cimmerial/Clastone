@@ -15,7 +15,7 @@ import './SettingsPage.css';
 
 
 export function SettingsPage() {
-  const { user, signOut } = useAuth();
+  const { user, username, signOut } = useAuth();
   const { status } = useSyncStatus();
   const { settings, updateSettings } = useSettingsStore();
   const {
@@ -754,7 +754,7 @@ export function SettingsPage() {
           <div className="settings-account-row">
             <span className="settings-account-label">Signed in as</span>
             <span className="settings-account-value">
-              {signedIn ? (user?.displayName || user?.email || 'User') : 'Not signed in'}
+              {signedIn ? (user?.displayName || username || 'User') : 'Not signed in'}
             </span>
           </div>
           {signedIn && (

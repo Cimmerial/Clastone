@@ -1,5 +1,9 @@
 .profile-stats {
-  margin-bottom: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.profile-stats.profile-card {
+  padding-bottom: 0.75rem;
 }
 
 .profile-stats-header {
@@ -44,8 +48,8 @@
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 1.5rem 2rem;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.45rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
