@@ -2,14 +2,20 @@ import { useMemo, useState, useCallback } from 'react';
 import { useWatchlistStore, type WatchlistEntry } from '../state/watchlistStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useFriends } from '../context/FriendsContext';
+import { useWatchlistFriendOverlap } from '../hooks/useWatchlistFriendOverlap';
+import { WatchlistFriendOverlapModal } from './WatchlistFriendOverlapModal';
 import { getMovieImageSrc, isBigMovie } from '../lib/tmdb';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { PageSearch } from './PageSearch';
 import { formatRecommendersLabel } from './RecommendToFriendModal';
 import './ProfileWatchlist.css';
+import '../pages/WatchlistPage.css';
 
 interface ProfileWatchlistProps {
   isOwnProfile?: boolean;
+  /** Logged-in only: same “view overlap with friends” filter as the Watchlist page. */
+  showFriendOverlapButton?: boolean;
   /** Suffix for PageSearch persistence (e.g. friend Firebase uid); avoids sharing query across profiles. */
   watchlistPageKeySuffix?: string;
   friendWatchlistData?: {
@@ -48,6 +54,7 @@ function formatYear(releaseDate?: string): string {
 
 export function ProfileWatchlist({ 
   isOwnProfile = true,
+  showFriendOverlapButton = false,
   watchlistPageKeySuffix,
   friendWatchlistData,
   onMovieClick,
@@ -58,12 +65,42 @@ export function ProfileWatchlist({
   const [viewType, setViewType] = useState<WatchlistViewType>('movies');
   const [showOverlapOnly, setShowOverlapOnly] = useState(false);
   const { movies: myMovies, tv: myTv } = useWatchlistStore();
+  const { friends } = useFriends();
   const { globalRanks: moviesGlobalRanks } = useMoviesStore();
   const { globalRanks: tvGlobalRanks } = useTvStore();
-  
-  // Use friend's data if viewing friend profile, otherwise use own data
-  const movies = isOwnProfile ? myMovies : (friendWatchlistData?.movies || []);
-  const tv = isOwnProfile ? myTv : (friendWatchlistData?.tv || []);
+
+  const moviesSource = isOwnProfile ? myMovies : (friendWatchlistData?.movies || []);
+  const tvSource = isOwnProfile ? myTv : (friendWatchlistData?.tv || []);
+
+  const overlapMyMovieIds = useMemo(() => myMovies.map((m) => m.id), [myMovies]);
+  const overlapMyTvIds = useMemo(() => myTv.map((t) => t.id), [myTv]);
+  const {
+    isOverlapModalOpen,
+    setIsOverlapModalOpen,
+    overlapFriendUids,
+    setOverlapFriendUids,
+    overlapFriendUidsDraft,
+    setOverlapFriendUidsDraft,
+    isLoadingOverlap,
+    friendWatchlists,
+    friendWatchlistErrors,
+    overlapMovieIdSet,
+    overlapTvIdSet,
+  } = useWatchlistFriendOverlap(!!(isOwnProfile && showFriendOverlapButton), overlapMyMovieIds, overlapMyTvIds);
+
+  const moviesAfterFriendOverlap = useMemo(() => {
+    if (!isOwnProfile || !showFriendOverlapButton || !overlapMovieIdSet) {
+      return moviesSource;
+    }
+    return moviesSource.filter((m) => overlapMovieIdSet.has(m.id));
+  }, [isOwnProfile, showFriendOverlapButton, overlapMovieIdSet, moviesSource]);
+
+  const tvAfterFriendOverlap = useMemo(() => {
+    if (!isOwnProfile || !showFriendOverlapButton || !overlapTvIdSet) {
+      return tvSource;
+    }
+    return tvSource.filter((t) => overlapTvIdSet.has(t.id));
+  }, [isOwnProfile, showFriendOverlapButton, overlapTvIdSet, tvSource]);
 
   // Create sets of my watchlist IDs for quick lookup
   const myMovieIds = useMemo(() => new Set(myMovies.map(m => m.id)), [myMovies]);
@@ -72,21 +109,24 @@ export function ProfileWatchlist({
   // Filter based on overlap if viewing friend profile and overlap toggle is on
   const filteredMovies = useMemo(() => {
     if (!isOwnProfile && showOverlapOnly) {
-      return movies.filter(movie => myMovieIds.has(movie.id));
+      return moviesAfterFriendOverlap.filter(movie => myMovieIds.has(movie.id));
     }
-    return movies;
-  }, [movies, myMovieIds, isOwnProfile, showOverlapOnly]);
+    return moviesAfterFriendOverlap;
+  }, [moviesAfterFriendOverlap, myMovieIds, isOwnProfile, showOverlapOnly]);
 
   const filteredTv = useMemo(() => {
     if (!isOwnProfile && showOverlapOnly) {
-      return tv.filter(show => myTvIds.has(show.id));
+      return tvAfterFriendOverlap.filter(show => myTvIds.has(show.id));
     }
-    return tv;
-  }, [tv, myTvIds, isOwnProfile, showOverlapOnly]);
+    return tvAfterFriendOverlap;
+  }, [tvAfterFriendOverlap, myTvIds, isOwnProfile, showOverlapOnly]);
 
   const currentItems = viewType === 'movies' ? filteredMovies : filteredTv;
   const totalCount = viewType === 'movies' ? filteredMovies.length : filteredTv.length;
-  const originalCount = viewType === 'movies' ? movies.length : tv.length;
+  const sourceCountForView = viewType === 'movies' ? moviesSource.length : tvSource.length;
+
+  const ownFriendOverlapActive =
+    isOwnProfile && showFriendOverlapButton && overlapFriendUids.length > 0;
 
   const watchlistSearchItems = useMemo(
     () => currentItems.map((e) => ({ id: e.id, title: e.title })),
@@ -105,11 +145,12 @@ export function ProfileWatchlist({
   }, []);
   
   // Format count display
-  const countDisplay = (!isOwnProfile && showOverlapOnly) 
-    ? `${totalCount}/${originalCount}` 
-    : String(totalCount);
+  const countDisplay =
+    ownFriendOverlapActive || (!isOwnProfile && showOverlapOnly)
+      ? `${totalCount}/${sourceCountForView}`
+      : String(totalCount);
 
-  if (movies.length === 0 && tv.length === 0) {
+  if (moviesSource.length === 0 && tvSource.length === 0) {
     return (
       <div className="profile-watchlist profile-card card-surface">
         <div className="profile-recent-header">
@@ -286,6 +327,20 @@ export function ProfileWatchlist({
             </button>
           ))}
 
+          {isOwnProfile && showFriendOverlapButton && (
+            <button
+              type="button"
+              className={`watchlist-overlap-open-btn ${overlapFriendUids.length > 0 ? 'watchlist-overlap-open-btn--active' : ''}`}
+              onClick={() => {
+                setOverlapFriendUidsDraft(overlapFriendUids);
+                setIsOverlapModalOpen(true);
+              }}
+              title="Show only items on all selected friends' watchlists"
+            >
+              Friend overlap
+            </button>
+          )}
+
           {!isOwnProfile && (
             <>
               <span className="profile-recent-label profile-watchlist-toolbar__show-label">Show:</span>
@@ -314,10 +369,11 @@ export function ProfileWatchlist({
       <div className="profile-recent-list">
         {currentItems.length === 0 ? (
           <p className="profile-muted">
-            {!isOwnProfile && showOverlapOnly 
-              ? `No overlapping ${viewType} found` 
-              : `No ${viewType} in watchlist`
-            }
+            {!isOwnProfile && showOverlapOnly
+              ? `No overlapping ${viewType} found`
+              : ownFriendOverlapActive
+                ? `No overlapping ${viewType} with selected friends`
+                : `No ${viewType} in watchlist`}
           </p>
         ) : (
           <div className="profile-watchlist-sections">
@@ -348,6 +404,28 @@ export function ProfileWatchlist({
           </div>
         )}
       </div>
+
+      {isOwnProfile && showFriendOverlapButton && (
+        <WatchlistFriendOverlapModal
+          isOpen={isOverlapModalOpen}
+          friends={friends}
+          selectedUids={overlapFriendUidsDraft}
+          isLoading={isLoadingOverlap}
+          onClose={() => {
+            setIsOverlapModalOpen(false);
+            setOverlapFriendUidsDraft(overlapFriendUids);
+          }}
+          onSelectionChange={(uids) => setOverlapFriendUidsDraft(uids)}
+          onCommit={(uids) => {
+            setOverlapFriendUids(uids);
+            setIsOverlapModalOpen(false);
+          }}
+          myMovieIds={overlapMyMovieIds}
+          myTvIds={overlapMyTvIds}
+          friendWatchlists={friendWatchlists}
+          friendWatchlistErrors={friendWatchlistErrors}
+        />
+      )}
     </div>
   );
 }

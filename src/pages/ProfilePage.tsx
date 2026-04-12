@@ -784,6 +784,21 @@ export function ProfilePage() {
     return { isRanked: false };
   }, [tvByClass, tvClassOrder, isRankedTvClass]);
 
+  const watchlistEntryHasBeenWatched = useCallback(
+    (entry: { id: string }, media: 'movies' | 'shows') => {
+      const tmdbId =
+        entry.id.includes('-')
+          ? parseInt(entry.id.split('-').pop() || '0', 10)
+          : parseInt(entry.id.replace(/\D/g, ''), 10) || 0;
+      const recs =
+        media === 'movies'
+          ? getUserMovieStatus(tmdbId).watchRecords
+          : getUserShowStatus(tmdbId).watchRecords;
+      return (recs?.length ?? 0) > 0;
+    },
+    [getUserMovieStatus, getUserShowStatus]
+  );
+
   // Helper to check if current user has an actor ranked
   const getUserActorStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string } => {
     if (!tmdbId) return { isRanked: false };
@@ -1602,6 +1617,7 @@ export function ProfilePage() {
               isDirectorClassRanked={isDirectorClassRanked}
               watchlistMovies={watchlist.movies}
               watchlistTv={watchlist.tv}
+              watchlistEntryHasBeenWatched={watchlistEntryHasBeenWatched}
               profileShareUid={user?.uid ?? null}
             />
           </div>
@@ -2231,7 +2247,8 @@ export function ProfilePage() {
         </div>
 
         <ProfileWatchlist 
-          isOwnProfile={true} 
+          isOwnProfile={true}
+          showFriendOverlapButton={!!user}
           onMovieClick={(entry) => {
             const tmdbId = (entry.id.includes('-') ? parseInt(entry.id.split('-').pop() || '0', 10) : parseInt(entry.id.replace(/\D/g, ''), 10)) || 0;
             const movie = {

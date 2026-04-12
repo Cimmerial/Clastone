@@ -1159,6 +1159,21 @@ export function FriendProfilePage() {
     return { isRanked: false };
   }, [myTvByClass, myTvClassOrder]);
 
+  const watchlistEntryHasBeenWatched = useCallback(
+    (entry: { id: string }, media: 'movies' | 'shows') => {
+      const tmdbId =
+        entry.id.includes('-')
+          ? parseInt(entry.id.split('-').pop() || '0', 10)
+          : parseInt(entry.id.replace(/\D/g, ''), 10) || 0;
+      const recs =
+        media === 'movies'
+          ? getUserMovieStatus(tmdbId).watchRecords
+          : getUserShowStatus(tmdbId).watchRecords;
+      return (recs?.length ?? 0) > 0;
+    },
+    [getUserMovieStatus, getUserShowStatus]
+  );
+
   // Helper to check if current user has an actor ranked
   const getUserActorStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string } => {
     if (!tmdbId) return { isRanked: false };
@@ -2062,6 +2077,7 @@ export function FriendProfilePage() {
               }
               watchlistMovies={friendWatchlistData?.movies ?? []}
               watchlistTv={friendWatchlistData?.tv ?? []}
+              watchlistEntryHasBeenWatched={watchlistEntryHasBeenWatched}
               profileShareUid={friendProfile.uid}
             />
           </div>

@@ -29,6 +29,8 @@ export type ProfileCopyTopRankedSectionProps = {
   isDirectorClassRanked: (key: string) => boolean;
   watchlistMovies: WatchlistCopyEntry[];
   watchlistTv: WatchlistCopyEntry[];
+  /** For watchlist section headers (Unseen / Rewatch / Unreleased): whether the viewer has logged a watch. */
+  watchlistEntryHasBeenWatched?: (entry: WatchlistCopyEntry, media: 'movies' | 'shows') => boolean;
   /** Firebase UID for `/friends/{uid}` share link; omit when unknown. */
   profileShareUid?: string | null;
 };
@@ -151,6 +153,7 @@ export function ProfileCopyTopRankedSection({
   isDirectorClassRanked,
   watchlistMovies,
   watchlistTv,
+  watchlistEntryHasBeenWatched,
   profileShareUid,
 }: ProfileCopyTopRankedSectionProps) {
   const rankedCustomInputId = useId();
@@ -176,6 +179,7 @@ export function ProfileCopyTopRankedSection({
   const [wlTopChoice, setWlTopChoice] = useState<TopAmountChoice>(50);
   const [wlCustomStr, setWlCustomStr] = useState('100');
   const [wlIncludeTmdb, setWlIncludeTmdb] = useState(false);
+  const [wlIncludeSectionHeaders, setWlIncludeSectionHeaders] = useState(false);
   const [wlStatus, setWlStatus] = useState<CopyStatus>(null);
   const [prependWatchlistProfileLink, setPrependWatchlistProfileLink] = useState(false);
 
@@ -287,7 +291,7 @@ export function ProfileCopyTopRankedSection({
   const withRankedProfileLink = useCallback(
     (body: string) => {
       if (!prependRankedProfileLink || !profileShareUrl) return body;
-      return `${profileShareUrl}\n\n${body}`;
+      return `${profileShareUrl}\n${body}`;
     },
     [prependRankedProfileLink, profileShareUrl]
   );
@@ -295,7 +299,7 @@ export function ProfileCopyTopRankedSection({
   const withWatchlistProfileLink = useCallback(
     (body: string) => {
       if (!prependWatchlistProfileLink || !profileShareUrl) return body;
-      return `${profileShareUrl}\n\n${body}`;
+      return `${profileShareUrl}\n${body}`;
     },
     [prependWatchlistProfileLink, profileShareUrl]
   );
@@ -330,9 +334,20 @@ export function ProfileCopyTopRankedSection({
     withRankedProfileLink,
   ]);
 
+  const watchlistCopyOpts = useMemo(
+    () => ({
+      includeSectionHeaders: wlIncludeSectionHeaders,
+      hasBeenWatched:
+        watchlistEntryHasBeenWatched != null
+          ? (entry: WatchlistCopyEntry) => watchlistEntryHasBeenWatched(entry, wlMedia)
+          : undefined,
+    }),
+    [wlIncludeSectionHeaders, watchlistEntryHasBeenWatched, wlMedia]
+  );
+
   const handleCopyWatchlist = useCallback(async () => {
     if (!canCopyWl) return;
-    const body = buildWatchlistCopyText(wlEntries, wlEffectiveMax, wlIncludeTmdb);
+    const body = buildWatchlistCopyText(wlEntries, wlEffectiveMax, wlIncludeTmdb, watchlistCopyOpts);
     const text = withWatchlistProfileLink(`Watchlist:\n\n${body}`);
     try {
       await navigator.clipboard.writeText(text);
@@ -340,7 +355,7 @@ export function ProfileCopyTopRankedSection({
     } catch {
       setWlStatus({ kind: 'err', text: 'Clipboard blocked.' });
     }
-  }, [canCopyWl, wlEntries, wlEffectiveMax, wlIncludeTmdb, withWatchlistProfileLink]);
+  }, [canCopyWl, wlEntries, wlEffectiveMax, wlIncludeTmdb, watchlistCopyOpts, withWatchlistProfileLink]);
 
   const setMediaAndClear = (m: MediaKind) => {
     setMedia(m);
@@ -517,6 +532,17 @@ export function ProfileCopyTopRankedSection({
                 }}
               />
               <span>Include TMDB id</span>
+            </label>
+            <label className="profile-copy-option">
+              <input
+                type="checkbox"
+                checked={wlIncludeSectionHeaders}
+                onChange={(e) => {
+                  setWlIncludeSectionHeaders(e.target.checked);
+                  setWlStatus(null);
+                }}
+              />
+              <span>Include section headers</span>
             </label>
             {profileShareUrl ? (
               <label className="profile-copy-option">
