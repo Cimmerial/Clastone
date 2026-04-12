@@ -55,10 +55,16 @@
   color: var(--text-primary);
 }
 
+/* Match own Profile page width: use app-main padding only, no extra column constraint */
 .friend-profile-page {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 0;
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
+.friend-profile-page .profile-section-search {
+  padding: 0;
 }
 
 /* Profile Stats Header Actions */
@@ -1124,7 +1130,7 @@
 
 @media (max-width: 768px) {
   .friend-profile-page {
-    padding: 1rem;
+    padding: 0;
   }
   
   .friend-header-info {

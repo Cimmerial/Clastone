@@ -29,11 +29,104 @@ export type ProfileCopyTopRankedSectionProps = {
   isDirectorClassRanked: (key: string) => boolean;
   watchlistMovies: WatchlistCopyEntry[];
   watchlistTv: WatchlistCopyEntry[];
+  /** Firebase UID for `/friends/{uid}` share link; omit when unknown. */
+  profileShareUid?: string | null;
 };
 
 type CopyStatus = { kind: 'ok' | 'err'; text: string } | null;
 
 type MediaKind = 'movies' | 'shows' | 'actors' | 'directors';
+
+const PRESET_AMOUNTS = [4, 5, 10, 25, 50] as const;
+
+type TopAmountChoice = (typeof PRESET_AMOUNTS)[number] | 'all' | 'custom';
+
+function resolveTopMax(choice: TopAmountChoice, customStr: string, totalAvailable: number): number {
+  if (choice === 'all') return Math.max(0, totalAvailable);
+  if (choice === 'custom') {
+    const n = parseInt(customStr.replace(/\D/g, ''), 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return choice;
+}
+
+type TopAmountPickerProps = {
+  label: string;
+  choice: TopAmountChoice;
+  onChoice: (c: TopAmountChoice) => void;
+  customStr: string;
+  onCustomStr: (v: string) => void;
+  customInputId: string;
+  onInteract: () => void;
+};
+
+function TopAmountPicker({
+  label,
+  choice,
+  onChoice,
+  customStr,
+  onCustomStr,
+  customInputId,
+  onInteract,
+}: TopAmountPickerProps) {
+  return (
+    <div className="profile-copy-top-block">
+      <span className="profile-copy-top-block-label">{label}</span>
+      <div className="profile-copy-presets" role="group" aria-label={label}>
+        {PRESET_AMOUNTS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`profile-copy-preset-btn ${choice === n ? 'active' : ''}`}
+            onClick={() => {
+              onChoice(n);
+              onInteract();
+            }}
+          >
+            {n}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`profile-copy-preset-btn ${choice === 'all' ? 'active' : ''}`}
+          onClick={() => {
+            onChoice('all');
+            onInteract();
+          }}
+        >
+          ALL
+        </button>
+        <button
+          type="button"
+          className={`profile-copy-preset-btn ${choice === 'custom' ? 'active' : ''}`}
+          onClick={() => {
+            onChoice('custom');
+            onInteract();
+          }}
+        >
+          CUSTOM
+        </button>
+      </div>
+      {choice === 'custom' ? (
+        <div className="profile-copy-custom-row">
+          <label className="profile-copy-field" htmlFor={customInputId}>
+            <span className="profile-copy-field-label">Count</span>
+            <input
+              id={customInputId}
+              className="profile-copy-input"
+              inputMode="numeric"
+              value={customStr}
+              onChange={(e) => {
+                onCustomStr(e.target.value);
+                onInteract();
+              }}
+            />
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function ProfileCopyTopRankedSection({
   movieClassOrder,
@@ -58,31 +151,33 @@ export function ProfileCopyTopRankedSection({
   isDirectorClassRanked,
   watchlistMovies,
   watchlistTv,
+  profileShareUid,
 }: ProfileCopyTopRankedSectionProps) {
-  const countInputId = useId();
-  const wlCountInputId = useId();
+  const rankedCustomInputId = useId();
+  const wlCustomInputId = useId();
+
+  const profileShareUrl = useMemo(() => {
+    const uid = profileShareUid?.trim();
+    if (!uid) return null;
+    if (typeof window === 'undefined') return null;
+    return `${window.location.origin}/friends/${encodeURIComponent(uid)}`;
+  }, [profileShareUid]);
 
   const [media, setMedia] = useState<MediaKind>('movies');
-  const [countStr, setCountStr] = useState('25');
+  const [rankedTopChoice, setRankedTopChoice] = useState<TopAmountChoice>(25);
+  const [rankedCustomStr, setRankedCustomStr] = useState('100');
   const [includeTmdbId, setIncludeTmdbId] = useState(false);
   const [includeClasses, setIncludeClasses] = useState(true);
   const [onlyRankedClasses, setOnlyRankedClasses] = useState(false);
   const [rankedStatus, setRankedStatus] = useState<CopyStatus>(null);
+  const [prependRankedProfileLink, setPrependRankedProfileLink] = useState(false);
 
   const [wlMedia, setWlMedia] = useState<'movies' | 'shows'>('movies');
-  const [wlCountStr, setWlCountStr] = useState('50');
+  const [wlTopChoice, setWlTopChoice] = useState<TopAmountChoice>(50);
+  const [wlCustomStr, setWlCustomStr] = useState('100');
   const [wlIncludeTmdb, setWlIncludeTmdb] = useState(false);
   const [wlStatus, setWlStatus] = useState<CopyStatus>(null);
-
-  const parsedCount = useMemo(() => {
-    const n = parseInt(countStr.replace(/\D/g, ''), 10);
-    return Number.isFinite(n) ? n : 0;
-  }, [countStr]);
-
-  const parsedWlCount = useMemo(() => {
-    const n = parseInt(wlCountStr.replace(/\D/g, ''), 10);
-    return Number.isFinite(n) ? n : 0;
-  }, [wlCountStr]);
+  const [prependWatchlistProfileLink, setPrependWatchlistProfileLink] = useState(false);
 
   const rankedRankedFn = useMemo(() => {
     switch (media) {
@@ -172,22 +267,51 @@ export function ProfileCopyTopRankedSection({
     return t;
   }, [effectiveClassOrder, rankedByClass]);
 
-  const canCopyRanked = parsedCount > 0 && totalRankedAvailable > 0;
+  const rankedEffectiveMax = useMemo(
+    () => resolveTopMax(rankedTopChoice, rankedCustomStr, totalRankedAvailable),
+    [rankedTopChoice, rankedCustomStr, totalRankedAvailable]
+  );
+
+  const canCopyRanked = rankedEffectiveMax > 0 && totalRankedAvailable > 0;
 
   const wlEntries = wlMedia === 'movies' ? watchlistMovies : watchlistTv;
-  const canCopyWl = parsedWlCount > 0 && wlEntries.length > 0;
+  const wlTotal = wlEntries.length;
+
+  const wlEffectiveMax = useMemo(
+    () => resolveTopMax(wlTopChoice, wlCustomStr, wlTotal),
+    [wlTopChoice, wlCustomStr, wlTotal]
+  );
+
+  const canCopyWl = wlEffectiveMax > 0 && wlTotal > 0;
+
+  const withRankedProfileLink = useCallback(
+    (body: string) => {
+      if (!prependRankedProfileLink || !profileShareUrl) return body;
+      return `${profileShareUrl}\n\n${body}`;
+    },
+    [prependRankedProfileLink, profileShareUrl]
+  );
+
+  const withWatchlistProfileLink = useCallback(
+    (body: string) => {
+      if (!prependWatchlistProfileLink || !profileShareUrl) return body;
+      return `${profileShareUrl}\n\n${body}`;
+    },
+    [prependWatchlistProfileLink, profileShareUrl]
+  );
 
   const handleCopyRanked = useCallback(async () => {
     if (!canCopyRanked) return;
-    const text = buildRankedCopyText({
+    const body = buildRankedCopyText({
       classOrder: effectiveClassOrder,
       byClass: rankedByClass,
       getClassLabel: getRankedLabel,
       getClassTagline: getRankedTagline,
-      maxItems: parsedCount,
+      maxItems: rankedEffectiveMax,
       includeTmdbId,
       includeClassHeaders: includeClasses,
     });
+    const text = withRankedProfileLink(body);
     try {
       await navigator.clipboard.writeText(text);
       setRankedStatus({ kind: 'ok', text: 'Copied.' });
@@ -200,21 +324,23 @@ export function ProfileCopyTopRankedSection({
     rankedByClass,
     getRankedLabel,
     getRankedTagline,
-    parsedCount,
+    rankedEffectiveMax,
     includeTmdbId,
     includeClasses,
+    withRankedProfileLink,
   ]);
 
   const handleCopyWatchlist = useCallback(async () => {
     if (!canCopyWl) return;
-    const text = buildWatchlistCopyText(wlEntries, parsedWlCount, wlIncludeTmdb);
+    const body = buildWatchlistCopyText(wlEntries, wlEffectiveMax, wlIncludeTmdb);
+    const text = withWatchlistProfileLink(`Watchlist:\n\n${body}`);
     try {
       await navigator.clipboard.writeText(text);
       setWlStatus({ kind: 'ok', text: 'Copied.' });
     } catch {
       setWlStatus({ kind: 'err', text: 'Clipboard blocked.' });
     }
-  }, [canCopyWl, wlEntries, parsedWlCount, wlIncludeTmdb]);
+  }, [canCopyWl, wlEntries, wlEffectiveMax, wlIncludeTmdb, withWatchlistProfileLink]);
 
   const setMediaAndClear = (m: MediaKind) => {
     setMedia(m);
@@ -267,21 +393,15 @@ export function ProfileCopyTopRankedSection({
             </button>
           </div>
 
-          <div className="profile-copy-field-row">
-            <label className="profile-copy-field" htmlFor={countInputId}>
-              <span className="profile-copy-field-label">Top</span>
-              <input
-                id={countInputId}
-                className="profile-copy-input"
-                inputMode="numeric"
-                value={countStr}
-                onChange={(e) => {
-                  setCountStr(e.target.value);
-                  setRankedStatus(null);
-                }}
-              />
-            </label>
-          </div>
+          <TopAmountPicker
+            label="Top"
+            choice={rankedTopChoice}
+            onChoice={setRankedTopChoice}
+            customStr={rankedCustomStr}
+            onCustomStr={setRankedCustomStr}
+            customInputId={rankedCustomInputId}
+            onInteract={() => setRankedStatus(null)}
+          />
 
           <div className="profile-copy-options">
             <label className="profile-copy-option">
@@ -306,6 +426,19 @@ export function ProfileCopyTopRankedSection({
               />
               <span>Include classes</span>
             </label>
+            {profileShareUrl ? (
+              <label className="profile-copy-option">
+                <input
+                  type="checkbox"
+                  checked={prependRankedProfileLink}
+                  onChange={(e) => {
+                    setPrependRankedProfileLink(e.target.checked);
+                    setRankedStatus(null);
+                  }}
+                />
+                <span>Add profile link at top of list</span>
+              </label>
+            ) : null}
           </div>
 
           <div className="profile-copy-actions">
@@ -363,21 +496,15 @@ export function ProfileCopyTopRankedSection({
             </div>
           </div>
 
-          <div className="profile-copy-field-row">
-            <label className="profile-copy-field" htmlFor={wlCountInputId}>
-              <span className="profile-copy-field-label">Top</span>
-              <input
-                id={wlCountInputId}
-                className="profile-copy-input"
-                inputMode="numeric"
-                value={wlCountStr}
-                onChange={(e) => {
-                  setWlCountStr(e.target.value);
-                  setWlStatus(null);
-                }}
-              />
-            </label>
-          </div>
+          <TopAmountPicker
+            label="Top"
+            choice={wlTopChoice}
+            onChoice={setWlTopChoice}
+            customStr={wlCustomStr}
+            onCustomStr={setWlCustomStr}
+            customInputId={wlCustomInputId}
+            onInteract={() => setWlStatus(null)}
+          />
 
           <div className="profile-copy-options">
             <label className="profile-copy-option">
@@ -391,6 +518,19 @@ export function ProfileCopyTopRankedSection({
               />
               <span>Include TMDB id</span>
             </label>
+            {profileShareUrl ? (
+              <label className="profile-copy-option">
+                <input
+                  type="checkbox"
+                  checked={prependWatchlistProfileLink}
+                  onChange={(e) => {
+                    setPrependWatchlistProfileLink(e.target.checked);
+                    setWlStatus(null);
+                  }}
+                />
+                <span>Add profile link at top of list</span>
+              </label>
+            ) : null}
           </div>
 
           <div className="profile-copy-actions">

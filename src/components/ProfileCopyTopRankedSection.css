@@ -189,6 +189,67 @@
   white-space: nowrap;
 }
 
+.profile-copy-top-block {
+  margin-bottom: 0.75rem;
+}
+
+.profile-copy-top-block-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-muted, #a07050);
+  margin-bottom: 0.4rem;
+}
+
+.profile-copy-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.profile-copy-preset-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted, rgba(255, 255, 255, 0.55));
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.profile-copy-preset-btn:hover {
+  color: var(--text, #fff);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profile-copy-preset-btn.active {
+  color: var(--bg, #1a0a00);
+  background: linear-gradient(180deg, var(--accent-soft, #f4a261) 0%, var(--accent, #e85d04) 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+}
+
+.profile-copy-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.profile-copy-custom-row .profile-copy-field-label {
+  margin-bottom: 0;
+}
+
 .profile-copy-field-row {
   display: flex;
   flex-wrap: wrap;

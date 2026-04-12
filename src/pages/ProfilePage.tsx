@@ -281,7 +281,7 @@ function buildUniqueWatchMilestoneData(
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { username } = useAuth();
+  const { username, user } = useAuth();
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
   const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
@@ -1602,6 +1602,7 @@ export function ProfilePage() {
               isDirectorClassRanked={isDirectorClassRanked}
               watchlistMovies={watchlist.movies}
               watchlistTv={watchlist.tv}
+              profileShareUid={user?.uid ?? null}
             />
           </div>
         )}

@@ -2062,6 +2062,7 @@ export function FriendProfilePage() {
               }
               watchlistMovies={friendWatchlistData?.movies ?? []}
               watchlistTv={friendWatchlistData?.tv ?? []}
+              profileShareUid={friendProfile.uid}
             />
           </div>
         )}
