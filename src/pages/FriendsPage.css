@@ -377,6 +377,27 @@
   background: rgba(0, 0, 0, 0.5);
 }
 
+.view-profile-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.view-profile-icon-btn:hover {
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.5);
+}
+
 .friends-list {
   background: radial-gradient(circle at top left, #3a1500 0, var(--surface) 45%, #1a0a00 100%);
   border: 1px solid var(--border-subtle);

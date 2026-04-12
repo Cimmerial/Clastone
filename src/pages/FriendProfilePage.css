@@ -52,7 +52,9 @@
 }
 
 .profile-view-friends-btn,
-.profile-unfriend-btn {
+.profile-unfriend-btn,
+.profile-add-friend-btn,
+.profile-request-sent-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -91,6 +93,30 @@
   background: rgba(220, 38, 38, 0.1);
   border-color: rgba(220, 38, 38, 0.3);
   opacity: 1;
+}
+
+.profile-add-friend-btn {
+  background: rgba(232, 93, 4, 0.05);
+  color: var(--accent-soft);
+  border-color: rgba(232, 93, 4, 0.2);
+}
+
+.profile-add-friend-btn:hover:not(:disabled) {
+  background: rgba(232, 93, 4, 0.1);
+  border-color: rgba(232, 93, 4, 0.3);
+  opacity: 1;
+}
+
+.profile-add-friend-btn:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.profile-request-sent-label {
+  cursor: default;
+  background: rgba(232, 93, 4, 0.12);
+  color: var(--accent-soft);
+  border-color: rgba(232, 93, 4, 0.25);
 }
 
 .profile-stats-expand-btn {
@@ -295,6 +321,34 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+.friends-of-friend-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.friends-of-friend-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.friends-of-friend-icon-btn:hover {
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .friends-of-friend-sent {

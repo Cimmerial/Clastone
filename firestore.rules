@@ -19,65 +19,35 @@ service cloud.firestore {
     
     // Users subcollections - specific rules first
     
-    // Allow friends to read all data subcollections
+    // Profile ranking data: any signed-in user may read; only the owner may write
     match /users/{userId}/movieData/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/tvData/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/peopleData/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/directorsData/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
     match /users/{userId}/watchlistData/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     
-    // Allow friends to read legacy data subcollections (for backwards compatibility)
+    // Legacy data subcollection (backwards compatibility)
     match /users/{userId}/data/{docId} {
-      allow read: if request.auth != null && 
-        (userId == request.auth.uid || 
-         exists(/databases/$(database)/documents/friends/$(request.auth.uid + '_' + userId)) ||
-         exists(/databases/$(database)/documents/friends/$(userId + '_' + request.auth.uid)) ||
-         // Allow public access to cimmerial@clastone.local data (both username and UID)
-         (userId == 'cimmerial@clastone.local' || userId == 's2VFQvFRbdWxxfpBq2uywNKrwlv2'));
+      allow read: if request.auth != null;
       allow write: if request.auth != null && userId == request.auth.uid;
     }
     

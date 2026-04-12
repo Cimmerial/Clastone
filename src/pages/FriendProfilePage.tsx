@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFriends, type UserProfile } from '../context/FriendsContext';
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus, Award } from 'lucide-react';
+import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus, Award, Eye, Check } from 'lucide-react';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
@@ -229,7 +229,14 @@ export function FriendProfilePage() {
   const { friendId } = useParams<{ friendId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { unfriend, refreshFriends, sendFriendRequest, sentRequests, friends } = useFriends();
+  const {
+    unfriend,
+    refreshFriends,
+    sendFriendRequest,
+    sentRequests,
+    friends,
+    loading: friendsActionLoading,
+  } = useFriends();
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +316,9 @@ export function FriendProfilePage() {
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
 
+  /** Resolved Firebase UID for the viewed profile (URL may use username). */
+  const [resolvedProfileUid, setResolvedProfileUid] = useState<string | null>(null);
+
   // Calculate ranked counts for display
   const rankedMoviesCount = useMemo(() => {
     if (!friendMoviesData?.classes) return 0;
@@ -341,84 +351,52 @@ export function FriendProfilePage() {
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
 
+  const profileSocial = useMemo(() => {
+    if (!friendProfile || !user) return null;
+    const profileUid = friendProfile.uid;
+    return {
+      profileUid,
+      isOwnProfile: user.uid === profileUid,
+      isFriendWithViewed: friends.some((f) => f.uid === profileUid),
+      requestSentToViewed: sentRequests.includes(profileUid),
+    };
+  }, [friendProfile, user, friends, sentRequests]);
+
   useEffect(() => {
     const loadFriendProfile = async () => {
       if (!friendId || !db) return;
 
       try {
+        setLoading(true);
+        setError(null);
+        setResolvedProfileUid(null);
         console.log('🔍 Starting friend profile load for:', friendId);
         console.log('👤 Current user:', user?.uid);
 
         let actualFriendUid = friendId;
-        let skipFriendshipCheck = false;
 
-        // Allow users to view their own profile
-        if (friendId === user?.uid) {
-          console.log('✅ User viewing own profile - skipping friendship check');
-          skipFriendshipCheck = true;
-        } else {
-          // Check if friendId is a username (contains @) or UID
-          const isUsername = friendId.includes('@');
-          
-          if (isUsername) {
-            // For usernames, we need to look up the UID first
-            console.log('🔍 FriendId is username, looking up UID...');
-            const userQuery = query(
-              collection(db!, 'users'),
-              where('username', '==', friendId)
-            );
-            const userSnapshot = await getDocs(userQuery);
-            
-            if (userSnapshot.empty) {
-              console.log('❌ Username not found');
-              setError('User not found');
-              return;
-            }
-            
-            actualFriendUid = userSnapshot.docs[0].id;
-            console.log('✅ Found UID for username:', actualFriendUid);
-          }
-          
-          // Check friendship (unless it's the admin user which has public access)
-          if (friendId !== 'cimmerial@clastone.local') {
-            await checkFriendship(actualFriendUid);
-          } else {
-            console.log('✅ Admin user - public access allowed');
-          }
-        }
-
-        // Helper function to check friendship
-        async function checkFriendship(uid: string) {
-          console.log('🤝 Checking friendship...');
-          const friendsQuery1 = query(
-            collection(db!, 'friends'),
-            where('userId', '==', user?.uid),
-            where('friendUid', '==', uid)
+        // Resolve username in URL to Firebase UID
+        const isUsername = friendId.includes('@');
+        if (isUsername) {
+          console.log('🔍 FriendId is username, looking up UID...');
+          const userQuery = query(
+            collection(db!, 'users'),
+            where('username', '==', friendId)
           );
-          const friendsQuery2 = query(
-            collection(db!, 'friends'),
-            where('userId', '==', uid),
-            where('friendUid', '==', user?.uid)
-          );
+          const userSnapshot = await getDocs(userQuery);
 
-          console.log('📋 Executing friendship queries...');
-          const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
-            getDocs(friendsQuery1),
-            getDocs(friendsQuery2)
-          ]);
-
-          console.log('📊 Friendship check results:');
-          console.log('  Query 1 results:', friendsSnapshot1.size);
-          console.log('  Query 2 results:', friendsSnapshot2.size);
-
-          if (friendsSnapshot1.empty && friendsSnapshot2.empty) {
-            console.log('❌ No friendship found');
-            setError('You are not friends with this user');
+          if (userSnapshot.empty) {
+            console.log('❌ Username not found');
+            setError('User not found');
+            setResolvedProfileUid(null);
             return;
           }
 
-          console.log('✅ Friendship confirmed');
+          actualFriendUid = userSnapshot.docs[0].id;
+          console.log('✅ Found UID for username:', actualFriendUid);
         }
+
+        setResolvedProfileUid(actualFriendUid);
 
         // Load friend's profile using the actual UID
         console.log('👤 Loading friend profile...');
@@ -441,6 +419,7 @@ export function FriendProfilePage() {
         } else {
           console.log('❌ Friend profile not found');
           setError('Friend profile not found');
+          setResolvedProfileUid(null);
           return;
         }
 
@@ -481,6 +460,7 @@ export function FriendProfilePage() {
           stack: err.stack
         });
         setError(err.message);
+        setResolvedProfileUid(null);
       } finally {
         setLoading(false);
       }
@@ -491,13 +471,14 @@ export function FriendProfilePage() {
 
   // Load friends of friend
   const loadFriendsOfFriend = useCallback(async () => {
-    if (!friendId || !db) return;
-    
+    const uidForQuery = resolvedProfileUid ?? friendId;
+    if (!uidForQuery || !db) return;
+
     setLoadingFriendsOfFriend(true);
     try {
       const friendsQuery = query(
         collection(db!, 'friends'),
-        where('userId', '==', friendId)
+        where('userId', '==', uidForQuery)
       );
       const friendsSnapshot = await getDocs(friendsQuery);
       const friendsData = friendsSnapshot.docs.map(doc => ({
@@ -512,15 +493,16 @@ export function FriendProfilePage() {
     } finally {
       setLoadingFriendsOfFriend(false);
     }
-  }, [friendId, db]);
+  }, [friendId, resolvedProfileUid, db]);
 
   // Handle unfriend
   const handleUnfriend = useCallback(async () => {
-    if (!user || !friendId || unfriendConfirmation !== 'UNFRIEND') return;
-    
+    const targetUid = friendProfile?.uid;
+    if (!user || !targetUid || unfriendConfirmation !== 'UNFRIEND') return;
+
     setUnfriending(true);
     try {
-      await unfriend(friendId);
+      await unfriend(targetUid);
       
       // Close modal and navigate back
       setShowUnfriendModal(false);
@@ -531,7 +513,7 @@ export function FriendProfilePage() {
     } finally {
       setUnfriending(false);
     }
-  }, [user, friendId, unfriendConfirmation, unfriend, navigate]);
+  }, [user, friendProfile?.uid, unfriendConfirmation, unfriend, navigate]);
 
   // Handle view friends of friend
   const handleViewFriendsOfFriend = useCallback(() => {
@@ -1577,14 +1559,44 @@ export function FriendProfilePage() {
               <Users2 size={16} />
               {showFriendsOfFriendModal ? 'Hide Friends' : 'View Their Friends'}
             </button>
-            <button
-              type="button"
-              className="profile-unfriend-btn"
-              onClick={() => setShowUnfriendModal(true)}
-            >
-              <UserX size={16} />
-              Unfriend
-            </button>
+            {profileSocial &&
+              !profileSocial.isOwnProfile &&
+              profileSocial.isFriendWithViewed && (
+                <button
+                  type="button"
+                  className="profile-unfriend-btn"
+                  onClick={() => setShowUnfriendModal(true)}
+                >
+                  <UserX size={16} />
+                  Unfriend
+                </button>
+              )}
+            {profileSocial &&
+              !profileSocial.isOwnProfile &&
+              !profileSocial.isFriendWithViewed &&
+              (profileSocial.requestSentToViewed ? (
+                <span className="profile-request-sent-label">
+                  <Check size={16} aria-hidden />
+                  Request Sent
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="profile-add-friend-btn"
+                  disabled={friendsActionLoading}
+                  onClick={() =>
+                    sendFriendRequest({
+                      uid: friendProfile.uid,
+                      username: friendProfile.username,
+                      email: friendProfile.email,
+                      createdAt: friendProfile.createdAt,
+                    })
+                  }
+                >
+                  <UserPlus size={16} />
+                  Add Friend
+                </button>
+              ))}
             <button
               type="button"
               className="profile-stats-expand-btn"
@@ -2730,21 +2742,47 @@ export function FriendProfilePage() {
                               View Profile
                             </button>
                           ) : isRequestSent ? (
-                            <span className="friends-of-friend-sent">Request Sent</span>
+                            <div className="friends-of-friend-actions-row">
+                              <button
+                                type="button"
+                                className="friends-of-friend-icon-btn"
+                                title="View profile"
+                                onClick={() => {
+                                  setShowFriendsOfFriendModal(false);
+                                  navigate(`/friends/${friend.uid}`);
+                                }}
+                              >
+                                <Eye size={16} aria-hidden />
+                              </button>
+                              <span className="friends-of-friend-sent">Request Sent</span>
+                            </div>
                           ) : (
-                            <button
-                              type="button"
-                              className="friends-of-friend-add-btn"
-                              onClick={() => sendFriendRequest({
-                                uid: friend.uid,
-                                username: friend.username,
-                                email: friend.email,
-                                createdAt: friend.addedAt
-                              })}
-                            >
-                              <UserPlus size={14} />
-                              Add Friend
-                            </button>
+                            <div className="friends-of-friend-actions-row">
+                              <button
+                                type="button"
+                                className="friends-of-friend-icon-btn"
+                                title="View profile"
+                                onClick={() => {
+                                  setShowFriendsOfFriendModal(false);
+                                  navigate(`/friends/${friend.uid}`);
+                                }}
+                              >
+                                <Eye size={16} aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className="friends-of-friend-add-btn"
+                                onClick={() => sendFriendRequest({
+                                  uid: friend.uid,
+                                  username: friend.username,
+                                  email: friend.email,
+                                  createdAt: friend.addedAt
+                                })}
+                              >
+                                <UserPlus size={14} />
+                                Add Friend
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>

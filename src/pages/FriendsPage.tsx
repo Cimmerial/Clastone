@@ -159,19 +159,37 @@ export function FriendsPage() {
                           View Profile
                         </Link>
                       ) : requestSent ? (
-                        <button disabled className="request-sent-btn">
-                          <Check size={16} />
-                          Request Sent
-                        </button>
+                        <>
+                          <Link
+                            to={`/friends/${result.uid}`}
+                            className="view-profile-icon-btn"
+                            title="View profile"
+                          >
+                            <Eye size={18} />
+                          </Link>
+                          <button disabled className="request-sent-btn">
+                            <Check size={16} />
+                            Request Sent
+                          </button>
+                        </>
                       ) : (
-                        <button
-                          onClick={() => sendFriendRequest(result)}
-                          disabled={loading}
-                          className="add-friend-btn"
-                        >
-                          <UserPlus size={16} />
-                          Add Friend
-                        </button>
+                        <>
+                          <Link
+                            to={`/friends/${result.uid}`}
+                            className="view-profile-icon-btn"
+                            title="View profile"
+                          >
+                            <Eye size={18} />
+                          </Link>
+                          <button
+                            onClick={() => sendFriendRequest(result)}
+                            disabled={loading}
+                            className="add-friend-btn"
+                          >
+                            <UserPlus size={16} />
+                            Add Friend
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

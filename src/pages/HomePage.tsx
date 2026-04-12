@@ -300,11 +300,12 @@ export function HomePage() {
                 <div className="feature-card new">
                   <h3 className="feature-group-title">New</h3>
                   <ul className="feature-list">
-                    <li>drag entries between classes <span className="feature-note">(sorry about lag and wonkyness, will fix)</span></li>
-                    <li>view all stats and saved/ranked items from friends</li>
-                    <li>can save and edit ranks from friends entries on their profile.</li>
-                    <li><strong>info</strong> button to see data on a given movie/show/person</li>
-                    <li><strong>mobile</strong> Clastone now is usable, though rough</li>
+                    <li>Can view top 5 per year</li>
+                    <li>Can view watchlist overlap between friend(s)</li>
+                    <li>Refined mobile Clastone</li>
+                    <li>Simple genre breakdown</li>
+                    <li>Watchlist split into three sections</li>
+                    <li>Can see unique movie/show milestones in Recently Watched</li>
                   </ul>
                 </div>
               </div>
@@ -314,11 +315,11 @@ export function HomePage() {
                   <h3 className="feature-group-title">Future</h3>
                   <ul className="feature-list">
                     <li>custom <strong>tagging</strong> entries for personal preference, extra sorting capabilities and becuase its fun.<span className="feature-note">(lmk if you want any specific ones to be default tags, though you will be able to make your own too)</span></li>
-                    <li><strong>movie clubs</strong> or <strong>show clubs</strong> where you can track progress, see all of your overlapping stats and watchlists</li>
-                    <li>improve dragging feature</li>
+                    <li>reduce dragging lag</li>
                     <li><strong>quick move</strong> button options for moving around entries</li>
-                    <li><strong>logging recently watched</strong> or reviews of movies watched with friends (perhaps movie clubs)</li>
-                    <li>profile pictures</li>
+                    <li>Reviews of each movie watch</li>
+                    <li>Completionist system of certain lists (IMDB top 250, Letterboxd top 500, all MCU projects, etc)</li>
+                    <li>Add system where you can mark movie watch order if seen more than one in a day</li>
                   </ul>
                 </div>
               </div>
