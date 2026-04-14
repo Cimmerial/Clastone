@@ -726,6 +726,22 @@
   border-radius: var(--radius-md);
 }
 
+.entry-tile--unseen-muted .entry-tile-poster {
+  border-color: rgba(148, 148, 148, 0.5);
+}
+
+.entry-tile-poster--unseen-muted::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.68);
+  pointer-events: none;
+}
+
+.entry-tile--unseen-muted .entry-tile-title {
+  color: #8a8a8a;
+}
+
 .entry-tile-person .entry-tile-poster {
   aspect-ratio: 2 / 3;
 }

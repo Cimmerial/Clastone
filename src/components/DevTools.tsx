@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import './DevTools.css';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { useListsStore } from '../state/listsStore';
 
 export function DevTools() {
   const { isAdmin, user } = useAuth();
@@ -28,6 +29,17 @@ export function DevTools() {
   const [isDumping, setIsDumping] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const { globalCollections } = useListsStore();
+  const [quickCollectionId, setQuickCollectionId] = useState<string>(() => localStorage.getItem('dev_quick_collection_id') ?? '');
+  const [quickAddDirection, setQuickAddDirection] = useState<'top' | 'bottom'>(() => {
+    const saved = localStorage.getItem('dev_quick_collection_direction');
+    return saved === 'bottom' ? 'bottom' : 'top';
+  });
+
+  const quickCollectionOptions = useMemo(
+    () => globalCollections.map((collection) => ({ id: collection.id, name: collection.name })),
+    [globalCollections]
+  );
 
   const movieItems = useMemo(() => {
     const out: Array<{ classKey: ClassKey; item: MovieShowItem }> = [];
@@ -303,6 +315,56 @@ export function DevTools() {
                 </button>
               </div>
 
+              <h3 className="dev-modal-title" style={{ fontSize: 14, marginTop: 12 }}>Global collection editor</h3>
+              <div className="dev-row">
+                <label className="dev-label">Collection to add to with quick button</label>
+              </div>
+              <div className="dev-row">
+                <select
+                  className="dev-input"
+                  value={quickCollectionId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setQuickCollectionId(value);
+                    localStorage.setItem('dev_quick_collection_id', value);
+                    window.dispatchEvent(new Event('quick-collection-config-changed'));
+                  }}
+                >
+                  <option value="">Select collection...</option>
+                  {quickCollectionOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="dev-row">
+                <label className="dev-label">Add direction</label>
+              </div>
+              <div className="dev-actions">
+                <button
+                  type="button"
+                  className={`dev-secondary ${quickAddDirection === 'top' ? 'dev-secondary--active' : ''}`}
+                  onClick={() => {
+                    setQuickAddDirection('top');
+                    localStorage.setItem('dev_quick_collection_direction', 'top');
+                    window.dispatchEvent(new Event('quick-collection-config-changed'));
+                  }}
+                >
+                  Top
+                </button>
+                <button
+                  type="button"
+                  className={`dev-secondary ${quickAddDirection === 'bottom' ? 'dev-secondary--active' : ''}`}
+                  onClick={() => {
+                    setQuickAddDirection('bottom');
+                    localStorage.setItem('dev_quick_collection_direction', 'bottom');
+                    window.dispatchEvent(new Event('quick-collection-config-changed'));
+                  }}
+                >
+                  Bottom
+                </button>
+              </div>
               {progress && (
                 <p className="dev-progress">
                   {isRunning ? 'Refreshing…' : 'Done.'} {progress.done}/{progress.total}

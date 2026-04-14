@@ -205,12 +205,15 @@ export function getMovieImageSrc(posterPath: string | null | undefined, title: s
   return tmdbImagePath(posterPath, size);
 }
 
-export async function tmdbSearchMovies(query: string, signal?: AbortSignal) {
+export async function tmdbSearchMovies(query: string, signal?: AbortSignal, yearHint?: number) {
   const url = new URL(`${TMDB_BASE}/search/movie`);
   url.searchParams.set('query', query);
   url.searchParams.set('include_adult', 'false');
   url.searchParams.set('language', 'en-US');
   url.searchParams.set('page', '1');
+  if (yearHint) {
+    url.searchParams.set('year', String(yearHint));
+  }
 
   const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders(), signal });
   if (!res.ok) {
@@ -230,12 +233,15 @@ export async function tmdbSearchMovies(query: string, signal?: AbortSignal) {
   }));
 }
 
-export async function tmdbSearchTv(query: string, signal?: AbortSignal): Promise<TmdbMultiResult[]> {
+export async function tmdbSearchTv(query: string, signal?: AbortSignal, yearHint?: number): Promise<TmdbMultiResult[]> {
   const url = new URL(`${TMDB_BASE}/search/tv`);
   url.searchParams.set('query', query);
   url.searchParams.set('include_adult', 'false');
   url.searchParams.set('language', 'en-US');
   url.searchParams.set('page', '1');
+  if (yearHint) {
+    url.searchParams.set('first_air_date_year', String(yearHint));
+  }
 
   const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders(), signal });
   if (!res.ok) {

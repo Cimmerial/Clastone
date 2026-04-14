@@ -586,7 +586,11 @@ export function PeopleProvider({
         setClasses(prev => {
             const key = label.toUpperCase().replace(/\s+/g, '_');
             if (prev.some(c => c.key === key)) return prev;
-            return [...prev, { key, label, isRanked: options.isRanked }];
+            const nextClass = { key, label, isRanked: options.isRanked };
+            if (!options.isRanked) return [...prev, nextClass];
+            const firstUnrankedIdx = prev.findIndex((c) => c.isRanked === false);
+            if (firstUnrankedIdx === -1) return [...prev, nextClass];
+            return [...prev.slice(0, firstUnrankedIdx), nextClass, ...prev.slice(firstUnrankedIdx)];
         });
     }, []);
 

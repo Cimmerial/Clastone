@@ -402,10 +402,15 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     if (!sanitized) return;
     
     const { key, label: sanitizedLabel } = sanitized;
+    const isRanked = options?.isRanked ?? true;
     
     setClasses(prev => {
       if (prev.some(c => c.key === key)) return prev;
-      return [...prev, { key, label: sanitizedLabel, isRanked: options?.isRanked ?? true }];
+      const nextClass = { key, label: sanitizedLabel, isRanked };
+      if (!isRanked) return [...prev, nextClass];
+      const firstUnrankedIdx = prev.findIndex((c) => c.isRanked === false);
+      if (firstUnrankedIdx === -1) return [...prev, nextClass];
+      return [...prev.slice(0, firstUnrankedIdx), nextClass, ...prev.slice(firstUnrankedIdx)];
     });
   }, []);
 

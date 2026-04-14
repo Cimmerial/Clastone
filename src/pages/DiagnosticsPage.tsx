@@ -43,7 +43,7 @@ export function DiagnosticsPage() {
         byClass: directorByClass,
         forceSync: forceSyncDirectors
     } = useDirectorsStore();
-    const { forceSync: forceSyncWatchlist } = useWatchlistStore();
+    const { movies: watchlistMovies, tv: watchlistTv, forceSync: forceSyncWatchlist } = useWatchlistStore();
 
     const [isMigrating, setIsMigrating] = useState(false);
     const [migrationSteps, setMigrationSteps] = useState<MigrationStep[]>([]);
@@ -109,6 +109,48 @@ export function DiagnosticsPage() {
     };
 
     const { queue, requestLog, isPaused } = state;
+    const recentRequests = useMemo(() => requestLog.slice(0, 80), [requestLog]);
+
+    const appStorageDiagnostics = useMemo(() => {
+        const encodeSize = (value: unknown): number => {
+            const serialized = JSON.stringify(value);
+            return serialized ? new TextEncoder().encode(serialized).length : 0;
+        };
+
+        const byDomain = {
+            movies: encodeSize({ classes, byClass }),
+            tv: encodeSize({ classes: tvClasses, byClass: tvByClass }),
+            people: encodeSize({ classes: peopleClasses, byClass: peopleByClass }),
+            directors: encodeSize({ classes: directorClasses, byClass: directorByClass }),
+            watchlist: encodeSize({ movies: watchlistMovies, tv: watchlistTv }),
+            writeQueueBuffer: encodeSize(queue)
+        };
+
+        const total = Object.values(byDomain).reduce((sum, value) => sum + value, 0);
+        const formatBytes = (bytes: number): string => {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        };
+
+        return {
+            byDomain,
+            total,
+            formatBytes
+        };
+    }, [
+        classes,
+        byClass,
+        tvClasses,
+        tvByClass,
+        peopleClasses,
+        peopleByClass,
+        directorClasses,
+        directorByClass,
+        watchlistMovies,
+        watchlistTv,
+        queue
+    ]);
 
     return (
         <section>
@@ -121,8 +163,8 @@ export function DiagnosticsPage() {
 
             <div className="settings-grid">
                 {isAdmin && (
-                    <div className="settings-card card-surface settings-card-wide">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div className="settings-card card-surface">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem', gap: '0.75rem' }}>
                             <h2 className="settings-title" style={{ margin: 0 }}>Firebase Write Queue</h2>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <button
@@ -142,22 +184,22 @@ export function DiagnosticsPage() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
+                        <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: '1fr 1fr', marginBottom: '1rem' }}>
                             <div className="settings-account-row" style={{ flex: 1 }}>
                                 <span className="settings-account-label">Items in Queue</span>
                                 <span className="settings-account-value">{queue.length}</span>
                             </div>
                             <div className="settings-account-row" style={{ flex: 1 }}>
-                                <span className="settings-account-label">Total Authenticated Written Today</span>
-                                <span className="settings-account-value" style={{ color: 'var(--text-muted)' }}>Check Google Cloud Console for true values.</span>
+                                <span className="settings-account-label">Recent Logged Requests</span>
+                                <span className="settings-account-value">{requestLog.length}</span>
                             </div>
                         </div>
 
-                        <p className="settings-muted" style={{ marginBottom: '1rem' }}>
-                            Recent requests (last 200). Note that the throttler enforces a Strict 1 second delay between writes to avoid quota bursts.
+                        <p className="settings-muted" style={{ marginBottom: '0.8rem' }}>
+                            Recent throttled requests in this session. The queue enforces a 1-second gap between writes.
                         </p>
 
-                        <div style={{ overflowX: 'auto', maxHeight: '60vh', overflowY: 'auto' }}>
+                        <div style={{ overflowX: 'auto', maxHeight: '42vh', overflowY: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                                 <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 1 }}>
                                     <tr>
@@ -173,7 +215,7 @@ export function DiagnosticsPage() {
                                             <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>No requests logged yet in this session.</td>
                                         </tr>
                                     ) : (
-                                        requestLog.map((req) => (
+                                        recentRequests.map((req) => (
                                             <tr key={req.id} style={{ borderBottom: '1px solid var(--border-color)', opacity: req.status === 'Sent' ? 0.7 : 1 }}>
                                                 <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>{new Date(req.timestamp).toLocaleTimeString()}</td>
                                                 <td style={{ padding: '0.5rem' }}>
@@ -189,15 +231,6 @@ export function DiagnosticsPage() {
                                                 </td>
                                                 <td style={{ padding: '0.5rem', wordBreak: 'break-all' }}>
                                                     <div>{req.path}</div>
-                                                    {req.metadata && (
-                                                        <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', background: 'var(--bg-surface-hover)', padding: '0.5rem', borderRadius: '4px' }}>
-                                                            {req.metadata.storeName && <div><strong>Store:</strong> {req.metadata.storeName}</div>}
-                                                            {req.metadata.metadataChanged !== undefined && <div><strong>Metadata Changed:</strong> {req.metadata.metadataChanged ? 'Yes' : 'No'}</div>}
-                                                            {req.metadata.dirtyClasses !== undefined && <div><strong>Dirty Classes:</strong> {req.metadata.dirtyClasses ? req.metadata.dirtyClasses.join(', ') || '(Empty Full Sync)' : 'None'}</div>}
-                                                            {req.metadata.dirtyMovies !== undefined && <div><strong>Dirty Movies:</strong> {req.metadata.dirtyMovies ? 'Yes' : 'No'}</div>}
-                                                            {req.metadata.dirtyTv !== undefined && <div><strong>Dirty TV:</strong> {req.metadata.dirtyTv ? 'Yes' : 'No'}</div>}
-                                                        </div>
-                                                    )}
                                                 </td>
                                                 <td style={{ padding: '0.5rem' }}>
                                                     <span style={{
@@ -213,6 +246,45 @@ export function DiagnosticsPage() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                )}
+                {isAdmin && (
+                    <div className="settings-card card-surface">
+                        <h2 className="settings-title">Total App Storage (Estimate)</h2>
+                        <p className="settings-muted" style={{ marginBottom: '1rem' }}>
+                            Client-side estimate of serialized app payload size. Use Google Cloud Console for billing-accurate Firestore totals.
+                        </p>
+
+                        <div style={{ display: 'grid', gap: '0.6rem' }}>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Estimated Total</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.total)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Movies</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.movies)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">TV Shows</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.tv)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Actors</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.people)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Directors</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.directors)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Watchlist</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.watchlist)}</span>
+                            </div>
+                            <div className="settings-account-row">
+                                <span className="settings-account-label">Queue Buffer</span>
+                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.writeQueueBuffer)}</span>
+                            </div>
                         </div>
                     </div>
                 )}

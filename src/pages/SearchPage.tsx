@@ -16,6 +16,7 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useListsStore } from '../state/listsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { GenreEditModal } from '../components/GenreEditModal';
@@ -24,10 +25,51 @@ import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import { InfoModal } from '../components/InfoModal';
 import { PersonInfoModal } from '../components/PersonInfoModal';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/firebase';
+import { upsertGlobalCollection } from '../lib/firestoreCollections';
 import './SearchPage.css';
 
 function resultId(r: TmdbMultiResult): string {
   return `tmdb-${r.media_type}-${r.id}`;
+}
+
+function parseQueryWithOptionalYear(raw: string): { textQuery: string; yearHint?: number } {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^(.*?)(?:\s+)(19\d{2}|20\d{2})$/);
+  if (!match) return { textQuery: trimmed };
+  const textQuery = match[1].trim();
+  const yearHint = Number(match[2]);
+  if (!textQuery) return { textQuery: trimmed };
+  return { textQuery, yearHint };
+}
+
+function extractYearFromResult(result: TmdbMultiResult): number | null {
+  const source = result.release_date || result.subtitle || '';
+  const m = source.match(/(19\d{2}|20\d{2})/);
+  return m ? Number(m[1]) : null;
+}
+
+function rankResultsWithYearHint(results: TmdbMultiResult[], yearHint?: number, titleHint?: string): TmdbMultiResult[] {
+  if (!yearHint) return results;
+  const normalizedTitleHint = (titleHint ?? '').toLowerCase().trim();
+  const scored = results.map((result, index) => {
+    const y = extractYearFromResult(result);
+    const title = result.title.toLowerCase();
+    const exactTitle = normalizedTitleHint.length > 0 && title === normalizedTitleHint;
+    const containsTitle = normalizedTitleHint.length > 0 && title.includes(normalizedTitleHint);
+    const yearScore = y === yearHint ? 100000 : 0;
+    const textScore = exactTitle ? 20000 : containsTitle ? 4000 : 0;
+    const score = yearScore + textScore;
+    const popularity = result.popularity ?? 0;
+    return { result, score, popularity, index };
+  });
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+    return a.index - b.index;
+  });
+  return scored.map((entry) => entry.result);
 }
 
 export function SearchPage() {
@@ -163,6 +205,33 @@ export function SearchPage() {
   const [personInfoModalTarget, setPersonInfoModalTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
+  const { isAdmin } = useAuth();
+  const { globalCollections, upsertGlobalCollection: upsertCollectionInStore } = useListsStore();
+  const [quickCollectionId, setQuickCollectionId] = useState<string>(() => localStorage.getItem('dev_quick_collection_id') ?? '');
+  const [quickDirection, setQuickDirection] = useState<'top' | 'bottom'>(() => {
+    const saved = localStorage.getItem('dev_quick_collection_direction');
+    return saved === 'bottom' ? 'bottom' : 'top';
+  });
+
+  const selectedQuickCollection = useMemo(
+    () => globalCollections.find((collection) => collection.id === quickCollectionId) ?? null,
+    [globalCollections, quickCollectionId]
+  );
+  const canUseQuickAdd = import.meta.env.DEV && isAdmin && Boolean(selectedQuickCollection) && Boolean(db);
+
+  useEffect(() => {
+    const syncQuickConfig = () => {
+      setQuickCollectionId(localStorage.getItem('dev_quick_collection_id') ?? '');
+      const saved = localStorage.getItem('dev_quick_collection_direction');
+      setQuickDirection(saved === 'bottom' ? 'bottom' : 'top');
+    };
+    window.addEventListener('quick-collection-config-changed', syncQuickConfig);
+    window.addEventListener('storage', syncQuickConfig);
+    return () => {
+      window.removeEventListener('quick-collection-config-changed', syncQuickConfig);
+      window.removeEventListener('storage', syncQuickConfig);
+    };
+  }, []);
 
   const trimmed = useMemo(() => query.trim(), [query]);
 
@@ -194,23 +263,29 @@ export function SearchPage() {
     const t = window.setTimeout(async () => {
       try {
         setIsLoading(true);
-
-        let results: any[] = [];
-        if (showMovies && showTv && showPeople) {
-          results = await tmdbSearchMulti(trimmed, controller.signal);
-        } else {
-          // If toggles are off, individually fetch the ones that are ON
-          const promises = [];
-          if (showMovies) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchMovies(trimmed, controller.signal)));
-          if (showTv) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchTv(trimmed, controller.signal)));
-          if (showPeople) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchPeople(trimmed, controller.signal)));
-
-          const responses = await Promise.all(promises);
-          // Flatten results and sort by popularity
-          results = responses.flat().sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        const { textQuery, yearHint } = parseQueryWithOptionalYear(trimmed);
+        if (!textQuery) {
+          setRemoteResults([]);
+          setIsLoading(false);
+          return;
         }
 
-        setRemoteResults(results);
+        let results: any[] = [];
+        const shouldForceSeparateFetch = Boolean(yearHint);
+        if (showMovies && showTv && showPeople && !shouldForceSeparateFetch) {
+          results = await tmdbSearchMulti(textQuery, controller.signal);
+        } else {
+          // When year hint is present, fetch by domain explicitly.
+          const promises = [];
+          if (showMovies) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchMovies(textQuery, controller.signal, yearHint)));
+          if (showTv) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchTv(textQuery, controller.signal, yearHint)));
+          if (showPeople) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchPeople(textQuery, controller.signal)));
+          const responses = await Promise.all(promises);
+          results = responses.flat();
+        }
+
+        const deduped = results.filter((item, index, self) => index === self.findIndex((candidate) => candidate.media_type === item.media_type && candidate.id === item.id));
+        setRemoteResults(rankResultsWithYearHint(deduped, yearHint, textQuery));
       } catch (e) {
         if (controller.signal.aborted) return;
         setRemoteResults([]);
@@ -305,6 +380,43 @@ export function SearchPage() {
       cache: cache ?? undefined
     });
     setIsSaving(false);
+  };
+
+  const handleQuickAddToCollection = async (r: TmdbMultiResult) => {
+    if (!db || !selectedQuickCollection) return;
+    if (r.media_type !== 'movie' && r.media_type !== 'tv') return;
+    const mediaType = r.media_type;
+    const exists = selectedQuickCollection.entries.some((entry) => entry.mediaType === mediaType && entry.tmdbId === r.id);
+    if (exists) {
+      const filtered = selectedQuickCollection.entries.filter((entry) => !(entry.mediaType === mediaType && entry.tmdbId === r.id));
+      const normalized = filtered.map((entry, position) => ({ ...entry, position }));
+      const nextCollection = { ...selectedQuickCollection, entries: normalized, updatedAt: new Date().toISOString() };
+      await upsertGlobalCollection(db, nextCollection);
+      upsertCollectionInStore(nextCollection);
+      return;
+    }
+    const newEntry = {
+      tmdbId: r.id,
+      mediaType,
+      position: 0,
+      title: r.title,
+      posterPath: r.poster_path ?? undefined,
+      releaseDate: r.release_date,
+    };
+    const withEntry =
+      quickDirection === 'top'
+        ? [newEntry, ...selectedQuickCollection.entries]
+        : [...selectedQuickCollection.entries, newEntry];
+    const normalized = withEntry.map((entry, position) => ({ ...entry, position }));
+    const nextCollection = { ...selectedQuickCollection, entries: normalized, updatedAt: new Date().toISOString() };
+    await upsertGlobalCollection(db, nextCollection);
+    upsertCollectionInStore(nextCollection);
+  };
+
+  const isInSelectedQuickCollection = (r: TmdbMultiResult): boolean => {
+    if (!selectedQuickCollection) return false;
+    if (r.media_type !== 'movie' && r.media_type !== 'tv') return false;
+    return selectedQuickCollection.entries.some((entry) => entry.mediaType === r.media_type && entry.tmdbId === r.id);
   };
 
   const handleAddPersonToUnranked = async (r: TmdbMultiResult, type: 'actor' | 'director') => {
@@ -948,6 +1060,7 @@ export function SearchPage() {
               const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
               const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
               const inWatchlist = (isMovie || isTv) && isInWatchlist(id);
+              const inSelectedCollection = isInSelectedQuickCollection(r);
 
               const handleAddToWatchlist = () => {
                 if (isMovie) {
@@ -1118,6 +1231,18 @@ export function SearchPage() {
                           ADD WATCHLIST
                         </button>
                       )}
+                      {canUseQuickAdd && (
+                        <button
+                          type="button"
+                          className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
+                          disabled={isSaving}
+                          onClick={() => void handleQuickAddToCollection(r)}
+                        >
+                          {inSelectedCollection
+                            ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
+                            : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
+                        </button>
+                      )}
                     </div>
                   ) : isTv ? (
                     <div className="search-card-actions">
@@ -1172,6 +1297,18 @@ export function SearchPage() {
                           onClick={handleAddToWatchlist}
                         >
                           ADD WATCHLIST
+                        </button>
+                      )}
+                      {canUseQuickAdd && (
+                        <button
+                          type="button"
+                          className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
+                          disabled={isSaving}
+                          onClick={() => void handleQuickAddToCollection(r)}
+                        >
+                          {inSelectedCollection
+                            ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
+                            : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
                         </button>
                       )}
                     </div>
@@ -1270,6 +1407,7 @@ export function SearchPage() {
                 const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
                 const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
                 const inWatchlist = (isMovie || isTv) && isInWatchlist(id);
+                const inSelectedCollection = isInSelectedQuickCollection(r);
 
                 const handleAddToWatchlist = () => {
                   if (isMovie) {
@@ -1377,6 +1515,18 @@ export function SearchPage() {
                             ADD WATCHLIST
                           </button>
                         )}
+                        {canUseQuickAdd && (
+                          <button
+                            type="button"
+                            className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
+                            disabled={isSaving}
+                            onClick={() => void handleQuickAddToCollection(r)}
+                          >
+                            {inSelectedCollection
+                              ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
+                              : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div className="search-card-actions">
@@ -1431,6 +1581,18 @@ export function SearchPage() {
                             onClick={handleAddToWatchlist}
                           >
                             ADD WATCHLIST
+                          </button>
+                        )}
+                        {canUseQuickAdd && (
+                          <button
+                            type="button"
+                            className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
+                            disabled={isSaving}
+                            onClick={() => void handleQuickAddToCollection(r)}
+                          >
+                            {inSelectedCollection
+                              ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
+                              : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
                           </button>
                         )}
                       </div>

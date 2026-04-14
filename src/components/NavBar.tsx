@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
@@ -11,7 +11,8 @@ const mainLinks = [
   { to: '/tv', label: 'TV Shows' },
   { to: '/actors', label: 'Actors' },
   { to: '/directors', label: 'Directors' },
-  { to: '/watchlist', label: 'Watchlist' }
+  { to: '/watchlist', label: 'Watchlist' },
+  { to: '/lists', label: 'Lists' }
 ];
 
 const iconLinks = [
@@ -129,6 +130,7 @@ const mobileTabLinks = [
   { to: '/actors', label: 'Actors', icon: UserRound as React.ComponentType<{ size?: number }> },
   { to: '/directors', label: 'Direct.', icon: Video as React.ComponentType<{ size?: number }> },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark as React.ComponentType<{ size?: number }> },
+  { to: '/lists', label: 'Lists', icon: List as React.ComponentType<{ size?: number }> },
 ];
 
 export function MobileBottomNav() {

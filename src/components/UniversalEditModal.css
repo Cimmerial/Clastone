@@ -861,6 +861,56 @@
   font-style: italic;
 }
 
+.uem-tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.uem-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.015);
+  color: #8f8f8f;
+  font-size: 0.75rem;
+}
+
+.uem-tag-chip--on {
+  border-color: rgba(120, 180, 255, 0.8);
+  background: rgba(120, 180, 255, 0.2);
+  color: #f4f8ff;
+}
+
+.uem-tag-chip--collection {
+  opacity: 0.75;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.uem-tag-chip--empty {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.01);
+  color: rgba(160, 160, 160, 0.5);
+  cursor: default;
+  text-transform: lowercase;
+}
+
+.uem-tag-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
 /* ── Footer ── */
 .uem-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);

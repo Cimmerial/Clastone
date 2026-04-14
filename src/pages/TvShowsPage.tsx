@@ -25,6 +25,7 @@ import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
+import { useListsStore } from '../state/listsStore';
 
 function tvItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -50,6 +51,7 @@ export function TvShowsPage() {
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
   const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
@@ -59,6 +61,7 @@ export function TvShowsPage() {
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
+  const { tagsByEntryId, getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, collectionIdsByEntryId, globalCollections } = useListsStore();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
@@ -70,6 +73,10 @@ export function TvShowsPage() {
 
       // Apply Filters
       const filteredList = list.filter(item => {
+        if (selectedTag !== 'all') {
+          const tags = tagsByEntryId.get(item.id) ?? [];
+          if (!tags.includes(selectedTag)) return false;
+        }
         // Genre Filter
         if (showFilters.genres.length > 0) {
           const itemGenres = item.genres || [];
@@ -110,7 +117,11 @@ export function TvShowsPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, showFilters]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, showFilters, selectedTag, tagsByEntryId]);
+
+  const showTagOptions = useMemo(() => {
+    return ['all', ...getEditableListsForMediaType('tv').map((list) => list.name)];
+  }, [getEditableListsForMediaType]);
 
   const hasActiveModal = !!settingsFor || !!recordWatchFor || !!recordPersonTarget || isFilterModalOpen;
 
@@ -145,6 +156,9 @@ export function TvShowsPage() {
               <FilterIcon size={18} />
               <span className="filter-label">Filter</span>
             </button>
+            <select className="filter-button" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
+              {showTagOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All tags' : option}</option>)}
+            </select>
           </div>
         )}
       </header>
@@ -229,6 +243,19 @@ export function TvShowsPage() {
           currentClassKey={(settingsFor || recordWatchFor!)?.classKey}
           currentClassLabel={getClassLabel((settingsFor || recordWatchFor!)?.classKey || '')}
           isWatchlistItem={watchlist.isInWatchlist((settingsFor || recordWatchFor!)?.id || '')}
+          availableTags={getEditableListsForMediaType('tv').map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry((settingsFor || recordWatchFor!)?.id || '').includes(list.id),
+            href: `/lists/${list.id}`,
+          }))}
+          collectionTags={(collectionIdsByEntryId.get((settingsFor || recordWatchFor!)?.id || '') ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((item) => item.id === id)?.name ?? id,
+            color: globalCollections.find((item) => item.id === id)?.color,
+            href: `/lists/collection/${id}`,
+          }))}
           rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
           isSaving={isSavingRecord}
           onClose={() => {
@@ -303,6 +330,9 @@ export function TvShowsPage() {
                 toMiddle: params.position === 'middle'
               });
             }
+            if (params.listMemberships?.length) {
+              setEntryListMembership(targetItem.id, 'tv', params.listMemberships);
+            }
 
             setSettingsFor(null);
             setRecordWatchFor(null);
@@ -313,6 +343,11 @@ export function TvShowsPage() {
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }, 100);
             }
+          }}
+          onTagToggle={(listId, selected) => {
+            const targetItem = settingsFor || recordWatchFor;
+            if (!targetItem) return;
+            setEntryListMembership(targetItem.id, 'tv', [{ listId, selected }]);
           }}
         />
       )}

@@ -87,6 +87,8 @@ type Props = {
   onRecordPerson?: (info: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => void;
   onInfo?: (item: MovieShowItem) => void;
   viewMode?: 'detailed' | 'minimized' | 'tile';
+  tileMinimalActions?: boolean;
+  tileUnseenMuted?: boolean;
 };
 
 function parsePercentile(s: string): number | null {
@@ -122,7 +124,9 @@ export function EntryRowMovieShow({
   onClassDown,
   onRecordPerson,
   onInfo,
-  viewMode: propViewMode
+  viewMode: propViewMode,
+  tileMinimalActions = false,
+  tileUnseenMuted = false
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -229,8 +233,8 @@ export function EntryRowMovieShow({
 
   if (isTile) {
     return (
-      <article className="entry-tile" ref={rowRef}>
-        <div className="entry-tile-poster">
+      <article className={`entry-tile ${tileUnseenMuted ? 'entry-tile--unseen-muted' : ''}`} ref={rowRef}>
+        <div className={`entry-tile-poster ${tileUnseenMuted ? 'entry-tile-poster--unseen-muted' : ''}`}>
           {item.posterPath ? (
             <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
           ) : (
@@ -241,14 +245,16 @@ export function EntryRowMovieShow({
               <Info size={14} />
             </button>
           </div>
-          <div className="entry-tile-stats-overlay">
-            <div className="entry-stat-pill">{item.percentileRank}</div>
-            <div className="entry-stat-pill">{item.absoluteRank}</div>
-            {item.watchTime && <div className="entry-stat-pill">{item.watchTime}</div>}
-          </div>
+          {!tileMinimalActions && (
+            <div className="entry-tile-stats-overlay">
+              <div className="entry-stat-pill">{item.percentileRank}</div>
+              <div className="entry-stat-pill">{item.absoluteRank}</div>
+              {item.watchTime && <div className="entry-stat-pill">{item.watchTime}</div>}
+            </div>
+          )}
           <div className="entry-tile-quick-actions">
             <button type="button" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
-            {isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
+            {!tileMinimalActions && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
         </div>
         <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>

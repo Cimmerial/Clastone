@@ -306,11 +306,10 @@ export function HomePage() {
                 <div className="feature-card new">
                   <h3 className="feature-group-title">New</h3>
                   <ul className="feature-list">
-                    <li>Can view top 5 per year</li>
+                    <li>Can view top 5 movies/shows per year from profile</li>
                     <li>Can view watchlist overlap between friend(s)</li>
                     <li>Refined mobile Clastone</li>
                     <li>Can copy top lists in Detailed Stats in Profile viewer</li>
-                    <li>Watchlist split into three sections</li>
                     <li>Can see unique movie/show milestones in Recently Watched</li>
                   </ul>
                 </div>
@@ -326,6 +325,7 @@ export function HomePage() {
                     <li>Reviews of each movie watch</li>
                     <li>Completionist system of certain lists (IMDB top 250, Letterboxd top 500, all MCU projects, etc)</li>
                     <li>Add system where you can mark movie watch order if seen more than one in a day</li>
+                    <li>The copy list(s) doesnt work on mobile</li>
                   </ul>
                 </div>
               </div>

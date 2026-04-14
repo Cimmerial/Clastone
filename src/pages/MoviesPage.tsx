@@ -25,6 +25,7 @@ import { Filter as FilterIcon } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
+import { useListsStore } from '../state/listsStore';
 
 function movieItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -50,6 +51,7 @@ export function MoviesPage() {
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
   const {
     byClass,
     classOrder,
@@ -73,6 +75,7 @@ export function MoviesPage() {
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
+  const { tagsByEntryId, getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, lists, collectionIdsByEntryId, globalCollections } = useListsStore();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
@@ -85,6 +88,10 @@ export function MoviesPage() {
 
       // Apply Filters
       const filteredList = list.filter(item => {
+        if (selectedTag !== 'all') {
+          const tags = tagsByEntryId.get(item.id) ?? [];
+          if (!tags.includes(selectedTag)) return false;
+        }
         // Genre Filter
         if (movieFilters.genres.length > 0) {
           const itemGenres = item.genres || [];
@@ -129,7 +136,11 @@ export function MoviesPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, movieFilters]); // Added globalRanks to dependencies
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, movieFilters, selectedTag, tagsByEntryId]);
+
+  const movieTagOptions = useMemo(() => {
+    return ['all', ...getEditableListsForMediaType('movie').map((list) => list.name)];
+  }, [getEditableListsForMediaType]);
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {
@@ -163,6 +174,9 @@ export function MoviesPage() {
               <FilterIcon size={18} />
               <span className="filter-label">Filter</span>
             </button>
+            <select className="filter-button" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
+              {movieTagOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All tags' : option}</option>)}
+            </select>
           </div>
         )}
       </header>
@@ -246,6 +260,19 @@ export function MoviesPage() {
           currentClassKey={(settingsFor || recordWatchFor!)?.classKey}
           currentClassLabel={getClassLabel((settingsFor || recordWatchFor!)?.classKey || '')}
           isWatchlistItem={watchlist.isInWatchlist((settingsFor || recordWatchFor!)?.id || '')}
+          availableTags={getEditableListsForMediaType('movie').map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry((settingsFor || recordWatchFor!)?.id || '').includes(list.id),
+            href: `/lists/${list.id}`,
+          }))}
+          collectionTags={(collectionIdsByEntryId.get((settingsFor || recordWatchFor!)?.id || '') ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((item) => item.id === id)?.name ?? id,
+            color: globalCollections.find((item) => item.id === id)?.color,
+            href: `/lists/collection/${id}`,
+          }))}
           rankedClasses={classes.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
           isSaving={isSavingRecord}
           onClose={() => {
@@ -320,6 +347,9 @@ export function MoviesPage() {
                 toMiddle: params.position === 'middle'
               });
             }
+            if (params.listMemberships?.length) {
+              setEntryListMembership(targetItem.id, 'movie', params.listMemberships);
+            }
 
             setSettingsFor(null);
             setRecordWatchFor(null);
@@ -331,6 +361,11 @@ export function MoviesPage() {
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }, 100);
             }
+          }}
+          onTagToggle={(listId, selected) => {
+            const targetItem = settingsFor || recordWatchFor;
+            if (!targetItem) return;
+            setEntryListMembership(targetItem.id, 'movie', [{ listId, selected }]);
           }}
         />
       )}

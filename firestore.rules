@@ -51,6 +51,10 @@ service cloud.firestore {
       allow write: if request.auth != null && userId == request.auth.uid;
     }
 
+    match /users/{userId}/listsData/{docId} {
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+    }
+
     // Friend watch recommendations: stored on the recipient's user doc. Senders may
     // create/delete only when a friends/{sender_recipient} document exists.
     match /users/{userId}/incomingWatchRecommendations/{recId} {
@@ -161,6 +165,13 @@ service cloud.firestore {
     match /settings/{settingsId} {
       allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Global predefined collections are visible to all authenticated users.
+    // Only the developer account can write.
+    match /globalCollections/{collectionId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.email == "cimmerial@clastone.local";
     }
   }
 }

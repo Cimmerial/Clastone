@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
@@ -15,6 +15,7 @@ import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
 import { RecommendToFriendModal } from './RecommendToFriendModal';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { useNavigate } from 'react-router-dom';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -60,6 +61,7 @@ export type UniversalEditSaveParams = {
   watches: WatchMatrixEntry[];
   classKey?: string;
   position?: 'top' | 'middle' | 'bottom';
+  listMemberships?: { listId: string; selected: boolean }[];
 };
 
 type Props = {
@@ -70,6 +72,9 @@ type Props = {
   currentClassLabel?: string;
   isWatchlistItem?: boolean;
   onSave: (params: UniversalEditSaveParams, goToMedia: boolean) => void | Promise<void>;
+  availableTags?: { listId: string; label: string; selected: boolean; href?: string; color?: string }[];
+  collectionTags?: { id: string; label: string; href?: string; color?: string }[];
+  onTagToggle?: (listId: string, selected: boolean) => void;
   onClose: () => void;
   onRemoveEntry?: (itemId: string) => void;
   onAddToWatchlist?: () => void;
@@ -459,6 +464,9 @@ export function UniversalEditModal({
   currentClassLabel,
   isWatchlistItem,
   onSave,
+  availableTags = [],
+  collectionTags = [],
+  onTagToggle,
   onClose,
   onRemoveEntry,
   onAddToWatchlist,
@@ -466,6 +474,7 @@ export function UniversalEditModal({
   onGoToWatchlist,
   isSaving,
 }: Props) {
+  const navigate = useNavigate();
   const { isMobile } = useMobileViewMode();
   const [recommendOpen, setRecommendOpen] = useState(false);
   // Convert WatchRecord[] to WatchMatrixEntry[] for initial state
@@ -520,6 +529,11 @@ export function UniversalEditModal({
   const [showClassOverride, setShowClassOverride] = useState(false);
   const [removeClickCount, setRemoveClickCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [tagSelections, setTagSelections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const tag of availableTags) initial[tag.listId] = tag.selected;
+    return initial;
+  });
   const [showInfoModal, setShowInfoModal] = useState(false);
   const entriesEndRef = useRef<HTMLDivElement>(null);
 
@@ -753,6 +767,7 @@ export function UniversalEditModal({
         watches: finalEntries,
         classKey: effectiveClassKey,
         position: effectiveClassKey ? selectedPosition : undefined,
+        listMemberships: availableTags.map((tag) => ({ listId: tag.listId, selected: Boolean(tagSelections[tag.listId]) })),
       },
       goToMedia,
     );
@@ -955,13 +970,64 @@ export function UniversalEditModal({
             )}
           </div>
 
-          {/* Tagging Section - Placeholder */}
+          {/* Tagging Section */}
           <div className="uem-tag-section">
             <div className="uem-section-header">
-              <h3 className="uem-section-title">Tags</h3>
+              <h3 className="uem-section-title">Lists & Collections</h3>
             </div>
-            <div className="uem-tag-placeholder">
-              <span>Tagging coming soon</span>
+            <div className="uem-tag-cloud">
+              {availableTags.length === 0 && (
+                <span className="uem-tag-chip uem-tag-chip--empty">no tags</span>
+              )}
+              {availableTags.map((tag) => (
+                <button
+                  key={tag.listId}
+                  type="button"
+                  className={`uem-tag-chip ${tagSelections[tag.listId] ? 'uem-tag-chip--on' : ''}`}
+                  style={tagSelections[tag.listId] && tag.color ? { borderColor: tag.color, background: `${tag.color}33` } : undefined}
+                  onClick={() => {
+                    setTagSelections((prev) => {
+                      const nextSelected = !prev[tag.listId];
+                      onTagToggle?.(tag.listId, nextSelected);
+                      return { ...prev, [tag.listId]: nextSelected };
+                    });
+                  }}
+                >
+                  {tag.label}
+                  {tag.href ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(tag.href!);
+                      }}
+                      className="uem-tag-link"
+                      aria-label={`Open ${tag.label}`}
+                    >
+                      <Eye size={12} />
+                    </button>
+                  ) : null}
+                </button>
+              ))}
+              {collectionTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="uem-tag-chip uem-tag-chip--collection"
+                  style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                >
+                  {tag.label}
+                  {tag.href ? (
+                    <button
+                      type="button"
+                      className="uem-tag-link"
+                      onClick={() => navigate(tag.href!)}
+                      aria-label={`Open ${tag.label}`}
+                    >
+                      <Eye size={12} />
+                    </button>
+                  ) : null}
+                </span>
+              ))}
             </div>
           </div>
         </div>

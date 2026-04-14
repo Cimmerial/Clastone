@@ -239,9 +239,14 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     const trimmed = label.trim();
     if (!trimmed) return;
     const key = trimmed.toUpperCase().replace(/\s+/g, '_');
+    const isRanked = options?.isRanked ?? true;
     setClasses((prev) => {
       if (prev.some((c) => c.key === key)) return prev;
-      return [...prev, { key, label: trimmed.toUpperCase(), tagline: undefined, isRanked: options?.isRanked ?? true }];
+      const nextClass = { key, label: trimmed.toUpperCase(), tagline: undefined, isRanked };
+      if (!isRanked) return [...prev, nextClass];
+      const firstUnrankedIdx = prev.findIndex((c) => c.isRanked === false);
+      if (firstUnrankedIdx === -1) return [...prev, nextClass];
+      return [...prev.slice(0, firstUnrankedIdx), nextClass, ...prev.slice(firstUnrankedIdx)];
     });
   }, []);
 

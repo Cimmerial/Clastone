@@ -40,6 +40,8 @@ type RankedListProps<T extends RankedItemBase> = {
   onMoveBetweenClasses?: (itemId: string, toClass: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => void;
   /** Optional view mode for layout adjustments */
   viewMode?: 'minimized' | 'detailed' | 'tile';
+  /** Optional actions rendered on the right side of a class header. */
+  renderClassActions?: (classKey: ClassKey, items: T[]) => JSX.Element | null;
 };
 
 // Context for drag initiation
@@ -118,7 +120,8 @@ function RankedListInner<T extends RankedItemBase>(
     getClassTagline,
     onReorderWithinClass,
     onMoveBetweenClasses,
-    viewMode = 'detailed'
+    viewMode = 'detailed',
+    renderClassActions
   }: RankedListProps<T>,
   ref: React.Ref<HTMLDivElement>
 ) {
@@ -523,6 +526,7 @@ function RankedListInner<T extends RankedItemBase>(
                     {items.length} entries{subtitle ? ` | ${subtitle}` : ''}
                   </p>
                 </div>
+                {renderClassActions ? renderClassActions(classKey, items) : null}
               </header>
               <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''}`}>
                 {onReorderWithinClass ? (

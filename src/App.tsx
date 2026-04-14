@@ -16,6 +16,7 @@ import { DevTools } from './components/DevTools';
 import { SyncStatusProvider } from './context/SyncStatusContext';
 import { FirestorePeopleGate } from './components/FirestorePeopleGate';
 import { FirestoreDirectorsGate } from './components/FirestoreDirectorsGate';
+import { FirestoreListsGate } from './components/FirestoreListsGate';
 import { FilterProvider } from './state/filterStore';
 import { SpotlightBackground } from './components/SpotlightBackground';
 import { FriendsProvider } from './context/FriendsContext';
@@ -46,15 +47,17 @@ function LoggedInAppShell({ children }: { children: React.ReactNode }) {
               <FirestorePeopleGate>
                 <FirestoreDirectorsGate>
                   <FirestoreWatchlistGate>
-                    <FilterProvider>
-                      <SpotlightBackground />
-                      <NavBar />
-                      <main className="app-main">
-                        {children}
-                      </main>
-                      <MobileBottomNav />
-                      <DevTools />
-                    </FilterProvider>
+                    <FirestoreListsGate>
+                      <FilterProvider>
+                        <SpotlightBackground />
+                        <NavBar />
+                        <main className="app-main">
+                          {children}
+                        </main>
+                        <MobileBottomNav />
+                        <DevTools />
+                      </FilterProvider>
+                    </FirestoreListsGate>
                   </FirestoreWatchlistGate>
                 </FirestoreDirectorsGate>
               </FirestorePeopleGate>
@@ -77,19 +80,21 @@ function PublicAppShell() {
               <FirestorePeopleGate>
                 <FirestoreDirectorsGate>
                   <FirestoreWatchlistGate>
-                    <FilterProvider>
-                      <SpotlightBackground />
-                      <Routes>
-                        <Route path="/" element={<PublicAppLayout />}>
-                          <Route index element={<Navigate to="/login" replace />} />
-                          <Route path="login" element={<LoginPage />} />
-                          <Route path="home" element={<HomePage />} />
-                          <Route path="friends/:friendId" element={<FriendProfilePage />} />
-                          <Route path="friends" element={<FriendsPage />} />
-                        </Route>
-                        <Route path="*" element={<Navigate to="/login" replace />} />
-                      </Routes>
-                    </FilterProvider>
+                    <FirestoreListsGate>
+                      <FilterProvider>
+                        <SpotlightBackground />
+                        <Routes>
+                          <Route path="/" element={<PublicAppLayout />}>
+                            <Route index element={<Navigate to="/login" replace />} />
+                            <Route path="login" element={<LoginPage />} />
+                            <Route path="home" element={<HomePage />} />
+                            <Route path="friends/:friendId" element={<FriendProfilePage />} />
+                            <Route path="friends" element={<FriendsPage />} />
+                          </Route>
+                          <Route path="*" element={<Navigate to="/login" replace />} />
+                        </Routes>
+                      </FilterProvider>
+                    </FirestoreListsGate>
                   </FirestoreWatchlistGate>
                 </FirestoreDirectorsGate>
               </FirestorePeopleGate>
