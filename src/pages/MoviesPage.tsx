@@ -51,7 +51,6 @@ export function MoviesPage() {
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
   const {
     byClass,
     classOrder,
@@ -75,7 +74,7 @@ export function MoviesPage() {
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
-  const { tagsByEntryId, getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, lists, collectionIdsByEntryId, globalCollections } = useListsStore();
+  const { getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, collectionIdsByEntryId, globalCollections } = useListsStore();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
@@ -88,10 +87,6 @@ export function MoviesPage() {
 
       // Apply Filters
       const filteredList = list.filter(item => {
-        if (selectedTag !== 'all') {
-          const tags = tagsByEntryId.get(item.id) ?? [];
-          if (!tags.includes(selectedTag)) return false;
-        }
         // Genre Filter
         if (movieFilters.genres.length > 0) {
           const itemGenres = item.genres || [];
@@ -102,6 +97,11 @@ export function MoviesPage() {
         if (movieFilters.actorIds.length > 0) {
           const itemActorIds = (item.cast || []).map(c => c.id);
           if (!movieFilters.actorIds.every(id => itemActorIds.includes(id))) return false;
+        }
+
+        if (movieFilters.directorIds.length > 0) {
+          const itemDirectorIds = (item.directors || []).map(d => d.id);
+          if (!movieFilters.directorIds.every(id => itemDirectorIds.includes(id))) return false;
         }
 
         // Timeline Filter
@@ -116,6 +116,22 @@ export function MoviesPage() {
             return year && year >= movieFilters.watchTimeRange![0] && year <= movieFilters.watchTimeRange![1];
           });
           if (!hasInRange && records.length > 0) return false;
+        }
+
+        if (movieFilters.releaseYearRange) {
+          const releaseYear = item.releaseDate ? parseInt(item.releaseDate.slice(0, 4), 10) : NaN;
+          if (Number.isNaN(releaseYear)) return false;
+          if (releaseYear < movieFilters.releaseYearRange[0] || releaseYear > movieFilters.releaseYearRange[1]) return false;
+        }
+
+        if (movieFilters.listIds.length > 0) {
+          const entryListIds = getSelectedListIdsForEntry(item.id);
+          if (!movieFilters.listIds.every(id => entryListIds.includes(id))) return false;
+        }
+
+        if (movieFilters.collectionIds.length > 0) {
+          const itemCollectionIds = collectionIdsByEntryId.get(item.id) ?? [];
+          if (!movieFilters.collectionIds.every(id => itemCollectionIds.includes(id))) return false;
         }
 
         return true;
@@ -136,11 +152,7 @@ export function MoviesPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, movieFilters, selectedTag, tagsByEntryId]);
-
-  const movieTagOptions = useMemo(() => {
-    return ['all', ...getEditableListsForMediaType('movie').map((list) => list.name)];
-  }, [getEditableListsForMediaType]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, movieFilters, getSelectedListIdsForEntry, collectionIdsByEntryId]);
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
   useEffect(() => {
@@ -174,9 +186,6 @@ export function MoviesPage() {
               <FilterIcon size={18} />
               <span className="filter-label">Filter</span>
             </button>
-            <select className="filter-button" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
-              {movieTagOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All tags' : option}</option>)}
-            </select>
           </div>
         )}
       </header>
@@ -429,6 +438,14 @@ export function MoviesPage() {
         onClose={() => setIsFilterModalOpen(false)}
         items={Object.values(byClass).flat()}
         type="movies"
+        availableLists={getEditableListsForMediaType('movie').map((list) => ({ id: list.id, name: list.name, color: list.color }))}
+        availableCollections={globalCollections.filter((collection) => !collection.hidden).map((collection) => ({
+          id: collection.id,
+          name: collection.name,
+          color: collection.color,
+        }))}
+        listIdsByEntryId={new Map(Object.values(byClass).flat().map((item) => [item.id, getSelectedListIdsForEntry(item.id)]))}
+        collectionIdsByEntryId={collectionIdsByEntryId}
       />
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />

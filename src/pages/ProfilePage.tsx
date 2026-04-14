@@ -23,6 +23,7 @@ import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { Award } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useListsStore } from '../state/listsStore';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -330,6 +331,13 @@ export function ProfilePage() {
   } = useDirectorsStore();
   
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
+  const {
+    getEditableListsForMediaType,
+    setEntryListMembership,
+    getSelectedListIdsForEntry,
+    collectionIdsByEntryId,
+    globalCollections,
+  } = useListsStore();
 
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
@@ -1123,6 +1131,14 @@ export function ProfilePage() {
             await updateTvShowWatchRecords(rankingTarget.id, records);
           }
         }
+      }
+
+      if (params.listMemberships?.length && rankingTarget.id) {
+        setEntryListMembership(
+          rankingTarget.id,
+          rankingTarget.mediaType === 'movie' ? 'movie' : 'tv',
+          params.listMemberships
+        );
       }
       
       if (goToMedia) {
@@ -2302,6 +2318,22 @@ export function ProfilePage() {
               : (rankingTarget.existingClassKey ? getTvClassLabel(rankingTarget.existingClassKey) : undefined)
           }
           isWatchlistItem={isInWatchlist(rankingTarget.id)}
+          availableTags={getEditableListsForMediaType(rankingTarget.mediaType === 'movie' ? 'movie' : 'tv').map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry(rankingTarget.id).includes(list.id),
+            href: `/lists/${list.id}`,
+          }))}
+          collectionTags={(collectionIdsByEntryId.get(rankingTarget.id) ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((c) => c.id === id)?.name ?? id,
+            color: globalCollections.find((c) => c.id === id)?.color,
+            href: `/lists/collection/${id}`,
+          }))}
+          onTagToggle={(listId, selected) => {
+            setEntryListMembership(rankingTarget.id, rankingTarget.mediaType === 'movie' ? 'movie' : 'tv', [{ listId, selected }]);
+          }}
           onAddToWatchlist={() => {
             const entry = {
               id: rankingTarget.id,
@@ -2313,6 +2345,9 @@ export function ProfilePage() {
           }}
           onRemoveFromWatchlist={() => {
             removeFromWatchlist(rankingTarget.id);
+          }}
+          onGoToWatchlist={() => {
+            navigate('/watchlist', { state: { scrollToId: rankingTarget.id } });
           }}
           onSave={handleRankingSave}
           onClose={() => setRankingTarget(null)}

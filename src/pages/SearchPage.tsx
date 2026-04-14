@@ -206,7 +206,14 @@ export function SearchPage() {
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { isAdmin } = useAuth();
-  const { globalCollections, upsertGlobalCollection: upsertCollectionInStore } = useListsStore();
+  const {
+    globalCollections,
+    upsertGlobalCollection: upsertCollectionInStore,
+    getEditableListsForMediaType,
+    setEntryListMembership,
+    getSelectedListIdsForEntry,
+    collectionIdsByEntryId,
+  } = useListsStore();
   const [quickCollectionId, setQuickCollectionId] = useState<string>(() => localStorage.getItem('dev_quick_collection_id') ?? '');
   const [quickDirection, setQuickDirection] = useState<'top' | 'bottom'>(() => {
     const saved = localStorage.getItem('dev_quick_collection_direction');
@@ -558,6 +565,9 @@ export function SearchPage() {
         for (let i = 1; i < watchRecords.length; i++) addWatchToMovie(targetId, watchRecords[i]);
         setIsSaving(false);
       }
+      if (params.listMemberships?.length) {
+        setEntryListMembership(targetId, 'movie', params.listMemberships);
+      }
       setRecordTarget(null);
       if (goToMedia) navigate('/movies', { replace: true, state: { scrollToId: targetId } });
     } else {
@@ -590,6 +600,9 @@ export function SearchPage() {
           toMiddle
         });
         for (let i = 1; i < watchRecords.length; i++) addWatchToShow(targetId, watchRecords[i]);
+      }
+      if (params.listMemberships?.length) {
+        setEntryListMembership(targetId, 'tv', params.listMemberships);
       }
       setRecordTarget(null);
       if (goToMedia) navigate('/tv', { replace: true, state: { scrollToId: targetId } });
@@ -1678,6 +1691,22 @@ export function SearchPage() {
               ? movieRankedClasses
               : tvRankedClasses
           }
+          availableTags={getEditableListsForMediaType(recordTarget.media_type === 'movie' ? 'movie' : 'tv').map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry(resultId(recordTarget)).includes(list.id),
+            href: `/lists/${list.id}`,
+          }))}
+          collectionTags={(collectionIdsByEntryId.get(resultId(recordTarget)) ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((c) => c.id === id)?.name ?? id,
+            color: globalCollections.find((c) => c.id === id)?.color,
+            href: `/lists/collection/${id}`,
+          }))}
+          onTagToggle={(listId, selected) => {
+            setEntryListMembership(resultId(recordTarget), recordTarget.media_type === 'movie' ? 'movie' : 'tv', [{ listId, selected }]);
+          }}
           isSaving={isSaving}
           onClose={handleCloseRecord}
           onRemoveEntry={(id: string) => {
@@ -1701,7 +1730,7 @@ export function SearchPage() {
             removeFromWatchlist(resultId(recordTarget));
           }}
           onGoToWatchlist={() => {
-            navigate('/watchlist');
+            navigate('/watchlist', { state: { scrollToId: resultId(recordTarget) } });
           }}
         />
       )}

@@ -3,17 +3,27 @@ import { createContext, useContext, useState, ReactNode } from 'react';
 export type FilterState = {
     genres: string[];
     watchTimeRange: [number, number] | null; // [year_from, year_to]
+    releaseYearRange: [number, number] | null; // [year_from, year_to]
     includeLongAgo: boolean;
     actorIds: number[];
     actorNames: Record<number, string>;
+    directorIds: number[];
+    directorNames: Record<number, string>;
+    listIds: string[];
+    collectionIds: string[];
 };
 
 const initialFilterState: FilterState = {
     genres: [],
     watchTimeRange: null,
+    releaseYearRange: null,
     includeLongAgo: true,
     actorIds: [],
     actorNames: {},
+    directorIds: [],
+    directorNames: {},
+    listIds: [],
+    collectionIds: [],
 };
 
 type FilterStore = {

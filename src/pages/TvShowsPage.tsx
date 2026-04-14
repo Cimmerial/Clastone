@@ -51,7 +51,6 @@ export function TvShowsPage() {
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
   const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
@@ -61,7 +60,7 @@ export function TvShowsPage() {
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const location = useLocation();
   const watchlist = useWatchlistStore();
-  const { tagsByEntryId, getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, collectionIdsByEntryId, globalCollections } = useListsStore();
+  const { getEditableListsForMediaType, setEntryListMembership, getSelectedListIdsForEntry, collectionIdsByEntryId, globalCollections } = useListsStore();
   const navigate = useNavigate();
 
   const computedByClass = useMemo(() => {
@@ -73,10 +72,6 @@ export function TvShowsPage() {
 
       // Apply Filters
       const filteredList = list.filter(item => {
-        if (selectedTag !== 'all') {
-          const tags = tagsByEntryId.get(item.id) ?? [];
-          if (!tags.includes(selectedTag)) return false;
-        }
         // Genre Filter
         if (showFilters.genres.length > 0) {
           const itemGenres = item.genres || [];
@@ -87,6 +82,11 @@ export function TvShowsPage() {
         if (showFilters.actorIds.length > 0) {
           const itemActorIds = (item.cast || []).map(c => c.id);
           if (!showFilters.actorIds.every(id => itemActorIds.includes(id))) return false;
+        }
+
+        if (showFilters.directorIds.length > 0) {
+          const itemDirectorIds = (item.directors || []).map(d => d.id);
+          if (!showFilters.directorIds.every(id => itemDirectorIds.includes(id))) return false;
         }
 
         // Timeline Filter
@@ -103,6 +103,22 @@ export function TvShowsPage() {
           if (!hasInRange && records.length > 0) return false;
         }
 
+        if (showFilters.releaseYearRange) {
+          const releaseYear = item.releaseDate ? parseInt(item.releaseDate.slice(0, 4), 10) : NaN;
+          if (Number.isNaN(releaseYear)) return false;
+          if (releaseYear < showFilters.releaseYearRange[0] || releaseYear > showFilters.releaseYearRange[1]) return false;
+        }
+
+        if (showFilters.listIds.length > 0) {
+          const entryListIds = getSelectedListIdsForEntry(item.id);
+          if (!showFilters.listIds.every(id => entryListIds.includes(id))) return false;
+        }
+
+        if (showFilters.collectionIds.length > 0) {
+          const itemCollectionIds = collectionIdsByEntryId.get(item.id) ?? [];
+          if (!showFilters.collectionIds.every(id => itemCollectionIds.includes(id))) return false;
+        }
+
         return true;
       });
 
@@ -117,11 +133,7 @@ export function TvShowsPage() {
       });
     }
     return next;
-  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, showFilters, selectedTag, tagsByEntryId]);
-
-  const showTagOptions = useMemo(() => {
-    return ['all', ...getEditableListsForMediaType('tv').map((list) => list.name)];
-  }, [getEditableListsForMediaType]);
+  }, [byClass, classOrder, getClassLabel, isRankedClass, globalRanks, showFilters, getSelectedListIdsForEntry, collectionIdsByEntryId]);
 
   const hasActiveModal = !!settingsFor || !!recordWatchFor || !!recordPersonTarget || isFilterModalOpen;
 
@@ -156,9 +168,6 @@ export function TvShowsPage() {
               <FilterIcon size={18} />
               <span className="filter-label">Filter</span>
             </button>
-            <select className="filter-button" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
-              {showTagOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All tags' : option}</option>)}
-            </select>
           </div>
         )}
       </header>
@@ -411,6 +420,14 @@ export function TvShowsPage() {
         onClose={() => setIsFilterModalOpen(false)}
         items={Object.values(byClass).flat()}
         type="shows"
+        availableLists={getEditableListsForMediaType('tv').map((list) => ({ id: list.id, name: list.name, color: list.color }))}
+        availableCollections={globalCollections.filter((collection) => !collection.hidden).map((collection) => ({
+          id: collection.id,
+          name: collection.name,
+          color: collection.color,
+        }))}
+        listIdsByEntryId={new Map(Object.values(byClass).flat().map((item) => [item.id, getSelectedListIdsForEntry(item.id)]))}
+        collectionIdsByEntryId={collectionIdsByEntryId}
       />
       <div className="class-jump-buttons-mobile-hidden">
         <ClassJumpButtons classes={classOrder.map((k) => ({ key: k, label: getClassLabel(k) }))} />
