@@ -22,6 +22,11 @@ import './ListsPage.css';
 type ListCard = { id: string; title: string; subtitle: string; href: string; color?: string };
 type CollectionCard = { id: string; title: string; seen: number; total: number; href: string; color?: string };
 type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv'; item?: MovieShowItem; title: string };
+type CollectionEntryId = `tmdb-tv-${number}` | `tmdb-movie-${number}`;
+
+function isCollectionEntryId(value: string): value is CollectionEntryId {
+  return /^tmdb-(tv|movie)-\d+$/.test(value);
+}
 
 function HoverCard({ title, subtitle, href, sortableId, color }: { title: string; subtitle: string; href: string; sortableId: string; color?: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId });
@@ -335,9 +340,12 @@ export function ListDetailPage() {
         }} />}
         onReorderWithinClass={canDrag ? async (_classKey, ids) => {
           if (isCollection && activeCollection) {
-            const byId = new Map(activeCollection.entries.map((entry) => [`tmdb-${entry.mediaType}-${entry.tmdbId}`, entry] as const));
+            const byId = new Map<CollectionEntryId, (typeof activeCollection.entries)[number]>(
+              activeCollection.entries.map((entry) => [`tmdb-${entry.mediaType}-${entry.tmdbId}` as CollectionEntryId, entry])
+            );
             const nextEntries = ids
               .map((id, position) => {
+                if (!isCollectionEntryId(id)) return null;
                 const existing = byId.get(id);
                 return existing ? { ...existing, position } : null;
               })
