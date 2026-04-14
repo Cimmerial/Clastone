@@ -7,6 +7,7 @@ import { ArrowLeft, Eye, Plus } from 'lucide-react';
 import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { tmdbImagePath } from '../lib/tmdb';
@@ -142,10 +143,25 @@ function DeleteConfirmModal({ title, onCancel, onConfirm }: { title: string; onC
   );
 }
 
-function AddDeleteActions({ showAdd, onAdd, showDelete, onDelete }: { showAdd: boolean; onAdd: () => void; showDelete: boolean; onDelete: () => void }) {
+function AddDeleteActions({
+  showAdd,
+  onAdd,
+  showDelete,
+  onDelete,
+  showCopyList,
+  onCopyList
+}: {
+  showAdd: boolean;
+  onAdd: () => void;
+  showDelete: boolean;
+  onDelete: () => void;
+  showCopyList?: boolean;
+  onCopyList?: () => void;
+}) {
   return (
     <div className="lists-inline-actions">
       {showAdd ? <button className="lists-button lists-plus-btn" onClick={onAdd} title="Add saved entry"><Plus size={18} /></button> : null}
+      {showCopyList ? <button className="lists-button" onClick={onCopyList} title="Copy list as ordered text">Copy list</button> : null}
       {showDelete ? <button className="lists-delete-icon-btn" onClick={onDelete} title="Delete"><span>×</span></button> : null}
     </div>
   );
@@ -232,8 +248,9 @@ export function ListDetailPage() {
   const { listId, collectionId } = useParams<{ listId?: string; collectionId?: string }>();
   const isCollection = Boolean(collectionId);
   const { isAdmin } = useAuth();
+  const watchlist = useWatchlistStore();
   const canEditCollections = isAdmin && import.meta.env.DEV;
-  const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId } = useListsStore();
+  const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const { byClass: movieByClass, getClassLabel: getMovieClassLabel, updateMovieWatchRecords, getMovieById, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, getClassLabel: getTvClassLabel, updateShowWatchRecords, getShowById, addShowFromSearch } = useTvStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -269,7 +286,7 @@ export function ListDetailPage() {
     return [];
   }, [isCollection, activeCollection, activeList, entriesByListId, entryMap]);
   const title = isCollection ? activeCollection?.name : activeList?.name;
-  const canDrag = Boolean(activeList) && !isCollection;
+  const canDrag = (Boolean(activeList) && !isCollection) || (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
   const addableSavedItems = useMemo(() => {
     if (!activeList) return [];
@@ -281,6 +298,18 @@ export function ListDetailPage() {
       return true;
     });
   }, [activeList, entriesByListId, allSavedItems]);
+  const removeCollectionEntry = async (entryId: string) => {
+    if (!activeCollection || !canEditCollections) return;
+    const nextEntries = activeCollection.entries
+      .filter((entry) => `tmdb-${entry.mediaType}-${entry.tmdbId}` !== entryId)
+      .map((entry, position) => ({ ...entry, position }));
+    if (nextEntries.length === activeCollection.entries.length) return;
+    const nextCollection = { ...activeCollection, entries: nextEntries, updatedAt: new Date().toISOString() };
+    upsertGlobalCollectionLocal(nextCollection);
+    if (db) {
+      await upsertGlobalCollection(db, nextCollection);
+    }
+  };
   if (!title) return <section className="lists-page"><header className="page-heading"><h1 className="page-title">List not found</h1><div className="page-actions-row"><button className="lists-button" onClick={() => navigate('/lists')}>Back</button></div></header></section>;
   return (
     <section className="lists-page">
@@ -295,12 +324,57 @@ export function ListDetailPage() {
         itemsByClass={{ LIST: detailItems }}
         getClassLabel={() => `${title} | ${isCollection ? 'Collection' : 'List'}`}
         getClassTagline={() => undefined}
-        renderClassActions={() => <AddDeleteActions showAdd={!isCollection && Boolean(activeList)} onAdd={() => setShowAddEntryModal(true)} showDelete={!isCollection || canEditCollections} onDelete={() => setShowDeleteConfirm(true)} />}
-        onReorderWithinClass={canDrag && activeList ? (_classKey, ids) => reorderEntriesInList(activeList.id, ids) : undefined}
-        renderRow={(row) => row.item ? <EntryRowMovieShow item={row.item} listType={row.mediaType === 'movie' ? 'movies' : 'shows'} viewMode="tile" tileMinimalActions tileUnseenMuted={isCollection && row.source === 'unseen'} onInfo={(entry) => { const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0); setInfoModalTarget({ tmdbId, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType }); }} onOpenSettings={(entry) => setSettingsFor(entry)} /> : <UnseenTile title={row.title} />}
+        renderClassActions={() => <AddDeleteActions showAdd={!isCollection && Boolean(activeList)} onAdd={() => setShowAddEntryModal(true)} showDelete={!isCollection || canEditCollections} onDelete={() => setShowDeleteConfirm(true)} showCopyList={Boolean(isCollection && canEditCollections)} onCopyList={async () => {
+          const lines = detailItems.map((item) => item.title).join('\n');
+          if (!lines.trim()) return;
+          try {
+            await navigator.clipboard.writeText(lines);
+          } catch {
+            console.warn('Failed to copy list to clipboard.');
+          }
+        }} />}
+        onReorderWithinClass={canDrag ? async (_classKey, ids) => {
+          if (isCollection && activeCollection) {
+            const byId = new Map(activeCollection.entries.map((entry) => [`tmdb-${entry.mediaType}-${entry.tmdbId}`, entry] as const));
+            const nextEntries = ids
+              .map((id, position) => {
+                const existing = byId.get(id);
+                return existing ? { ...existing, position } : null;
+              })
+              .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+            const nextCollection = { ...activeCollection, entries: nextEntries, updatedAt: new Date().toISOString() };
+            upsertGlobalCollectionLocal(nextCollection);
+            if (db) {
+              await upsertGlobalCollection(db, nextCollection);
+            }
+            return;
+          }
+          if (activeList) {
+            reorderEntriesInList(activeList.id, ids);
+          }
+        } : undefined}
+        renderRow={(row) => row.item ? (
+          <div className="lists-entry-tile-wrap">
+            {isCollection && canEditCollections ? (
+              <button
+                type="button"
+                className="lists-entry-remove-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removeCollectionEntry(row.id);
+                }}
+                title="Remove from collection"
+                aria-label={`Remove ${row.title} from collection`}
+              >
+                ×
+              </button>
+            ) : null}
+            <EntryRowMovieShow item={row.item} listType={row.mediaType === 'movie' ? 'movies' : 'shows'} viewMode="tile" tileMinimalActions tileUnseenMuted={isCollection && row.source === 'unseen'} onInfo={(entry) => { const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0); setInfoModalTarget({ tmdbId, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType }); }} onOpenSettings={(entry) => setSettingsFor(entry)} />
+          </div>
+        ) : <UnseenTile title={row.title} />}
       />
       {showAddEntryModal && activeList ? <AddSavedEntryModal title={`Add to ${activeList.name}`} items={addableSavedItems} onClose={() => setShowAddEntryModal(false)} onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')} /> : null}
-      {settingsFor ? <UniversalEditModal target={{ id: settingsFor.id, tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined, releaseDate: settingsFor.releaseDate, runtimeMinutes: settingsFor.runtimeMinutes, totalEpisodes: settingsFor.totalEpisodes, existingClassKey: settingsFor.classKey } as UniversalEditTarget} initialWatches={settingsFor.watchRecords} currentClassKey={settingsFor.classKey} currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)} rankedClasses={[]} availableTags={getEditableListsForMediaType(settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie').map((list) => ({ listId: list.id, label: list.name, color: list.color, selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id), href: `/lists/${list.id}` }))} collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color, href: `/lists/collection/${id}` }))} isSaving={false} onClose={() => setSettingsFor(null)} onSave={async (params) => { const watches: WatchRecord[] = params.watches.map((w) => { let type: WatchRecord['type'] = 'DATE'; if (w.watchType === 'DATE_RANGE') type = 'RANGE'; else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO'; if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT'; else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF'; return { id: w.id, type, year: w.year, month: w.month, day: w.day, endYear: w.endYear, endMonth: w.endMonth, endDay: w.endDay, dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined }; }); const isTv = settingsFor.id.startsWith('tmdb-tv-'); if (isTv && !getShowById(settingsFor.id)) { addShowFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', cache: { tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate, genres: [], cast: [], creators: [], seasons: [] } }); } if (!isTv && !getMovieById(settingsFor.id)) { addMovieFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', posterPath: settingsFor.posterPath }); } if (isTv) updateShowWatchRecords(settingsFor.id, watches); else updateMovieWatchRecords(settingsFor.id, watches); if (params.listMemberships?.length) setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships); setSettingsFor(null); }} onTagToggle={(listId, selected) => { if (!settingsFor) return; setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]); }} /> : null}
+      {settingsFor ? <UniversalEditModal target={{ id: settingsFor.id, tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined, releaseDate: settingsFor.releaseDate, runtimeMinutes: settingsFor.runtimeMinutes, totalEpisodes: settingsFor.totalEpisodes, existingClassKey: settingsFor.classKey } as UniversalEditTarget} initialWatches={settingsFor.watchRecords} currentClassKey={settingsFor.classKey} currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)} rankedClasses={[]} isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)} onAddToWatchlist={() => { const isTv = settingsFor.id.startsWith('tmdb-tv-'); watchlist.addToWatchlist({ id: settingsFor.id, title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate }, isTv ? 'tv' : 'movies'); }} onRemoveFromWatchlist={() => watchlist.removeFromWatchlist(settingsFor.id)} onGoToWatchlist={() => navigate('/watchlist', { state: { scrollToId: settingsFor.id } })} availableTags={getEditableListsForMediaType(settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie').map((list) => ({ listId: list.id, label: list.name, color: list.color, selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id), href: `/lists/${list.id}` }))} collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color, href: `/lists/collection/${id}` }))} isSaving={false} onClose={() => setSettingsFor(null)} onSave={async (params) => { const watches: WatchRecord[] = params.watches.map((w) => { let type: WatchRecord['type'] = 'DATE'; if (w.watchType === 'DATE_RANGE') type = 'RANGE'; else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO'; if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT'; else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF'; return { id: w.id, type, year: w.year, month: w.month, day: w.day, endYear: w.endYear, endMonth: w.endMonth, endDay: w.endDay, dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined }; }); const isTv = settingsFor.id.startsWith('tmdb-tv-'); if (isTv && !getShowById(settingsFor.id)) { addShowFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', cache: { tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate, genres: [], cast: [], creators: [], seasons: [] } }); } if (!isTv && !getMovieById(settingsFor.id)) { addMovieFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', posterPath: settingsFor.posterPath }); } if (isTv) updateShowWatchRecords(settingsFor.id, watches); else updateMovieWatchRecords(settingsFor.id, watches); if (params.listMemberships?.length) setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships); setSettingsFor(null); }} onTagToggle={(listId, selected) => { if (!settingsFor) return; setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]); }} /> : null}
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
       {showDeleteConfirm ? <DeleteConfirmModal title={isCollection ? 'Collection' : 'List'} onCancel={() => setShowDeleteConfirm(false)} onConfirm={async () => { if (isCollection) { if (!canEditCollections || !db || !activeCollection) return; await deleteGlobalCollection(db, activeCollection.id); removeGlobalCollection(activeCollection.id); } else { if (!activeList) return; deleteList(activeList.id); } setShowDeleteConfirm(false); navigate('/lists'); }} /> : null}
     </section>

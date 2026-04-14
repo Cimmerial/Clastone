@@ -400,6 +400,33 @@
   color: #ffb5b5;
 }
 
+.lists-entry-tile-wrap {
+  position: relative;
+}
+
+.lists-entry-remove-btn {
+  position: absolute;
+  top: 36px;
+  right: 8px;
+  z-index: 4;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(220, 90, 90, 0.55);
+  background: rgba(220, 90, 90, 0.22);
+  color: #ffd0d0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+.lists-entry-remove-btn:hover {
+  background: rgba(220, 90, 90, 0.36);
+  border-color: rgba(220, 90, 90, 0.8);
+}
+
 .lists-text-btn {
   background: none;
   border: none;
