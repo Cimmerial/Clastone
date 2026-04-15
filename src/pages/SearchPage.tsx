@@ -242,11 +242,11 @@ export function SearchPage() {
     const saved = sessionStorage.getItem('doomscroll_media_type');
     return saved === 'shows' ? 'shows' : 'movies';
   });
-  const [doomscrollShowSeen, setDoomscrollShowSeen] = useState(() => {
+  const [doomscrollShowSeen, setDoomscrollShowSeen] = useState<boolean>(() => {
     const saved = sessionStorage.getItem('doomscroll_show_seen');
     return saved ? JSON.parse(saved) : false;
   });
-  const [doomscrollShowWatchlist, setDoomscrollShowWatchlist] = useState(() => {
+  const [doomscrollShowWatchlist, setDoomscrollShowWatchlist] = useState<boolean>(() => {
     const saved = sessionStorage.getItem('doomscroll_show_watchlist');
     return saved ? JSON.parse(saved) : false;
   });
