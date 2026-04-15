@@ -88,6 +88,7 @@ export function FriendsPage() {
       setFriendCountsByUid({});
       return;
     }
+    const firestoreDb = db;
 
     let cancelled = false;
     (async () => {
@@ -95,8 +96,8 @@ export function FriendsPage() {
         friends.map(async (friend) => {
           try {
             const [moviesData, tvData] = await Promise.all([
-              loadMovies(db, friend.uid),
-              loadTvShows(db, friend.uid),
+              loadMovies(firestoreDb, friend.uid),
+              loadTvShows(firestoreDb, friend.uid),
             ]);
             const movies = Object.values(moviesData.byClass).reduce((acc, list) => acc + list.length, 0);
             const shows = Object.values(tvData.byClass).reduce((acc, list) => acc + list.length, 0);

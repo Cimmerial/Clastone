@@ -190,6 +190,7 @@
 .info-modal-additional-info-top .info-modal-info-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -198,6 +199,25 @@
 .info-modal-additional-info-top .info-modal-info-item svg {
   color: var(--accent-muted);
   flex-shrink: 0;
+}
+
+.info-modal-collection-tags-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.info-modal-collection-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .info-modal-title-row {

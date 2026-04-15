@@ -20,6 +20,7 @@ import {
 import { arrayMove, SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
+import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviderCatalog, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
@@ -648,6 +649,13 @@ export function WatchlistPage() {
     getClassTagline: getTvClassTagline,
     removeShowEntry
   } = useTvStore();
+  const {
+    getEditableListsForMediaType,
+    getSelectedListIdsForEntry,
+    setEntryListMembership,
+    collectionIdsByEntryId,
+    globalCollections
+  } = useListsStore();
   const [recordTarget, setRecordTarget] = useState<UniversalEditTarget | null>(null);
   const [recordWatchlistId, setRecordWatchlistId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -965,6 +973,9 @@ export function WatchlistPage() {
     if (recordWatchlistId) {
       removeFromWatchlist(recordWatchlistId);
       setRecordWatchlistId(null);
+    }
+    if (params.listMemberships?.length) {
+      setEntryListMembership(recordTarget.id, recordTarget.mediaType, params.listMemberships);
     }
     setRecordTarget(null);
     if (goToMovie) {
@@ -1432,6 +1443,22 @@ export function WatchlistPage() {
               : getTvClassLabel(getShowById(recordTarget.id)?.classKey ?? '')
           }
           isWatchlistItem={true}
+          availableTags={getEditableListsForMediaType(recordTarget.mediaType).map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry(recordTarget.id).includes(list.id),
+            href: `/lists/${list.id}`
+          }))}
+          collectionTags={(collectionIdsByEntryId.get(recordTarget.id) ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((item) => item.id === id)?.name ?? id,
+            color: globalCollections.find((item) => item.id === id)?.color,
+            href: `/lists/collection/${id}`
+          }))}
+          onTagToggle={(listId, selected) => {
+            setEntryListMembership(recordTarget.id, recordTarget.mediaType, [{ listId, selected }]);
+          }}
           onSave={handleRecordSave}
           onClose={() => {
             setRecordTarget(null);
@@ -1458,6 +1485,13 @@ export function WatchlistPage() {
           title={infoModalTarget.title}
           posterPath={infoModalTarget.posterPath}
           releaseDate={infoModalTarget.releaseDate}
+          collectionTags={infoModalTarget.mediaType === 'movie'
+            ? (collectionIdsByEntryId.get(`tmdb-movie-${infoModalTarget.tmdbId}`) ?? []).map((id) => ({
+                id,
+                label: globalCollections.find((item) => item.id === id)?.name ?? id,
+                color: globalCollections.find((item) => item.id === id)?.color,
+              }))
+            : []}
         />
       )}
 

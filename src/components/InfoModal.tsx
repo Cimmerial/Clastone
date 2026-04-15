@@ -13,6 +13,7 @@ interface InfoModalProps {
   title: string;
   posterPath?: string;
   releaseDate?: string;
+  collectionTags?: { id: string; label: string; color?: string }[];
   onEditWatches?: () => void;
 }
 
@@ -34,7 +35,7 @@ interface MediaDetails {
   watchProviders?: TmdbWatchProvidersResponse;
 }
 
-export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPath, releaseDate, onEditWatches }: InfoModalProps) {
+export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPath, releaseDate, collectionTags = [], onEditWatches }: InfoModalProps) {
   const [details, setDetails] = useState<MediaDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -407,6 +408,19 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                     <div className="info-modal-info-item">
                       <Calendar size={16} />
                       <span>Released: {details.releaseDate || 'Unknown'}</span>
+                      {mediaType === 'movie' && collectionTags.length > 0 && (
+                        <div className="info-modal-collection-tags-inline">
+                          {collectionTags.map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="info-modal-collection-tag"
+                              style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                            >
+                              {tag.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="info-modal-info-item">
                       <Clock size={16} />
