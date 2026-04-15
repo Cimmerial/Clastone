@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Info, User, Film, ArrowUp, ChevronLeft, ChevronRight, Clapperboard } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import {
-  tmdbSearchMulti,
+  tmdbSearchMovies,
+  tmdbSearchTv,
+  tmdbSearchPeople,
   tmdbMovieDetailsFull,
   tmdbTvDetailsFull,
   tmdbImagePath,
@@ -34,6 +36,12 @@ function resultId(r: TmdbMultiResult): string {
   return `tmdb-${r.media_type}-${r.id}`;
 }
 
+const SEARCH_INITIAL_RESULT_LIMIT = 12;
+const SEARCH_LOAD_MORE_INCREMENT = 12;
+const SEARCH_MAX_LOAD_MORE_CLICKS = 2;
+const SEARCH_FETCH_LIMIT =
+  SEARCH_INITIAL_RESULT_LIMIT + SEARCH_LOAD_MORE_INCREMENT * SEARCH_MAX_LOAD_MORE_CLICKS;
+
 function parseQueryWithOptionalYear(raw: string): { textQuery: string; yearHint?: number } {
   const trimmed = raw.trim();
   const match = trimmed.match(/^(.*?)(?:\s+)(19\d{2}|20\d{2})$/);
@@ -50,16 +58,104 @@ function extractYearFromResult(result: TmdbMultiResult): number | null {
   return m ? Number(m[1]) : null;
 }
 
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinWithinLimit(a: string, b: string, maxDistance: number): number {
+  if (a === b) return 0;
+  const aLen = a.length;
+  const bLen = b.length;
+  if (Math.abs(aLen - bLen) > maxDistance) return maxDistance + 1;
+  if (aLen === 0) return bLen <= maxDistance ? bLen : maxDistance + 1;
+  if (bLen === 0) return aLen <= maxDistance ? aLen : maxDistance + 1;
+
+  let prev = Array.from({ length: bLen + 1 }, (_, i) => i);
+  let curr = new Array<number>(bLen + 1);
+
+  for (let i = 1; i <= aLen; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= bLen; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + cost
+      );
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > maxDistance) return maxDistance + 1;
+    [prev, curr] = [curr, prev];
+  }
+
+  return prev[bLen];
+}
+
+function isFuzzyQueryMatch(normalizedTitle: string, normalizedQuery: string): boolean {
+  if (!normalizedQuery || normalizedQuery.length < 4) return false;
+  const maxDistance = normalizedQuery.length >= 8 ? 2 : 1;
+
+  const words = normalizedTitle.split(' ').filter(Boolean);
+  for (const word of words) {
+    if (Math.abs(word.length - normalizedQuery.length) > maxDistance) continue;
+    if (levenshteinWithinLimit(word, normalizedQuery, maxDistance) <= maxDistance) return true;
+  }
+
+  const titleCollapsed = normalizedTitle.replace(/\s+/g, '');
+  const queryCollapsed = normalizedQuery.replace(/\s+/g, '');
+  if (Math.abs(titleCollapsed.length - queryCollapsed.length) <= maxDistance) {
+    if (levenshteinWithinLimit(titleCollapsed, queryCollapsed, maxDistance) <= maxDistance) return true;
+  }
+
+  return false;
+}
+
+function rankResultsByQueryAndPopularity(results: TmdbMultiResult[], queryText: string): TmdbMultiResult[] {
+  const normalizedQuery = normalizeSearchText(queryText);
+  if (!normalizedQuery) return results;
+
+  const scored = results.map((result, index) => {
+    const normalizedTitle = normalizeSearchText(result.title);
+    const popularity = result.popularity ?? 0;
+
+    // Strongly prioritize titles that start with the query (IMDb-like behavior for short partial input).
+    const isExact = normalizedTitle === normalizedQuery;
+    const startsWith = normalizedTitle.startsWith(normalizedQuery);
+    const wordPrefix = !startsWith && normalizedTitle.split(' ').some((word) => word.startsWith(normalizedQuery));
+    const fuzzyMatch = !startsWith && !wordPrefix && isFuzzyQueryMatch(normalizedTitle, normalizedQuery);
+    const includes = !startsWith && !wordPrefix && !fuzzyMatch && normalizedTitle.includes(normalizedQuery);
+
+    const tier = isExact ? 0 : startsWith ? 1 : wordPrefix ? 2 : fuzzyMatch ? 3 : includes ? 4 : 5;
+    return { result, tier, popularity, index };
+  });
+
+  scored.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+    return a.index - b.index;
+  });
+
+  return scored.map((entry) => entry.result);
+}
+
 function rankResultsWithYearHint(results: TmdbMultiResult[], yearHint?: number, titleHint?: string): TmdbMultiResult[] {
-  if (!yearHint) return results;
+  if (!yearHint) return rankResultsByQueryAndPopularity(results, titleHint ?? '');
   const normalizedTitleHint = (titleHint ?? '').toLowerCase().trim();
   const scored = results.map((result, index) => {
     const y = extractYearFromResult(result);
-    const title = result.title.toLowerCase();
-    const exactTitle = normalizedTitleHint.length > 0 && title === normalizedTitleHint;
-    const containsTitle = normalizedTitleHint.length > 0 && title.includes(normalizedTitleHint);
+    const normalizedTitle = normalizeSearchText(result.title);
+    const exactTitle = normalizedTitleHint.length > 0 && normalizedTitle === normalizeSearchText(normalizedTitleHint);
+    const startsWithTitle = normalizedTitleHint.length > 0 && normalizedTitle.startsWith(normalizeSearchText(normalizedTitleHint));
+    const containsTitle = normalizedTitleHint.length > 0 && normalizedTitle.includes(normalizeSearchText(normalizedTitleHint));
     const yearScore = y === yearHint ? 100000 : 0;
-    const textScore = exactTitle ? 20000 : containsTitle ? 4000 : 0;
+    const textScore = exactTitle ? 20000 : startsWithTitle ? 12000 : containsTitle ? 4000 : 0;
     const score = yearScore + textScore;
     const popularity = result.popularity ?? 0;
     return { result, score, popularity, index };
@@ -154,6 +250,8 @@ export function SearchPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchVisibleCount, setSearchVisibleCount] = useState(SEARCH_INITIAL_RESULT_LIMIT);
+  const [searchLoadMoreClicks, setSearchLoadMoreClicks] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const {
     addMovieFromSearch,
@@ -277,22 +375,69 @@ export function SearchPage() {
           return;
         }
 
-        let results: any[] = [];
-        const shouldForceSeparateFetch = Boolean(yearHint);
-        if (showMovies && showTv && showPeople && !shouldForceSeparateFetch) {
-          results = await tmdbSearchMulti(textQuery, controller.signal);
-        } else {
-          // When year hint is present, fetch by domain explicitly.
-          const promises = [];
-          if (showMovies) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchMovies(textQuery, controller.signal, yearHint)));
-          if (showTv) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchTv(textQuery, controller.signal, yearHint)));
-          if (showPeople) promises.push(import('../lib/tmdb').then(m => m.tmdbSearchPeople(textQuery, controller.signal)));
-          const responses = await Promise.all(promises);
-          results = responses.flat();
+        // Always fetch by domain so ranking is stable and not dependent on TMDB multi blending.
+        const promises: Promise<TmdbMultiResult[]>[] = [];
+        if (showMovies) {
+          promises.push(
+            Promise.all([
+              tmdbSearchMovies(textQuery, controller.signal, yearHint),
+              tmdbSearchMovies(textQuery, controller.signal, yearHint, 2)
+            ]).then(([page1, page2]) => [...page1, ...page2])
+          );
+        }
+        if (showTv) {
+          promises.push(
+            Promise.all([
+              tmdbSearchTv(textQuery, controller.signal, yearHint),
+              tmdbSearchTv(textQuery, controller.signal, yearHint, 2)
+            ]).then(([page1, page2]) => [...page1, ...page2])
+          );
+        }
+        if (showPeople) {
+          promises.push(
+            Promise.all([
+              tmdbSearchPeople(textQuery, controller.signal),
+              tmdbSearchPeople(textQuery, controller.signal, 2)
+            ]).then(([page1, page2]) => [...page1, ...page2])
+          );
+        }
+        const responses = await Promise.all(promises);
+        let results = responses.flat();
+
+        // If user provided a year hint and exact-year search produced no movie/tv hits,
+        // retry with +/-1 year to account for release year vs premiere year mismatches.
+        if (yearHint && (showMovies || showTv)) {
+          const hasMovieOrTv = results.some((r) => r.media_type === 'movie' || r.media_type === 'tv');
+          if (!hasMovieOrTv) {
+            const fallbackPromises: Promise<TmdbMultiResult[]>[] = [];
+            const fallbackYears = [yearHint - 1, yearHint + 1];
+            for (const fallbackYear of fallbackYears) {
+              if (showMovies) {
+                fallbackPromises.push(
+                  Promise.all([
+                    tmdbSearchMovies(textQuery, controller.signal, fallbackYear),
+                    tmdbSearchMovies(textQuery, controller.signal, fallbackYear, 2)
+                  ]).then(([page1, page2]) => [...page1, ...page2])
+                );
+              }
+              if (showTv) {
+                fallbackPromises.push(
+                  Promise.all([
+                    tmdbSearchTv(textQuery, controller.signal, fallbackYear),
+                    tmdbSearchTv(textQuery, controller.signal, fallbackYear, 2)
+                  ]).then(([page1, page2]) => [...page1, ...page2])
+                );
+              }
+            }
+            if (fallbackPromises.length > 0) {
+              const fallbackResponses = await Promise.all(fallbackPromises);
+              results = [...results, ...fallbackResponses.flat()];
+            }
+          }
         }
 
         const deduped = results.filter((item, index, self) => index === self.findIndex((candidate) => candidate.media_type === item.media_type && candidate.id === item.id));
-        setRemoteResults(rankResultsWithYearHint(deduped, yearHint, textQuery));
+        setRemoteResults(rankResultsWithYearHint(deduped, yearHint, textQuery).slice(0, SEARCH_FETCH_LIMIT));
       } catch (e) {
         if (controller.signal.aborted) return;
         setRemoteResults([]);
@@ -307,6 +452,11 @@ export function SearchPage() {
       controller.abort();
     };
   }, [trimmed]);
+
+  useEffect(() => {
+    setSearchVisibleCount(SEARCH_INITIAL_RESULT_LIMIT);
+    setSearchLoadMoreClicks(0);
+  }, [remoteResults]);
 
   // Autofocus the search input when arriving on this page.
   useEffect(() => {
@@ -831,6 +981,21 @@ export function SearchPage() {
     });
   }, [remoteResults, showMovies, showTv, showPeople]);
 
+  const visibleSearchResults = useMemo(
+    () => filteredResults.slice(0, searchVisibleCount),
+    [filteredResults, searchVisibleCount]
+  );
+
+  const canLoadMoreSearchResults =
+    activeTab === 'search' &&
+    searchLoadMoreClicks < SEARCH_MAX_LOAD_MORE_CLICKS &&
+    filteredResults.length > searchVisibleCount;
+
+  const handleLoadMoreSearchResults = () => {
+    setSearchVisibleCount((prev) => Math.min(prev + SEARCH_LOAD_MORE_INCREMENT, filteredResults.length));
+    setSearchLoadMoreClicks((prev) => Math.min(prev + 1, SEARCH_MAX_LOAD_MORE_CLICKS));
+  };
+
   const placeholderText = useMemo(() => {
     if (showMovies && showTv && showPeople) return 'Try "Arcane", "La La Land", "Emma Stone"…';
     if (showMovies && !showTv && !showPeople) return 'Try "La La Land", "The Matrix"…';
@@ -890,48 +1055,56 @@ export function SearchPage() {
               </div>
             </label>
             <div className="search-toggles">
-              <div className="search-toggle-group">
+              <div className="search-toggle-group search-toggle-group-query">
                 <span className="search-toggle-label">Query</span>
                 <div className="search-toggle-buttons">
                   <button
                     type="button"
                     className={`search-toggle-btn ${showMovies ? 'active' : ''}`}
+                    aria-pressed={showMovies}
                     onClick={() => setShowMovies(!showMovies)}
                   >
-                    Movies
+                    <span className="search-toggle-btn-text">Movies</span>
+                    <span className="search-toggle-btn-state">{showMovies ? 'ON' : 'OFF'}</span>
                   </button>
                   <button
                     type="button"
                     className={`search-toggle-btn ${showTv ? 'active' : ''}`}
+                    aria-pressed={showTv}
                     onClick={() => setShowTv(!showTv)}
                   >
-                    TV Shows
+                    <span className="search-toggle-btn-text">TV Shows</span>
+                    <span className="search-toggle-btn-state">{showTv ? 'ON' : 'OFF'}</span>
                   </button>
                   <button
                     type="button"
                     className={`search-toggle-btn ${showPeople ? 'active' : ''}`}
+                    aria-pressed={showPeople}
                     onClick={() => setShowPeople(!showPeople)}
                   >
-                    People
+                    <span className="search-toggle-btn-text">People</span>
+                    <span className="search-toggle-btn-state">{showPeople ? 'ON' : 'OFF'}</span>
                   </button>
                 </div>
               </div>
-              <div className="search-toggle-group">
+              <div className="search-toggle-group search-toggle-group-depth">
                 <span className="search-toggle-label">Depth</span>
-                <div className="search-toggle-buttons">
+                <div className="search-toggle-buttons search-toggle-buttons-segmented">
                   <button
                     type="button"
                     className={`search-toggle-btn ${searchDepth === 'simple' ? 'active' : ''}`}
+                    aria-pressed={searchDepth === 'simple'}
                     onClick={() => setSearchDepth('simple')}
                   >
-                    Simple
+                    <span className="search-toggle-btn-text">Simple</span>
                   </button>
                   <button
                     type="button"
                     className={`search-toggle-btn ${searchDepth === 'extensive' ? 'active' : ''}`}
+                    aria-pressed={searchDepth === 'extensive'}
                     onClick={() => setSearchDepth('extensive')}
                   >
-                    Extensive
+                    <span className="search-toggle-btn-text">Extensive</span>
                   </button>
                 </div>
               </div>
@@ -1063,7 +1236,7 @@ export function SearchPage() {
         {/* Search Results */}
         {activeTab === 'search' && (
           <div className="search-results">
-            {filteredResults.map((r) => {
+            {visibleSearchResults.map((r) => {
               const id = resultId(r);
               const isMovie = r.media_type === 'movie';
               const isTv = r.media_type === 'tv';
@@ -1403,6 +1576,17 @@ export function SearchPage() {
                 </article>
               );
             })}
+            {canLoadMoreSearchResults && (
+              <div className="search-load-more">
+                <button
+                  type="button"
+                  className="search-load-more-btn"
+                  onClick={handleLoadMoreSearchResults}
+                >
+                  Load More Results
+                </button>
+              </div>
+            )}
           </div>
         )}
 

@@ -205,12 +205,12 @@ export function getMovieImageSrc(posterPath: string | null | undefined, title: s
   return tmdbImagePath(posterPath, size);
 }
 
-export async function tmdbSearchMovies(query: string, signal?: AbortSignal, yearHint?: number) {
+export async function tmdbSearchMovies(query: string, signal?: AbortSignal, yearHint?: number, page: number = 1) {
   const url = new URL(`${TMDB_BASE}/search/movie`);
   url.searchParams.set('query', query);
   url.searchParams.set('include_adult', 'false');
   url.searchParams.set('language', 'en-US');
-  url.searchParams.set('page', '1');
+  url.searchParams.set('page', String(page));
   if (yearHint) {
     url.searchParams.set('year', String(yearHint));
   }
@@ -233,12 +233,12 @@ export async function tmdbSearchMovies(query: string, signal?: AbortSignal, year
   }));
 }
 
-export async function tmdbSearchTv(query: string, signal?: AbortSignal, yearHint?: number): Promise<TmdbMultiResult[]> {
+export async function tmdbSearchTv(query: string, signal?: AbortSignal, yearHint?: number, page: number = 1): Promise<TmdbMultiResult[]> {
   const url = new URL(`${TMDB_BASE}/search/tv`);
   url.searchParams.set('query', query);
   url.searchParams.set('include_adult', 'false');
   url.searchParams.set('language', 'en-US');
-  url.searchParams.set('page', '1');
+  url.searchParams.set('page', String(page));
   if (yearHint) {
     url.searchParams.set('first_air_date_year', String(yearHint));
   }
@@ -261,12 +261,12 @@ export async function tmdbSearchTv(query: string, signal?: AbortSignal, yearHint
   }));
 }
 
-export async function tmdbSearchPeople(query: string, signal?: AbortSignal): Promise<TmdbMultiResult[]> {
+export async function tmdbSearchPeople(query: string, signal?: AbortSignal, page: number = 1): Promise<TmdbMultiResult[]> {
   const url = new URL(`${TMDB_BASE}/search/person`);
   url.searchParams.set('query', query);
   url.searchParams.set('include_adult', 'false');
   url.searchParams.set('language', 'en-US');
-  url.searchParams.set('page', '1');
+  url.searchParams.set('page', String(page));
 
   const res = await fetch(url.toString(), { method: 'GET', headers: authHeaders(), signal });
   if (!res.ok) {
