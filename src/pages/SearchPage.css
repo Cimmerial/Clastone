@@ -955,6 +955,105 @@
   line-height: 1.2;
 }
 
+.doomscroll-card .search-card-badge {
+  display: none;
+}
+
+.doomscroll-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+}
+
+.doomscroll-card .search-card-main {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.doomscroll-card .search-card-title {
+  font-size: 0.64rem !important;
+  font-weight: 700 !important;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: 0.01em;
+  text-align: center;
+  width: 100%;
+  color: #f4c542;
+}
+
+.doomscroll-title-row {
+  align-items: center;
+}
+
+.doomscroll-title-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.doomscroll-date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.doomscroll-poster,
+.doomscroll-card .search-card-poster.doomscroll-poster {
+  position: relative;
+  width: 112px !important;
+  height: 168px !important;
+  margin: 0 auto;
+}
+
+.doomscroll-poster-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.12) 40%, rgba(0, 0, 0, 0));
+}
+
+.doomscroll-poster:hover .doomscroll-poster-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doomscroll-poster-actions .search-card-info-btn {
+  width: 22px;
+  height: 22px;
+}
+
+.doomscroll-rank-btn {
+  font-size: 0.55rem !important;
+  padding: 0.15rem 0.35rem !important;
+  line-height: 1.1 !important;
+}
+
+.doomscroll-card .search-card-action {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  padding: 0.22rem 0.42rem;
+}
+
+.doomscroll-card .search-card-actions {
+  width: 100%;
+  align-items: center;
+}
+
+.doomscroll-grid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 0.7rem;
+}
+
 .wander-show-card .search-card-title,
 .wander-card .search-card-title {
   font-size: 1.1rem;

@@ -1,4 +1,4 @@
-import { LayoutList, StretchHorizontal, LayoutGrid } from 'lucide-react';
+import { StretchHorizontal, LayoutGrid } from 'lucide-react';
 import { useSettingsStore } from '../state/settingsStore';
 import './ViewToggle.css';
 
@@ -6,28 +6,26 @@ export function ViewToggle() {
     const { settings, updateSettings } = useSettingsStore();
 
     const cycleMode = () => {
-        const modes: Array<'minimized' | 'detailed' | 'tile'> = ['minimized', 'detailed', 'tile'];
-        const currentIdx = modes.indexOf(settings.viewMode);
+        const modes: Array<'detailed' | 'tile'> = ['tile', 'detailed'];
+        const currentMode = settings.viewMode === 'minimized' ? 'tile' : settings.viewMode;
+        const currentIdx = modes.indexOf(currentMode);
         const nextMode = modes[(currentIdx + 1) % modes.length];
         updateSettings({ viewMode: nextMode });
     };
 
-    const Icon = settings.viewMode === 'minimized'
-        ? LayoutList
-        : settings.viewMode === 'detailed'
+    const Icon = settings.viewMode === 'detailed'
             ? StretchHorizontal
             : LayoutGrid;
 
     const getLabel = (mode: string) => {
         switch (mode) {
-            case 'minimized': return 'Simple';
             case 'detailed': return 'Detailed';
             case 'tile': return 'Tile';
             default: return mode.charAt(0).toUpperCase() + mode.slice(1);
         }
     };
 
-    const label = getLabel(settings.viewMode);
+    const label = getLabel(settings.viewMode === 'minimized' ? 'tile' : settings.viewMode);
 
     return (
         <button

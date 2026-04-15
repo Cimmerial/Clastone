@@ -55,6 +55,16 @@ export function WatchlistFriendOverlapModal({
 
   const selectedArray = selectedUids;
   const selectedCount = selectedArray.length;
+  const sortedFriends = useMemo(() => {
+    return [...friends].sort((a, b) => {
+      const wlA = friendWatchlists[a.uid];
+      const wlB = friendWatchlists[b.uid];
+      const totalA = wlA ? wlA.movies.length + wlA.tv.length : -1;
+      const totalB = wlB ? wlB.movies.length + wlB.tv.length : -1;
+      if (totalA !== totalB) return totalB - totalA;
+      return a.username.localeCompare(b.username);
+    });
+  }, [friends, friendWatchlists]);
 
   const preview = useMemo(() => {
     if (selectedCount === 0) {
@@ -129,14 +139,25 @@ export function WatchlistFriendOverlapModal({
             <div className="watchlist-overlap-empty">You don&apos;t have any friends added yet.</div>
           ) : (
             <div className="watchlist-overlap-friends-list" role="list">
-              {friends.map((f) => {
+              {sortedFriends.map((f) => {
                 const checked = selected.has(f.uid);
+                const wl = friendWatchlists[f.uid];
+                const hasError = !!friendWatchlistErrors[f.uid];
+                const subLabel = hasError
+                  ? 'Unavailable'
+                  : wl
+                    ? `Movies ${wl.movies.length} · Shows ${wl.tv.length}`
+                    : 'Loading…';
                 return (
                   <label key={f.uid} className="watchlist-overlap-friend-row" role="listitem">
-                    <input type="checkbox" checked={checked} onChange={() => toggleUid(f.uid)} />
                     <div className="watchlist-overlap-friend-meta">
                       <div className="watchlist-overlap-friend-name">{f.username}</div>
+                      <div className="watchlist-overlap-friend-sub">{subLabel}</div>
                     </div>
+                    <span className="watchlist-overlap-switch">
+                      <input type="checkbox" checked={checked} onChange={() => toggleUid(f.uid)} />
+                      <span className="watchlist-overlap-switch-track" />
+                    </span>
                   </label>
                 );
               })}

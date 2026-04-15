@@ -342,6 +342,7 @@ export function ProfilePage() {
   const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
+  const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
   const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showViewMode, setShowViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
@@ -425,6 +426,12 @@ export function ProfilePage() {
   );
 
   const stats = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const inScope = (item: MovieShowItem) => {
+      if (chartScope === 'all') return true;
+      return (item.watchRecords ?? []).some((r) => r.year === currentYear && (r.type ?? 'DATE') !== 'DNF');
+    };
+
     let totalMinutes = 0;
     let moviesMinutes = 0;
     let showsMinutes = 0;
@@ -478,7 +485,7 @@ export function ProfilePage() {
     const movieRankedCategories = movieClassOrder
       .filter(k => isRankedMovieClass(k))
       .map(k => {
-        const items = moviesByClass[k] ?? [];
+        const items = (moviesByClass[k] ?? []).filter(inScope);
         const watchTime = items.reduce((sum, item) => 
           sum + getTotalMinutesFromRecords(item.watchRecords ?? [], item.runtimeMinutes), 0
         );
@@ -493,7 +500,7 @@ export function ProfilePage() {
     const tvRankedCategories = tvClassOrder
       .filter(k => isRankedTvClass(k))
       .map(k => {
-        const items = tvByClass[k] ?? [];
+        const items = (tvByClass[k] ?? []).filter(inScope);
         const watchTime = items.reduce((sum, item) => 
           sum + getTotalMinutesFromRecords(item.watchRecords ?? [], item.runtimeMinutes), 0
         );
@@ -509,7 +516,7 @@ export function ProfilePage() {
     const movieReleaseYearData: { year: number; count: number }[] = [];
     const movieYearCounts: Record<number, number> = {};
     for (const k of movieClassOrder) {
-      for (const item of moviesByClass[k] ?? []) {
+      for (const item of (moviesByClass[k] ?? []).filter(inScope)) {
         if (item.releaseDate) {
           const year = parseInt(item.releaseDate.slice(0, 4), 10);
           if (!Number.isNaN(year)) {
@@ -527,7 +534,7 @@ export function ProfilePage() {
     const tvReleaseYearData: { year: number; count: number }[] = [];
     const tvYearCounts: Record<number, number> = {};
     for (const k of tvClassOrder) {
-      for (const item of tvByClass[k] ?? []) {
+      for (const item of (tvByClass[k] ?? []).filter(inScope)) {
         if (item.releaseDate) {
           const year = parseInt(item.releaseDate.slice(0, 4), 10);
           if (!Number.isNaN(year)) {
@@ -682,7 +689,7 @@ export function ProfilePage() {
     // Calculate genre distribution
     const movieGenreCounts: Record<string, number> = {};
     for (const k of movieClassOrder) {
-      for (const item of moviesByClass[k] ?? []) {
+      for (const item of (moviesByClass[k] ?? []).filter(inScope)) {
         if (item.genres) {
           item.genres.forEach(g => {
             movieGenreCounts[g] = (movieGenreCounts[g] || 0) + 1;
@@ -696,7 +703,7 @@ export function ProfilePage() {
 
     const tvGenreCounts: Record<string, number> = {};
     for (const k of tvClassOrder) {
-      for (const item of tvByClass[k] ?? []) {
+      for (const item of (tvByClass[k] ?? []).filter(inScope)) {
         if (item.genres) {
           item.genres.forEach(g => {
             tvGenreCounts[g] = (tvGenreCounts[g] || 0) + 1;
@@ -738,7 +745,7 @@ export function ProfilePage() {
       movieGenreData,
       tvGenreData
     };
-  }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass]);
+  }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass, chartScope]);
 
   const allRecentWatches = useMemo(() => {
     // Use the same "all classes except UNRANKED" behavior as the profile views,
@@ -1413,6 +1420,20 @@ export function ProfilePage() {
                   <div className="profile-chart-toggle">
                     <button
                       type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                    <button
+                      type="button"
                       className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
                       onClick={() => setChartMode('count')}
                     >
@@ -1444,6 +1465,20 @@ export function ProfilePage() {
                   <div className="profile-chart-toggle">
                     <button
                       type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                    <button
+                      type="button"
                       className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
                       onClick={() => setChartMode('count')}
                     >
@@ -1470,7 +1505,25 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Movies by Genre</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Movies by Genre</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.movieGenreData} barCategoryGap={2}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -1502,7 +1555,25 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Shows by Genre</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Shows by Genre</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={stats.tvGenreData} barCategoryGap={2}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -1534,7 +1605,25 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Movies by Release Year</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Movies by Release Year</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={stats.movieReleaseYearData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -1547,7 +1636,25 @@ export function ProfilePage() {
               </div>
 
               <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Shows by Release Year</h3>
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Shows by Release Year</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                      onClick={() => setChartScope('all')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                      onClick={() => setChartScope('this_year')}
+                    >
+                      This year
+                    </button>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={stats.tvReleaseYearData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />

@@ -306,11 +306,9 @@ export function HomePage() {
                 <div className="feature-card new">
                   <h3 className="feature-group-title">New</h3>
                   <ul className="feature-list">
-                    <li>Can view top 5 movies/shows per year from profile</li>
-                    <li>Can view watchlist overlap between friend(s)</li>
+                    <li><strong>Tagging</strong> entries, create custom lists and view collections.</li>
                     <li>Refined mobile Clastone</li>
-                    <li>Can copy top lists in Detailed Stats in Profile viewer</li>
-                    <li>Can see unique movie/show milestones in Recently Watched</li>
+                    <li>Can copy top movies/shows/people in Detailed Stats in Profile viewer</li>
                   </ul>
                 </div>
               </div>
@@ -319,13 +317,12 @@ export function HomePage() {
                 <div className="feature-card future">
                   <h3 className="feature-group-title">Future</h3>
                   <ul className="feature-list">
-                    <li>custom <strong>tagging</strong> entries for personal preference, extra sorting capabilities and becuase its fun.<span className="feature-note">(lmk if you want any specific ones to be default tags, though you will be able to make your own too)</span></li>
-                    <li>reduce dragging lag</li>
+                    <li>Reduce dragging lag</li>
                     <li><strong>quick move</strong> button options for moving around entries</li>
-                    <li>Reviews of each movie watch</li>
-                    <li>Completionist system of certain lists (IMDB top 250, Letterboxd top 500, all MCU projects, etc)</li>
+                    <li>Option for written reviews of each movie watch</li>
                     <li>Add system where you can mark movie watch order if seen more than one in a day</li>
-                    <li>The copy list(s) doesnt work on mobile</li>
+                    <li>The copy list(s) doesnt work on mobile, will fix</li>
+                    <li>Download profile ad PDF (custom ordering of data, select certain aspects of profile, etc)</li>
                   </ul>
                 </div>
               </div>

@@ -41,6 +41,7 @@ const SEARCH_LOAD_MORE_INCREMENT = 12;
 const SEARCH_MAX_LOAD_MORE_CLICKS = 2;
 const SEARCH_FETCH_LIMIT =
   SEARCH_INITIAL_RESULT_LIMIT + SEARCH_LOAD_MORE_INCREMENT * SEARCH_MAX_LOAD_MORE_CLICKS;
+const MIN_WANDER_YEAR = 1915;
 
 function parseQueryWithOptionalYear(raw: string): { textQuery: string; yearHint?: number } {
   const trimmed = raw.trim();
@@ -195,15 +196,17 @@ export function SearchPage() {
   });
   
   // Search depth toggle
-  const [searchDepth, setSearchDepth] = useState<'simple' | 'extensive'>(() => {
+  const [searchDepth, setSearchDepth] = useState<'tile' | 'detailed'>(() => {
     const saved = sessionStorage.getItem('search_depth');
-    return (saved as any) || 'simple';
+    if (saved === 'extensive') return 'detailed';
+    if (saved === 'simple') return 'tile';
+    return saved === 'detailed' ? 'detailed' : 'tile';
   });
 
   // Tab selection
-  const [activeTab, setActiveTab] = useState<'search' | 'wander'>(() => {
+  const [activeTab, setActiveTab] = useState<'search' | 'wander' | 'doomscroll'>(() => {
     const saved = sessionStorage.getItem('search_active_tab');
-    return (saved as any) || 'search';
+    return saved === 'wander' || saved === 'doomscroll' ? saved : 'search';
   });
 
   // Wander state
@@ -235,6 +238,25 @@ export function SearchPage() {
     const saved = sessionStorage.getItem('wander_sort_type');
     return saved || 'vote_count.desc';
   });
+  const [doomscrollMediaType, setDoomscrollMediaType] = useState<'movies' | 'shows'>(() => {
+    const saved = sessionStorage.getItem('doomscroll_media_type');
+    return saved === 'shows' ? 'shows' : 'movies';
+  });
+  const [doomscrollShowSeen, setDoomscrollShowSeen] = useState(() => {
+    const saved = sessionStorage.getItem('doomscroll_show_seen');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [doomscrollShowWatchlist, setDoomscrollShowWatchlist] = useState(() => {
+    const saved = sessionStorage.getItem('doomscroll_show_watchlist');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [doomscrollResults, setDoomscrollResults] = useState<TmdbMultiResult[]>([]);
+  const [doomscrollPage, setDoomscrollPage] = useState(1);
+  const [doomscrollLoading, setDoomscrollLoading] = useState(false);
+  const [doomscrollError, setDoomscrollError] = useState<string | null>(null);
+  const [doomscrollLastPageWasFull, setDoomscrollLastPageWasFull] = useState(true);
+  const [doomscrollIsLoadingMore, setDoomscrollIsLoadingMore] = useState(false);
+  const [doomscrollKeepVisibleIds, setDoomscrollKeepVisibleIds] = useState<string[]>([]);
 
   useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
   useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
@@ -247,6 +269,9 @@ export function SearchPage() {
     sessionStorage.setItem('wander_year', wanderYear.toString()); 
   }, [wanderYear]);
   useEffect(() => { sessionStorage.setItem('wander_sort_type', wanderSortType); }, [wanderSortType]);
+  useEffect(() => { sessionStorage.setItem('doomscroll_media_type', doomscrollMediaType); }, [doomscrollMediaType]);
+  useEffect(() => { sessionStorage.setItem('doomscroll_show_seen', JSON.stringify(doomscrollShowSeen)); }, [doomscrollShowSeen]);
+  useEffect(() => { sessionStorage.setItem('doomscroll_show_watchlist', JSON.stringify(doomscrollShowWatchlist)); }, [doomscrollShowWatchlist]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -906,6 +931,74 @@ export function SearchPage() {
     }
   };
 
+  const loadDoomscrollContent = async (reset: boolean = false) => {
+    if (doomscrollLoading || doomscrollIsLoadingMore) return;
+
+    const page = reset ? 1 : doomscrollPage + 1;
+    const isLoadMore = !reset;
+
+    if (isLoadMore) {
+      setDoomscrollIsLoadingMore(true);
+    } else {
+      setDoomscrollLoading(true);
+    }
+    setDoomscrollError(null);
+
+    try {
+      const targetItemsPerLoad = 250;
+      const pagesToLoad = Math.ceil(targetItemsPerLoad / 20);
+      let fetchedPages = 0;
+      let hitEnd = false;
+      let lastBatchSize = 0;
+
+      if (reset) {
+        setDoomscrollResults([]);
+      }
+
+      for (let i = 0; i < pagesToLoad; i++) {
+        const currentPage = page + i;
+        const results = doomscrollMediaType === 'movies'
+          ? await tmdbDiscoverMoviesByYear(undefined, currentPage, undefined, [], 'vote_count.desc')
+          : await tmdbDiscoverTvByYear(undefined, currentPage, undefined, [], 'vote_count.desc');
+
+        if (results.length === 0) {
+          hitEnd = true;
+          break;
+        }
+
+        fetchedPages += 1;
+        lastBatchSize = results.length;
+
+        // Stream each fetched page into the grid so entries appear as soon as possible.
+        setDoomscrollResults((prev) => {
+          const existingIds = new Set(prev.map((r) => `${r.media_type}-${r.id}`));
+          const dedupedIncoming = results.filter((r) => !existingIds.has(`${r.media_type}-${r.id}`));
+          return [...prev, ...dedupedIncoming];
+        });
+
+        if (results.length < 20) {
+          hitEnd = true;
+          break;
+        }
+      }
+
+      const canLoadMore = fetchedPages > 0 && !hitEnd && lastBatchSize === 20;
+      setDoomscrollLastPageWasFull(canLoadMore);
+
+      if (fetchedPages > 0) {
+        setDoomscrollPage(page + fetchedPages - 1);
+      } else if (reset) {
+        setDoomscrollPage(1);
+      }
+    } catch (err) {
+      setDoomscrollError(err instanceof Error ? err.message : String(err));
+      setDoomscrollLastPageWasFull(false);
+    } finally {
+      setDoomscrollLoading(false);
+      setDoomscrollIsLoadingMore(false);
+    }
+  };
+
   // Scroll to top function
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -913,11 +1006,12 @@ export function SearchPage() {
 
   // Calculate if we should show load more button - use a simple approach without useMemo to avoid re-render issues
   const shouldShowLoadMore = wanderResults.length > 0 && lastPageWasFull && !isLoadingMore;
+  const shouldLoadMoreDoomscroll = doomscrollResults.length > 0 && doomscrollLastPageWasFull && !doomscrollIsLoadingMore;
 
-  // Generate year options for dropdown (ALL + current year - 50 to current year)
+  // Generate year options for dropdown (ALL + 1915 to current year)
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(() => {
-    const options = ['ALL', ...Array.from({ length: 51 }, (_, i) => currentYear - 50 + i)];
+    const options = ['ALL', ...Array.from({ length: currentYear - MIN_WANDER_YEAR + 1 }, (_, i) => MIN_WANDER_YEAR + i)];
     return options;
   }, [currentYear]);
 
@@ -928,7 +1022,7 @@ export function SearchPage() {
   };
 
   const handleYearDecrement = () => {
-    if (wanderYear !== 'ALL' && wanderYear > currentYear - 50) {
+    if (wanderYear !== 'ALL' && wanderYear > MIN_WANDER_YEAR) {
       handleWanderYearChange(wanderYear - 1);
     }
   };
@@ -947,6 +1041,15 @@ export function SearchPage() {
     setWanderPage(1);
     setLastPageWasFull(false); // Don't assume full page until we load
     setWanderError(null);
+  };
+
+  const handleDoomscrollMediaTypeChange = (mediaType: 'movies' | 'shows') => {
+    setDoomscrollMediaType(mediaType);
+    setDoomscrollResults([]);
+    setDoomscrollPage(1);
+    setDoomscrollLastPageWasFull(false);
+    setDoomscrollError(null);
+    setDoomscrollKeepVisibleIds([]);
   };
 
   const handleWanderGenresChange = (genres: string[]) => {
@@ -972,6 +1075,28 @@ export function SearchPage() {
     }
   }, [wanderYear, wanderMediaType, wanderSelectedGenres, wanderSortType, activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'doomscroll' && doomscrollResults.length === 0) {
+      loadDoomscrollContent(true);
+    }
+  }, [activeTab, doomscrollMediaType]);
+
+  useEffect(() => {
+    if (activeTab !== 'doomscroll') return;
+    if (!shouldLoadMoreDoomscroll) return;
+
+    const onScroll = () => {
+      if (doomscrollLoading || doomscrollIsLoadingMore || !doomscrollLastPageWasFull) return;
+      const bottomOffset = document.documentElement.scrollHeight - (window.innerHeight + window.scrollY);
+      if (bottomOffset < 300) {
+        void loadDoomscrollContent(false);
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [activeTab, shouldLoadMoreDoomscroll, doomscrollLoading, doomscrollIsLoadingMore, doomscrollLastPageWasFull, doomscrollPage, doomscrollMediaType, doomscrollResults.length]);
+
   const filteredResults = useMemo(() => {
     return remoteResults.filter(r => {
       if (r.media_type === 'movie') return showMovies;
@@ -980,6 +1105,25 @@ export function SearchPage() {
       return false;
     });
   }, [remoteResults, showMovies, showTv, showPeople]);
+
+  const filteredDoomscrollResults = useMemo(() => {
+    const keepVisible = new Set(doomscrollKeepVisibleIds);
+    return doomscrollResults.filter((r) => {
+      const id = resultId(r);
+      const isMovie = r.media_type === 'movie';
+      const isTv = r.media_type === 'tv';
+      const watchlistId = isMovie ? id : `tmdb-tv-${r.id}`;
+      const inWatchlist = isInWatchlist(watchlistId);
+      const existing = isMovie ? getMovieById(id) : isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+      const seen = Boolean(existing && existing.watchRecords && existing.watchRecords.length > 0);
+
+      if (keepVisible.has(id)) return true;
+
+      if (!doomscrollShowSeen && seen) return false;
+      if (!doomscrollShowWatchlist && inWatchlist) return false;
+      return true;
+    });
+  }, [doomscrollResults, doomscrollKeepVisibleIds, doomscrollShowSeen, doomscrollShowWatchlist, isInWatchlist, getMovieById, getShowById]);
 
   const visibleSearchResults = useMemo(
     () => filteredResults.slice(0, searchVisibleCount),
@@ -1004,7 +1148,7 @@ export function SearchPage() {
     if (showMovies && showTv && !showPeople) return 'Try "La La Land", "Arcane"…';
     if (showMovies && !showTv && showPeople) return 'Try "La La Land", "Emma Stone"…';
     if (!showMovies && showTv && showPeople) return 'Try "Arcane", "Emma Stone"…';
-    return 'Search for something…';
+    return 'Select query option(s)...';
   }, [showMovies, showTv, showPeople]);
 
   return (
@@ -1030,6 +1174,13 @@ export function SearchPage() {
               onClick={() => setActiveTab('wander')}
             >
               Wander
+            </button>
+            <button
+              type="button"
+              className={`search-tab ${activeTab === 'doomscroll' ? 'active' : ''}`}
+              onClick={() => setActiveTab('doomscroll')}
+            >
+              Doomscroll
             </button>
           </div>
         </div>
@@ -1092,19 +1243,19 @@ export function SearchPage() {
                 <div className="search-toggle-buttons search-toggle-buttons-segmented">
                   <button
                     type="button"
-                    className={`search-toggle-btn ${searchDepth === 'simple' ? 'active' : ''}`}
-                    aria-pressed={searchDepth === 'simple'}
-                    onClick={() => setSearchDepth('simple')}
+                    className={`search-toggle-btn ${searchDepth === 'tile' ? 'active' : ''}`}
+                    aria-pressed={searchDepth === 'tile'}
+                    onClick={() => setSearchDepth('tile')}
                   >
-                    <span className="search-toggle-btn-text">Simple</span>
+                    <span className="search-toggle-btn-text">Tile</span>
                   </button>
                   <button
                     type="button"
-                    className={`search-toggle-btn ${searchDepth === 'extensive' ? 'active' : ''}`}
-                    aria-pressed={searchDepth === 'extensive'}
-                    onClick={() => setSearchDepth('extensive')}
+                    className={`search-toggle-btn ${searchDepth === 'detailed' ? 'active' : ''}`}
+                    aria-pressed={searchDepth === 'detailed'}
+                    onClick={() => setSearchDepth('detailed')}
                   >
-                    <span className="search-toggle-btn-text">Extensive</span>
+                    <span className="search-toggle-btn-text">Detailed</span>
                   </button>
                 </div>
               </div>
@@ -1142,7 +1293,7 @@ export function SearchPage() {
                     type="button"
                     className="wander-year-btn wander-year-decrement"
                     onClick={handleYearDecrement}
-                    disabled={wanderYear === 'ALL' || wanderYear <= currentYear - 50}
+                    disabled={wanderYear === 'ALL' || wanderYear <= MIN_WANDER_YEAR}
                     aria-label="Previous year"
                   >
                     <ChevronLeft size={16} />
@@ -1230,8 +1381,55 @@ export function SearchPage() {
           </div>
         )}
 
+        {activeTab === 'doomscroll' && (
+          <div className="wander-controls">
+            <div className="wander-toggles">
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Type</span>
+                <div className="wander-toggle-buttons wander-type-toggle">
+                  <button
+                    type="button"
+                    className={`wander-toggle-btn ${doomscrollMediaType === 'movies' ? 'active' : ''}`}
+                    onClick={() => handleDoomscrollMediaTypeChange('movies')}
+                  >
+                    Movies
+                  </button>
+                  <button
+                    type="button"
+                    className={`wander-toggle-btn ${doomscrollMediaType === 'shows' ? 'active' : ''}`}
+                    onClick={() => handleDoomscrollMediaTypeChange('shows')}
+                  >
+                    TV Shows
+                  </button>
+                </div>
+              </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Show seen</span>
+                <button
+                  type="button"
+                  className={`wander-genre-btn ${doomscrollShowSeen ? 'active' : ''}`}
+                  onClick={() => setDoomscrollShowSeen((prev) => !prev)}
+                >
+                  {doomscrollShowSeen ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Show watchlist</span>
+                <button
+                  type="button"
+                  className={`wander-genre-btn ${doomscrollShowWatchlist ? 'active' : ''}`}
+                  onClick={() => setDoomscrollShowWatchlist((prev) => !prev)}
+                >
+                  {doomscrollShowWatchlist ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {error && <div className="search-error">{error}</div>}
         {wanderError && <div className="search-error">{wanderError}</div>}
+        {doomscrollError && <div className="search-error">{doomscrollError}</div>}
 
         {/* Search Results */}
         {activeTab === 'search' && (
@@ -1317,12 +1515,12 @@ export function SearchPage() {
                       </div>
                       <div className="search-card-subtitle">
                         {r.subtitle}
-                        {(isMovie || isTv) && searchDepth === 'extensive' && (
+                        {(isMovie || isTv) && searchDepth === 'detailed' && (
                           <SearchResultExtendedInfo id={r.id} mediaType={r.media_type as 'movie' | 'tv'} />
                         )}
                       </div>
                     </div>
-                    {r.media_type === 'person' && searchDepth === 'extensive' && (
+                    {r.media_type === 'person' && searchDepth === 'detailed' && (
                       <SearchPersonProjects 
                         personId={r.id} 
                         onRecordMedia={(media) => {
@@ -1824,6 +2022,190 @@ export function SearchPage() {
             
             {/* To Top Button - only show when there are results and user has scrolled */}
             {wanderResults.length > 0 && (
+              <button
+                type="button"
+                className="wander-to-top-btn"
+                onClick={scrollToTop}
+                aria-label="Scroll to top"
+              >
+                <ArrowUp size={14} /> Top
+              </button>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'doomscroll' && (
+          <div className="wander-results">
+            <div className="wander-grid doomscroll-grid">
+              {filteredDoomscrollResults.map((r) => {
+                const id = resultId(r);
+                const isMovie = r.media_type === 'movie';
+                const isTv = r.media_type === 'tv';
+                const imgUrl = tmdbImagePath(r.poster_path);
+                const existingMovie = isMovie ? getMovieById(id) : null;
+                const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
+                const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+                const inWatchlist = isMovie ? isInWatchlist(id) : isInWatchlist(`tmdb-tv-${r.id}`);
+
+                const handleAddToWatchlist = () => {
+                  if (isMovie) {
+                    addToWatchlist(
+                      { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                      'movies'
+                    );
+                  } else if (isTv) {
+                    addToWatchlist(
+                      { id: `tmdb-tv-${r.id}`, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                      'tv'
+                    );
+                  }
+                  setDoomscrollKeepVisibleIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+                };
+
+                return (
+                  <article key={`${r.media_type}-${r.id}`} className={`search-card wander-card doomscroll-card ${doomscrollMediaType === 'shows' ? 'wander-show-card' : ''}`}>
+                    <div className="search-card-main">
+                      <div className="search-card-info">
+                        <div className="search-card-badge">
+                          {r.media_type === 'movie' ? 'MOVIE' : 'TV'}
+                        </div>
+                        <div className="search-card-title">{r.title}</div>
+                      </div>
+                    </div>
+                    <div className="search-card-poster doomscroll-poster">
+                      {imgUrl ? (
+                        <img src={imgUrl} alt={r.title} />
+                      ) : (
+                        <div className="search-card-poster-fallback">
+                          <Film size={24} />
+                        </div>
+                      )}
+                      <div className="doomscroll-poster-actions">
+                        <button
+                          type="button"
+                          className="search-card-info-btn"
+                          onClick={() => setInfoModalTarget({
+                            tmdbId: r.id,
+                            mediaType: r.media_type as 'movie' | 'tv',
+                            title: r.title,
+                            posterPath: r.poster_path,
+                            releaseDate: r.release_date,
+                          })}
+                          title="Info"
+                        >
+                          <Info size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`search-card-action ${isMovie
+                            ? (existingMovie && !inUnrankedMovie ? 'search-card-action-blue' : 'search-card-action-green')
+                            : (existingTv && existingTv.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green')
+                            } doomscroll-rank-btn`}
+                          disabled={isSaving}
+                          onClick={() => handleOpenRecord(r)}
+                        >
+                          {isMovie
+                            ? (existingMovie && !inUnrankedMovie ? 'Edit' : 'Rank')
+                            : (existingTv && existingTv.classKey !== 'UNRANKED' ? 'Edit' : 'Rank')}
+                        </button>
+                      </div>
+                    </div>
+                    {isMovie ? (
+                      <div className="search-card-actions">
+                        {!existingMovie && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => void handleAddToUnranked(r)}
+                          >
+                            Unranked+
+                          </button>
+                        )}
+                        {existingMovie && existingMovie.classKey === 'UNRANKED' && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => removeMovieEntry(id)}
+                          >
+                            Unranked-
+                          </button>
+                        )}
+                        {inWatchlist ? (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => removeFromWatchlist(id)}
+                          >
+                            Watchlist-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-yellow"
+                            disabled={isSaving}
+                            onClick={handleAddToWatchlist}
+                          >
+                            Watchlist+
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="search-card-actions">
+                        {!existingTv && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => void handleAddTvToUnranked(r)}
+                          >
+                            Unranked+
+                          </button>
+                        )}
+                        {existingTv && existingTv.classKey === 'UNRANKED' && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => removeShowEntry(`tmdb-tv-${r.id}`)}
+                          >
+                            Unranked-
+                          </button>
+                        )}
+                        {inWatchlist ? (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => removeFromWatchlist(`tmdb-tv-${r.id}`)}
+                          >
+                            Watchlist-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-yellow"
+                            disabled={isSaving}
+                            onClick={handleAddToWatchlist}
+                          >
+                            Watchlist+
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            {doomscrollIsLoadingMore && (
+              <div className="wander-empty">Loading more...</div>
+            )}
+            {filteredDoomscrollResults.length === 0 && !doomscrollLoading && !doomscrollError && (
+              <div className="wander-empty">No results for current filters.</div>
+            )}
+            {doomscrollResults.length > 0 && (
               <button
                 type="button"
                 className="wander-to-top-btn"

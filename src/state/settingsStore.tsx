@@ -36,11 +36,14 @@ function getInitialSettings(): GlobalSettings {
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
-        let viewMode: 'minimized' | 'detailed' | 'tile' = 'minimized';
-        if (vm === 'minimized' || vm === 'detailed' || vm === 'tile') {
+        let viewMode: 'minimized' | 'detailed' | 'tile' = 'tile';
+        if (vm === 'detailed' || vm === 'tile') {
             viewMode = vm as any;
+        } else if (vm === 'minimized') {
+            // Migrate old "Simple" mode to Tile mode.
+            viewMode = 'tile';
         } else if (min === 'true') {
-            viewMode = 'minimized';
+            viewMode = 'tile';
         } else if (min === 'false') {
             viewMode = 'detailed';
         }
@@ -80,7 +83,7 @@ function getInitialSettings(): GlobalSettings {
             topCastCount: 5,
             topRoleCount: 5,
             personProjectsLimit: 12,
-            viewMode: 'minimized',
+            viewMode: 'tile',
             tileViewSize: 'default',
             boycottTalkShows: false,
             excludeSimpsons: false,
