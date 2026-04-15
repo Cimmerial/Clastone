@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, Eye, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Eye, Info, Pencil, Plus } from 'lucide-react';
 import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
@@ -28,23 +28,64 @@ function isCollectionEntryId(value: string): value is CollectionEntryId {
   return /^tmdb-(tv|movie)-\d+$/.test(value);
 }
 
+function hashString(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function pickPosterCollage(posters: string[], seedKey: string, minCount = 3, maxCount = 6): string[] {
+  if (posters.length === 0) return [];
+  const unique = Array.from(new Set(posters));
+  const sorted = unique
+    .map((poster) => ({ poster, score: hashString(`${seedKey}:${poster}`) }))
+    .sort((a, b) => a.score - b.score)
+    .map((item) => item.poster);
+  const desired = Math.max(minCount, Math.min(maxCount, sorted.length));
+  return sorted.slice(0, desired);
+}
+
+function pickPosterCollageFixedCount(posters: string[], seedKey: string, count: number): string[] {
+  if (count <= 0 || posters.length === 0) return [];
+  const base = pickPosterCollage(posters, seedKey, Math.min(count, posters.length), count);
+  if (base.length >= count) return base.slice(0, count);
+  const filled: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    filled.push(base[i % base.length]);
+  }
+  return filled;
+}
+
 function HoverCard({
   title,
   subtitle,
   href,
   sortableId,
   color,
+  posterBackgrounds = [],
 }: {
   title: string;
   subtitle: string;
   href: string;
   sortableId: string;
   color?: string;
+  posterBackgrounds?: string[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
   return (
     <article ref={setNodeRef} style={{ ...style, borderColor: color ?? undefined }} className={`lists-card-clean ${isDragging ? 'lists-card-clean--dragging' : ''}`} {...attributes} {...listeners}>
+      {posterBackgrounds.length > 0 ? (
+        <div className="lists-card-clean-bg" aria-hidden="true">
+          {posterBackgrounds.map((posterPath, index) => (
+            <div key={`${posterPath}-${index}`} className="lists-card-clean-bg-item">
+              <img src={tmdbImagePath(posterPath, 'w185') ?? ''} alt="" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="lists-card-clean-info">
         <h3>{title}</h3>
         <p>{subtitle}</p>
@@ -79,13 +120,22 @@ function SortableCollectionCard({
   card,
   disabled,
 }: {
-  card: CollectionCard;
+  card: CollectionCard & { posterBackgrounds?: string[] };
   disabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, disabled });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
   return (
     <article ref={setNodeRef} style={{ ...style, borderColor: card.color ?? undefined }} className={`lists-card-clean lists-card-clean--collection ${isDragging ? 'lists-card-clean--dragging' : ''}`} {...attributes} {...listeners}>
+      {card.posterBackgrounds && card.posterBackgrounds.length > 0 ? (
+        <div className="lists-card-clean-bg lists-card-clean-bg--collection" aria-hidden="true">
+          {card.posterBackgrounds.map((posterPath, index) => (
+            <div key={`${posterPath}-${index}`} className="lists-card-clean-bg-item">
+              <img src={tmdbImagePath(posterPath, 'w185') ?? ''} alt="" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="lists-card-clean-info">
         <h3>{card.title}</h3>
         <p>{card.seen}/{card.total} complete</p>
@@ -99,20 +149,37 @@ function SortableCollectionCard({
 function RenameEntityModal({
   title,
   initialName,
+  initialColor,
+  allowColorEdit = false,
   onClose,
   onSave,
 }: {
   title: string;
   initialName: string;
+  initialColor?: string;
+  allowColorEdit?: boolean;
   onClose: () => void;
-  onSave: (name: string) => void | Promise<void>;
+  onSave: (payload: { name: string; color?: string }) => void | Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
+  const [color, setColor] = useState(initialColor ?? '#deb55e');
   return (
     <div className="lists-modal-backdrop" onClick={onClose}>
       <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="lists-input" autoFocus />
+        {allowColorEdit ? (
+          <div className="lists-color-row">
+            <span>Tag color</span>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              onBlur={(e) => e.currentTarget.blur()}
+              className="lists-color-input"
+            />
+          </div>
+        ) : null}
         <div className="lists-modal-actions">
           <button className="lists-button" onClick={onClose}>Cancel</button>
           <button
@@ -120,7 +187,7 @@ function RenameEntityModal({
             onClick={async () => {
               const trimmed = name.trim();
               if (!trimmed) return;
-              await onSave(trimmed);
+              await onSave({ name: trimmed, color: allowColorEdit ? color : undefined });
               onClose();
             }}
           >
@@ -144,7 +211,16 @@ function CreateEntityModal({ onClose, onCreate, title, defaultColor }: { onClose
         <select value={type} onChange={(e) => setType(e.target.value as 'movie' | 'tv' | 'both')} className="lists-select">
           <option value="movie">Movie</option><option value="tv">Show</option><option value="both">Movie + Show</option>
         </select>
-        <label className="lists-color-row">Tag color<input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="lists-color-input" /></label>
+        <div className="lists-color-row">
+          <span>Tag color</span>
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            onBlur={(e) => e.currentTarget.blur()}
+            className="lists-color-input"
+          />
+        </div>
         <div className="lists-modal-actions">
           <button className="lists-button" onClick={onClose}>Cancel</button>
           <button className="lists-button" onClick={() => { const trimmed = name.trim(); if (!trimmed) return; onCreate(trimmed, type, color); onClose(); }}>Create</button>
@@ -236,6 +312,28 @@ function AddDeleteActions({
   );
 }
 
+function InfoTextModal({
+  title,
+  message,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="lists-modal-backdrop" onClick={onClose}>
+      <div className="lists-modal lists-modal--info" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <p className="lists-subtitle">{message}</p>
+        <div className="lists-modal-actions">
+          <button className="lists-button" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UnseenTile({ title }: { title: string }) {
   return <article className="entry-tile entry-tile--unseen"><div className="entry-tile-poster entry-tile-poster--unseen" /><div className="entry-tile-title">{title}</div></article>;
 }
@@ -268,11 +366,29 @@ export function ListsPage() {
   const { byClass: tvByClass } = useTvStore();
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
+  const [showListsInfoModal, setShowListsInfoModal] = useState(false);
+  const [showCollectionsInfoModal, setShowCollectionsInfoModal] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const allEntries = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
+  const entryById = useMemo(() => new Map(allEntries.map((entry) => [entry.id, entry])), [allEntries]);
   const listById = useMemo(() => new Map(lists.map((item) => [item.id, item])), [lists]);
-  const listCards = useMemo<ListCard[]>(() => listOrder.map((id) => listById.get(id)).filter((x): x is NonNullable<typeof x> => Boolean(x)).map((list) => ({ id: list.id, title: list.name, subtitle: `${(entriesByListId[list.id] ?? []).length} entries · ${list.mediaType}`, href: `/lists/${list.id}`, color: list.color })), [listOrder, listById, entriesByListId]);
-  const collectionCards = useMemo<CollectionCard[]>(() => globalCollections.map((collection) => {
+  const listCards = useMemo<Array<ListCard & { posterBackgrounds: string[] }>>(() => listOrder
+    .map((id) => listById.get(id))
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    .map((list) => {
+      const entryPosters = (entriesByListId[list.id] ?? [])
+        .map((entry) => entryById.get(entry.entryId)?.posterPath)
+        .filter((poster): poster is string => Boolean(poster));
+      return {
+        id: list.id,
+        title: list.name,
+        subtitle: `${(entriesByListId[list.id] ?? []).length} entries · ${list.mediaType}`,
+        href: `/lists/${list.id}`,
+        color: list.color,
+        posterBackgrounds: pickPosterCollage(entryPosters, list.id),
+      };
+    }), [listOrder, listById, entriesByListId, entryById]);
+  const collectionCards = useMemo<Array<CollectionCard & { posterBackgrounds: string[] }>>(() => globalCollections.map((collection) => {
     const total = collection.entries.length;
     const statuses = collection.entries.map((entry) => {
       const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
@@ -282,8 +398,23 @@ export function ListsPage() {
     });
     const seen = statuses.filter((s) => s.isSeen).length;
     const watchlistUnseen = statuses.filter((s) => s.isWatchlistUnseen).length;
-    return { id: collection.id, title: collection.name, seen, watchlistUnseen, total, href: `/lists/collection/${collection.id}`, color: collection.color };
-  }), [globalCollections, allEntries, watchlist]);
+    const posters = collection.entries
+      .map((entry) => {
+        const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
+        return entryById.get(id)?.posterPath ?? entry.posterPath;
+      })
+      .filter((poster): poster is string => Boolean(poster));
+    return {
+      id: collection.id,
+      title: collection.name,
+      seen,
+      watchlistUnseen,
+      total,
+      href: `/lists/collection/${collection.id}`,
+      color: collection.color,
+      posterBackgrounds: pickPosterCollageFixedCount(posters, `collection:${collection.id}`, 12),
+    };
+  }), [globalCollections, allEntries, watchlist, entryById]);
   const onListDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -305,17 +436,31 @@ export function ListsPage() {
   };
   return (
     <section className="lists-page">
-      <header className="page-heading"><div><h1 className="page-title">Lists</h1><p className="lists-subtitle">Create lists to tag and organize movies and shows. View collections to see where your viewography has gaps.</p></div><div /></header>
+      <header className="page-heading"><div><h1 className="page-title">Lists</h1></div><div /></header>
       <section className="class-section">
-        <header className="class-section-header"><div><h3 className="class-section-title">Lists</h3><p className="class-section-count">{listCards.length} entries</p></div><button className="lists-button lists-plus-btn" onClick={() => setShowCreateListModal(true)} title="Create list"><Plus size={18} /></button></header>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onListDragEnd}><SortableContext items={listCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{listCards.map((card) => <div key={card.id} className="lists-card-slot"><HoverCard title={card.title} subtitle={card.subtitle} href={card.href} sortableId={card.id} color={card.color} /></div>)}</div></SortableContext></DndContext>
+        <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Lists</h3><button className="lists-info-btn" onClick={() => setShowListsInfoModal(true)} title="About lists" aria-label="About lists"><Info size={13} /></button></div><p className="class-section-count">{listCards.length} entries</p></div><button className="lists-button lists-plus-btn" onClick={() => setShowCreateListModal(true)} title="Create list"><Plus size={18} /></button></header>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onListDragEnd}><SortableContext items={listCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{listCards.map((card) => <div key={card.id} className="lists-card-slot"><HoverCard title={card.title} subtitle={card.subtitle} href={card.href} sortableId={card.id} color={card.color} posterBackgrounds={card.posterBackgrounds} /></div>)}</div></SortableContext></DndContext>
       </section>
       <section className="class-section">
-        <header className="class-section-header"><div><h3 className="class-section-title">Collections</h3><p className="class-section-count">{collectionCards.length} entries</p></div>{canEditCollections ? <button className="lists-button lists-plus-btn" onClick={() => setShowCreateCollectionModal(true)} title="Create collection"><Plus size={18} /></button> : null}</header>
+        <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Collections</h3><button className="lists-info-btn" onClick={() => setShowCollectionsInfoModal(true)} title="About collections" aria-label="About collections"><Info size={13} /></button></div><p className="class-section-count">{collectionCards.length} entries</p></div>{canEditCollections ? <button className="lists-button lists-plus-btn" onClick={() => setShowCreateCollectionModal(true)} title="Create collection"><Plus size={18} /></button> : null}</header>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onCollectionDragEnd}><SortableContext items={collectionCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{collectionCards.map((card) => <SortableCollectionCard key={card.id} card={card} disabled={!canEditCollections} />)}</div></SortableContext></DndContext>
       </section>
       {showCreateListModal ? <CreateEntityModal title="Create List" onClose={() => setShowCreateListModal(false)} onCreate={(name, type, color) => createList(name, type, 'list', color)} /> : null}
       {showCreateCollectionModal && canEditCollections ? <CreateEntityModal title="Create Collection" defaultColor="#48b66e" onClose={() => setShowCreateCollectionModal(false)} onCreate={async (name, type, color) => { if (!db) return; const id = `collection-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()}`; const next = { id, name, mediaType: type, color, hidden: false, updatedAt: new Date().toISOString(), entries: [] }; await upsertGlobalCollection(db, next); upsertGlobalCollectionLocal(next); }} /> : null}
+      {showCollectionsInfoModal ? (
+        <InfoTextModal
+          title="About Collections"
+          message="Collections are not meant to make you watch everything on every list. They are here to diversify your palette and help you discover new genres, styles, and cultures. The blue portion of the fill ring represents items currently on your watchlist."
+          onClose={() => setShowCollectionsInfoModal(false)}
+        />
+      ) : null}
+      {showListsInfoModal ? (
+        <InfoTextModal
+          title="About Lists"
+          message="Lists are for making custom lists for fun. Once a list is made, you can add something from the Edit Watch modal."
+          onClose={() => setShowListsInfoModal(false)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -327,6 +472,7 @@ export function ListDetailPage() {
   const { isAdmin } = useAuth();
   const watchlist = useWatchlistStore();
   const canEditCollections = isAdmin && import.meta.env.DEV;
+  const canEditNameAndColor = isAdmin && import.meta.env.DEV;
   const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const { byClass: movieByClass, getClassLabel: getMovieClassLabel, updateMovieWatchRecords, getMovieById, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, getClassLabel: getTvClassLabel, updateShowWatchRecords, getShowById, addShowFromSearch } = useTvStore();
@@ -401,8 +547,8 @@ export function ListDetailPage() {
                 type="button"
                 className="lists-edit-name-btn"
                 onClick={() => setShowRenameModal(true)}
-                title={`Rename ${title}`}
-                aria-label={`Rename ${title}`}
+                title={`${canEditNameAndColor ? 'Edit' : 'Rename'} ${title}`}
+                aria-label={`${canEditNameAndColor ? 'Edit' : 'Rename'} ${title}`}
               >
                 <Pencil size={13} />
               </button>
@@ -473,19 +619,21 @@ export function ListDetailPage() {
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} collectionTags={infoModalTarget.mediaType === 'movie' ? (() => { const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`; return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color })); })() : []} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
       {showRenameModal ? (
         <RenameEntityModal
-          title={isCollection ? 'Rename Collection' : 'Rename List'}
+          title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : (canEditNameAndColor ? 'Edit List' : 'Rename List')}
           initialName={title}
+          initialColor={isCollection ? activeCollection?.color : activeList?.color}
+          allowColorEdit={canEditNameAndColor}
           onClose={() => setShowRenameModal(false)}
-          onSave={async (name) => {
+          onSave={async ({ name, color }) => {
             if (isCollection) {
               if (!activeCollection || !canEditCollections) return;
-              const next = { ...activeCollection, name, updatedAt: new Date().toISOString() };
+              const next = { ...activeCollection, name, color: canEditNameAndColor ? color : activeCollection.color, updatedAt: new Date().toISOString() };
               upsertGlobalCollectionLocal(next);
               if (db) await upsertGlobalCollection(db, next);
               return;
             }
             if (!activeList) return;
-            updateList(activeList.id, { name });
+            updateList(activeList.id, { name, ...(canEditNameAndColor ? { color } : {}) });
           }}
         />
       ) : null}
