@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Info, ChevronDown, ChevronUp, Clock, Calendar, PlayCircle, DollarSign, Edit } from 'lucide-react';
-import { tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
+import { X, Info, ChevronDown, ChevronUp, Clock, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbPersonCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
+import { PersonInfoModal } from './PersonInfoModal';
+import { PersonRankingModal, type PersonRankingTarget } from './PersonRankingModal';
 import './InfoModal.css';
 
 type MediaType = 'movie' | 'tv';
@@ -36,6 +41,7 @@ interface MediaDetails {
 }
 
 export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPath, releaseDate, collectionTags = [], onEditWatches }: InfoModalProps) {
+  const navigate = useNavigate();
   const [details, setDetails] = useState<MediaDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +50,12 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [watchOptionsOpen, setWatchOptionsOpen] = useState(false);
   const watchOptionsButtonRef = useRef<HTMLButtonElement | null>(null);
   const watchOptionsTooltipRef = useRef<HTMLDivElement | null>(null);
+  const [personInfoTarget, setPersonInfoTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
+  const [personRankTarget, setPersonRankTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
+  const [personRankCache, setPersonRankCache] = useState<TmdbPersonCache | null>(null);
+  const [isSavingPerson, setIsSavingPerson] = useState(false);
+  const { getPersonById, addPersonFromSearch, moveItemToClass: movePersonToClass, removePersonEntry, classes: peopleClasses } = usePeopleStore();
+  const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -248,6 +260,87 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   };
 
   const watchProviderGroups = getWatchProviderGroups();
+  const rankTargetSavedEntry = personRankTarget
+    ? personRankTarget.type === 'actor'
+      ? getPersonById(`tmdb-person-${personRankTarget.id}`)
+      : getDirectorById(`tmdb-person-${personRankTarget.id}`)
+    : null;
+  const rankTargetClasses = personRankTarget?.type === 'director' ? directorsClasses : peopleClasses;
+  const rankTargetClassLabel =
+    rankTargetSavedEntry && rankTargetClasses
+      ? rankTargetClasses.find((c) => c.key === rankTargetSavedEntry.classKey)?.label
+      : undefined;
+
+  const openPersonRankModal = async (person: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => {
+    setPersonRankTarget(person);
+    try {
+      const cache = await tmdbPersonDetailsFull(person.id);
+      setPersonRankCache(cache || null);
+    } catch {
+      setPersonRankCache(null);
+    }
+  };
+
+  const handleSavePerson = async (
+    params: { classKey?: string; position?: 'top' | 'middle' | 'bottom' },
+    goToList: boolean
+  ) => {
+    if (!personRankTarget) return;
+    const personId = `tmdb-person-${personRankTarget.id}`;
+    const isActor = personRankTarget.type === 'actor';
+    const existing = isActor ? getPersonById(personId) : getDirectorById(personId);
+    const moveOptions = params.position === 'top'
+      ? { toTop: true }
+      : params.position === 'middle'
+        ? { toMiddle: true }
+        : undefined;
+
+    setIsSavingPerson(true);
+    try {
+      if (existing) {
+        if (params.classKey) {
+          if (isActor) movePersonToClass(personId, params.classKey, moveOptions);
+          else moveDirectorToClass(personId, params.classKey, moveOptions);
+        }
+      } else if (isActor) {
+        addPersonFromSearch({
+          id: personId,
+          title: personRankTarget.name,
+          profilePath: personRankTarget.profilePath,
+          classKey: params.classKey || 'UNRANKED',
+          cache: personRankCache || undefined,
+          position: params.position,
+        });
+      } else {
+        addDirectorFromSearch({
+          id: personId,
+          title: personRankTarget.name,
+          profilePath: personRankTarget.profilePath,
+          classKey: params.classKey || 'UNRANKED',
+          cache: personRankCache || undefined,
+          position: params.position,
+        });
+      }
+      if (goToList) navigate(isActor ? '/actors' : '/directors', { state: { scrollToId: personId } });
+    } finally {
+      setIsSavingPerson(false);
+      setPersonRankTarget(null);
+      setPersonRankCache(null);
+    }
+  };
+
+  // Show person info as a single active modal view to avoid stacked controls/backdrops.
+  if (personInfoTarget) {
+    return (
+      <PersonInfoModal
+        isOpen={!!personInfoTarget}
+        onClose={() => setPersonInfoTarget(null)}
+        tmdbId={personInfoTarget.tmdbId}
+        name={personInfoTarget.name}
+        profilePath={personInfoTarget.profilePath}
+      />
+    );
+  }
 
   return (
     <div className="info-modal-backdrop" onClick={onClose}>
@@ -434,13 +527,83 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
               <div className="info-modal-section">
                 <h3 className="info-modal-section-title">Cast</h3>
                 <div className="info-modal-cast-scroll">
+                  {(mediaType === 'movie' ? details.directors : details.creators)?.map(person => (
+                    <div key={`lead-${person.id}`} className="info-modal-cast-member">
+                      {(() => {
+                        const saved = !!getDirectorById(`tmdb-person-${person.id}`);
+                        return (
+                          <div className="info-modal-person-card">
+                            {person.profilePath ? (
+                              <img src={tmdbImagePath(person.profilePath, 'w300')!} alt={person.name} className="info-modal-cast-portrait" />
+                            ) : (
+                              <div className="info-modal-cast-placeholder info-modal-cast-portrait">{person.name[0]}</div>
+                            )}
+                            <div className="info-modal-person-actions">
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={`View ${person.name} info`}
+                                onClick={() => setPersonInfoTarget({ tmdbId: person.id, name: person.name, profilePath: person.profilePath })}
+                              >
+                                <Info size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={saved ? `Edit ${person.name}` : `Save ${person.name}`}
+                                onClick={() => void openPersonRankModal({ id: person.id, name: person.name, profilePath: person.profilePath, type: 'director' })}
+                              >
+                                {saved ? <Edit size={13} /> : <Plus size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className="info-modal-cast-info">
+                        <div className="info-modal-cast-name">{person.name}</div>
+                        <div className="info-modal-cast-character">
+                          {mediaType === 'movie' ? 'Director' : 'Creator'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {(mediaType === 'movie' ? details.directors?.length : details.creators?.length) && details.cast.length > 0 ? (
+                    <div className="info-modal-cast-divider" aria-hidden="true" />
+                  ) : null}
+
                   {details.cast.slice(0, 20).map(person => (
                     <div key={person.id} className="info-modal-cast-member">
-                      {person.profilePath ? (
-                        <img src={tmdbImagePath(person.profilePath, 'w300')!} alt={person.name} />
-                      ) : (
-                        <div className="info-modal-cast-placeholder">{person.name[0]}</div>
-                      )}
+                      {(() => {
+                        const saved = !!getPersonById(`tmdb-person-${person.id}`);
+                        return (
+                          <div className="info-modal-person-card">
+                            {person.profilePath ? (
+                              <img src={tmdbImagePath(person.profilePath, 'w300')!} alt={person.name} className="info-modal-cast-portrait" />
+                            ) : (
+                              <div className="info-modal-cast-placeholder info-modal-cast-portrait">{person.name[0]}</div>
+                            )}
+                            <div className="info-modal-person-actions">
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={`View ${person.name} info`}
+                                onClick={() => setPersonInfoTarget({ tmdbId: person.id, name: person.name, profilePath: person.profilePath })}
+                              >
+                                <Info size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={saved ? `Edit ${person.name}` : `Save ${person.name}`}
+                                onClick={() => void openPersonRankModal({ id: person.id, name: person.name, profilePath: person.profilePath, type: 'actor' })}
+                              >
+                                {saved ? <Edit size={13} /> : <Plus size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="info-modal-cast-info">
                         <div className="info-modal-cast-name">{person.name}</div>
                         {person.character && (
@@ -452,27 +615,6 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                 </div>
               </div>
 
-              {/* Directors/Creators Section */}
-              {(details.directors?.length || details.creators?.length) && (
-                <div className="info-modal-section">
-                  <h3 className="info-modal-section-title">
-                    {mediaType === 'movie' ? 'Director' : 'Creators'}
-                  </h3>
-                  <div className="info-modal-directors">
-                    {(mediaType === 'movie' ? details.directors : details.creators)?.map(person => (
-                      <div key={person.id} className="info-modal-director">
-                        {person.profilePath ? (
-                          <img src={tmdbImagePath(person.profilePath, 'w185')!} alt={person.name} />
-                        ) : (
-                          <div className="info-modal-director-placeholder">{person.name[0]}</div>
-                        )}
-                        <span className="info-modal-director-name">{person.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Synopsis - Moved to top */}
 
               {/* Genres - Moved to top */}
@@ -483,6 +625,33 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
             </>
           ) : null}
         </div>
+
+        {personRankTarget && (
+          <PersonRankingModal
+            target={{
+              id: `tmdb-person-${personRankTarget.id}`,
+              tmdbId: personRankTarget.id,
+              name: personRankTarget.name,
+              profilePath: personRankTarget.profilePath,
+              mediaType: personRankTarget.type,
+            } as PersonRankingTarget}
+            currentClassKey={rankTargetSavedEntry?.classKey}
+            currentClassLabel={rankTargetClassLabel}
+            rankedClasses={rankTargetClasses.map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
+            isSaving={isSavingPerson}
+            onClose={() => {
+              setPersonRankTarget(null);
+              setPersonRankCache(null);
+            }}
+            onSave={handleSavePerson}
+            onRemoveEntry={rankTargetSavedEntry
+              ? (itemId: string) => {
+                  if (personRankTarget.type === 'actor') removePersonEntry(itemId);
+                  else removeDirectorEntry(itemId);
+                }
+              : undefined}
+          />
+        )}
       </div>
     </div>
   );

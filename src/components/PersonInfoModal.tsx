@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Info, Calendar, PlayCircle, Edit } from 'lucide-react';
+import { X, Info, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
 import { useSettingsStore } from '../state/settingsStore';
+import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
+import { InfoModal } from './InfoModal';
+import { UniversalEditModal, type UniversalEditTarget } from './UniversalEditModal';
+import type { WatchRecord } from './EntryRowMovieShow';
 import './InfoModal.css';
 
 interface PersonInfoModalProps {
@@ -38,7 +43,12 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBiography, setShowBiography] = useState(false);
+  const [projectInfoTarget, setProjectInfoTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [projectEditTarget, setProjectEditTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [isSavingProject, setIsSavingProject] = useState(false);
   const { settings } = useSettingsStore();
+  const { classes: movieClasses, getClassLabel: getMovieClassLabel, getMovieById, addMovieFromSearch, updateMovieWatchRecords, moveItemToClass: moveMovieToClass, removeMovieEntry } = useMoviesStore();
+  const { classes: tvClasses, getClassLabel: getTvClassLabel, getShowById, addShowFromSearch, updateShowWatchRecords, moveItemToClass: moveShowToClass, removeShowEntry } = useTvStore();
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -149,6 +159,121 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  if (projectInfoTarget) {
+    return (
+      <InfoModal
+        isOpen
+        onClose={() => setProjectInfoTarget(null)}
+        tmdbId={projectInfoTarget.tmdbId}
+        mediaType={projectInfoTarget.mediaType}
+        title={projectInfoTarget.title}
+        posterPath={projectInfoTarget.posterPath}
+        releaseDate={projectInfoTarget.releaseDate}
+        onEditWatches={() => {
+          setProjectInfoTarget(null);
+          setProjectEditTarget(projectInfoTarget);
+        }}
+      />
+    );
+  }
+
+  if (projectEditTarget) {
+    const targetId = `tmdb-${projectEditTarget.mediaType}-${projectEditTarget.tmdbId}`;
+    const existingItem = projectEditTarget.mediaType === 'movie' ? getMovieById(targetId) : getShowById(targetId);
+    const rankedClasses = (projectEditTarget.mediaType === 'movie' ? movieClasses : tvClasses).map((c) => ({
+      key: c.key,
+      label: c.label,
+      tagline: c.tagline,
+      isRanked: c.isRanked,
+    }));
+    const currentClassLabel = existingItem
+      ? projectEditTarget.mediaType === 'movie'
+        ? getMovieClassLabel(existingItem.classKey)
+        : getTvClassLabel(existingItem.classKey)
+      : undefined;
+
+    return (
+      <UniversalEditModal
+        target={{
+          id: targetId,
+          tmdbId: projectEditTarget.tmdbId,
+          title: projectEditTarget.title,
+          posterPath: projectEditTarget.posterPath,
+          mediaType: projectEditTarget.mediaType,
+          subtitle: projectEditTarget.releaseDate ? String(projectEditTarget.releaseDate.slice(0, 4)) : undefined,
+          releaseDate: projectEditTarget.releaseDate,
+          existingClassKey: existingItem?.classKey,
+        } as UniversalEditTarget}
+        rankedClasses={rankedClasses}
+        initialWatches={existingItem?.watchRecords}
+        currentClassKey={existingItem?.classKey}
+        currentClassLabel={currentClassLabel}
+        isSaving={isSavingProject}
+        onClose={() => setProjectEditTarget(null)}
+        onRemoveEntry={(itemId: string) => {
+          if (projectEditTarget.mediaType === 'movie') removeMovieEntry(itemId);
+          else removeShowEntry(itemId);
+          setProjectEditTarget(null);
+        }}
+        onSave={async (params) => {
+          const watches: WatchRecord[] = params.watches.map((w: any) => {
+            let type: WatchRecord['type'] = 'DATE';
+            if (w.watchType === 'DATE_RANGE') type = 'RANGE';
+            else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
+            if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
+            else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
+            return {
+              id: w.id,
+              type,
+              year: w.year,
+              month: w.month,
+              day: w.day,
+              endYear: w.endYear,
+              endMonth: w.endMonth,
+              endDay: w.endDay,
+              dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
+            };
+          });
+
+          setIsSavingProject(true);
+          try {
+            if (projectEditTarget.mediaType === 'movie') {
+              if (!getMovieById(targetId)) {
+                addMovieFromSearch({
+                  id: targetId,
+                  title: projectEditTarget.title,
+                  subtitle: 'Saved',
+                  classKey: params.classKey || 'UNRANKED',
+                  posterPath: projectEditTarget.posterPath,
+                });
+              }
+              updateMovieWatchRecords(targetId, watches);
+              if (params.classKey) {
+                moveMovieToClass(targetId, params.classKey, params.position === 'top' ? { toTop: true } : params.position === 'middle' ? { toMiddle: true } : undefined);
+              }
+            } else {
+              if (!getShowById(targetId)) {
+                addShowFromSearch({
+                  id: targetId,
+                  title: projectEditTarget.title,
+                  subtitle: 'Saved',
+                  classKey: params.classKey || 'UNRANKED',
+                });
+              }
+              updateShowWatchRecords(targetId, watches);
+              if (params.classKey) {
+                moveShowToClass(targetId, params.classKey, params.position === 'top' ? { toTop: true } : params.position === 'middle' ? { toMiddle: true } : undefined);
+              }
+            }
+            setProjectEditTarget(null);
+          } finally {
+            setIsSavingProject(false);
+          }
+        }}
+      />
+    );
+  }
 
   const getYear = (date?: string) => {
     if (!date) return '';
@@ -265,11 +390,49 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                 <div className="info-modal-cast-scroll">
                   {filteredRoles.slice(0, 20).map(project => (
                     <div key={`${project.mediaType}-${project.id}`} className="info-modal-cast-member">
-                      {project.posterPath ? (
-                        <img src={tmdbImagePath(project.posterPath, 'w300')!} alt={project.title} />
-                      ) : (
-                        <div className="info-modal-cast-placeholder">{project.title[0]}</div>
-                      )}
+                      {(() => {
+                        const entryId = `tmdb-${project.mediaType}-${project.id}`;
+                        const saved = project.mediaType === 'movie' ? !!getMovieById(entryId) : !!getShowById(entryId);
+                        return (
+                          <div className="info-modal-person-card">
+                            {project.posterPath ? (
+                              <img src={tmdbImagePath(project.posterPath, 'w300')!} alt={project.title} className="info-modal-cast-portrait" />
+                            ) : (
+                              <div className="info-modal-cast-placeholder info-modal-cast-portrait">{project.title[0]}</div>
+                            )}
+                            <div className="info-modal-person-actions">
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={`View ${project.title} info`}
+                                onClick={() => setProjectInfoTarget({
+                                  tmdbId: project.id,
+                                  mediaType: project.mediaType,
+                                  title: project.title,
+                                  posterPath: project.posterPath,
+                                  releaseDate: project.releaseDate,
+                                })}
+                              >
+                                <Info size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                title={saved ? `Edit ${project.title}` : `Add ${project.title}`}
+                                onClick={() => setProjectEditTarget({
+                                  tmdbId: project.id,
+                                  mediaType: project.mediaType,
+                                  title: project.title,
+                                  posterPath: project.posterPath,
+                                  releaseDate: project.releaseDate,
+                                })}
+                              >
+                                {saved ? <Edit size={13} /> : <Plus size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="info-modal-cast-info">
                         <div className="info-modal-cast-name">{project.title}</div>
                         <div className="info-modal-cast-character">

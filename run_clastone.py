@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+
+# FOR MOBILE TESTING:
+# npm run dev:ui -- --host 0.0.0.0 --port 6001
+# http://10.0.0.93:6001
+# FOR MOBILE TESTING^
+
 from __future__ import annotations
 
 import os

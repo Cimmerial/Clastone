@@ -50,7 +50,7 @@ export function MoviesPage() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
-  const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; entryId?: string; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const {
     byClass,
     classOrder,
@@ -252,6 +252,7 @@ export function MoviesPage() {
                 const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0);
                 setInfoModalTarget({
                   tmdbId,
+                  entryId: entry.id,
                   title: entry.title,
                   posterPath: entry.posterPath,
                   releaseDate: entry.releaseDate,
@@ -461,6 +462,14 @@ export function MoviesPage() {
           title={infoModalTarget.title}
           posterPath={infoModalTarget.posterPath}
           releaseDate={infoModalTarget.releaseDate}
+          collectionTags={(() => {
+            const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`;
+            return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({
+              id,
+              label: globalCollections.find((item) => item.id === id)?.name ?? id,
+              color: globalCollections.find((item) => item.id === id)?.color,
+            }));
+          })()}
           onEditWatches={() => {
             // Find the movie item from the current data
             const movieItem = Object.values(byClass).flat().find(item =>
