@@ -622,7 +622,7 @@ export function WatchlistPage() {
   const navigate = useNavigate();
   const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { settings, updateSettings } = useSettingsStore();
-  const { mode: mobileViewMode } = useMobileViewMode();
+  const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   // On mobile this is forced to 'tile'; on desktop it follows user settings
   const activeViewMode = mobileViewMode;
   const { friends } = useFriends();
@@ -1048,7 +1048,7 @@ export function WatchlistPage() {
     window.scrollTo({ top, behavior: 'smooth' });
   };
 
-  const sortableEnabled = watchlistVisibilityMode === 'ALL';
+  const sortableEnabled = watchlistVisibilityMode === 'ALL' && !isMobile;
 
   const renderSeparatedWatchlist = (
     entries: WatchlistEntry[],

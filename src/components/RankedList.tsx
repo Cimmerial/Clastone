@@ -15,6 +15,7 @@ import {
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { forwardRef, useState, useCallback, useRef, createContext, useContext } from 'react';
+import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import './RankedList.css';
 
 export type ClassKey = string;
@@ -126,6 +127,10 @@ function RankedListInner<T extends RankedItemBase>(
   ref: React.Ref<HTMLDivElement>
 ) {
   const isTile = viewMode === 'tile';
+  const { isMobile } = useMobileViewMode();
+  const canReorderWithinClass = isMobile ? undefined : onReorderWithinClass;
+  const canMoveBetweenClasses = isMobile ? undefined : onMoveBetweenClasses;
+  const dragEnabled = Boolean(canReorderWithinClass || canMoveBetweenClasses);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<T | null>(null);
   const [draggedFromClass, setDraggedFromClass] = useState<ClassKey | null>(null);
@@ -156,10 +161,11 @@ function RankedListInner<T extends RankedItemBase>(
   
   // Initiate drag programmatically (for drag button)
   const initiateDrag = useCallback((itemId: string, item: T, classKey: ClassKey) => {
+    if (isMobile) return;
     setProgrammaticDrag({ itemId, item, classKey });
     setDraggedItem(item);
     setDraggedFromClass(classKey);
-  }, []);
+  }, [isMobile]);
   
   // Cancel programmatic drag
   const cancelDrag = useCallback(() => {
@@ -431,7 +437,7 @@ function RankedListInner<T extends RankedItemBase>(
       ? overData.classKey as ClassKey
       : overData?.classKey as ClassKey | undefined;
     
-    if (onMoveBetweenClasses && draggedFromClass && overClassKey && overClassKey !== draggedFromClass) {
+    if (canMoveBetweenClasses && draggedFromClass && overClassKey && overClassKey !== draggedFromClass) {
       const targetItems = itemsByClass[overClassKey] ?? [];
       let insertIndex = 0;
       
@@ -443,12 +449,12 @@ function RankedListInner<T extends RankedItemBase>(
         }
       }
       
-      onMoveBetweenClasses(activeId, overClassKey, { atIndex: insertIndex });
+      canMoveBetweenClasses(activeId, overClassKey, { atIndex: insertIndex });
       return;
     }
     
     // Handle within-class reordering
-    if (!onReorderWithinClass) {
+    if (!canReorderWithinClass) {
       return;
     }
     
@@ -466,7 +472,7 @@ function RankedListInner<T extends RankedItemBase>(
     }
     
     const reordered = arrayMove([...items], oldIndex, newIndex);
-    onReorderWithinClass(classKey, reordered.map((i) => i.id));
+    canReorderWithinClass(classKey, reordered.map((i) => i.id));
   };
 
   // Handle click-to-drop for programmatic drag
@@ -483,10 +489,10 @@ function RankedListInner<T extends RankedItemBase>(
         }
       }
       
-      onMoveBetweenClasses?.(programmaticDrag.itemId, dragOverClass, { atIndex: insertIndex });
+      canMoveBetweenClasses?.(programmaticDrag.itemId, dragOverClass, { atIndex: insertIndex });
       cancelDrag();
     }
-  }, [programmaticDrag, dragOverClass, dragOverItemId, insertAfter, itemsByClass, onMoveBetweenClasses, cancelDrag]);
+  }, [programmaticDrag, dragOverClass, dragOverItemId, insertAfter, itemsByClass, canMoveBetweenClasses, cancelDrag]);
   const content = (
     <div className="ranked-list-body">
       {classOrder.map((classKey) => {
@@ -529,7 +535,7 @@ function RankedListInner<T extends RankedItemBase>(
                 {renderClassActions ? renderClassActions(classKey, items) : null}
               </header>
               <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''}`}>
-                {onReorderWithinClass ? (
+                {canReorderWithinClass ? (
                   <SortableContext
                     items={sortableIds}
                     strategy={isTile ? rectSortingStrategy : verticalListSortingStrategy}
@@ -591,11 +597,11 @@ function RankedListInner<T extends RankedItemBase>(
 
   const dragContextValue = {
     initiateDrag,
-    isDragging: isDragActive,
+    isDragging: dragEnabled && isDragActive,
     activeItemId: effectiveActiveId
   };
 
-  if (onReorderWithinClass || onMoveBetweenClasses) {
+  if (dragEnabled) {
     return (
       <DragInitiateContext.Provider value={dragContextValue}>
         <div 
