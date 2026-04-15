@@ -260,7 +260,11 @@
 .profile-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.9rem;
+  gap: 0.4rem;
+}
+
+.profile-grid--people {
+  margin-top: 0.4rem;
 }
 
 @media (min-width: 860px) {

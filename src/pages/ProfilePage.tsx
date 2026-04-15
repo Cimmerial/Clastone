@@ -1965,7 +1965,7 @@ export function ProfilePage() {
       </div>
 
       {(hasActors || hasDirectors) && (
-        <div className="profile-grid">
+        <div className="profile-grid profile-grid--people">
           {hasActors && (
             <div className="profile-card card-surface">
               <div className="profile-card-header">

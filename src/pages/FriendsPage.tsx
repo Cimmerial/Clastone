@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
+import { tmdbImagePath } from '../lib/tmdb';
 import './FriendsPage.css';
 
 interface UserProfile {
@@ -13,6 +14,7 @@ interface UserProfile {
   username: string;
   email: string;
   createdAt: string;
+  pfpPosterPath?: string;
 }
 
 export function FriendsPage() {
@@ -34,6 +36,7 @@ export function FriendsPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [friendCountsByUid, setFriendCountsByUid] = useState<Record<string, { movies: number; shows: number }>>({});
+  const [cachedOrderByUid, setCachedOrderByUid] = useState<Record<string, number>>({});
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -72,6 +75,30 @@ export function FriendsPage() {
   };
 
   const loggedIn = !!user;
+  const cacheKeyBase = user?.uid ? `clastone:friends-page:${user.uid}` : null;
+
+  useEffect(() => {
+    if (!loggedIn || !cacheKeyBase) return;
+    try {
+      const cachedCountsRaw = localStorage.getItem(`${cacheKeyBase}:counts`);
+      if (cachedCountsRaw) {
+        const cachedCounts = JSON.parse(cachedCountsRaw) as Record<string, { movies: number; shows: number }>;
+        setFriendCountsByUid(cachedCounts);
+      }
+      const cachedOrderRaw = localStorage.getItem(`${cacheKeyBase}:order`);
+      if (cachedOrderRaw) {
+        const cachedOrder = JSON.parse(cachedOrderRaw) as string[];
+        const orderMap: Record<string, number> = {};
+        cachedOrder.forEach((uid, idx) => {
+          orderMap[uid] = idx;
+        });
+        setCachedOrderByUid(orderMap);
+      }
+    } catch {
+      // Ignore local cache parsing issues; we can always rebuild from live data.
+    }
+  }, [loggedIn, cacheKeyBase]);
+
   const sortedFriends = useMemo(() => {
     return [...friends].sort((a, b) => {
       const countsA = friendCountsByUid[a.uid] ?? { movies: 0, shows: 0 };
@@ -79,9 +106,12 @@ export function FriendsPage() {
       const totalA = countsA.movies + countsA.shows;
       const totalB = countsB.movies + countsB.shows;
       if (totalA !== totalB) return totalB - totalA;
+      const cachedA = cachedOrderByUid[a.uid];
+      const cachedB = cachedOrderByUid[b.uid];
+      if (cachedA != null && cachedB != null && cachedA !== cachedB) return cachedA - cachedB;
       return a.username.localeCompare(b.username);
     });
-  }, [friends, friendCountsByUid]);
+  }, [friends, friendCountsByUid, cachedOrderByUid]);
 
   useEffect(() => {
     if (!loggedIn || !db || friends.length === 0) {
@@ -108,17 +138,40 @@ export function FriendsPage() {
         })
       );
       if (cancelled) return;
-      setFriendCountsByUid(Object.fromEntries(results));
+      const nextCounts = Object.fromEntries(results);
+      setFriendCountsByUid(nextCounts);
+      if (cacheKeyBase) {
+        try {
+          localStorage.setItem(`${cacheKeyBase}:counts`, JSON.stringify(nextCounts));
+        } catch {
+          // Ignore localStorage failures (e.g. quota/private mode).
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [loggedIn, friends]);
+  }, [loggedIn, friends, cacheKeyBase]);
+
+  useEffect(() => {
+    if (!cacheKeyBase || sortedFriends.length === 0) return;
+    const order = sortedFriends.map((f) => f.uid);
+    try {
+      localStorage.setItem(`${cacheKeyBase}:order`, JSON.stringify(order));
+    } catch {
+      // Ignore localStorage failures (e.g. quota/private mode).
+    }
+    const orderMap: Record<string, number> = {};
+    order.forEach((uid, idx) => {
+      orderMap[uid] = idx;
+    });
+    setCachedOrderByUid(orderMap);
+  }, [sortedFriends, cacheKeyBase]);
 
   return (
     <div className="friends-page">
-      <div className="friends-container">
+      <div className={`friends-container ${loggedIn && receivedRequests.length === 0 ? 'friends-container--no-requests' : ''}`}>
         <header className="friends-header">
           <h1>People</h1>
           {loggedIn && (
@@ -262,7 +315,13 @@ export function FriendsPage() {
                 const subtitle = countParts.length > 0 ? countParts.join(' - ') : 'View profile';
                 return (
                   <Link key={friend.uid} to={`/friends/${friend.uid}`} className="friend-card">
-                    <div className="friend-avatar">{friend.username.charAt(0).toUpperCase()}</div>
+                    <div className="friend-avatar">
+                      {friend.pfpPosterPath ? (
+                        <img src={tmdbImagePath(friend.pfpPosterPath, 'w92') ?? ''} alt={friend.username} loading="lazy" />
+                      ) : (
+                        friend.username.charAt(0).toUpperCase()
+                      )}
+                    </div>
                     <div className="friend-info">
                       <strong>{friend.username}</strong>
                       <span>{subtitle}</span>

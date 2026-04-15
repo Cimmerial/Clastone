@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUp, ArrowDown, ChevronDown, ChevronRight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { updateProfile } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
@@ -21,6 +23,7 @@ import {
   type FirebaseQuote,
   type QuoteCategory,
 } from '../lib/firestoreQuotes';
+import { tmdbImagePath } from '../lib/tmdb';
 import './SettingsPage.css';
 
 const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings', 'general'];
@@ -34,6 +37,7 @@ export function SettingsPage() {
   const {
     classes,
     byClass,
+    getMovieById,
     addClass,
     renameClassLabel,
     renameClassTagline,
@@ -44,6 +48,7 @@ export function SettingsPage() {
   const {
     classes: tvClasses,
     byClass: tvByClass,
+    getShowById,
     addClass: addTvClass,
     renameClassLabel: renameTvClassLabel,
     renameClassTagline: renameTvClassTagline,
@@ -100,6 +105,10 @@ export function SettingsPage() {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showQuotesList, setShowQuotesList] = useState(false);
   const [pendingDeleteQuoteId, setPendingDeleteQuoteId] = useState<string | null>(null);
+  const [showPfpModal, setShowPfpModal] = useState(false);
+  const [pfpQuery, setPfpQuery] = useState('');
+  const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
+  const [savingPfp, setSavingPfp] = useState(false);
 
   const signedIn = hasFirebaseConfig && user;
 
@@ -137,6 +146,50 @@ export function SettingsPage() {
     const ms = Date.now() - createdAt.getTime();
     return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
   }, [user?.metadata.creationTime]);
+
+  const savedPosterCandidates = useMemo(() => {
+    const movies = Object.values(byClass).flat().map((item) => ({
+      id: item.id,
+      title: item.title,
+      posterPath: item.posterPath,
+      mediaType: 'movie' as const,
+      absoluteRank: item.absoluteRank,
+    }));
+    const shows = Object.values(tvByClass).flat().map((item) => ({
+      id: item.id,
+      title: item.title,
+      posterPath: item.posterPath,
+      mediaType: 'tv' as const,
+      absoluteRank: item.absoluteRank,
+    }));
+    return [...movies, ...shows].filter((item) => Boolean(item.posterPath));
+  }, [byClass, tvByClass]);
+
+  const parseAbsoluteRank = (value?: string): number => {
+    if (!value) return -1;
+    const m = value.match(/^(\d+)\s*\/\s*\d+$/);
+    return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+  };
+
+  const filteredPfpCandidates = useMemo(() => {
+    const q = pfpQuery.trim().toLowerCase();
+    const source = q
+      ? savedPosterCandidates.filter((item) => item.title.toLowerCase().includes(q))
+      : savedPosterCandidates;
+    return source
+      .slice()
+      .sort((a, b) => {
+        if (a.mediaType !== b.mediaType) return a.mediaType === 'movie' ? -1 : 1;
+        const rankA = parseAbsoluteRank(
+          a.mediaType === 'movie' ? (a.absoluteRank ?? getMovieById(a.id)?.absoluteRank) : (a.absoluteRank ?? getShowById(a.id)?.absoluteRank)
+        );
+        const rankB = parseAbsoluteRank(
+          b.mediaType === 'movie' ? (b.absoluteRank ?? getMovieById(b.id)?.absoluteRank) : (b.absoluteRank ?? getShowById(b.id)?.absoluteRank)
+        );
+        if (rankA !== rankB) return rankA - rankB;
+        return a.title.localeCompare(b.title);
+      });
+  }, [savedPosterCandidates, pfpQuery, getMovieById, getShowById]);
 
   const refreshQuotes = async () => {
     if (!db) return;
@@ -177,6 +230,40 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, [signedIn, isAdmin]);
+
+  useEffect(() => {
+    if (!signedIn || !db || !user?.uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (cancelled) return;
+        const data = snap.data();
+        const posterPath = typeof data?.pfpPosterPath === 'string' ? data.pfpPosterPath : null;
+        setPfpPosterPath(posterPath);
+      } catch {
+        if (!cancelled) setPfpPosterPath(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, user?.uid]);
+
+  const savePfp = async (posterPath: string | null) => {
+    if (!signedIn || !db || !user) return;
+    setSavingPfp(true);
+    try {
+      const photoURL = posterPath ? tmdbImagePath(posterPath, 'w185') : null;
+      await updateProfile(user, { photoURL: photoURL ?? null });
+      await setDoc(doc(db, 'users', user.uid), { pfpPosterPath: posterPath }, { merge: true });
+      setPfpPosterPath(posterPath);
+      setShowPfpModal(false);
+      setPfpQuery('');
+    } finally {
+      setSavingPfp(false);
+    }
+  };
 
   const handleToggleSection = (section: ClassSectionKey) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -940,6 +1027,23 @@ export function SettingsPage() {
                 {signedIn && accountAgeDays !== null ? `${accountAgeDays} days` : 'N/A'}
               </span>
             </div>
+            <div className="settings-account-row">
+              <span className="settings-account-label">Profile Picture</span>
+              <span className="settings-account-value settings-account-value--pfp">
+                {pfpPosterPath ? (
+                  <img
+                    src={tmdbImagePath(pfpPosterPath, 'w92') ?? ''}
+                    alt="Current profile picture"
+                    className="settings-pfp-preview"
+                  />
+                ) : (
+                  'Not set'
+                )}
+                <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setShowPfpModal(true)}>
+                  Choose
+                </button>
+              </span>
+            </div>
           </div>
           {signedIn && (
             <button type="button" className="settings-btn" onClick={() => signOut()}>
@@ -1101,6 +1205,57 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {showPfpModal && (
+        <div className="settings-modal-backdrop" role="presentation" onClick={() => setShowPfpModal(false)}>
+          <div
+            className="settings-modal settings-pfp-modal card-surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose profile picture"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="settings-title">Choose Profile Picture</h4>
+            <input
+              className="settings-input"
+              placeholder="Search your saved movies/shows..."
+              value={pfpQuery}
+              onChange={(e) => setPfpQuery(e.target.value)}
+              autoFocus
+            />
+            <div className="settings-pfp-grid">
+              {filteredPfpCandidates.slice(0, 120).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="settings-pfp-option"
+                  onClick={() => void savePfp(item.posterPath ?? null)}
+                  disabled={savingPfp}
+                  title={`${item.title} (${item.mediaType === 'movie' ? 'Movie' : 'Show'})`}
+                >
+                  <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt={item.title} loading="lazy" />
+                </button>
+              ))}
+              {filteredPfpCandidates.length === 0 ? (
+                <p className="settings-muted">No saved entries with posters match this search.</p>
+              ) : null}
+            </div>
+            <div className="settings-list-actions">
+              <button
+                type="button"
+                className="settings-btn settings-btn-subtle"
+                onClick={() => void savePfp(null)}
+                disabled={savingPfp}
+              >
+                Clear profile picture
+              </button>
+              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setShowPfpModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section >
   );
 }

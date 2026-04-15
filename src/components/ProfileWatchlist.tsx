@@ -379,7 +379,6 @@ export function ProfileWatchlist({
           <div className="profile-watchlist-sections">
             {currentCategorized.defaultWatchlist.length > 0 && (
               <div className="profile-watchlist-category profile-watchlist-category--default">
-                <div className="profile-watchlist-category-label">Default watchlist</div>
                 {renderTiles(currentCategorized.defaultWatchlist, viewType === 'movies')}
               </div>
             )}

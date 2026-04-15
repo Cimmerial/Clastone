@@ -2,8 +2,8 @@
 .profile-split-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-top: 24px;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
 }
 
 .profile-split-layout .profile-recent {
@@ -18,11 +18,11 @@
 @media (max-width: 1024px) {
   .profile-split-layout {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 0.4rem;
   }
   
   .profile-split-layout .profile-recent,
   .profile-split-layout .profile-watchlist {
-    margin-top: 24px;
+    margin-top: 0.4rem;
   }
 }
