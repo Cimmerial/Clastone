@@ -536,6 +536,11 @@
   .friends-grid {
     grid-template-columns: 1fr;
   }
+
+  .friend-avatar {
+    width: 52px;
+    height: 52px;
+  }
   
   .result-item {
     flex-direction: column;

@@ -659,6 +659,34 @@
   animation: highlightPulse 2s ease-in-out;
 }
 
+@media (max-width: 768px) {
+  .watchlist-page .entry-record-first,
+  .watchlist-page .watchlist-tile-remove-btn {
+    min-width: 20px;
+    min-height: 20px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0.58rem;
+    letter-spacing: 0.03em;
+    line-height: 1;
+  }
+
+  .watchlist-page .entry-tile-quick-actions {
+    gap: 0.25rem;
+  }
+
+  .watchlist-page .entry-tile-quick-actions button {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 0.58rem;
+    padding: 0;
+  }
+}
+
 @keyframes highlightPulse {
   0% {
     background-color: rgba(244, 162, 97, 0.3);

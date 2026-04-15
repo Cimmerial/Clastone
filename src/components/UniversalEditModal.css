@@ -1051,36 +1051,69 @@
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
+  .uem-backdrop {
+    padding: 26px 12px;
+  }
+
   .uem-modal {
-    width: 100%;
-    max-height: 75vh; /* Reduced from 100vh to make it 25% shorter */
-    border-radius: 0;
+    width: min(680px, calc(100vw - 20px));
+    max-height: 80vh;
+    border-radius: 12px;
   }
 
   .uem-header {
-    padding: 12px 16px;
-    gap: 12px;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .uem-title {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .uem-subtitle {
+    font-size: 0.68rem;
+  }
+
+  .uem-info-btn,
+  .uem-close-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+
+  .uem-watchlist-actions {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .uem-watchlist-btn {
+    font-size: 0.56rem;
+    padding: 3px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.01em;
+  }
+
+  .uem-watchlist-btn svg {
+    width: 11px;
+    height: 11px;
   }
 
   .uem-body {
-    padding: 12px 16px;
-    gap: 16px;
+    padding: 10px 12px;
+    gap: 12px;
   }
 
   .uem-section-header {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .uem-section-title {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .uem-section-subtitle {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
   }
 
   .uem-matrix-header {
@@ -1088,89 +1121,188 @@
   }
 
   .uem-matrix-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    grid-template-areas:
+      "type time time"
+      "amount details actions";
+    gap: 5px 8px;
+    padding: 8px 9px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .uem-matrix-cell {
+    min-height: 20px;
+    font-size: 0.7rem;
+  }
+
+  .uem-matrix-cell--type { grid-area: type; }
+  .uem-matrix-cell--time { grid-area: time; }
+  .uem-matrix-cell--amount { grid-area: amount; }
+  .uem-matrix-cell--details { grid-area: details; }
+  .uem-matrix-cell--actions { grid-area: actions; }
+
+  .uem-matrix-cell--type {
     width: 100%;
-    min-height: 24px;
+    max-width: none;
   }
 
-  .uem-matrix-cell--type::before {
-    content: 'Type: ';
-    color: #666;
-    font-size: 0.65rem;
+  .uem-matrix-cell--amount {
+    align-items: center;
   }
 
-  .uem-matrix-cell--time::before {
-    content: 'Date: ';
-    color: #666;
-    font-size: 0.65rem;
+  .uem-matrix-cell--details {
+    justify-content: flex-start;
+    align-items: center;
   }
 
-  .uem-matrix-cell--amount::before {
-    content: 'Progress: ';
-    color: #666;
-    font-size: 0.65rem;
+  .uem-matrix-cell--actions {
+    justify-content: flex-end;
+    align-items: center;
+    width: auto;
+    min-width: 24px;
+    padding-right: 0;
   }
 
-  .uem-matrix-cell--details::before {
-    content: 'Status: ';
-    color: #666;
-    font-size: 0.65rem;
+  .uem-matrix-cell--type .uem-type-dd .themed-dropdown-trigger {
+    min-height: 20px;
+    height: 20px;
+    padding: 2px 5px;
+    font-size: 0.6rem;
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  .uem-dp-wrap--compact .uem-dp-trigger,
+  .uem-dp-trigger {
+    height: 24px;
+    padding: 0 6px;
+    font-size: 0.66rem;
+    border-radius: 5px;
+  }
+
+  .uem-dp-sep {
+    font-size: 0.58rem;
+  }
+
+  .uem-preset-dd .themed-dropdown-trigger {
+    min-height: 22px;
+    padding: 3px 6px;
+    font-size: 0.56rem;
   }
 
   .uem-amount-display {
-    font-size: 0.7rem;
+    font-size: 0.64rem;
+  }
+
+  .uem-amount-slider {
+    height: 1px;
+  }
+
+  .uem-amount-slider--complete::-webkit-slider-thumb,
+  .uem-amount-slider--dnf::-webkit-slider-thumb,
+  .uem-amount-slider--watching::-webkit-slider-thumb,
+  .uem-amount-slider--default::-webkit-slider-thumb {
+    width: 10px;
+    height: 10px;
+    border-width: 1px;
+  }
+
+  .uem-amount-slider--complete::-moz-range-thumb,
+  .uem-amount-slider--dnf::-moz-range-thumb,
+  .uem-amount-slider--watching::-moz-range-thumb,
+  .uem-amount-slider--default::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-width: 1px;
   }
 
   .uem-status-btn {
-    font-size: 0.6rem;
-    padding: 4px 8px;
+    font-size: 0.52rem;
+    padding: 2px 5px;
   }
 
   .uem-time-with-preset {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .uem-date-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 4px;
   }
 
+  .uem-date-group {
+    flex-wrap: nowrap;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .uem-remove-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+  }
+
   .uem-add-btn {
-    margin-top: 8px;
-    padding: 6px 12px;
-    font-size: 0.7rem;
+    margin-top: 6px;
+    padding: 5px 10px;
+    font-size: 0.64rem;
+    border-radius: 6px;
+  }
+
+  .uem-current-rank {
+    gap: 10px;
+    padding: 10px 11px;
+    border-radius: 8px;
+  }
+
+  .uem-current-rank-label {
+    font-size: 0.58rem;
+  }
+
+  .uem-current-rank-value {
+    font-size: 0.78rem;
+  }
+
+  .uem-override-btn {
+    font-size: 0.62rem;
+    padding: 4px 9px;
   }
 
   .uem-class-row {
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 7px 8px;
+    gap: 6px;
   }
 
   .uem-class-name {
-    font-size: 0.75rem;
-  }
-
-  .uem-class-tagline {
-    font-size: 0.65rem;
-  }
-
-  .uem-place-btn {
-    width: 22px;
-    height: 22px;
     font-size: 0.7rem;
   }
 
+  .uem-class-tagline {
+    font-size: 0.58rem;
+  }
+
+  .uem-place-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 0.62rem;
+  }
+
+  .uem-tag-cloud {
+    gap: 6px;
+  }
+
+  .uem-tag-chip {
+    gap: 4px;
+    padding: 3px 6px;
+    font-size: 0.58rem;
+  }
+
+  .uem-tag-link {
+    width: 14px;
+    height: 14px;
+  }
+
   .uem-footer {
-    padding: 12px 16px;
-    gap: 8px;
+    padding: 8px 12px;
+    gap: 6px;
   }
 
   .uem-footer-inner {
@@ -1189,39 +1321,55 @@
 
   .uem-save-btns .uem-btn {
     flex: 1;
-    min-width: 100px;
-    height: 34px;
-    font-size: 0.75rem;
-    padding: 0 12px;
+    min-width: 86px;
+    height: 30px;
+    font-size: 0.68rem;
+    padding: 0 10px;
   }
 
   .uem-delete-btn {
     width: 100%;
-    height: 34px;
-    font-size: 0.75rem;
+    height: 30px;
+    font-size: 0.68rem;
+    padding: 0 10px;
   }
 
   .uem-error {
-    font-size: 0.7rem;
-    padding: 8px 10px;
+    font-size: 0.64rem;
+    padding: 6px 8px;
   }
 }
 
 @media (max-width: 480px) {
+  .uem-backdrop {
+    padding: 28px 12px;
+  }
+
+  .uem-modal {
+    width: min(680px, calc(100vw - 24px));
+    max-height: 78vh;
+  }
+
+  .uem-watchlist-btn {
+    font-size: 0.52rem;
+    padding: 2px 6px;
+  }
+
   .uem-header {
-    padding: 16px 18px;
+    padding: 8px 10px;
   }
 
   .uem-body {
-    padding: 18px;
+    padding: 8px 10px;
+    gap: 10px;
   }
 
   .uem-title {
-    font-size: 1rem;
+    font-size: 0.76rem;
   }
 
   .uem-class-row {
-    padding: 8px 12px;
+    padding: 6px 7px;
   }
 
   .uem-placement-btns {
@@ -1229,7 +1377,7 @@
   }
 
   .uem-place-btn {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
   }
 }

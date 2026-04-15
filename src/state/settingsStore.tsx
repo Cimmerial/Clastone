@@ -10,8 +10,6 @@ export type GlobalSettings = {
     excludeSimpsons: boolean;
     excludeSelfRoles: boolean;
     useSpotlightBackground: boolean;
-    showHomepageFlag: boolean;
-    dismissedHomepageFlags: string[];
     watchRegion: string;
     myWatchProviderIds: number[];
 };
@@ -35,8 +33,6 @@ function getInitialSettings(): GlobalSettings {
         const es = localStorage.getItem('clastone-excludeSimpsons');
         const esr = localStorage.getItem('clastone-excludeSelfRoles');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
-        const shf = localStorage.getItem('clastone-showHomepageFlag');
-        const dhf = localStorage.getItem('clastone-dismissedHomepageFlags');
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
@@ -52,15 +48,6 @@ function getInitialSettings(): GlobalSettings {
         let tileViewSize: 'small' | 'default' | 'big' = 'default';
         if (tvs === 'small' || tvs === 'default' || tvs === 'big') {
             tileViewSize = tvs as any;
-        }
-
-        let dismissedHomepageFlags: string[] = [];
-        if (dhf) {
-            try {
-                dismissedHomepageFlags = JSON.parse(dhf);
-            } catch {
-                dismissedHomepageFlags = [];
-            }
         }
 
         let myWatchProviderIds: number[] = [];
@@ -85,8 +72,6 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: es === 'true',
             excludeSelfRoles: esr === 'true',
             useSpotlightBackground: usb === 'true',
-            showHomepageFlag: shf !== 'false',
-            dismissedHomepageFlags,
             watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
             myWatchProviderIds
         };
@@ -101,8 +86,6 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: false,
             excludeSelfRoles: false,
             useSpotlightBackground: false,
-            showHomepageFlag: true,
-            dismissedHomepageFlags: [],
             watchRegion: 'US',
             myWatchProviderIds: []
         };
@@ -173,8 +156,6 @@ export function SettingsProvider({
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
                 if (updates.excludeSelfRoles !== undefined) localStorage.setItem('clastone-excludeSelfRoles', String(next.excludeSelfRoles));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
-                if (updates.showHomepageFlag !== undefined) localStorage.setItem('clastone-showHomepageFlag', String(next.showHomepageFlag));
-                if (updates.dismissedHomepageFlags !== undefined) localStorage.setItem('clastone-dismissedHomepageFlags', JSON.stringify(next.dismissedHomepageFlags));
                 if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
                 if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
 

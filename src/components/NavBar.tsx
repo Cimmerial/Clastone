@@ -1,9 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
-import { AnimatedArrow } from './AnimatedArrow';
 import './NavBar.css';
 
 const mainLinks = [
@@ -25,28 +23,12 @@ const iconLinks = [
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { settings, updateSettings } = useSettingsStore();
   const { isAdmin } = useAuth();
-
-  // Check if homepage flag should be shown
-  const shouldShowHomepageFlag = useMemo(() => {
-    if (settings.showHomepageFlag === false) return false;
-    const currentFlagVersion = 'v1.0'; // You can change this when you want to show a new flag
-    return !settings.dismissedHomepageFlags.includes(currentFlagVersion);
-  }, [settings]);
 
   // Filter icon links based on admin status
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
   }, [isAdmin]);
-
-  const handleDismissFlag = () => {
-    const currentFlagVersion = 'v1.0';
-    if (!settings.dismissedHomepageFlags.includes(currentFlagVersion)) {
-      const newDismissed = [...settings.dismissedHomepageFlags, currentFlagVersion];
-      updateSettings({ dismissedHomepageFlags: newDismissed });
-    }
-  };
 
   return (
     <header className="nav-root">
@@ -56,16 +38,9 @@ export function NavBar() {
             <NavLink 
               to="/home" 
               className="nav-logo-mark"
-              onClick={handleDismissFlag}
             >
               CLASTONE
             </NavLink>
-            {shouldShowHomepageFlag && (
-              <NavLink to="/home" className="nav-homepage-flag" onClick={handleDismissFlag}>
-                <AnimatedArrow size={16} />
-                <span>NEW</span>
-              </NavLink>
-            )}
             <div className="nav-logo-dropdown">
               <nav className="nav-menu nav-menu-left">
                 {mainLinks.map((link) => (

@@ -76,6 +76,33 @@
     pointer-events: auto !important;
   }
 
+  /* Make info + settings controls smaller on mobile entries */
+  .entry-title-info-btn {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .entry-title-info-btn svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  .entry-tile-info-btn button,
+  .entry-settings-btn {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    min-height: 22px !important;
+    padding: 0 !important;
+    font-size: 0.66rem !important;
+  }
+
+  .entry-tile-info-btn button svg,
+  .entry-settings-btn svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
+
   /* ── Watchlist mobile header restructure ─────────────────────────
      Move 'View overlap' below title and hide other action buttons.
      ---------------------------------------------------------------- */

@@ -215,7 +215,7 @@ export function EntryRowPerson({
               {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
             </div>
             <div className="entry-tile-quick-actions">
-              <button type="button" onClick={() => onOpenSettings?.(item)}>⚙</button>
+              <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)}>⚙</button>
             </div>
           </div>
           <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
@@ -241,7 +241,7 @@ export function EntryRowPerson({
               {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
             </div>
             <div className="entry-tile-quick-actions">
-               <button type="button" onClick={() => onOpenSettings?.(item)} title="Settings">⚙</button>
+               <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)} title="Settings">⚙</button>
             </div>
           </div>
           <div className="entry-tile-content">
@@ -305,7 +305,7 @@ export function EntryRowPerson({
             <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class">⇣</button>
             <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up">↑</button>
             <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down">↓</button>
-            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings">⚙</button>
+            <button type="button" className="entry-config-btn entry-settings-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings">⚙</button>
           </div>
         ) : (
           <div className="entry-right-col">
@@ -323,7 +323,7 @@ export function EntryRowPerson({
                 <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown}>⇣</button>
                 <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp}>↑</button>
                 <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown}>↓</button>
-                <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)}>⚙</button>
+                <button type="button" className="entry-config-btn entry-settings-btn" onClick={() => onOpenSettings?.(item)}>⚙</button>
               </div>
             )}
 

@@ -851,7 +851,7 @@ export function UniversalEditModal({
                   onClick={() => { onGoToWatchlist?.(); onClose(); }}
                 >
                   <BookmarkCheck size={14} />
-                  Go to in Watchlist
+                  {isMobile ? 'Go To' : 'Go to in Watchlist'}
                 </button>
                 <button
                   type="button"
@@ -859,7 +859,7 @@ export function UniversalEditModal({
                   onClick={() => { onRemoveFromWatchlist?.(); }}
                 >
                   <Trash2 size={14} />
-                  Remove from Watchlist
+                  {isMobile ? 'Watchlist-' : 'Remove from Watchlist'}
                 </button>
               </div>
             ) : onAddToWatchlist ? (
@@ -869,7 +869,7 @@ export function UniversalEditModal({
                 onClick={() => onAddToWatchlist()}
               >
                 <Bookmark size={14} />
-                Add to Watchlist
+                {isMobile ? 'Watchlist+' : 'Add to Watchlist'}
               </button>
             ) : null}
             {(target.mediaType === 'movie' || target.mediaType === 'tv') && (
@@ -880,7 +880,7 @@ export function UniversalEditModal({
                 title="Recommend this title to friends"
               >
                 <UserPlus size={14} />
-                Recommend to friend
+                {isMobile ? 'Reccomend' : 'Recommend to friend'}
               </button>
             )}
             <button type="button" className="uem-close-btn" onClick={onClose} aria-label="Close">
@@ -932,42 +932,6 @@ export function UniversalEditModal({
             <button type="button" className="uem-add-btn" onClick={addEntry}>
               + Add Watch
             </button>
-          </div>
-
-          {/* Rank Section */}
-          <div className="uem-rank-section">
-            <div className="uem-section-header">
-              <h3 className="uem-section-title">Ranking</h3>
-            </div>
-
-            {isRankedItem && !showClassOverride ? (
-              <div className="uem-current-rank">
-                <div className="uem-current-rank-info">
-                  <span className="uem-current-rank-label">Currently ranked in</span>
-                  <span className="uem-current-rank-value">{currentClassLabel}</span>
-                </div>
-                <button
-                  type="button"
-                  className="uem-override-btn"
-                  onClick={() => setShowClassOverride(true)}
-                >
-                  Change Rank
-                </button>
-              </div>
-            ) : (
-              <div className="uem-rank-selector">
-                {isRankedItem && showClassOverride && (
-                  <button
-                    type="button"
-                    className="uem-cancel-override"
-                    onClick={() => setShowClassOverride(false)}
-                  >
-                    Keep current rank
-                  </button>
-                )}
-                <ClassList />
-              </div>
-            )}
           </div>
 
           {/* Tagging Section */}
@@ -1029,6 +993,42 @@ export function UniversalEditModal({
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* Rank Section */}
+          <div className="uem-rank-section">
+            <div className="uem-section-header">
+              <h3 className="uem-section-title">Ranking</h3>
+            </div>
+
+            {isRankedItem && !showClassOverride ? (
+              <div className="uem-current-rank">
+                <div className="uem-current-rank-info">
+                  <span className="uem-current-rank-label">Currently ranked in</span>
+                  <span className="uem-current-rank-value">{currentClassLabel}</span>
+                </div>
+                <button
+                  type="button"
+                  className="uem-override-btn"
+                  onClick={() => setShowClassOverride(true)}
+                >
+                  Change Rank
+                </button>
+              </div>
+            ) : (
+              <div className="uem-rank-selector">
+                {isRankedItem && showClassOverride && (
+                  <button
+                    type="button"
+                    className="uem-cancel-override"
+                    onClick={() => setShowClassOverride(false)}
+                  >
+                    Keep current rank
+                  </button>
+                )}
+                <ClassList />
+              </div>
+            )}
           </div>
         </div>
 

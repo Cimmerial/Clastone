@@ -253,7 +253,7 @@ export function EntryRowMovieShow({
             </div>
           )}
           <div className="entry-tile-quick-actions">
-            <button type="button" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
+            <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
             {!tileMinimalActions && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
         </div>
@@ -323,7 +323,7 @@ export function EntryRowMovieShow({
             <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class"><ChevronDown size={14} /></button>
             <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up"><ArrowUp size={14} /></button>
             <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down"><ArrowDown size={14} /></button>
-            <button type="button" className="entry-config-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings"><Settings size={14} /></button>
+            <button type="button" className="entry-config-btn entry-settings-btn" onClick={() => onOpenSettings?.(item)} data-tooltip="Settings"><Settings size={14} /></button>
           </div>
         ) : (
           <div className="entry-right-col">
@@ -410,7 +410,7 @@ export function EntryRowMovieShow({
                 {!isUnranked && (
                   <button
                     type="button"
-                    className="entry-config-btn"
+                    className="entry-config-btn entry-settings-btn"
                     data-tooltip="Edit watches"
                     onClick={() => onOpenSettings?.(item)}
                   >

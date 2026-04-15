@@ -10,7 +10,6 @@ import { FriendsPage } from './pages/FriendsPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
-import { GuidePage } from './pages/GuidePage';
 import { HomePage } from './pages/HomePage';
 import { ListsPage, ListDetailPage } from './pages/ListsPage';
 import { useAuth } from './context/AuthContext';
@@ -35,7 +34,6 @@ export function AppRoutes() {
       <Route path="/friends/:friendId" element={<FriendProfilePage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/guide" element={<GuidePage />} />
       <Route 
         path="/diagnostics" 
         element={isAdmin ? <DiagnosticsPage /> : <Navigate to="/home" replace />} 

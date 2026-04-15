@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useFriends } from '../context/FriendsContext';
 import { useAuth } from '../context/AuthContext';
 import { Search, UserPlus, Check, X, Eye, Loader, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { db } from '../lib/firebase';
+import { loadMovies } from '../lib/firestoreMovies';
+import { loadTvShows } from '../lib/firestoreTvShows';
 import './FriendsPage.css';
 
 interface UserProfile {
@@ -30,6 +33,7 @@ export function FriendsPage() {
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [friendCountsByUid, setFriendCountsByUid] = useState<Record<string, { movies: number; shows: number }>>({});
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -68,6 +72,48 @@ export function FriendsPage() {
   };
 
   const loggedIn = !!user;
+  const sortedFriends = useMemo(() => {
+    return [...friends].sort((a, b) => {
+      const countsA = friendCountsByUid[a.uid] ?? { movies: 0, shows: 0 };
+      const countsB = friendCountsByUid[b.uid] ?? { movies: 0, shows: 0 };
+      const totalA = countsA.movies + countsA.shows;
+      const totalB = countsB.movies + countsB.shows;
+      if (totalA !== totalB) return totalB - totalA;
+      return a.username.localeCompare(b.username);
+    });
+  }, [friends, friendCountsByUid]);
+
+  useEffect(() => {
+    if (!loggedIn || !db || friends.length === 0) {
+      setFriendCountsByUid({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        friends.map(async (friend) => {
+          try {
+            const [moviesData, tvData] = await Promise.all([
+              loadMovies(db, friend.uid),
+              loadTvShows(db, friend.uid),
+            ]);
+            const movies = Object.values(moviesData.byClass).reduce((acc, list) => acc + list.length, 0);
+            const shows = Object.values(tvData.byClass).reduce((acc, list) => acc + list.length, 0);
+            return [friend.uid, { movies, shows }] as const;
+          } catch {
+            return [friend.uid, { movies: 0, shows: 0 }] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      setFriendCountsByUid(Object.fromEntries(results));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loggedIn, friends]);
 
   return (
     <div className="friends-page">
@@ -207,16 +253,23 @@ export function FriendsPage() {
           <section className="friends-list">
             <h2>Your friends ({friends.length})</h2>
             <div className="friends-grid">
-              {friends.map((friend) => (
-                <Link key={friend.uid} to={`/friends/${friend.uid}`} className="friend-card">
-                  <div className="friend-avatar">{friend.username.charAt(0).toUpperCase()}</div>
-                  <div className="friend-info">
-                    <strong>{friend.username}</strong>
-                    <span>View profile</span>
-                  </div>
-                  <Eye size={16} className="view-icon" />
-                </Link>
-              ))}
+              {sortedFriends.map((friend) => {
+                const counts = friendCountsByUid[friend.uid] ?? { movies: 0, shows: 0 };
+                const countParts: string[] = [];
+                if (counts.movies > 1) countParts.push(`${counts.movies} Movies`);
+                if (counts.shows > 1) countParts.push(`${counts.shows} Shows`);
+                const subtitle = countParts.length > 0 ? countParts.join(' - ') : 'View profile';
+                return (
+                  <Link key={friend.uid} to={`/friends/${friend.uid}`} className="friend-card">
+                    <div className="friend-avatar">{friend.username.charAt(0).toUpperCase()}</div>
+                    <div className="friend-info">
+                      <strong>{friend.username}</strong>
+                      <span>{subtitle}</span>
+                    </div>
+                    <Eye size={16} className="view-icon" />
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}

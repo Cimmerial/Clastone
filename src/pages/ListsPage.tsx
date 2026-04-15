@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, Eye, Plus } from 'lucide-react';
+import { ArrowLeft, Eye, Pencil, Plus } from 'lucide-react';
 import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
@@ -20,7 +20,7 @@ import type { WatchRecord } from '../components/EntryRowMovieShow';
 import './ListsPage.css';
 
 type ListCard = { id: string; title: string; subtitle: string; href: string; color?: string };
-type CollectionCard = { id: string; title: string; seen: number; total: number; href: string; color?: string };
+type CollectionCard = { id: string; title: string; seen: number; watchlistUnseen: number; total: number; href: string; color?: string };
 type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv'; item?: MovieShowItem; title: string };
 type CollectionEntryId = `tmdb-tv-${number}` | `tmdb-movie-${number}`;
 
@@ -28,43 +28,107 @@ function isCollectionEntryId(value: string): value is CollectionEntryId {
   return /^tmdb-(tv|movie)-\d+$/.test(value);
 }
 
-function HoverCard({ title, subtitle, href, sortableId, color }: { title: string; subtitle: string; href: string; sortableId: string; color?: string }) {
+function HoverCard({
+  title,
+  subtitle,
+  href,
+  sortableId,
+  color,
+}: {
+  title: string;
+  subtitle: string;
+  href: string;
+  sortableId: string;
+  color?: string;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
   return (
     <article ref={setNodeRef} style={{ ...style, borderColor: color ?? undefined }} className={`lists-card-clean ${isDragging ? 'lists-card-clean--dragging' : ''}`} {...attributes} {...listeners}>
-      <div className="lists-card-clean-info"><h3>{title}</h3><p>{subtitle}</p></div>
+      <div className="lists-card-clean-info">
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
+      </div>
       <Link to={href} className="lists-eye-btn" title="Open"><Eye size={20} /></Link>
     </article>
   );
 }
 
-function RadialProgress({ seen, total }: { seen: number; total: number }) {
+function RadialProgress({ seen, watchlistUnseen, total }: { seen: number; watchlistUnseen: number; total: number }) {
   const pct = total > 0 ? Math.round((seen / total) * 100) : 0;
-  const radius = 30;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (pct / 100) * circumference;
-  const cls = pct < 33 ? 'low' : pct < 67 ? 'mid' : pct < 100 ? 'high' : 'full';
+  const seenPct = total > 0 ? Math.min(100, (seen / total) * 100) : 0;
+  const watchlistPct = total > 0 ? Math.min(100 - seenPct, (watchlistUnseen / total) * 100) : 0;
+  const combinedPct = Math.min(100, seenPct + watchlistPct);
+  const seenColor = pct < 33 ? '#d95858' : pct < 67 ? '#d7b24f' : pct < 100 ? '#48b66e' : '#f0cf72';
+  const ringStyle = {
+    background: `conic-gradient(
+      ${seenColor} 0% ${seenPct}%,
+      #4da3ff ${seenPct}% ${combinedPct}%,
+      rgba(255, 255, 255, 0.12) ${combinedPct}% 100%
+    )`,
+  };
   return (
     <div className="lists-radial-wrap">
-      <svg width="88" height="88" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={radius} className="lists-radial-bg" />
-        <circle cx="44" cy="44" r={radius} className={`lists-radial-fg ${cls}`} strokeDasharray={circumference} strokeDashoffset={offset} />
-      </svg>
+      <div className="lists-radial-ring" style={ringStyle} />
       <div className="lists-radial-center"><div className="lists-radial-frac">{seen}/{total}</div><div className="lists-radial-pct">{pct}%</div></div>
     </div>
   );
 }
 
-function SortableCollectionCard({ card, disabled }: { card: CollectionCard; disabled: boolean }) {
+function SortableCollectionCard({
+  card,
+  disabled,
+}: {
+  card: CollectionCard;
+  disabled: boolean;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, disabled });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
   return (
     <article ref={setNodeRef} style={{ ...style, borderColor: card.color ?? undefined }} className={`lists-card-clean lists-card-clean--collection ${isDragging ? 'lists-card-clean--dragging' : ''}`} {...attributes} {...listeners}>
-      <div className="lists-card-clean-info"><h3>{card.title}</h3><p>{card.seen}/{card.total} complete</p></div>
+      <div className="lists-card-clean-info">
+        <h3>{card.title}</h3>
+        <p>{card.seen}/{card.total} complete</p>
+      </div>
       <div className="lists-collection-left"><Link to={card.href} className="lists-eye-btn" title="Open"><Eye size={20} /></Link></div>
-      <div className="lists-collection-center"><RadialProgress seen={card.seen} total={card.total} /></div>
+      <div className="lists-collection-center"><RadialProgress seen={card.seen} watchlistUnseen={card.watchlistUnseen} total={card.total} /></div>
     </article>
+  );
+}
+
+function RenameEntityModal({
+  title,
+  initialName,
+  onClose,
+  onSave,
+}: {
+  title: string;
+  initialName: string;
+  onClose: () => void;
+  onSave: (name: string) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(initialName);
+  return (
+    <div className="lists-modal-backdrop" onClick={onClose}>
+      <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="lists-input" autoFocus />
+        <div className="lists-modal-actions">
+          <button className="lists-button" onClick={onClose}>Cancel</button>
+          <button
+            className="lists-button"
+            onClick={async () => {
+              const trimmed = name.trim();
+              if (!trimmed) return;
+              await onSave(trimmed);
+              onClose();
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -196,6 +260,7 @@ function buildCollectionFallbackItem(id: string, title: string, tmdbId: number, 
 }
 
 export function ListsPage() {
+  const watchlist = useWatchlistStore();
   const { isAdmin } = useAuth();
   const canEditCollections = isAdmin && import.meta.env.DEV;
   const { lists, listOrder, entriesByListId, globalCollections, createList, reorderLists, reorderGlobalCollections, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
@@ -209,9 +274,16 @@ export function ListsPage() {
   const listCards = useMemo<ListCard[]>(() => listOrder.map((id) => listById.get(id)).filter((x): x is NonNullable<typeof x> => Boolean(x)).map((list) => ({ id: list.id, title: list.name, subtitle: `${(entriesByListId[list.id] ?? []).length} entries · ${list.mediaType}`, href: `/lists/${list.id}`, color: list.color })), [listOrder, listById, entriesByListId]);
   const collectionCards = useMemo<CollectionCard[]>(() => globalCollections.map((collection) => {
     const total = collection.entries.length;
-    const seen = collection.entries.filter((entry) => Boolean(allEntries.find((item) => item.id === `tmdb-${entry.mediaType}-${entry.tmdbId}`)?.watchRecords?.length)).length;
-    return { id: collection.id, title: collection.name, seen, total, href: `/lists/collection/${collection.id}`, color: collection.color };
-  }), [globalCollections, allEntries]);
+    const statuses = collection.entries.map((entry) => {
+      const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
+      const isSeen = Boolean(allEntries.find((item) => item.id === id)?.watchRecords?.length);
+      const isWatchlistUnseen = !isSeen && watchlist.isInWatchlist(id);
+      return { isSeen, isWatchlistUnseen };
+    });
+    const seen = statuses.filter((s) => s.isSeen).length;
+    const watchlistUnseen = statuses.filter((s) => s.isWatchlistUnseen).length;
+    return { id: collection.id, title: collection.name, seen, watchlistUnseen, total, href: `/lists/collection/${collection.id}`, color: collection.color };
+  }), [globalCollections, allEntries, watchlist]);
   const onListDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -255,11 +327,12 @@ export function ListDetailPage() {
   const { isAdmin } = useAuth();
   const watchlist = useWatchlistStore();
   const canEditCollections = isAdmin && import.meta.env.DEV;
-  const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
+  const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const { byClass: movieByClass, getClassLabel: getMovieClassLabel, updateMovieWatchRecords, getMovieById, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, getClassLabel: getTvClassLabel, updateShowWatchRecords, getShowById, addShowFromSearch } = useTvStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
   const activeCollection = globalCollections.find((item) => item.id === collectionId);
@@ -320,7 +393,21 @@ export function ListDetailPage() {
     <section className="lists-page">
       <header className="page-heading">
         <div className="lists-detail-title-wrap">
-          <div className="lists-back-title-row"><button className="lists-back-icon-btn" onClick={() => navigate('/lists')} aria-label="Back to lists"><ArrowLeft size={18} /></button><h1 className="page-title">{title}</h1></div>
+          <div className="lists-back-title-row">
+            <button className="lists-back-icon-btn" onClick={() => navigate('/lists')} aria-label="Back to lists"><ArrowLeft size={18} /></button>
+            <h1 className="page-title">{title}</h1>
+            {(!isCollection || canEditCollections) ? (
+              <button
+                type="button"
+                className="lists-edit-name-btn"
+                onClick={() => setShowRenameModal(true)}
+                title={`Rename ${title}`}
+                aria-label={`Rename ${title}`}
+              >
+                <Pencil size={13} />
+              </button>
+            ) : null}
+          </div>
         </div>
       </header>
       <RankedList<ListDetailItem>
@@ -384,6 +471,24 @@ export function ListDetailPage() {
       {showAddEntryModal && activeList ? <AddSavedEntryModal title={`Add to ${activeList.name}`} items={addableSavedItems} onClose={() => setShowAddEntryModal(false)} onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')} /> : null}
       {settingsFor ? <UniversalEditModal target={{ id: settingsFor.id, tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined, releaseDate: settingsFor.releaseDate, runtimeMinutes: settingsFor.runtimeMinutes, totalEpisodes: settingsFor.totalEpisodes, existingClassKey: settingsFor.classKey } as UniversalEditTarget} initialWatches={settingsFor.watchRecords} currentClassKey={settingsFor.classKey} currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)} rankedClasses={[]} isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)} onAddToWatchlist={() => { const isTv = settingsFor.id.startsWith('tmdb-tv-'); watchlist.addToWatchlist({ id: settingsFor.id, title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate }, isTv ? 'tv' : 'movies'); }} onRemoveFromWatchlist={() => watchlist.removeFromWatchlist(settingsFor.id)} onGoToWatchlist={() => navigate('/watchlist', { state: { scrollToId: settingsFor.id } })} availableTags={getEditableListsForMediaType(settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie').map((list) => ({ listId: list.id, label: list.name, color: list.color, selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id), href: `/lists/${list.id}` }))} collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color, href: `/lists/collection/${id}` }))} isSaving={false} onClose={() => setSettingsFor(null)} onSave={async (params) => { const watches: WatchRecord[] = params.watches.map((w) => { let type: WatchRecord['type'] = 'DATE'; if (w.watchType === 'DATE_RANGE') type = 'RANGE'; else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO'; if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT'; else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF'; return { id: w.id, type, year: w.year, month: w.month, day: w.day, endYear: w.endYear, endMonth: w.endMonth, endDay: w.endDay, dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined }; }); const isTv = settingsFor.id.startsWith('tmdb-tv-'); if (isTv && !getShowById(settingsFor.id)) { addShowFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', cache: { tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate, genres: [], cast: [], creators: [], seasons: [] } }); } if (!isTv && !getMovieById(settingsFor.id)) { addMovieFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', posterPath: settingsFor.posterPath }); } if (isTv) updateShowWatchRecords(settingsFor.id, watches); else updateMovieWatchRecords(settingsFor.id, watches); if (params.listMemberships?.length) setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships); setSettingsFor(null); }} onTagToggle={(listId, selected) => { if (!settingsFor) return; setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]); }} /> : null}
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
+      {showRenameModal ? (
+        <RenameEntityModal
+          title={isCollection ? 'Rename Collection' : 'Rename List'}
+          initialName={title}
+          onClose={() => setShowRenameModal(false)}
+          onSave={async (name) => {
+            if (isCollection) {
+              if (!activeCollection || !canEditCollections) return;
+              const next = { ...activeCollection, name, updatedAt: new Date().toISOString() };
+              upsertGlobalCollectionLocal(next);
+              if (db) await upsertGlobalCollection(db, next);
+              return;
+            }
+            if (!activeList) return;
+            updateList(activeList.id, { name });
+          }}
+        />
+      ) : null}
       {showDeleteConfirm ? <DeleteConfirmModal title={isCollection ? 'Collection' : 'List'} onCancel={() => setShowDeleteConfirm(false)} onConfirm={async () => { if (isCollection) { if (!canEditCollections || !db || !activeCollection) return; await deleteGlobalCollection(db, activeCollection.id); removeGlobalCollection(activeCollection.id); } else { if (!activeList) return; deleteList(activeList.id); } setShowDeleteConfirm(false); navigate('/lists'); }} /> : null}
     </section>
   );
