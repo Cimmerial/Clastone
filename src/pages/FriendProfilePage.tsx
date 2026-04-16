@@ -16,7 +16,8 @@ import {
   useMoviesStore,
   getTotalMinutesFromRecords, 
   getTotalEpisodesFromRecords, 
-  formatDuration, 
+  formatDuration,
+  formatWatchtimeHours, 
   getWatchRecordSortKey, 
   formatWatchLabel 
 } from '../state/moviesStore';
@@ -1681,8 +1682,8 @@ export function FriendProfilePage() {
         
         <div className="profile-stats-top-row">
           <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{formatDuration(stats.totalMinutes)}</span>
-            <span className="profile-stat-label">Total watch time</span>
+              <span className="profile-stat-value profile-stat-value--hero">{formatWatchtimeHours(stats.totalMinutes)}</span>
+              <span className="profile-stat-label">Watchtime</span>
           </div>
           <div className="profile-stat">
             <span className="profile-stat-value profile-stat-value--hero">{stats.moviesSeen}</span>

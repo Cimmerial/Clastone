@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { forwardRef, useState, useCallback, useRef, createContext, useContext } from 'react';
+import { forwardRef, useState, useCallback, useRef, createContext, useContext, useEffect } from 'react';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import './RankedList.css';
 
@@ -139,11 +139,25 @@ function RankedListInner<T extends RankedItemBase>(
   const [insertAfter, setInsertAfter] = useState<boolean>(false);
   const [programmaticDrag, setProgrammaticDrag] = useState<{ itemId: string; item: T; classKey: ClassKey } | null>(null);
   const lastHoverState = useRef<{ classKey: ClassKey | null; itemId: string | null; insertAfter: boolean }>({ classKey: null, itemId: null, insertAfter: false });
+  const hoverRafRef = useRef<number | null>(null);
+  const queuedHoverRef = useRef<{ classKey: ClassKey | null; itemId: string | null; insertAfter: boolean }>({
+    classKey: null,
+    itemId: null,
+    insertAfter: false
+  });
   
   const isDragActive = activeId !== null || programmaticDrag !== null;
   const effectiveActiveId = activeId ?? programmaticDrag?.itemId ?? null;
   const effectiveDraggedItem = draggedItem ?? programmaticDrag?.item ?? null;
   const effectiveDraggedFromClass = draggedFromClass ?? programmaticDrag?.classKey ?? null;
+
+  useEffect(() => {
+    return () => {
+      if (hoverRafRef.current != null && typeof window !== 'undefined') {
+        cancelAnimationFrame(hoverRafRef.current);
+      }
+    };
+  }, []);
   
   // Throttled hover state update to prevent lag
   const updateHoverState = useCallback((classKey: ClassKey | null, itemId: string | null, shouldInsertAfter: boolean = false) => {
@@ -363,11 +377,20 @@ function RankedListInner<T extends RankedItemBase>(
       shouldInsertAfter = y > itemCenterY;
     }
     
-    // Use RAF to batch hover state updates outside of collision detection
+    // Use a single in-flight RAF to batch hover state updates.
     if (typeof window !== 'undefined') {
-      requestAnimationFrame(() => {
-        updateHoverState(targetClass, targetItemId, shouldInsertAfter);
-      });
+      queuedHoverRef.current = {
+        classKey: targetClass,
+        itemId: targetItemId,
+        insertAfter: shouldInsertAfter
+      };
+      if (hoverRafRef.current == null) {
+        hoverRafRef.current = requestAnimationFrame(() => {
+          hoverRafRef.current = null;
+          const queued = queuedHoverRef.current;
+          updateHoverState(queued.classKey, queued.itemId, queued.insertAfter);
+        });
+      }
     }
     
     // Return sortable items first for reordering, then class sections
@@ -504,6 +527,10 @@ function RankedListInner<T extends RankedItemBase>(
         const isNonRankedClass =
           classKey === 'BABY' || classKey === 'DELICIOUS_GARBAGE' || classKey === 'UNRANKED';
         const sortableIds = items.map((i) => i.id);
+        const classUsesSortableDuringActiveDrag =
+          !isDragActive ||
+          classKey === effectiveDraggedFromClass ||
+          classKey === dragOverClass;
         return (
           <div key={classKey}>
             {isNonRankedDivider && (
@@ -535,7 +562,7 @@ function RankedListInner<T extends RankedItemBase>(
                 {renderClassActions ? renderClassActions(classKey, items) : null}
               </header>
               <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''}`}>
-                {canReorderWithinClass ? (
+                {canReorderWithinClass && classUsesSortableDuringActiveDrag ? (
                   <SortableContext
                     items={sortableIds}
                     strategy={isTile ? rectSortingStrategy : verticalListSortingStrategy}
@@ -605,7 +632,7 @@ function RankedListInner<T extends RankedItemBase>(
     return (
       <DragInitiateContext.Provider value={dragContextValue}>
         <div 
-          className={`ranked-list ranked-list--sortable mode-${viewMode} ${programmaticDrag ? 'programmatic-drag-active' : ''}`} 
+          className={`ranked-list ranked-list--sortable mode-${viewMode} ${programmaticDrag ? 'programmatic-drag-active' : ''} ${isDragActive ? 'dragging-active' : ''}`} 
           ref={ref}
           onClick={handleContainerClick}
         >

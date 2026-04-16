@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Info, User, Film, ArrowUp, ChevronLeft, ChevronRight, Clapperboard } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
@@ -1151,6 +1151,52 @@ export function SearchPage() {
     return 'Select query option(s)...';
   }, [showMovies, showTv, showPeople]);
 
+  const actionFeedbackTimeoutsRef = useRef<number[]>([]);
+
+  const triggerActionFeedback = useCallback((button: HTMLButtonElement) => {
+    if (button.disabled) return;
+    const card = button.closest('.search-card');
+
+    button.classList.remove('search-card-action--clicked');
+    void button.offsetWidth;
+    button.classList.add('search-card-action--clicked');
+
+    if (card instanceof HTMLElement) {
+      card.classList.remove('search-card--action-feedback');
+      void card.offsetWidth;
+      card.classList.add('search-card--action-feedback');
+    }
+
+    const buttonTimeout = window.setTimeout(() => {
+      button.classList.remove('search-card-action--clicked');
+    }, 620);
+    actionFeedbackTimeoutsRef.current.push(buttonTimeout);
+
+    if (card instanceof HTMLElement) {
+      const cardTimeout = window.setTimeout(() => {
+        card.classList.remove('search-card--action-feedback');
+      }, 1200);
+      actionFeedbackTimeoutsRef.current.push(cardTimeout);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      actionFeedbackTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      actionFeedbackTimeoutsRef.current = [];
+    };
+  }, []);
+
+  const handleActionButtonFeedbackCapture = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const actionButton = target.closest(
+      'button.search-card-action, button.search-toggle-btn, button.search-tab, button.wander-toggle-btn, button.wander-genre-btn, button.wander-year-btn, button.search-load-more-btn, button.search-person-projects-expand'
+    );
+    if (!(actionButton instanceof HTMLButtonElement)) return;
+    triggerActionFeedback(actionButton);
+  }, [triggerActionFeedback]);
+
   return (
     <section>
       <header className="page-heading">
@@ -1186,7 +1232,7 @@ export function SearchPage() {
         </div>
       </header>
 
-      <div className="search-shell card-surface">
+      <div className="search-shell card-surface" onClickCapture={handleActionButtonFeedbackCapture}>
 
         {/* Search Controls */}
         {activeTab === 'search' && (
@@ -1481,7 +1527,6 @@ export function SearchPage() {
                             : 'PERSON'}
                       </div>
                       <div className="search-card-title-row">
-                        <div className="search-card-title">{r.title}</div>
                         {(isMovie || isTv) && (
                           <button
                             type="button"
@@ -1512,6 +1557,7 @@ export function SearchPage() {
                             <Info size={16} />
                           </button>
                         )}
+                        <div className="search-card-title">{r.title}</div>
                       </div>
                       <div className="search-card-subtitle">
                         {r.subtitle}
@@ -1608,7 +1654,7 @@ export function SearchPage() {
                       ) : (
                         <button
                           type="button"
-                          className="search-card-action search-card-action-dim-yellow"
+                          className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
                           onClick={handleAddToWatchlist}
                         >
@@ -1676,7 +1722,7 @@ export function SearchPage() {
                       ) : (
                         <button
                           type="button"
-                          className="search-card-action search-card-action-dim-yellow"
+                          className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
                           onClick={handleAddToWatchlist}
                         >
@@ -1903,7 +1949,7 @@ export function SearchPage() {
                         ) : (
                           <button
                             type="button"
-                            className="search-card-action search-card-action-dim-yellow"
+                            className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
                             onClick={handleAddToWatchlist}
                           >
@@ -1971,7 +2017,7 @@ export function SearchPage() {
                         ) : (
                           <button
                             type="button"
-                            className="search-card-action search-card-action-dim-yellow"
+                            className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
                             onClick={handleAddToWatchlist}
                           >
@@ -2144,7 +2190,7 @@ export function SearchPage() {
                         ) : (
                           <button
                             type="button"
-                            className="search-card-action search-card-action-dim-yellow"
+                            className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
                             onClick={handleAddToWatchlist}
                           >
@@ -2186,7 +2232,7 @@ export function SearchPage() {
                         ) : (
                           <button
                             type="button"
-                            className="search-card-action search-card-action-dim-yellow"
+                            className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
                             onClick={handleAddToWatchlist}
                           >

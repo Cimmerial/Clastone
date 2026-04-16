@@ -28,6 +28,15 @@ function isCollectionEntryId(value: string): value is CollectionEntryId {
   return /^tmdb-(tv|movie)-\d+$/.test(value);
 }
 
+function normalizeCollectionMediaType(raw: string): 'movie' | 'tv' {
+  if (raw === 'tv' || raw === 'shows' || raw === 'show') return 'tv';
+  return 'movie';
+}
+
+function collectionEntryIdFor(mediaType: string, tmdbId: number): CollectionEntryId {
+  return `tmdb-${normalizeCollectionMediaType(mediaType)}-${tmdbId}`;
+}
+
 function hashString(input: string): number {
   let hash = 0;
   for (let i = 0; i < input.length; i += 1) {
@@ -391,7 +400,7 @@ export function ListsPage() {
   const collectionCards = useMemo<Array<CollectionCard & { posterBackgrounds: string[] }>>(() => globalCollections.map((collection) => {
     const total = collection.entries.length;
     const statuses = collection.entries.map((entry) => {
-      const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
+      const id = collectionEntryIdFor(entry.mediaType, entry.tmdbId);
       const isSeen = Boolean(allEntries.find((item) => item.id === id)?.watchRecords?.length);
       const isWatchlistUnseen = !isSeen && watchlist.isInWatchlist(id);
       return { isSeen, isWatchlistUnseen };
@@ -400,7 +409,7 @@ export function ListsPage() {
     const watchlistUnseen = statuses.filter((s) => s.isWatchlistUnseen).length;
     const posters = collection.entries
       .map((entry) => {
-        const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
+        const id = collectionEntryIdFor(entry.mediaType, entry.tmdbId);
         return entryById.get(id)?.posterPath ?? entry.posterPath;
       })
       .filter((poster): poster is string => Boolean(poster));
@@ -474,8 +483,24 @@ export function ListDetailPage() {
   const canEditCollections = isAdmin && import.meta.env.DEV;
   const canEditNameAndColor = isAdmin && import.meta.env.DEV;
   const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
-  const { byClass: movieByClass, getClassLabel: getMovieClassLabel, updateMovieWatchRecords, getMovieById, addMovieFromSearch } = useMoviesStore();
-  const { byClass: tvByClass, getClassLabel: getTvClassLabel, updateShowWatchRecords, getShowById, addShowFromSearch } = useTvStore();
+  const {
+    byClass: movieByClass,
+    classes: movieClasses,
+    getClassLabel: getMovieClassLabel,
+    updateMovieWatchRecords,
+    moveItemToClass: moveMovieToClass,
+    getMovieById,
+    addMovieFromSearch
+  } = useMoviesStore();
+  const {
+    byClass: tvByClass,
+    classes: tvClasses,
+    getClassLabel: getTvClassLabel,
+    updateShowWatchRecords,
+    moveItemToClass: moveShowToClass,
+    getShowById,
+    addShowFromSearch
+  } = useTvStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -491,15 +516,16 @@ export function ListDetailPage() {
   const detailItems = useMemo<ListDetailItem[]>(() => {
     if (isCollection && activeCollection) {
       return activeCollection.entries.slice().sort((a, b) => a.position - b.position).map((entry) => {
-        const id = `tmdb-${entry.mediaType}-${entry.tmdbId}`;
+        const normalizedMediaType = normalizeCollectionMediaType(entry.mediaType);
+        const id = collectionEntryIdFor(entry.mediaType, entry.tmdbId);
         const item = entryMap.get(id);
         const fallbackTitle = entry.title ?? `${entry.mediaType.toUpperCase()} #${entry.tmdbId}`;
         return {
           id,
           classKey: 'LIST',
           source: item ? 'saved' : 'unseen',
-          mediaType: entry.mediaType,
-          item: item ?? buildCollectionFallbackItem(id, fallbackTitle, entry.tmdbId, 'LIST', entry.posterPath, entry.releaseDate),
+          mediaType: normalizedMediaType,
+          item: item ?? buildCollectionFallbackItem(id, fallbackTitle, entry.tmdbId, 'UNRANKED', entry.posterPath, entry.releaseDate),
           title: item?.title ?? fallbackTitle
         };
       });
@@ -525,7 +551,7 @@ export function ListDetailPage() {
   const removeCollectionEntry = async (entryId: string) => {
     if (!activeCollection || !canEditCollections) return;
     const nextEntries = activeCollection.entries
-      .filter((entry) => `tmdb-${entry.mediaType}-${entry.tmdbId}` !== entryId)
+      .filter((entry) => collectionEntryIdFor(entry.mediaType, entry.tmdbId) !== entryId)
       .map((entry, position) => ({ ...entry, position }));
     if (nextEntries.length === activeCollection.entries.length) return;
     const nextCollection = { ...activeCollection, entries: nextEntries, updatedAt: new Date().toISOString() };
@@ -615,7 +641,122 @@ export function ListDetailPage() {
         ) : <UnseenTile title={row.title} />}
       />
       {showAddEntryModal && activeList ? <AddSavedEntryModal title={`Add to ${activeList.name}`} items={addableSavedItems} onClose={() => setShowAddEntryModal(false)} onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')} /> : null}
-      {settingsFor ? <UniversalEditModal target={{ id: settingsFor.id, tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined, releaseDate: settingsFor.releaseDate, runtimeMinutes: settingsFor.runtimeMinutes, totalEpisodes: settingsFor.totalEpisodes, existingClassKey: settingsFor.classKey } as UniversalEditTarget} initialWatches={settingsFor.watchRecords} currentClassKey={settingsFor.classKey} currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)} rankedClasses={[]} isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)} onAddToWatchlist={() => { const isTv = settingsFor.id.startsWith('tmdb-tv-'); watchlist.addToWatchlist({ id: settingsFor.id, title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate }, isTv ? 'tv' : 'movies'); }} onRemoveFromWatchlist={() => watchlist.removeFromWatchlist(settingsFor.id)} onGoToWatchlist={() => navigate('/watchlist', { state: { scrollToId: settingsFor.id } })} availableTags={getEditableListsForMediaType(settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie').map((list) => ({ listId: list.id, label: list.name, color: list.color, selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id), href: `/lists/${list.id}` }))} collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color, href: `/lists/collection/${id}` }))} isSaving={false} onClose={() => setSettingsFor(null)} onSave={async (params) => { const watches: WatchRecord[] = params.watches.map((w) => { let type: WatchRecord['type'] = 'DATE'; if (w.watchType === 'DATE_RANGE') type = 'RANGE'; else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO'; if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT'; else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF'; return { id: w.id, type, year: w.year, month: w.month, day: w.day, endYear: w.endYear, endMonth: w.endMonth, endDay: w.endDay, dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined }; }); const isTv = settingsFor.id.startsWith('tmdb-tv-'); if (isTv && !getShowById(settingsFor.id)) { addShowFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', cache: { tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0), title: settingsFor.title, posterPath: settingsFor.posterPath, releaseDate: settingsFor.releaseDate, genres: [], cast: [], creators: [], seasons: [] } }); } if (!isTv && !getMovieById(settingsFor.id)) { addMovieFromSearch({ id: settingsFor.id, title: settingsFor.title, subtitle: 'Saved', classKey: 'UNRANKED', posterPath: settingsFor.posterPath }); } if (isTv) updateShowWatchRecords(settingsFor.id, watches); else updateMovieWatchRecords(settingsFor.id, watches); if (params.listMemberships?.length) setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships); setSettingsFor(null); }} onTagToggle={(listId, selected) => { if (!settingsFor) return; setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]); }} /> : null}
+      {settingsFor ? (
+        <UniversalEditModal
+          target={{
+            id: settingsFor.id,
+            tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0),
+            title: settingsFor.title,
+            posterPath: settingsFor.posterPath,
+            mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
+            subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined,
+            releaseDate: settingsFor.releaseDate,
+            runtimeMinutes: settingsFor.runtimeMinutes,
+            totalEpisodes: settingsFor.totalEpisodes,
+            existingClassKey: settingsFor.classKey
+          } as UniversalEditTarget}
+          initialWatches={settingsFor.watchRecords}
+          currentClassKey={settingsFor.classKey}
+          currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)}
+          rankedClasses={settingsFor.id.startsWith('tmdb-tv-') ? tvClasses : movieClasses}
+          isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)}
+          onAddToWatchlist={() => {
+            const isTv = settingsFor.id.startsWith('tmdb-tv-');
+            watchlist.addToWatchlist(
+              {
+                id: settingsFor.id,
+                title: settingsFor.title,
+                posterPath: settingsFor.posterPath,
+                releaseDate: settingsFor.releaseDate
+              },
+              isTv ? 'tv' : 'movies'
+            );
+          }}
+          onRemoveFromWatchlist={() => watchlist.removeFromWatchlist(settingsFor.id)}
+          onGoToWatchlist={() => navigate('/watchlist', { state: { scrollToId: settingsFor.id } })}
+          availableTags={getEditableListsForMediaType(settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie').map((list) => ({
+            listId: list.id,
+            label: list.name,
+            color: list.color,
+            selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id),
+            href: `/lists/${list.id}`
+          }))}
+          collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({
+            id,
+            label: globalCollections.find((item) => item.id === id)?.name ?? id,
+            color: globalCollections.find((item) => item.id === id)?.color,
+            href: `/lists/collection/${id}`
+          }))}
+          isSaving={false}
+          onClose={() => setSettingsFor(null)}
+          onSave={async (params, goToMedia) => {
+            const watches: WatchRecord[] = params.watches.map((w) => {
+              let type: WatchRecord['type'] = 'DATE';
+              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
+              else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
+              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
+              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
+              return {
+                id: w.id,
+                type,
+                year: w.year,
+                month: w.month,
+                day: w.day,
+                endYear: w.endYear,
+                endMonth: w.endMonth,
+                endDay: w.endDay,
+                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined
+              };
+            });
+            const isTv = settingsFor.id.startsWith('tmdb-tv-');
+            if (isTv && !getShowById(settingsFor.id)) {
+              addShowFromSearch({
+                id: settingsFor.id,
+                title: settingsFor.title,
+                subtitle: 'Saved',
+                classKey: 'UNRANKED',
+                cache: {
+                  tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0),
+                  title: settingsFor.title,
+                  posterPath: settingsFor.posterPath,
+                  releaseDate: settingsFor.releaseDate,
+                  genres: [],
+                  cast: [],
+                  creators: [],
+                  seasons: []
+                }
+              });
+            }
+            if (!isTv && !getMovieById(settingsFor.id)) {
+              addMovieFromSearch({
+                id: settingsFor.id,
+                title: settingsFor.title,
+                subtitle: 'Saved',
+                classKey: 'UNRANKED',
+                posterPath: settingsFor.posterPath
+              });
+            }
+            if (isTv) updateShowWatchRecords(settingsFor.id, watches);
+            else updateMovieWatchRecords(settingsFor.id, watches);
+            if (params.classKey) {
+              const moveOptions = { toTop: params.position === 'top', toMiddle: params.position === 'middle' };
+              if (isTv) moveShowToClass(settingsFor.id, params.classKey, moveOptions);
+              else moveMovieToClass(settingsFor.id, params.classKey, moveOptions);
+            }
+            if (params.listMemberships?.length) {
+              setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships);
+            }
+            setSettingsFor(null);
+            if (goToMedia) {
+              navigate(isTv ? '/tv' : '/movies', { replace: true, state: { scrollToId: settingsFor.id } });
+            }
+          }}
+          onTagToggle={(listId, selected) => {
+            if (!settingsFor) return;
+            setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]);
+          }}
+        />
+      ) : null}
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} collectionTags={infoModalTarget.mediaType === 'movie' ? (() => { const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`; return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color })); })() : []} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
       {showRenameModal ? (
         <RenameEntityModal

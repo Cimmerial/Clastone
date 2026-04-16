@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from './AuthContext';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { rankByFuzzyUsernameMatch } from '../lib/fuzzySearch';
 
 interface Friend {
   uid: string;
@@ -230,7 +231,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       const usersQuery = query(collection(db!, 'users'));
       const snapshot = await getDocs(usersQuery);
 
-      return snapshot.docs
+      const users = snapshot.docs
         .map((d) => ({
           uid: d.id,
           username: d.data().username,
@@ -238,8 +239,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           createdAt: d.data().createdAt,
           pfpPosterPath: d.data().pfpPosterPath
         }))
-        .filter((u) => (user ? u.uid !== user.uid : true))
-        .filter((u) => u.username?.toLowerCase().includes(searchQuery.toLowerCase()));
+        .filter((u) => (user ? u.uid !== user.uid : true));
+      return rankByFuzzyUsernameMatch(users, searchQuery);
     } catch (error: any) {
       console.error('Error searching users:', error);
       if (error?.code === 'permission-denied') {

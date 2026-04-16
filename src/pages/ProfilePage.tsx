@@ -6,6 +6,7 @@ import {
   getTotalMinutesFromRecords,
   getTotalEpisodesFromRecords,
   formatDuration,
+  formatWatchtimeHours,
   getWatchRecordSortKey,
   formatWatchLabel
 } from '../state/moviesStore';
@@ -17,7 +18,7 @@ import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { tmdbImagePath, getMovieImageSrc } from '../lib/tmdb';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
@@ -26,6 +27,19 @@ import { useAuth } from '../context/AuthContext';
 import { useListsStore } from '../state/listsStore';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
+
+const SCATTER_CLASS_COLORS = [
+  '#F4A261',
+  '#E76F51',
+  '#2A9D8F',
+  '#264653',
+  '#E9C46A',
+  '#8AB17D',
+  '#6D597A',
+  '#B56576',
+  '#4CC9F0',
+  '#90BE6D',
+];
 
 /** Flatten all watches with a date (excl. LONG_AGO/UNKNOWN). One row per watch; use movie vs TV class orders separately to avoid duplicates. */
 function getRecentWatches(
@@ -343,6 +357,8 @@ export function ProfilePage() {
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
+  const [scatterYAxisMode, setScatterYAxisMode] = useState<'rank' | 'release_year'>('rank');
+  const [pruneScatterOutliers, setPruneScatterOutliers] = useState(false);
   const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showViewMode, setShowViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
@@ -686,6 +702,77 @@ export function ProfilePage() {
         };
       });
 
+    const parseAbsoluteRankValue = (value?: string): number | null => {
+      if (!value) return null;
+      const match = value.match(/^(\d+)\s*\/\s*\d+$/);
+      if (!match) return null;
+      const rank = Number(match[1]);
+      return Number.isFinite(rank) && rank > 0 ? rank : null;
+    };
+    const parseReleaseYear = (value?: string): number | null => {
+      if (!value || value.length < 4) return null;
+      const year = Number(value.slice(0, 4));
+      return Number.isFinite(year) && year > 1800 ? year : null;
+    };
+
+    // Runtime vs absolute rank scatter data for ranked movies and shows.
+    // Rank is derived from ranked list order to avoid relying on stale/missing absoluteRank values.
+    const rankedMovieClassKeys = movieClassOrder.filter(k => isRankedMovieClass(k));
+    const rankedShowClassKeys = tvClassOrder.filter(k => isRankedTvClass(k));
+    const movieClassColorMap = new Map(
+      rankedMovieClassKeys.map((classKey, index) => [classKey, SCATTER_CLASS_COLORS[index % SCATTER_CLASS_COLORS.length]])
+    );
+    const showClassColorMap = new Map(
+      rankedShowClassKeys.map((classKey, index) => [classKey, SCATTER_CLASS_COLORS[index % SCATTER_CLASS_COLORS.length]])
+    );
+
+    const rankedMovieItems = rankedMovieClassKeys
+      .flatMap(classKey => (moviesByClass[classKey] ?? []).map(item => ({ item, classKey })));
+    const rankedShowItems = rankedShowClassKeys
+      .flatMap(classKey => (tvByClass[classKey] ?? []).map(item => ({ item, classKey })));
+
+    const movieRuntimeVsRankData = rankedMovieItems
+      .map(({ item, classKey }, index) => {
+        const runtime = item.runtimeMinutes ?? 0;
+        if (runtime <= 0) return null;
+        const computedRank = index + 1;
+        const rank = parseAbsoluteRankValue(item.absoluteRank) ?? computedRank;
+        return {
+          title: item.title,
+          classKey,
+          classLabel: getMovieClassLabel(classKey),
+          color: movieClassColorMap.get(classKey) ?? 'var(--accent-soft)',
+          runtime,
+          rank,
+          releaseYear: parseReleaseYear(item.releaseDate),
+          absoluteRank: item.absoluteRank && item.absoluteRank !== '—'
+            ? item.absoluteRank
+            : `${computedRank} / ${rankedMovieItems.length}`,
+        };
+      })
+      .filter((item): item is { title: string; classKey: string; classLabel: string; color: string; runtime: number; rank: number; releaseYear: number | null; absoluteRank: string } => item !== null);
+
+    const showRuntimeVsRankData = rankedShowItems
+      .map(({ item, classKey }, index) => {
+        const runtime = item.runtimeMinutes ?? 0;
+        if (runtime <= 0) return null;
+        const computedRank = index + 1;
+        const rank = parseAbsoluteRankValue(item.absoluteRank) ?? computedRank;
+        return {
+          title: item.title,
+          classKey,
+          classLabel: getTvClassLabel(classKey),
+          color: showClassColorMap.get(classKey) ?? 'var(--accent-soft)',
+          runtime,
+          rank,
+          releaseYear: parseReleaseYear(item.releaseDate),
+          absoluteRank: item.absoluteRank && item.absoluteRank !== '—'
+            ? item.absoluteRank
+            : `${computedRank} / ${rankedShowItems.length}`,
+        };
+      })
+      .filter((item): item is { title: string; classKey: string; classLabel: string; color: string; runtime: number; rank: number; releaseYear: number | null; absoluteRank: string } => item !== null);
+
     // Calculate genre distribution
     const movieGenreCounts: Record<string, number> = {};
     for (const k of movieClassOrder) {
@@ -742,10 +829,100 @@ export function ProfilePage() {
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
       showAvgRuntimeByCategory,
+      movieRuntimeVsRankData,
+      showRuntimeVsRankData,
       movieGenreData,
       tvGenreData
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass, chartScope]);
+
+  const getQuantile = (sortedValues: number[], percentile: number) => {
+    if (sortedValues.length === 0) return null;
+    const index = (sortedValues.length - 1) * percentile;
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    if (lower === upper) return sortedValues[lower];
+    const weight = index - lower;
+    return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+  };
+
+  type ScatterPointBase = { runtime: number; rank: number; releaseYear: number | null };
+
+  const filterScatterOutliers = useCallback(
+    <T extends ScatterPointBase>(
+      points: T[],
+      xKey: 'runtime' | 'releaseYear',
+      yKey: 'rank' | 'releaseYear'
+    ): T[] => {
+      if (!pruneScatterOutliers || points.length < 4) return points;
+      const yValues = points.map((p) => p[yKey]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      const xValues = points.map((p) => p[xKey]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      if (yValues.length < 4 || xValues.length < 4) return points;
+
+      const sortedX = [...xValues].sort((a, b) => a - b);
+      const sortedY = [...yValues].sort((a, b) => a - b);
+      const q1x = getQuantile(sortedX, 0.25);
+      const q3x = getQuantile(sortedX, 0.75);
+      const q1y = getQuantile(sortedY, 0.25);
+      const q3y = getQuantile(sortedY, 0.75);
+      if (q1x == null || q3x == null || q1y == null || q3y == null) return points;
+
+      const iqrX = q3x - q1x;
+      const iqrY = q3y - q1y;
+      const minX = q1x - 1.5 * iqrX;
+      const maxX = q3x + 1.5 * iqrX;
+      const minY = q1y - 1.5 * iqrY;
+      const maxY = q3y + 1.5 * iqrY;
+
+      return points.filter((point) => {
+        const y = point[yKey];
+        const x = point[xKey];
+        if (typeof y !== 'number' || typeof x !== 'number') return false;
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
+      });
+    },
+    [pruneScatterOutliers]
+  );
+
+  const movieScatterData = useMemo(() => {
+    const base =
+      scatterYAxisMode === 'release_year'
+        ? stats.movieRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number')
+        : stats.movieRuntimeVsRankData;
+    return filterScatterOutliers(base, 'runtime', scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear');
+  }, [stats.movieRuntimeVsRankData, scatterYAxisMode, filterScatterOutliers]);
+
+  const showScatterData = useMemo(() => {
+    const base =
+      scatterYAxisMode === 'release_year'
+        ? stats.showRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number')
+        : stats.showRuntimeVsRankData;
+    return filterScatterOutliers(base, 'runtime', scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear');
+  }, [stats.showRuntimeVsRankData, scatterYAxisMode, filterScatterOutliers]);
+
+  const movieRankByReleaseData = useMemo(() => {
+    const base = stats.movieRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number');
+    return filterScatterOutliers(base, 'releaseYear', 'rank');
+  }, [stats.movieRuntimeVsRankData, filterScatterOutliers]);
+
+  const showRankByReleaseData = useMemo(() => {
+    const base = stats.showRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number');
+    return filterScatterOutliers(base, 'releaseYear', 'rank');
+  }, [stats.showRuntimeVsRankData, filterScatterOutliers]);
+
+  const getReleaseYearDomain = (points: Array<{ releaseYear: number | null }>): [number, number] | undefined => {
+    const years = points.map((p) => p.releaseYear).filter((y): y is number => typeof y === 'number' && Number.isFinite(y));
+    if (years.length === 0) return undefined;
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    if (minYear === maxYear) return [minYear - 1, maxYear + 1];
+    return [minYear, maxYear];
+  };
+
+  const movieReleaseYearDomain = useMemo(() => getReleaseYearDomain(movieScatterData), [movieScatterData]);
+  const showReleaseYearDomain = useMemo(() => getReleaseYearDomain(showScatterData), [showScatterData]);
+  const movieRankByReleaseYearDomain = useMemo(() => getReleaseYearDomain(movieRankByReleaseData), [movieRankByReleaseData]);
+  const showRankByReleaseYearDomain = useMemo(() => getReleaseYearDomain(showRankByReleaseData), [showRankByReleaseData]);
 
   const allRecentWatches = useMemo(() => {
     // Use the same "all classes except UNRANKED" behavior as the profile views,
@@ -1270,8 +1447,8 @@ export function ProfilePage() {
         
         <div className="profile-stats-top-row">
           <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{formatDuration(stats.totalMinutes)}</span>
-            <span className="profile-stat-label">Total watch time</span>
+            <span className="profile-stat-value profile-stat-value--hero">{formatWatchtimeHours(stats.totalMinutes)}</span>
+            <span className="profile-stat-label">Watchtime</span>
           </div>
           <div className="profile-stat">
             <span className="profile-stat-value profile-stat-value--hero">{stats.moviesSeen}</span>
@@ -1713,6 +1890,280 @@ export function ProfilePage() {
                     }} />
                     <Bar dataKey="avgRuntime" fill="var(--accent)" />
                   </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">
+                    Movie Runtime vs {scatterYAxisMode === 'rank' ? 'Absolute Ranking' : 'Release Year'}
+                  </h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${scatterYAxisMode === 'rank' ? 'active' : ''}`}
+                      onClick={() => setScatterYAxisMode('rank')}
+                    >
+                      Ranking
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${scatterYAxisMode === 'release_year' ? 'active' : ''}`}
+                      onClick={() => setScatterYAxisMode('release_year')}
+                    >
+                      Release year
+                    </button>
+                  </div>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${!pruneScatterOutliers ? 'active' : ''}`}
+                      onClick={() => setPruneScatterOutliers(false)}
+                    >
+                      Outliers on
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${pruneScatterOutliers ? 'active' : ''}`}
+                      onClick={() => setPruneScatterOutliers(true)}
+                    >
+                      Prune outliers
+                    </button>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ScatterChart data={movieScatterData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      dataKey="runtime"
+                      name="Runtime"
+                      unit=" min"
+                      stroke="rgba(255,255,255,0.5)"
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey={scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear'}
+                      name={scatterYAxisMode === 'rank' ? 'Absolute Rank' : 'Release Year'}
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      reversed={scatterYAxisMode === 'rank'}
+                      domain={scatterYAxisMode === 'release_year' ? movieReleaseYearDomain : undefined}
+                    />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as {
+                            title: string;
+                            classLabel: string;
+                            runtime: number;
+                            absoluteRank: string;
+                            releaseYear?: number | null;
+                          };
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{data.title}</p>
+                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                              <p className="profile-chart-tooltip-count">Runtime: {data.runtime} min</p>
+                              {scatterYAxisMode === 'rank' ? (
+                                <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                              ) : (
+                                <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Scatter data={movieScatterData}>
+                      {movieScatterData.map((point, index) => (
+                        <Cell key={`movie-scatter-point-${point.title}-${index}`} fill={point.color} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">
+                  Show Runtime vs {scatterYAxisMode === 'rank' ? 'Absolute Ranking' : 'Release Year'}
+                </h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ScatterChart data={showScatterData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      dataKey="runtime"
+                      name="Runtime"
+                      unit=" min"
+                      stroke="rgba(255,255,255,0.5)"
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey={scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear'}
+                      name={scatterYAxisMode === 'rank' ? 'Absolute Rank' : 'Release Year'}
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      reversed={scatterYAxisMode === 'rank'}
+                      domain={scatterYAxisMode === 'release_year' ? showReleaseYearDomain : undefined}
+                    />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as {
+                            title: string;
+                            classLabel: string;
+                            runtime: number;
+                            absoluteRank: string;
+                            releaseYear?: number | null;
+                          };
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{data.title}</p>
+                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                              <p className="profile-chart-tooltip-count">Runtime: {data.runtime} min</p>
+                              {scatterYAxisMode === 'rank' ? (
+                                <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                              ) : (
+                                <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Scatter data={showScatterData}>
+                      {showScatterData.map((point, index) => (
+                        <Cell key={`show-scatter-point-${point.title}-${index}`} fill={point.color} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Movie Ranking by Release Year</h3>
+                  <div className="profile-chart-toggle">
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${!pruneScatterOutliers ? 'active' : ''}`}
+                      onClick={() => setPruneScatterOutliers(false)}
+                    >
+                      Outliers on
+                    </button>
+                    <button
+                      type="button"
+                      className={`profile-chart-toggle-btn ${pruneScatterOutliers ? 'active' : ''}`}
+                      onClick={() => setPruneScatterOutliers(true)}
+                    >
+                      Prune outliers
+                    </button>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ScatterChart data={movieRankByReleaseData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      dataKey="releaseYear"
+                      name="Release Year"
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      domain={movieRankByReleaseYearDomain}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="rank"
+                      name="Absolute Rank"
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      reversed
+                    />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as {
+                            title: string;
+                            classLabel: string;
+                            releaseYear?: number | null;
+                            absoluteRank: string;
+                          };
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{data.title}</p>
+                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                              <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
+                              <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Scatter data={movieRankByReleaseData}>
+                      {movieRankByReleaseData.map((point, index) => (
+                        <Cell key={`movie-release-rank-point-${point.title}-${index}`} fill={point.color} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="profile-chart-section">
+                <h3 className="profile-chart-title">Show Ranking by Release Year</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ScatterChart data={showRankByReleaseData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      dataKey="releaseYear"
+                      name="Release Year"
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      domain={showRankByReleaseYearDomain}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="rank"
+                      name="Absolute Rank"
+                      stroke="rgba(255,255,255,0.5)"
+                      allowDecimals={false}
+                      reversed
+                    />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as {
+                            title: string;
+                            classLabel: string;
+                            releaseYear?: number | null;
+                            absoluteRank: string;
+                          };
+                          return (
+                            <div className="profile-chart-tooltip">
+                              <p className="profile-chart-tooltip-category">{data.title}</p>
+                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                              <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
+                              <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Scatter data={showRankByReleaseData}>
+                      {showRankByReleaseData.map((point, index) => (
+                        <Cell key={`show-release-rank-point-${point.title}-${index}`} fill={point.color} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
                 </ResponsiveContainer>
               </div>
             </div>

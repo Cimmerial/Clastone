@@ -98,6 +98,12 @@ export function formatDuration(totalMinutes: number): string {
   return `${h}h ${min}m total`;
 }
 
+/** Whole hours only (Quick stats hero line). */
+export function formatWatchtimeHours(totalMinutes: number): string {
+  const h = Math.floor(Math.max(0, totalMinutes) / 60);
+  return `${h}h`;
+}
+
 /** Total watch minutes from records + runtime (for class totals). */
 export function getTotalMinutesFromRecords(
   records: WatchRecord[],

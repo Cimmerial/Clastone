@@ -971,6 +971,25 @@
   user-select: none;
 }
 
+/* Lightweight paint/composite path while dragging */
+.ranked-list--sortable.dragging-active .entry-row-wrapper {
+  transition: none !important;
+}
+
+.ranked-list--sortable.dragging-active .entry-row-wrapper:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ranked-list--sortable.dragging-active .class-section--drag-over::before {
+  animation: none !important;
+}
+
+.ranked-list--sortable.dragging-active .class-section-droppable,
+.ranked-list--sortable.dragging-active .class-section {
+  transition: none !important;
+}
+
 /* Mobile drag optimizations */
 @media (max-width: 767px) {
   .class-section--drag-over {
