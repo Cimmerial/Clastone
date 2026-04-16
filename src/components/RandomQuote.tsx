@@ -29,6 +29,22 @@ export function RandomQuote() {
         return grouped;
     }, [firebaseQuotes]);
 
+    const activeCategoryQuotes = useMemo(() => {
+        const path = location.pathname.split('/')[1] || 'general';
+        const quoteSource = groupedFirebaseQuotes ?? typedQuotesData;
+        const category = quoteSource[path] ? path : 'general';
+        return quoteSource[category] ?? [];
+    }, [location.pathname, groupedFirebaseQuotes]);
+
+    const pickRandomQuote = (quotes: Quote[], excludeText?: string | null): Quote | null => {
+        if (!quotes.length) return null;
+        if (quotes.length === 1) return quotes[0];
+        const candidates = excludeText ? quotes.filter((q) => q.text !== excludeText) : quotes;
+        const pool = candidates.length ? candidates : quotes;
+        const randomIndex = Math.floor(Math.random() * pool.length);
+        return pool[randomIndex] ?? null;
+    };
+
     useEffect(() => {
         let isCancelled = false;
         if (!db) {
@@ -50,25 +66,30 @@ export function RandomQuote() {
     }, []);
 
     useEffect(() => {
-        // Determine the category based on the path
-        const path = location.pathname.split('/')[1] || 'general';
+        setQuote(pickRandomQuote(activeCategoryQuotes, null));
+    }, [activeCategoryQuotes]);
 
-        const quoteSource = groupedFirebaseQuotes ?? typedQuotesData;
-        // Fallback to 'general' if the category doesn't exist in quote data
-        const category = quoteSource[path] ? path : 'general';
-        const categoryQuotes = quoteSource[category];
-
-        if (categoryQuotes && categoryQuotes.length > 0) {
-            const randomIndex = Math.floor(Math.random() * categoryQuotes.length);
-            setQuote(categoryQuotes[randomIndex]);
-        } else {
-            setQuote(null);
-        }
-    }, [location.pathname, groupedFirebaseQuotes]);
+    const handleCycleQuote = () => {
+        setQuote((current) => pickRandomQuote(activeCategoryQuotes, current?.text ?? null));
+    };
 
     if (!quote) return null;
 
     return (
-        <p className="page-tagline random-quote-text">"{quote.text}" - {quote.character}</p>
+        <p
+            className="page-tagline random-quote-text"
+            onClick={handleCycleQuote}
+            role="button"
+            tabIndex={0}
+            aria-label="Show another quote"
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleCycleQuote();
+                }
+            }}
+        >
+            "{quote.text}" - {quote.character}
+        </p>
     );
 }

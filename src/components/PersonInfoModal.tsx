@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Info, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { InfoModal } from './InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from './UniversalEditModal';
 import type { WatchRecord } from './EntryRowMovieShow';
@@ -39,6 +41,7 @@ interface PersonDetails {
 }
 
 export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, onEditPerson }: PersonInfoModalProps) {
+  const navigate = useNavigate();
   const [details, setDetails] = useState<PersonDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +52,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const { settings } = useSettingsStore();
   const { classes: movieClasses, getClassLabel: getMovieClassLabel, getMovieById, addMovieFromSearch, updateMovieWatchRecords, moveItemToClass: moveMovieToClass, removeMovieEntry } = useMoviesStore();
   const { classes: tvClasses, getClassLabel: getTvClassLabel, getShowById, addShowFromSearch, updateShowWatchRecords, moveItemToClass: moveShowToClass, removeShowEntry } = useTvStore();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -209,6 +213,25 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
         initialWatches={existingItem?.watchRecords}
         currentClassKey={existingItem?.classKey}
         currentClassLabel={currentClassLabel}
+        isWatchlistItem={isInWatchlist(targetId)}
+        onAddToWatchlist={() => {
+          addToWatchlist(
+            {
+              id: targetId,
+              title: projectEditTarget.title,
+              posterPath: projectEditTarget.posterPath,
+              releaseDate: projectEditTarget.releaseDate
+            },
+            projectEditTarget.mediaType === 'movie' ? 'movies' : 'tv'
+          );
+        }}
+        onRemoveFromWatchlist={() => {
+          removeFromWatchlist(targetId);
+        }}
+        onGoToWatchlist={() => {
+          setProjectEditTarget(null);
+          navigate('/watchlist', { state: { scrollToId: targetId } });
+        }}
         isSaving={isSavingProject}
         onClose={() => setProjectEditTarget(null)}
         onRemoveEntry={(itemId: string) => {

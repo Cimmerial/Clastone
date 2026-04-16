@@ -144,21 +144,21 @@ function watchEventKey(w: { item: MovieShowItem; record: WatchRecord; sortKey: s
 function buildUniqueWatchMilestoneData(
   allWatches: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[],
   username: string
-): { badgeMap: Map<string, { n: number }> } {
+): {
+  badgeMap: Map<string, { n: number }>;
+  movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
+  showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
+} {
   const firstMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
-  const lastMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
   const firstShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
-  const lastShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
 
   const tieValue = (r: WatchRecord) => r.id ?? '';
 
   for (const w of allWatches) {
     const firstMap = w.isMovie ? firstMovieByTitle : firstShowByTitle;
-    const lastMap = w.isMovie ? lastMovieByTitle : lastShowByTitle;
     const key = w.item.id;
 
     const firstExisting = firstMap.get(key);
-    const lastExisting = lastMap.get(key);
 
     if (!firstExisting) {
       firstMap.set(key, w);
@@ -171,16 +171,6 @@ function buildUniqueWatchMilestoneData(
       }
     }
 
-    if (!lastExisting) {
-      lastMap.set(key, w);
-    } else {
-      const laterSort = w.sortKey.localeCompare(lastExisting.sortKey) > 0;
-      const sameSortLast = w.sortKey === lastExisting.sortKey;
-      const laterTie = tieValue(w.record).localeCompare(tieValue(lastExisting.record)) > 0;
-      if (laterSort || (sameSortLast && laterTie)) {
-        lastMap.set(key, w);
-      }
-    }
   }
 
   const firstMovieEntries = Array.from(firstMovieByTitle.values()).sort(
@@ -191,24 +181,40 @@ function buildUniqueWatchMilestoneData(
   );
 
   const badgeMap = new Map<string, { n: number }>();
+  const movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
+  const showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
 
   for (let i = 0; i < firstMovieEntries.length; i++) {
     const first = firstMovieEntries[i];
     const n = i + 1;
     if (n % 50 !== 0) continue;
-    const last = lastMovieByTitle.get(first.item.id) ?? first;
-    badgeMap.set(watchEventKey(last), { n });
+    badgeMap.set(watchEventKey(first), { n });
+    movieMilestones.push({
+      n,
+      item: first.item,
+      sortKey: first.sortKey,
+      recordType: first.record.type ?? 'DATE',
+      recordId: first.record.id
+    });
   }
 
   for (let i = 0; i < firstShowEntries.length; i++) {
     const first = firstShowEntries[i];
     const n = i + 1;
-    if (n % 50 !== 0) continue;
-    const last = lastShowByTitle.get(first.item.id) ?? first;
-    badgeMap.set(watchEventKey(last), { n });
+    if (n % 25 !== 0) continue;
+    badgeMap.set(watchEventKey(first), { n });
+    showMilestones.push({
+      n,
+      item: first.item,
+      sortKey: first.sortKey,
+      recordType: first.record.type ?? 'DATE',
+      recordId: first.record.id
+    });
   }
 
-  return { badgeMap };
+  movieMilestones.sort((a, b) => a.n - b.n);
+  showMilestones.sort((a, b) => a.n - b.n);
+  return { badgeMap, movieMilestones, showMilestones };
 }
 
 function buildTopFiveByYear(items: MovieShowItem[]) {
@@ -307,7 +313,7 @@ export function FriendProfilePage() {
   const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
   const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[], tv: any[] } | null>(null);
 
-  const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time'>('this_year');
+  const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time' | 'milestones'>('this_year');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
@@ -1066,6 +1072,7 @@ export function FriendProfilePage() {
   console.log('📊 Final stats object:', stats);
 
   const filteredRecentWatches = useMemo(() => {
+    if (recentRange === 'milestones') return stats.recentWatches;
     const range = getDateRangeFilter(recentRange);
     if (!range) return stats.recentWatches;
     return stats.recentWatches.filter(w => {
@@ -1079,8 +1086,32 @@ export function FriendProfilePage() {
     const movieKeys = friendMoviesData?.classes?.map((c: any) => c.key) ?? [];
     const tvKeys = friendTvData?.classes?.map((c: any) => c.key) ?? [];
     const all = getAllWatches(friendMoviesData?.byClass ?? {}, friendTvData?.byClass ?? {}, movieKeys, tvKeys);
-    return buildUniqueWatchMilestoneData(all, name).badgeMap;
+    return buildUniqueWatchMilestoneData(all, name);
   }, [friendProfile?.username, friendMoviesData?.byClass, friendMoviesData?.classes, friendTvData?.byClass, friendTvData?.classes]);
+
+  const allMilestoneEvents = useMemo(() => {
+    const movieRows = uniqueWatchMilestones.movieMilestones.map((m) => ({
+      item: m.item,
+      sortKey: m.sortKey,
+      n: m.n,
+      isMovie: true as const,
+      recordType: m.recordType,
+      recordId: m.recordId
+    }));
+    const showRows = uniqueWatchMilestones.showMilestones.map((m) => ({
+      item: m.item,
+      sortKey: m.sortKey,
+      n: m.n,
+      isMovie: false as const,
+      recordType: m.recordType,
+      recordId: m.recordId
+    }));
+    return [...movieRows, ...showRows].sort((a, b) => {
+      if (a.isMovie !== b.isMovie) return a.isMovie ? -1 : 1;
+      if (a.n !== b.n) return b.n - a.n;
+      return b.sortKey.localeCompare(a.sortKey);
+    });
+  }, [uniqueWatchMilestones.movieMilestones, uniqueWatchMilestones.showMilestones]);
 
   // Helper to check if current user has a movie ranked (using MY stores, not friend's)
   const getUserMovieStatus = useCallback((tmdbId: number): { isRanked: boolean; classKey?: string; watchRecords?: WatchRecord[] } => {
@@ -1270,6 +1301,7 @@ export function FriendProfilePage() {
     },
     [friendMoviesGlobalRanks, friendTvGlobalRanks]
   );
+
 
   // Handle clicking a top 10 movie
   const handleMovieClick = (movie: MovieShowItem) => {
@@ -2023,6 +2055,7 @@ export function FriendProfilePage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+
             </div>
 
             <ProfileCopyTopRankedSection
@@ -2599,7 +2632,7 @@ export function FriendProfilePage() {
         <div className="profile-recent profile-card card-surface">
           <div className="profile-recent-header">
             <h2 className="profile-card-title">Recently watched</h2>
-            <span className="profile-recent-count">{filteredRecentWatches.length}</span>
+            <span className="profile-recent-count">{recentRange === 'milestones' ? allMilestoneEvents.length : filteredRecentWatches.length}</span>
           </div>
           <div className="profile-recent-controls">
             <span className="profile-recent-label">Show:</span>
@@ -2608,7 +2641,8 @@ export function FriendProfilePage() {
                 { value: 'this_year' as const, label: 'This year' },
                 { value: 'last_month' as const, label: 'In the last month' },
                 { value: 'last_year' as const, label: 'In the last year' },
-                { value: 'all_time' as const, label: 'All time' }
+                { value: 'all_time' as const, label: 'All time' },
+                { value: 'milestones' as const, label: 'Milestones' }
               ]
             ).map((opt) => (
               <button
@@ -2622,7 +2656,71 @@ export function FriendProfilePage() {
             ))}
           </div>
           <div className="profile-recent-list">
-            {filteredRecentWatches.length === 0 ? (
+            {recentRange === 'milestones' ? (
+              allMilestoneEvents.length === 0 ? (
+                <p className="profile-muted">No milestones yet.</p>
+              ) : (
+                <div className="profile-recent-grid">
+                  {allMilestoneEvents.map((w, i) => {
+                    const userStatus = w.isMovie
+                      ? getUserMovieStatus(w.item.tmdbId || 0)
+                      : getUserShowStatus(w.item.tmdbId || 0);
+                    const friendStatus = w.isMovie
+                      ? getFriendMovieStatus(w.item.id)
+                      : getFriendShowStatus(w.item.id);
+                    const handleClick = () => {
+                      if (w.isMovie) handleMovieClick(w.item);
+                      else handleShowClick(w.item);
+                    };
+                    let displayText = null;
+                    if (friendStatus.isRanked) {
+                      const globalRanks = w.isMovie ? friendMoviesGlobalRanks : friendTvGlobalRanks;
+                      const rankInfo = globalRanks.get(w.item.id);
+                      displayText = rankInfo?.percentileRank;
+                    } else if (friendStatus.classKey === 'DELICIOUS_GARBAGE') {
+                      displayText = 'GARB';
+                    } else if (friendStatus.classKey === 'BABY') {
+                      displayText = 'BABY';
+                    } else {
+                      displayText = 'N/A';
+                    }
+                    return (
+                      <div
+                        key={`ms-${w.item.id}-${w.recordId ?? w.sortKey}-${i}`}
+                        className="profile-recent-tile profile-top-item--clickable"
+                        onClick={handleClick}
+                      >
+                        <div className="profile-recent-tile-poster">
+                          {getMoviePosterSrc(w.item) ? (
+                            <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
+                          ) : (
+                            <span>{w.isMovie ? '🎬' : '📺'}</span>
+                          )}
+                          <div className="profile-top-overlay">
+                            <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                              {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                            </span>
+                          </div>
+                          {displayText && (
+                            <div className={`profile-recent-percentile ${!friendStatus.isRanked ? 'profile-recent-percentile--unranked' : ''} ${w.isMovie ? 'profile-recent-percentile--movie' : 'profile-recent-percentile--tv'}`}>
+                              {displayText}
+                            </div>
+                          )}
+                          <div className="profile-recent-milestone">
+                            <Award />
+                            <span>#{w.n}</span>
+                          </div>
+                        </div>
+                        <div className="profile-recent-tile-info">
+                          <span className="profile-recent-tile-title">{w.item.title}</span>
+                          <span className="profile-recent-tile-date">{w.sortKey === '0000-00-00' ? 'Unknown date' : w.sortKey}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : filteredRecentWatches.length === 0 ? (
               <p className="profile-muted">No watches in this range.</p>
             ) : (
               <div className="profile-recent-grid">
@@ -2681,7 +2779,7 @@ export function FriendProfilePage() {
                           </div>
                         )}
                         {(() => {
-                          const ms = uniqueWatchMilestones.get(watchEventKey(w));
+                          const ms = uniqueWatchMilestones.badgeMap.get(watchEventKey(w));
                           if (!ms) return null;
                           return (
                             <div className="profile-recent-milestone">
