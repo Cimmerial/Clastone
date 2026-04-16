@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUp, ArrowDown, ChevronDown, ChevronRight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
@@ -28,10 +28,17 @@ import './SettingsPage.css';
 
 const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings', 'general'];
 
-type ClassSectionKey = 'movies' | 'tv' | 'actors' | 'directors';
+type ClassSectionKey = 'movies' | 'tv' | 'actors' | 'directors' | 'display' | 'dev';
+
+type BabyRoleUser = {
+  uid: string;
+  username?: string;
+  email?: string;
+  devRole?: string;
+};
 
 export function SettingsPage() {
-  const { user, username, signOut, isAdmin } = useAuth();
+  const { user, username, signOut, isAdmin, isBabyDev } = useAuth();
   const { status } = useSyncStatus();
   const { settings, updateSettings } = useSettingsStore();
   const {
@@ -90,6 +97,8 @@ export function SettingsPage() {
     tv: false,
     actors: false,
     directors: false,
+    display: false,
+    dev: false,
   });
   const [quotes, setQuotes] = useState<FirebaseQuote[]>([]);
   const [quoteForm, setQuoteForm] = useState({
@@ -109,6 +118,10 @@ export function SettingsPage() {
   const [pfpQuery, setPfpQuery] = useState('');
   const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
   const [savingPfp, setSavingPfp] = useState(false);
+  const [showManageBabiesModal, setShowManageBabiesModal] = useState(false);
+  const [babyUsersLoading, setBabyUsersLoading] = useState(false);
+  const [babyUsersError, setBabyUsersError] = useState<string | null>(null);
+  const [babyUsers, setBabyUsers] = useState<BabyRoleUser[]>([]);
 
   const signedIn = hasFirebaseConfig && user;
 
@@ -205,8 +218,11 @@ export function SettingsPage() {
     }
   };
 
+  const canManageQuotes = isAdmin || isBabyDev;
+  const canManageDevPanel = isAdmin && import.meta.env.DEV;
+
   useEffect(() => {
-    if (!signedIn || !isAdmin || !db) return;
+    if (!signedIn || !canManageQuotes || !db) return;
     let cancelled = false;
     (async () => {
       setQuotesLoading(true);
@@ -229,7 +245,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [signedIn, isAdmin]);
+  }, [signedIn, canManageQuotes]);
 
   useEffect(() => {
     if (!signedIn || !db || !user?.uid) return;
@@ -262,6 +278,40 @@ export function SettingsPage() {
       setPfpQuery('');
     } finally {
       setSavingPfp(false);
+    }
+  };
+
+  const loadBabyRoleUsers = async () => {
+    if (!db || !canManageDevPanel) return;
+    setBabyUsersLoading(true);
+    setBabyUsersError(null);
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const users = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          username: typeof data.username === 'string' ? data.username : undefined,
+          email: typeof data.email === 'string' ? data.email : undefined,
+          devRole: typeof data.devRole === 'string' ? data.devRole : undefined
+        } satisfies BabyRoleUser;
+      });
+      users.sort((a, b) => (a.username ?? a.email ?? a.uid).localeCompare(b.username ?? b.email ?? b.uid));
+      setBabyUsers(users);
+    } catch (error) {
+      setBabyUsersError(error instanceof Error ? error.message : 'Failed to load users.');
+    } finally {
+      setBabyUsersLoading(false);
+    }
+  };
+
+  const toggleBabyDev = async (targetUid: string, enable: boolean) => {
+    if (!db || !canManageDevPanel) return;
+    try {
+      await setDoc(doc(db, 'users', targetUid), { devRole: enable ? 'babydev' : null }, { merge: true });
+      setBabyUsers((prev) => prev.map((u) => (u.uid === targetUid ? { ...u, devRole: enable ? 'babydev' : undefined } : u)));
+    } catch (error) {
+      setBabyUsersError(error instanceof Error ? error.message : 'Failed to update babydev role.');
     }
   };
 
@@ -316,7 +366,7 @@ export function SettingsPage() {
               onClick={() => handleToggleSection('movies')}
               aria-label={expandedSections.movies ? 'Collapse movie class management' : 'Expand movie class management'}
             >
-              {expandedSections.movies ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {expandedSections.movies ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
             </button>
           </div>
           {expandedSections.movies && (
@@ -523,7 +573,7 @@ export function SettingsPage() {
               onClick={() => handleToggleSection('tv')}
               aria-label={expandedSections.tv ? 'Collapse TV show class management' : 'Expand TV show class management'}
             >
-              {expandedSections.tv ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {expandedSections.tv ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
             </button>
           </div>
           {expandedSections.tv && (
@@ -645,7 +695,7 @@ export function SettingsPage() {
               onClick={() => handleToggleSection('actors')}
               aria-label={expandedSections.actors ? 'Collapse actor class management' : 'Expand actor class management'}
             >
-              {expandedSections.actors ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {expandedSections.actors ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
             </button>
           </div>
           {expandedSections.actors && (
@@ -775,7 +825,7 @@ export function SettingsPage() {
               onClick={() => handleToggleSection('directors')}
               aria-label={expandedSections.directors ? 'Collapse director class management' : 'Expand director class management'}
             >
-              {expandedSections.directors ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {expandedSections.directors ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
             </button>
           </div>
           {expandedSections.directors && (
@@ -896,8 +946,20 @@ export function SettingsPage() {
           )}
         </div>
 
-        <div className="settings-card card-surface settings-card-wide">
-          <h2 className="settings-title">Display</h2>
+        <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
+          <div className="settings-card-heading-row">
+            <h2 className="settings-title">Display</h2>
+            <button
+              type="button"
+              className="settings-collapse-toggle"
+              onClick={() => handleToggleSection('display')}
+              aria-label={expandedSections.display ? 'Collapse display settings' : 'Expand display settings'}
+            >
+              {expandedSections.display ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+            </button>
+          </div>
+          {expandedSections.display && (
+            <>
           <p className="settings-muted">
             Adjust how entries appear across your lists.
           </p>
@@ -1010,6 +1072,8 @@ export function SettingsPage() {
             </label>
           </div>
 
+            </>
+          )}
         </div>
 
         <div className="settings-card card-surface settings-card-wide">
@@ -1051,9 +1115,11 @@ export function SettingsPage() {
             </button>
           )}
 
-          {signedIn && isAdmin && (
+          {signedIn && canManageQuotes && (
             <div className="settings-dev-quotes">
-              <h3 className="settings-subtitle settings-subtitle-spaced">Movie/Show Quote Management (Dev)</h3>
+              <h3 className="settings-subtitle settings-subtitle-spaced">
+                {isAdmin ? 'Movie/Show Quote Management (Dev)' : 'Movie/Show Quote Management (BabyDev)'}
+              </h3>
               {quotesError ? <p className="settings-quote-error">{quotesError}</p> : null}
               <div className="settings-list-actions">
                 <button
@@ -1204,6 +1270,39 @@ export function SettingsPage() {
             </div>
           )}
         </div>
+
+        {signedIn && canManageDevPanel && (
+          <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
+            <div className="settings-card-heading-row">
+              <h2 className="settings-title">Dev</h2>
+              <button
+                type="button"
+                className="settings-collapse-toggle"
+                onClick={() => handleToggleSection('dev')}
+                aria-label={expandedSections.dev ? 'Collapse dev settings' : 'Expand dev settings'}
+              >
+                {expandedSections.dev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+              </button>
+            </div>
+            {expandedSections.dev && (
+              <>
+                <p className="settings-muted">Admin-only dev controls.</p>
+                <div className="settings-list-actions">
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => {
+                      setShowManageBabiesModal(true);
+                      void loadBabyRoleUsers();
+                    }}
+                  >
+                    Manage babies
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {showPfpModal && (
@@ -1250,6 +1349,51 @@ export function SettingsPage() {
                 Clear profile picture
               </button>
               <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setShowPfpModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showManageBabiesModal && (
+        <div className="settings-modal-backdrop" role="presentation" onClick={() => setShowManageBabiesModal(false)}>
+          <div
+            className="settings-modal settings-babydev-modal card-surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Manage baby devs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="settings-title">Manage BabyDev Access</h4>
+            {babyUsersError ? <p className="settings-quote-error">{babyUsersError}</p> : null}
+            {babyUsersLoading ? <p className="settings-muted">Loading users…</p> : null}
+            {!babyUsersLoading && (
+              <div className="settings-list settings-babydev-list">
+                {babyUsers.map((u) => {
+                  const isBaby = (u.devRole ?? '').toLowerCase() === 'babydev';
+                  return (
+                    <div key={u.uid} className="settings-list-item">
+                      <span className="settings-class-name">
+                        <span className="settings-class-name-main">{u.username ?? u.email ?? u.uid}</span>
+                        <span className="settings-class-tagline"> | {u.email ?? u.uid}</span>
+                      </span>
+                      <div className="settings-list-actions">
+                        <label className="settings-switch">
+                          <input
+                            type="checkbox"
+                            checked={isBaby}
+                            onChange={(e) => void toggleBabyDev(u.uid, e.target.checked)}
+                          />
+                          <span className="settings-switch-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="settings-list-actions">
+              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setShowManageBabiesModal(false)}>
                 Close
               </button>
             </div>

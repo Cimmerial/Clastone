@@ -24,6 +24,7 @@ const ADMIN_EMAIL = 'cimmerial@clastone.local';
 type AuthState = {
   user: User | null;
   isAdmin: boolean;
+  isBabyDev: boolean;
   loading: boolean;
   loginError: string | null;
   username: string | null;
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isBabyDev, setIsBabyDev] = useState(false);
   const [loading, setLoading] = useState(!!auth);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
@@ -54,12 +56,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      setIsAdmin(u?.email === ADMIN_EMAIL);
+      const emailAdmin = u?.email === ADMIN_EMAIL;
+      setIsAdmin(emailAdmin);
       
       if (u) {
         const userDoc = await getDoc(doc(db!, 'users', u.uid));
         const userData = userDoc.data();
         const userUsername = userData?.username;
+        const role = typeof userData?.devRole === 'string' ? userData.devRole.toLowerCase() : '';
+        setIsBabyDev(!emailAdmin && role === 'babydev');
         
         if (userUsername) {
           setUsername(userUsername);
@@ -70,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUsername(null);
         setNeedsUsername(false);
+        setIsBabyDev(false);
       }
       
       setLoading(false);
@@ -293,6 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthState = {
     user,
     isAdmin,
+    isBabyDev,
     loading,
     loginError,
     username,

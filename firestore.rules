@@ -11,13 +11,24 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
+      function isDevAdmin() {
+        return request.auth != null && request.auth.token.email == "cimmerial@clastone.local";
+      }
+      function adminOnlyUpdatesDevRole() {
+        return isDevAdmin()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['devRole'])
+          && (
+            request.resource.data.devRole == null
+            || request.resource.data.devRole is string
+          );
+      }
       // Allow list queries for username checking (unauthenticated)
       allow list: if true;
 
       // Owner: full doc. Others (including signed-out): only small docs without sensitive keys.
       allow read: if request.auth != null && request.auth.uid == userId
         || userProfileDocPublicSafe();
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if (request.auth != null && request.auth.uid == userId) || adminOnlyUpdatesDevRole();
       allow create: if request.auth != null && request.auth.uid == userId;
       // Debug: Log all user collection access attempts
       // This will show up in Firebase Console logs
