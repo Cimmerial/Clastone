@@ -8,6 +8,8 @@ import { SearchPage } from './pages/SearchPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
+import { FriendMovieCollectionPage } from './pages/FriendMovieCollectionPage';
+import { FriendTvCollectionPage } from './pages/FriendTvCollectionPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { HomePage } from './pages/HomePage';
@@ -32,6 +34,8 @@ export function AppRoutes() {
       <Route path="/search" element={<SearchPage />} />
       <Route path="/friends" element={<FriendsPage />} />
       <Route path="/friends/:friendId" element={<FriendProfilePage />} />
+      <Route path="/friends/:friendId/collection/movies" element={<FriendMovieCollectionPage />} />
+      <Route path="/friends/:friendId/collection/shows" element={<FriendTvCollectionPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route 

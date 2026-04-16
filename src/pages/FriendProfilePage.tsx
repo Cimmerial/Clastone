@@ -141,6 +141,41 @@ function watchEventKey(w: { item: MovieShowItem; record: WatchRecord; sortKey: s
   return `${w.item.id}::${t}::${w.sortKey}${idPart}`;
 }
 
+function CollectionRadialProgress({
+  seen,
+  watchlistUnseen,
+  total,
+  includeWatchlistSegment
+}: {
+  seen: number;
+  watchlistUnseen: number;
+  total: number;
+  includeWatchlistSegment: boolean;
+}) {
+  const pct = total > 0 ? Math.round((seen / total) * 100) : 0;
+  const seenPct = total > 0 ? Math.min(100, (seen / total) * 100) : 0;
+  const watchlistPct = includeWatchlistSegment && total > 0 ? Math.min(100 - seenPct, (watchlistUnseen / total) * 100) : 0;
+  const combinedPct = Math.min(100, seenPct + watchlistPct);
+  const seenColor = pct < 33 ? '#d95858' : pct < 67 ? '#d7b24f' : pct < 100 ? '#48b66e' : '#f0cf72';
+  const ringStyle = {
+    background: `conic-gradient(
+      ${seenColor} 0% ${seenPct}%,
+      #4da3ff ${seenPct}% ${combinedPct}%,
+      rgba(255, 255, 255, 0.12) ${combinedPct}% 100%
+    )`,
+  };
+
+  return (
+    <div className="profile-collection-radial-wrap">
+      <div className="profile-collection-radial-ring" style={ringStyle} />
+      <div className="profile-collection-radial-center">
+        <div className="profile-collection-radial-frac">{seen}/{total}</div>
+        <div className="profile-collection-radial-pct">{pct}%</div>
+      </div>
+    </div>
+  );
+}
+
 function buildUniqueWatchMilestoneData(
   allWatches: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[],
   username: string
@@ -355,6 +390,92 @@ export function FriendProfilePage() {
       .filter((c: any) => c.isRanked)
       .reduce((count: number, classDef: any) => count + (friendDirectorsData.byClass[classDef.key]?.length || 0), 0);
   }, [friendDirectorsData]);
+
+  const friendWatchedMovieIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!friendMoviesData?.classes || !friendMoviesData?.byClass) return ids;
+    for (const classDef of friendMoviesData.classes) {
+      for (const item of friendMoviesData.byClass[classDef.key] ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) {
+          ids.add(item.id);
+        }
+      }
+    }
+    return ids;
+  }, [friendMoviesData]);
+
+  const mySeenMovieIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const items of Object.values(myMoviesByClass)) {
+      for (const item of items ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) {
+          ids.add(item.id);
+        }
+      }
+    }
+    return ids;
+  }, [myMoviesByClass]);
+
+  const friendMovieCollectionProgress = useMemo(() => {
+    const total = friendWatchedMovieIds.size;
+    if (total === 0) {
+      return { seen: 0, watchlistUnseen: 0, total: 0 };
+    }
+    let seen = 0;
+    let watchlistUnseen = 0;
+    for (const itemId of friendWatchedMovieIds) {
+      const isSeen = mySeenMovieIds.has(itemId);
+      if (isSeen) {
+        seen += 1;
+      } else if (isInWatchlist(itemId)) {
+        watchlistUnseen += 1;
+      }
+    }
+    return { seen, watchlistUnseen, total };
+  }, [friendWatchedMovieIds, mySeenMovieIds, isInWatchlist]);
+
+  const friendWatchedShowIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!friendTvData?.classes || !friendTvData?.byClass) return ids;
+    for (const classDef of friendTvData.classes) {
+      for (const item of friendTvData.byClass[classDef.key] ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) {
+          ids.add(item.id);
+        }
+      }
+    }
+    return ids;
+  }, [friendTvData]);
+
+  const mySeenShowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const items of Object.values(myTvByClass)) {
+      for (const item of items ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) {
+          ids.add(item.id);
+        }
+      }
+    }
+    return ids;
+  }, [myTvByClass]);
+
+  const friendShowCollectionProgress = useMemo(() => {
+    const total = friendWatchedShowIds.size;
+    if (total === 0) {
+      return { seen: 0, watchlistUnseen: 0, total: 0 };
+    }
+    let seen = 0;
+    let watchlistUnseen = 0;
+    for (const itemId of friendWatchedShowIds) {
+      const isSeen = mySeenShowIds.has(itemId);
+      if (isSeen) {
+        seen += 1;
+      } else if (isInWatchlist(itemId)) {
+        watchlistUnseen += 1;
+      }
+    }
+    return { seen, watchlistUnseen, total };
+  }, [friendWatchedShowIds, mySeenShowIds, isInWatchlist]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
@@ -1634,6 +1755,9 @@ export function FriendProfilePage() {
     );
   }
 
+  const friendMoviesCollectionHref = `/friends/${resolvedProfileUid ?? friendProfile.uid}/collection/movies`;
+  const friendShowsCollectionHref = `/friends/${resolvedProfileUid ?? friendProfile.uid}/collection/shows`;
+
   return (
     <section className={profilePageClass}>
       <header className="page-heading">
@@ -1740,6 +1864,26 @@ export function FriendProfilePage() {
           <div className="profile-stat">
             <span className="profile-stat-value profile-stat-value--hero">{friendWatchlistData?.tv?.length ?? 0}</span>
             <span className="profile-stat-label">Show watchlist</span>
+          </div>
+          <div className="profile-collection-stats-row">
+            <Link to={friendMoviesCollectionHref} className="profile-stat profile-stat--collection-link">
+              <CollectionRadialProgress
+                seen={friendMovieCollectionProgress.seen}
+                watchlistUnseen={friendMovieCollectionProgress.watchlistUnseen}
+                total={friendMovieCollectionProgress.total}
+                includeWatchlistSegment
+              />
+              <span className="profile-stat-label">all movies</span>
+            </Link>
+            <Link to={friendShowsCollectionHref} className="profile-stat profile-stat--collection-link">
+              <CollectionRadialProgress
+                seen={friendShowCollectionProgress.seen}
+                watchlistUnseen={friendShowCollectionProgress.watchlistUnseen}
+                total={friendShowCollectionProgress.total}
+                includeWatchlistSegment
+              />
+              <span className="profile-stat-label">all shows</span>
+            </Link>
           </div>
         </div>
 
