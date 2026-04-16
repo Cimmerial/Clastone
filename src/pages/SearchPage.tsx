@@ -1187,15 +1187,41 @@ export function SearchPage() {
     };
   }, []);
 
-  const handleActionButtonFeedbackCapture = useCallback((event: React.MouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    const actionButton = target.closest(
+  const findFeedbackButtonFromTarget = useCallback((target: EventTarget | null): HTMLButtonElement | null => {
+    const element = target as HTMLElement | null;
+    if (!element) return null;
+    const actionButton = element.closest(
       'button.search-card-action, button.search-toggle-btn, button.search-tab, button.wander-toggle-btn, button.wander-genre-btn, button.wander-year-btn, button.search-load-more-btn, button.search-person-projects-expand'
     );
-    if (!(actionButton instanceof HTMLButtonElement)) return;
+    return actionButton instanceof HTMLButtonElement ? actionButton : null;
+  }, []);
+
+  const handleActionButtonPointerDownCapture = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const actionButton = findFeedbackButtonFromTarget(event.target);
+    if (!actionButton) return;
     triggerActionFeedback(actionButton);
-  }, [triggerActionFeedback]);
+  }, [findFeedbackButtonFromTarget, triggerActionFeedback]);
+
+  const handleActionButtonKeyDownCapture = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const actionButton = findFeedbackButtonFromTarget(event.target);
+    if (!actionButton) return;
+    triggerActionFeedback(actionButton);
+  }, [findFeedbackButtonFromTarget, triggerActionFeedback]);
+
+  const runAfterInteractionPaint = useCallback((operation: () => void) => {
+    window.requestAnimationFrame(() => {
+      operation();
+    });
+  }, []);
+
+  const runAfterInteractionAnimation = useCallback((operation: () => void) => {
+    const FEEDBACK_PLAY_MS = 240;
+    window.setTimeout(() => {
+      operation();
+    }, FEEDBACK_PLAY_MS);
+  }, []);
 
   return (
     <section>
@@ -1232,7 +1258,11 @@ export function SearchPage() {
         </div>
       </header>
 
-      <div className="search-shell card-surface" onClickCapture={handleActionButtonFeedbackCapture}>
+      <div
+        className="search-shell card-surface"
+        onPointerDownCapture={handleActionButtonPointerDownCapture}
+        onKeyDownCapture={handleActionButtonKeyDownCapture}
+      >
 
         {/* Search Controls */}
         {activeTab === 'search' && (
@@ -1527,6 +1557,7 @@ export function SearchPage() {
                             : 'PERSON'}
                       </div>
                       <div className="search-card-title-row">
+                        <div className="search-card-title">{r.title}</div>
                         {(isMovie || isTv) && (
                           <button
                             type="button"
@@ -1557,7 +1588,6 @@ export function SearchPage() {
                             <Info size={16} />
                           </button>
                         )}
-                        <div className="search-card-title">{r.title}</div>
                       </div>
                       <div className="search-card-subtitle">
                         {r.subtitle}
@@ -1633,7 +1663,7 @@ export function SearchPage() {
                           disabled={isSaving}
                           onClick={() => {
                             console.log('Removing movie from unranked:', id);
-                            removeMovieEntry(id);
+                            runAfterInteractionAnimation(() => removeMovieEntry(id));
                           }}
                         >
                           REMOVE UNRANKED
@@ -1646,7 +1676,7 @@ export function SearchPage() {
                           disabled={isSaving}
                           onClick={() => {
                             console.log('Removing from watchlist:', id);
-                            removeFromWatchlist(id);
+                            runAfterInteractionAnimation(() => removeFromWatchlist(id));
                           }}
                         >
                           REMOVE WATCHLIST
@@ -1656,7 +1686,7 @@ export function SearchPage() {
                           type="button"
                           className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
-                          onClick={handleAddToWatchlist}
+                          onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                         >
                           ADD WATCHLIST
                         </button>
@@ -1701,7 +1731,7 @@ export function SearchPage() {
                           disabled={isSaving}
                           onClick={() => {
                             console.log('Removing TV show from unranked:', `tmdb-tv-${r.id}`);
-                            removeShowEntry(`tmdb-tv-${r.id}`);
+                            runAfterInteractionAnimation(() => removeShowEntry(`tmdb-tv-${r.id}`));
                           }}
                         >
                           REMOVE UNRANKED
@@ -1714,7 +1744,7 @@ export function SearchPage() {
                           disabled={isSaving}
                           onClick={() => {
                             console.log('Removing TV show from watchlist:', `tmdb-tv-${r.id}`);
-                            removeFromWatchlist(`tmdb-tv-${r.id}`);
+                            runAfterInteractionAnimation(() => removeFromWatchlist(`tmdb-tv-${r.id}`));
                           }}
                         >
                           REMOVE WATCHLIST
@@ -1724,7 +1754,7 @@ export function SearchPage() {
                           type="button"
                           className="search-card-action search-card-action-dim-green"
                           disabled={isSaving}
-                          onClick={handleAddToWatchlist}
+                          onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                         >
                           ADD WATCHLIST
                         </button>
@@ -1928,7 +1958,7 @@ export function SearchPage() {
                             disabled={isSaving}
                             onClick={() => {
                               console.log('Removing movie from unranked:', id);
-                              removeMovieEntry(id);
+                              runAfterInteractionAnimation(() => removeMovieEntry(id));
                             }}
                           >
                             REMOVE UNRANKED
@@ -1941,7 +1971,7 @@ export function SearchPage() {
                             disabled={isSaving}
                             onClick={() => {
                               console.log('Removing from watchlist:', id);
-                              removeFromWatchlist(id);
+                              runAfterInteractionAnimation(() => removeFromWatchlist(id));
                             }}
                           >
                             REMOVE WATCHLIST
@@ -1951,7 +1981,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
-                            onClick={handleAddToWatchlist}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                           >
                             ADD WATCHLIST
                           </button>
@@ -1996,7 +2026,7 @@ export function SearchPage() {
                             disabled={isSaving}
                             onClick={() => {
                               console.log('Removing TV show from unranked:', `tmdb-tv-${r.id}`);
-                              removeShowEntry(`tmdb-tv-${r.id}`);
+                              runAfterInteractionAnimation(() => removeShowEntry(`tmdb-tv-${r.id}`));
                             }}
                           >
                             REMOVE UNRANKED
@@ -2009,7 +2039,7 @@ export function SearchPage() {
                             disabled={isSaving}
                             onClick={() => {
                               console.log('Removing TV show from watchlist:', `tmdb-tv-${r.id}`);
-                              removeFromWatchlist(`tmdb-tv-${r.id}`);
+                              runAfterInteractionAnimation(() => removeFromWatchlist(`tmdb-tv-${r.id}`));
                             }}
                           >
                             REMOVE WATCHLIST
@@ -2019,7 +2049,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
-                            onClick={handleAddToWatchlist}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                           >
                             ADD WATCHLIST
                           </button>
@@ -2173,7 +2203,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-red"
                             disabled={isSaving}
-                            onClick={() => removeMovieEntry(id)}
+                            onClick={() => runAfterInteractionAnimation(() => removeMovieEntry(id))}
                           >
                             Unranked-
                           </button>
@@ -2183,7 +2213,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-red"
                             disabled={isSaving}
-                            onClick={() => removeFromWatchlist(id)}
+                            onClick={() => runAfterInteractionAnimation(() => removeFromWatchlist(id))}
                           >
                             Watchlist-
                           </button>
@@ -2192,7 +2222,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
-                            onClick={handleAddToWatchlist}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                           >
                             Watchlist+
                           </button>
@@ -2215,7 +2245,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-red"
                             disabled={isSaving}
-                            onClick={() => removeShowEntry(`tmdb-tv-${r.id}`)}
+                            onClick={() => runAfterInteractionAnimation(() => removeShowEntry(`tmdb-tv-${r.id}`))}
                           >
                             Unranked-
                           </button>
@@ -2225,7 +2255,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-red"
                             disabled={isSaving}
-                            onClick={() => removeFromWatchlist(`tmdb-tv-${r.id}`)}
+                            onClick={() => runAfterInteractionAnimation(() => removeFromWatchlist(`tmdb-tv-${r.id}`))}
                           >
                             Watchlist-
                           </button>
@@ -2234,7 +2264,7 @@ export function SearchPage() {
                             type="button"
                             className="search-card-action search-card-action-dim-green"
                             disabled={isSaving}
-                            onClick={handleAddToWatchlist}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
                           >
                             Watchlist+
                           </button>

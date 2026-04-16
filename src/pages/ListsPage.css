@@ -498,6 +498,13 @@
   gap: 10px;
 }
 
+.lists-collection-summary {
+  margin: 0.22rem 0 0 2.7rem;
+  font-size: 0.86rem;
+  color: #e0be67;
+  letter-spacing: 0.01em;
+}
+
 .lists-back-icon-btn {
   width: 34px;
   height: 34px;

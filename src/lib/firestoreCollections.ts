@@ -12,6 +12,7 @@ export type CollectionEntry = {
 export type GlobalCollection = {
   id: string;
   name: string;
+  summary?: string;
   color?: string;
   mediaType: 'movie' | 'tv' | 'both';
   entries: CollectionEntry[];
@@ -38,6 +39,7 @@ export async function loadGlobalCollections(db: Firestore): Promise<GlobalCollec
     collections.push({
       id: d.id,
       name: String(data.name ?? d.id),
+      summary: typeof data.summary === 'string' ? data.summary : undefined,
       color: typeof data.color === 'string' ? data.color : undefined,
       mediaType: (data.mediaType as 'movie' | 'tv' | 'both') ?? 'both',
       hidden: Boolean(data.hidden),
@@ -59,6 +61,7 @@ export async function upsertGlobalCollection(db: Firestore, collectionData: Glob
   const ref = doc(db, COLLECTIONS_ROOT, collectionData.id);
   await setDoc(ref, {
     name: collectionData.name,
+    summary: typeof collectionData.summary === 'string' ? collectionData.summary : null,
     color: collectionData.color ?? null,
     mediaType: collectionData.mediaType,
     hidden: Boolean(collectionData.hidden),

@@ -159,19 +159,24 @@ function RenameEntityModal({
   title,
   initialName,
   initialColor,
+  initialSummary,
   allowColorEdit = false,
+  allowSummaryEdit = false,
   onClose,
   onSave,
 }: {
   title: string;
   initialName: string;
   initialColor?: string;
+  initialSummary?: string;
   allowColorEdit?: boolean;
+  allowSummaryEdit?: boolean;
   onClose: () => void;
-  onSave: (payload: { name: string; color?: string }) => void | Promise<void>;
+  onSave: (payload: { name: string; color?: string; summary?: string }) => void | Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor ?? '#deb55e');
+  const [summary, setSummary] = useState(initialSummary ?? '');
   return (
     <div className="lists-modal-backdrop" onClick={onClose}>
       <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
@@ -189,6 +194,15 @@ function RenameEntityModal({
             />
           </div>
         ) : null}
+        {allowSummaryEdit ? (
+          <textarea
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder="Collection summary"
+            className="lists-input"
+            rows={2}
+          />
+        ) : null}
         <div className="lists-modal-actions">
           <button className="lists-button" onClick={onClose}>Cancel</button>
           <button
@@ -196,7 +210,11 @@ function RenameEntityModal({
             onClick={async () => {
               const trimmed = name.trim();
               if (!trimmed) return;
-              await onSave({ name: trimmed, color: allowColorEdit ? color : undefined });
+              await onSave({
+                name: trimmed,
+                color: allowColorEdit ? color : undefined,
+                summary: allowSummaryEdit ? (summary.trim() || undefined) : undefined
+              });
               onClose();
             }}
           >
@@ -580,6 +598,9 @@ export function ListDetailPage() {
               </button>
             ) : null}
           </div>
+          {isCollection && activeCollection?.summary ? (
+            <p className="lists-collection-summary">{activeCollection.summary}</p>
+          ) : null}
         </div>
       </header>
       <RankedList<ListDetailItem>
@@ -763,12 +784,20 @@ export function ListDetailPage() {
           title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : (canEditNameAndColor ? 'Edit List' : 'Rename List')}
           initialName={title}
           initialColor={isCollection ? activeCollection?.color : activeList?.color}
+          initialSummary={isCollection ? activeCollection?.summary : undefined}
           allowColorEdit={canEditNameAndColor}
+          allowSummaryEdit={Boolean(isCollection && canEditNameAndColor)}
           onClose={() => setShowRenameModal(false)}
-          onSave={async ({ name, color }) => {
+          onSave={async ({ name, color, summary }) => {
             if (isCollection) {
               if (!activeCollection || !canEditCollections) return;
-              const next = { ...activeCollection, name, color: canEditNameAndColor ? color : activeCollection.color, updatedAt: new Date().toISOString() };
+              const next = {
+                ...activeCollection,
+                name,
+                color: canEditNameAndColor ? color : activeCollection.color,
+                summary: canEditNameAndColor ? summary : activeCollection.summary,
+                updatedAt: new Date().toISOString()
+              };
               upsertGlobalCollectionLocal(next);
               if (db) await upsertGlobalCollection(db, next);
               return;
