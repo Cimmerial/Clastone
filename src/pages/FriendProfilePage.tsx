@@ -25,6 +25,7 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useListsStore } from '../state/listsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
@@ -48,6 +49,20 @@ interface Friend {
   email: string;
   addedAt: string;
 }
+
+const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
+  'Best Picture Winners': 'Best Pic Win',
+  'IMDB Top 250 Movies': 'IMDB 250',
+  'Letterboxd Top 500': 'Letterboxd 500',
+  "Palme d'Or Winners": "Palme d'Or",
+  'Best Picture Nominees': 'Best Pic Nominees',
+  'Studio Ghibli Movies': 'Ghibli',
+  'A24 Films': 'A24',
+  'Best Animated Feature Winners': 'Best Animated',
+  'Golden Bear Winners': 'Golden Bear',
+  'Golden Lion Winners': 'Golden Lion',
+  'NEON Films': 'NEON',
+};
 
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
@@ -345,6 +360,7 @@ export function FriendProfilePage() {
   } = useDirectorsStore();
   
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
+  const { globalCollections } = useListsStore();
 
   // Friend data states
   const [friendMoviesData, setFriendMoviesData] = useState<any>(null);
@@ -481,6 +497,33 @@ export function FriendProfilePage() {
     }
     return { seen, watchlistUnseen, total };
   }, [friendWatchedShowIds, mySeenShowIds, isInWatchlist]);
+
+  const friendGlobalCollectionProgress = useMemo(() => {
+    return globalCollections
+      .filter((collection) => !collection.hidden)
+      .map((collection) => {
+        const uniqueEntryIds = Array.from(
+          new Set(collection.entries.map((entry) => `tmdb-${entry.mediaType}-${entry.tmdbId}`))
+        );
+        const total = uniqueEntryIds.length;
+        let seen = 0;
+        let watchlistUnseen = 0;
+        for (const entryId of uniqueEntryIds) {
+          const isMovieEntry = entryId.startsWith('tmdb-movie-');
+          const isSeen = isMovieEntry ? friendWatchedMovieIds.has(entryId) : friendWatchedShowIds.has(entryId);
+          if (isSeen) seen += 1;
+          else if (isInWatchlist(entryId)) watchlistUnseen += 1;
+        }
+        return {
+          id: collection.id,
+          name: PROFILE_COLLECTION_LABEL_OVERRIDES[collection.name] ?? collection.name,
+          seen,
+          watchlistUnseen,
+          total,
+        };
+      })
+      .filter((item) => item.total > 0);
+  }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, isInWatchlist]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
@@ -1939,6 +1982,25 @@ export function FriendProfilePage() {
                 <span className="profile-stat-label">Show rewatch rate</span>
               </div>
             </div>
+
+            {friendGlobalCollectionProgress.length > 0 && (
+              <div className="profile-stats-global-collections">
+                {friendGlobalCollectionProgress.map((collection) => (
+                  <div
+                    key={collection.id}
+                    className="profile-stat profile-stat--collection-link profile-stat--collection-static"
+                  >
+                    <CollectionRadialProgress
+                      seen={collection.seen}
+                      watchlistUnseen={collection.watchlistUnseen}
+                      total={collection.total}
+                      includeWatchlistSegment
+                    />
+                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="profile-stats-charts">
               <div className="profile-chart-section">

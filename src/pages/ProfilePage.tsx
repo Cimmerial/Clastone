@@ -41,9 +41,58 @@ const SCATTER_CLASS_COLORS = [
   '#90BE6D',
 ];
 
+const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
+  'Best Picture Winners': 'Best Pic Win',
+  'IMDB Top 250 Movies': 'IMDB 250',
+  'Letterboxd Top 500': 'Letterboxd 500',
+  "Palme d'Or Winners": "Palme d'Or",
+  'Best Picture Nominees': 'Best Pic Nominees',
+  'Studio Ghibli Movies': 'Ghibli',
+  'A24 Films': 'A24',
+  'Best Animated Feature Winners': 'Best Animated',
+  'Golden Bear Winners': 'Golden Bear',
+  'Golden Lion Winners': 'Golden Lion',
+  'NEON Films': 'NEON',
+};
+
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
   return ((count / total) * 100).toFixed(1);
+}
+
+function CollectionRadialProgress({
+  seen,
+  watchlistUnseen,
+  total,
+  includeWatchlistSegment
+}: {
+  seen: number;
+  watchlistUnseen: number;
+  total: number;
+  includeWatchlistSegment: boolean;
+}) {
+  const pct = total > 0 ? Math.round((seen / total) * 100) : 0;
+  const seenPct = total > 0 ? Math.min(100, (seen / total) * 100) : 0;
+  const watchlistPct = includeWatchlistSegment && total > 0 ? Math.min(100 - seenPct, (watchlistUnseen / total) * 100) : 0;
+  const combinedPct = Math.min(100, seenPct + watchlistPct);
+  const seenColor = pct < 33 ? '#d95858' : pct < 67 ? '#d7b24f' : pct < 100 ? '#48b66e' : '#f0cf72';
+  const ringStyle = {
+    background: `conic-gradient(
+      ${seenColor} 0% ${seenPct}%,
+      #4da3ff ${seenPct}% ${combinedPct}%,
+      rgba(255, 255, 255, 0.12) ${combinedPct}% 100%
+    )`,
+  };
+
+  return (
+    <div className="profile-collection-radial-wrap">
+      <div className="profile-collection-radial-ring" style={ringStyle} />
+      <div className="profile-collection-radial-center">
+        <div className="profile-collection-radial-frac">{seen}/{total}</div>
+        <div className="profile-collection-radial-pct">{pct}%</div>
+      </div>
+    </div>
+  );
 }
 
 /** Flatten all watches with a date (excl. LONG_AGO/UNKNOWN). One row per watch; use movie vs TV class orders separately to avoid duplicates. */
@@ -823,6 +872,54 @@ export function ProfilePage() {
     };
   }, [moviesByClass, tvByClass, movieClassOrder, tvClassOrder, peopleByClass, peopleClassOrder, directorsByClass, directorsClassOrder, isRankedMovieClass, isRankedTvClass, chartScope]);
 
+  const seenMovieIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const classKey of movieClassOrder) {
+      for (const item of moviesByClass[classKey] ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [moviesByClass, movieClassOrder]);
+
+  const seenShowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const classKey of tvClassOrder) {
+      for (const item of tvByClass[classKey] ?? []) {
+        if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [tvByClass, tvClassOrder]);
+
+  const globalCollectionProgress = useMemo(() => {
+    return globalCollections
+      .filter((collection) => !collection.hidden)
+      .map((collection) => {
+        const uniqueEntryIds = Array.from(
+          new Set(collection.entries.map((entry) => `tmdb-${entry.mediaType}-${entry.tmdbId}`))
+        );
+        const total = uniqueEntryIds.length;
+        let seen = 0;
+        let watchlistUnseen = 0;
+        for (const entryId of uniqueEntryIds) {
+          const isMovieEntry = entryId.startsWith('tmdb-movie-');
+          const isSeen = isMovieEntry ? seenMovieIds.has(entryId) : seenShowIds.has(entryId);
+          if (isSeen) seen += 1;
+          else if (isInWatchlist(entryId)) watchlistUnseen += 1;
+        }
+        return {
+          id: collection.id,
+          name: PROFILE_COLLECTION_LABEL_OVERRIDES[collection.name] ?? collection.name,
+          seen,
+          watchlistUnseen,
+          total,
+          href: `/lists/collection/${collection.id}`,
+        };
+      })
+      .filter((item) => item.total > 0);
+  }, [globalCollections, seenMovieIds, seenShowIds, isInWatchlist]);
+
   const getQuantile = (sortedValues: number[], percentile: number) => {
     if (sortedValues.length === 0) return null;
     const index = (sortedValues.length - 1) * percentile;
@@ -1538,6 +1635,26 @@ export function ProfilePage() {
                 <span className="profile-stat-label">Show rewatch rate</span>
               </div>
             </div>
+
+            {globalCollectionProgress.length > 0 && (
+              <div className="profile-stats-global-collections">
+                {globalCollectionProgress.map((collection) => (
+                  <Link
+                    key={collection.id}
+                    to={collection.href}
+                    className="profile-stat profile-stat--collection-link"
+                  >
+                    <CollectionRadialProgress
+                      seen={collection.seen}
+                      watchlistUnseen={collection.watchlistUnseen}
+                      total={collection.total}
+                      includeWatchlistSegment
+                    />
+                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
 
             <div className="profile-stats-charts">
               <div className="profile-chart-section">

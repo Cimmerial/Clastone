@@ -280,8 +280,7 @@ export function HomePage() {
                   </div>
                   <div className="guide-content">
                     <ul className="guide-list">
-                      <li>Go to the <strong>Wander tab</strong> in Search page</li>
-                      <li>Sort by <strong>vote count</strong> in three columns</li>
+                      <li>Go to the <strong>Doomscroll tab</strong> in Search page</li>
                       <li>Start at <strong>current year</strong>, scroll and add to Unranked</li>
                       <li>Continue until you find nothing more you might've seen</li>
                       <li>Move to <strong>prior years</strong> and repeat</li>
@@ -309,6 +308,7 @@ export function HomePage() {
                     <li><strong>Tagging</strong> entries, create custom lists and view collections.</li>
                     <li>Refined mobile Clastone</li>
                     <li>Can copy top movies/shows/people in Detailed Stats in Profile viewer</li>
+                    <li>Info modal buffed out; can go to other info modals and record watch modal from it</li>
                   </ul>
                 </div>
               </div>
@@ -317,12 +317,13 @@ export function HomePage() {
                 <div className="feature-card future">
                   <h3 className="feature-group-title">Future</h3>
                   <ul className="feature-list">
-                    <li>Reduce dragging lag</li>
+                    <li>Right now, unranked entries dont count towards anything, might make them count towards collections and other main stats on profile</li>
                     <li><strong>quick move</strong> button options for moving around entries</li>
                     <li>Option for written reviews of each movie watch</li>
                     <li>Add system where you can mark movie watch order if seen more than one in a day</li>
                     <li>The copy list(s) doesnt work on mobile, will fix</li>
                     <li>Download profile ad PDF (custom ordering of data, select certain aspects of profile, etc)</li>
+                    <li>Reduce dragging lag</li>
                   </ul>
                 </div>
               </div>

@@ -691,6 +691,24 @@
   min-width: 88px;
 }
 
+.profile-stats-global-collections {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.75rem 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+
+.profile-stat--collection-static {
+  cursor: default;
+  pointer-events: none;
+}
+
+.profile-stat-label--collection-small {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+}
+
 .profile-collection-radial-wrap {
   width: 54px;
   height: 54px;

@@ -11,6 +11,7 @@ import {
   DATE_PRESET_OPTIONS,
   type DatePreset
 } from '../lib/dateDropdowns';
+import { tmdbTvDetailsFull } from '../lib/tmdb';
 import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
 import { RecommendToFriendModal } from './RecommendToFriendModal';
@@ -254,11 +255,19 @@ interface MatrixRowProps {
   runtimeMinutes?: number;
   totalEpisodes?: number;
   totalSeasons?: number;
+  seasonEpisodeCounts?: number[];
   mediaType: MediaType;
   applyPreset: (preset: DatePreset | 'reset') => void;
 }
 
-function getWatchAmountLabel(percent: number, mediaType: MediaType, runtimeMinutes?: number, totalEpisodes?: number, totalSeasons?: number): string {
+function getWatchAmountLabel(
+  percent: number,
+  mediaType: MediaType,
+  runtimeMinutes?: number,
+  totalEpisodes?: number,
+  totalSeasons?: number,
+  seasonEpisodeCounts?: number[]
+): string {
   if (mediaType === 'movie' && runtimeMinutes && runtimeMinutes > 0) {
     const mins = Math.round((percent / 100) * runtimeMinutes);
     const h = Math.floor(mins / 60);
@@ -267,14 +276,39 @@ function getWatchAmountLabel(percent: number, mediaType: MediaType, runtimeMinut
     if (h > 0) return `${h}h`;
     return `${m}m`;
   }
-  if (mediaType === 'tv' && totalEpisodes && totalEpisodes > 0 && totalSeasons && totalSeasons > 0) {
-    const ep = Math.round((percent / 100) * totalEpisodes);
-    // Calculate average episodes per season dynamically
-    const epsPerSeason = Math.ceil(totalEpisodes / totalSeasons);
-    const season = Math.floor((ep - 1) / epsPerSeason) + 1;
-    const episodeInSeason = ((ep - 1) % epsPerSeason) + 1;
-    if (ep === 0) return `S1 E1`;
-    return `S${Math.min(season, totalSeasons)} E${episodeInSeason}`;
+  const hasSeasonCounts = !!(seasonEpisodeCounts && seasonEpisodeCounts.length > 0);
+  const hasEpisodeTotals = !!(totalEpisodes && totalEpisodes > 0);
+  if (mediaType === 'tv' && (hasSeasonCounts || hasEpisodeTotals)) {
+    if (percent >= 100) return '100%';
+
+    const effectiveTotalEpisodes =
+      hasSeasonCounts
+        ? seasonEpisodeCounts.reduce((sum, count) => sum + Math.max(0, count), 0)
+        : (totalEpisodes ?? 0);
+
+    const watchedEpisodes = Math.min(
+      effectiveTotalEpisodes,
+      Math.max(1, Math.floor((percent / 100) * effectiveTotalEpisodes))
+    );
+
+    if (hasSeasonCounts) {
+      let remaining = watchedEpisodes;
+      for (let seasonIndex = 0; seasonIndex < seasonEpisodeCounts.length; seasonIndex += 1) {
+        const episodesInSeason = Math.max(1, seasonEpisodeCounts[seasonIndex] || 0);
+        if (remaining <= episodesInSeason) {
+          return `S${seasonIndex + 1} E${remaining}`;
+        }
+        remaining -= episodesInSeason;
+      }
+      const lastSeasonEpisodes = Math.max(1, seasonEpisodeCounts[seasonEpisodeCounts.length - 1] || 1);
+      return `S${seasonEpisodeCounts.length} E${lastSeasonEpisodes}`;
+    }
+
+    const safeTotalSeasons = Math.max(1, totalSeasons ?? 1);
+    const epsPerSeason = Math.max(1, Math.ceil(effectiveTotalEpisodes / safeTotalSeasons));
+    const season = Math.floor((watchedEpisodes - 1) / epsPerSeason) + 1;
+    const episodeInSeason = ((watchedEpisodes - 1) % epsPerSeason) + 1;
+    return `S${Math.min(season, safeTotalSeasons)} E${episodeInSeason}`;
   }
   return `${percent}%`;
 }
@@ -290,6 +324,7 @@ function MatrixRow({
   runtimeMinutes,
   totalEpisodes,
   totalSeasons,
+  seasonEpisodeCounts,
   mediaType,
   applyPreset,
 }: MatrixRowProps) {
@@ -302,7 +337,14 @@ function MatrixRow({
   const showSlider = true; // Always show slider
   const showStatusToggle = watchPercent < 100;
 
-  const amountLabel = getWatchAmountLabel(watchPercent, mediaType, runtimeMinutes, totalEpisodes, totalSeasons);
+  const amountLabel = getWatchAmountLabel(
+    watchPercent,
+    mediaType,
+    runtimeMinutes,
+    totalEpisodes,
+    totalSeasons,
+    seasonEpisodeCounts
+  );
 
   // Handle double-click delete
   const handleDeleteClick = () => {
@@ -535,6 +577,7 @@ export function UniversalEditModal({
     return initial;
   });
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [seasonEpisodeCounts, setSeasonEpisodeCounts] = useState<number[] | undefined>(undefined);
   const entriesEndRef = useRef<HTMLDivElement>(null);
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
@@ -556,6 +599,32 @@ export function UniversalEditModal({
       return () => clearTimeout(t);
     }
   }, [removeClickCount]);
+
+  useEffect(() => {
+    if (target.mediaType !== 'tv' || !target.tmdbId) {
+      setSeasonEpisodeCounts(undefined);
+      return;
+    }
+
+    let cancelled = false;
+
+    void tmdbTvDetailsFull(target.tmdbId)
+      .then((details) => {
+        if (cancelled) return;
+        const counts =
+          details?.seasons
+            ?.map((season) => season.episodeCount ?? 0)
+            .filter((count) => count > 0) ?? [];
+        setSeasonEpisodeCounts(counts.length ? counts : undefined);
+      })
+      .catch(() => {
+        if (!cancelled) setSeasonEpisodeCounts(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [target.mediaType, target.tmdbId]);
 
   const { releaseYear } = useMemo(() => {
     const rd = target.releaseDate;
@@ -922,6 +991,7 @@ export function UniversalEditModal({
                   runtimeMinutes={target.runtimeMinutes}
                   totalEpisodes={target.totalEpisodes}
                   totalSeasons={target.totalSeasons}
+                  seasonEpisodeCounts={seasonEpisodeCounts}
                   mediaType={target.mediaType}
                   applyPreset={preset => applyPresetToEntry(entry.id, preset, entry.watchType === 'DATE_RANGE')}
                 />
