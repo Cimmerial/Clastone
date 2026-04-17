@@ -902,6 +902,15 @@
   pointer-events: none;
 }
 
+.entry-tile-under-cogs {
+  position: absolute;
+  top: 2.3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+}
+
 .entry-tile-quick-actions button {
   width: 28px;
   height: 28px;

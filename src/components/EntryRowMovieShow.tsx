@@ -89,6 +89,7 @@ type Props = {
   viewMode?: 'detailed' | 'minimized' | 'tile';
   tileMinimalActions?: boolean;
   tileUnseenMuted?: boolean;
+  tileOverlayControls?: ReactNode;
   tileOverlayBadges?: ReactNode;
 };
 
@@ -128,6 +129,7 @@ export function EntryRowMovieShow({
   viewMode: propViewMode,
   tileMinimalActions = false,
   tileUnseenMuted = false,
+  tileOverlayControls,
   tileOverlayBadges
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
@@ -258,6 +260,9 @@ export function EntryRowMovieShow({
             <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
             {!tileMinimalActions && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
+          {tileOverlayControls ? (
+            <div className="entry-tile-under-cogs">{tileOverlayControls}</div>
+          ) : null}
           {tileOverlayBadges ? (
             <div className="entry-tile-bottom-badges">{tileOverlayBadges}</div>
           ) : null}

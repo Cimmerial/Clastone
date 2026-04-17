@@ -31,12 +31,22 @@ type ShowFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
 
 function FriendShowCollectionTile({
   entry,
+  showUnrankedToggle,
+  isUnrankedInViewerLibrary,
+  isWatchlisted,
   onOpenInfo,
-  onOpenSettings
+  onOpenSettings,
+  onToggleUnranked,
+  onToggleWatchlist
 }: {
   entry: FriendCollectionEntry;
+  showUnrankedToggle: boolean;
+  isUnrankedInViewerLibrary: boolean;
+  isWatchlisted: boolean;
   onOpenInfo: (entry: FriendCollectionEntry) => void;
   onOpenSettings: (entry: FriendCollectionEntry) => void;
+  onToggleUnranked: (entry: FriendCollectionEntry) => void;
+  onToggleWatchlist: (entry: FriendCollectionEntry) => void;
 }) {
   return (
     <article className={`entry-tile friend-collection-tile ${entry.viewerSeen ? '' : 'entry-tile--unseen-muted'}`}>
@@ -47,6 +57,24 @@ function FriendShowCollectionTile({
         <button type="button" className="friend-collection-icon-btn friend-collection-icon-btn--settings" onClick={() => onOpenSettings(entry)} aria-label={`Settings for ${entry.item.title}`}>
           <Settings size={12} />
         </button>
+        <div className="friend-collection-hover-actions">
+          {showUnrankedToggle ? (
+            <button
+              type="button"
+              className={`friend-collection-hover-btn ${isUnrankedInViewerLibrary ? 'friend-collection-hover-btn--minus' : 'friend-collection-hover-btn--plus'}`}
+              onClick={() => onToggleUnranked(entry)}
+            >
+              {isUnrankedInViewerLibrary ? 'Unranked-' : 'Unranked+'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`friend-collection-hover-btn ${isWatchlisted ? 'friend-collection-hover-btn--minus' : 'friend-collection-hover-btn--plus'}`}
+            onClick={() => onToggleWatchlist(entry)}
+          >
+            {isWatchlisted ? 'Watchlist-' : 'Watchlist+'}
+          </button>
+        </div>
         {entry.item.posterPath ? (
           <img src={tmdbImagePath(entry.item.posterPath, 'w185') ?? ''} alt={entry.item.title} loading="lazy" />
         ) : (
@@ -77,6 +105,7 @@ export function FriendTvCollectionPage() {
     addShowFromSearch,
     updateShowWatchRecords,
     moveItemToClass,
+    removeShowEntry,
     classes: tvClasses,
     getClassLabel
   } = useTvStore();
@@ -225,8 +254,53 @@ export function FriendTvCollectionPage() {
             <FriendShowCollectionTile
               key={entry.id}
               entry={entry}
+              showUnrankedToggle={!entry.viewerSeen || getShowById(entry.id)?.classKey === 'UNRANKED'}
+              isUnrankedInViewerLibrary={getShowById(entry.id)?.classKey === 'UNRANKED'}
+              isWatchlisted={watchlist.isInWatchlist(entry.id)}
               onOpenInfo={setInfoFor}
               onOpenSettings={(selectedEntry) => setSettingsFor(selectedEntry.item)}
+              onToggleUnranked={(selectedEntry) => {
+                const existing = getShowById(selectedEntry.id);
+                if (existing?.classKey === 'UNRANKED') {
+                  removeShowEntry(selectedEntry.id);
+                  return;
+                }
+                if (existing) {
+                  moveItemToClass(selectedEntry.id, 'UNRANKED');
+                  return;
+                }
+                addShowFromSearch({
+                  id: selectedEntry.id,
+                  title: selectedEntry.item.title,
+                  subtitle: selectedEntry.item.releaseDate ? selectedEntry.item.releaseDate.slice(0, 4) : 'Saved',
+                  classKey: 'UNRANKED',
+                  cache: {
+                    tmdbId: selectedEntry.item.tmdbId ?? (parseInt(selectedEntry.id.replace(/\D/g, ''), 10) || 0),
+                    title: selectedEntry.item.title,
+                    posterPath: selectedEntry.item.posterPath,
+                    releaseDate: selectedEntry.item.releaseDate,
+                    genres: [],
+                    cast: [],
+                    creators: [],
+                    seasons: []
+                  }
+                });
+              }}
+              onToggleWatchlist={(selectedEntry) => {
+                if (watchlist.isInWatchlist(selectedEntry.id)) {
+                  watchlist.removeFromWatchlist(selectedEntry.id);
+                  return;
+                }
+                watchlist.addToWatchlist(
+                  {
+                    id: selectedEntry.id,
+                    title: selectedEntry.item.title,
+                    posterPath: selectedEntry.item.posterPath,
+                    releaseDate: selectedEntry.item.releaseDate
+                  },
+                  'tv'
+                );
+              }}
             />
           ))}
         </div>

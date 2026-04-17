@@ -660,17 +660,18 @@ export function ListDetailPage() {
           }
         } : undefined}
         renderRow={(row) => row.item ? (() => {
-          const isSavedUnranked = isCollection && row.source === 'saved' && row.item.classKey === 'UNRANKED';
+          const item = row.item;
+          const isSavedUnranked = isCollection && row.source === 'saved' && item.classKey === 'UNRANKED';
           const appearsInOtherClass = row.mediaType === 'movie'
-            ? movieIdsInNonUnrankedClasses.has(row.item.id)
-            : tvIdsInNonUnrankedClasses.has(row.item.id);
+            ? movieIdsInNonUnrankedClasses.has(item.id)
+            : tvIdsInNonUnrankedClasses.has(item.id);
           const isUnrankedOnly = isSavedUnranked && !appearsInOtherClass;
           return (
           <div
             className={`lists-entry-tile-wrap ${
               isUnrankedOnly ? 'lists-entry-tile-wrap--unranked' : ''
             } ${
-              isCollection && watchlist.isInWatchlist(row.item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
+              isCollection && watchlist.isInWatchlist(item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
             }`}
           >
             {isCollection && canEditCollections ? (
@@ -688,11 +689,118 @@ export function ListDetailPage() {
               </button>
             ) : null}
             <EntryRowMovieShow
-              item={row.item}
+              item={item}
               listType={row.mediaType === 'movie' ? 'movies' : 'shows'}
               viewMode="tile"
               tileMinimalActions
               tileUnseenMuted={isCollection && (row.source === 'unseen' || isUnrankedOnly)}
+              tileOverlayControls={
+                isCollection ? (
+                  <div className="lists-entry-toggle-stack">
+                    {(row.source === 'unseen' || isUnrankedOnly) ? (
+                      row.mediaType === 'movie' ? (
+                        getMovieById(item.id)?.classKey === 'UNRANKED' ? (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeMovieEntry(item.id);
+                            }}
+                          >
+                            Unranked-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const existing = getMovieById(item.id);
+                              if (existing) moveMovieToClass(item.id, 'UNRANKED');
+                              else {
+                                addMovieFromSearch({
+                                  id: item.id,
+                                  title: item.title,
+                                  subtitle: item.releaseDate ? item.releaseDate.slice(0, 4) : 'Saved',
+                                  classKey: 'UNRANKED',
+                                  posterPath: item.posterPath,
+                                });
+                              }
+                            }}
+                          >
+                            Unranked+
+                          </button>
+                        )
+                      ) : (
+                        getShowById(item.id)?.classKey === 'UNRANKED' ? (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeShowEntry(item.id);
+                            }}
+                          >
+                            Unranked-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const existing = getShowById(item.id);
+                              if (existing) moveShowToClass(item.id, 'UNRANKED');
+                              else {
+                                addShowFromSearch({
+                                  id: item.id,
+                                  title: item.title,
+                                  subtitle: item.releaseDate ? item.releaseDate.slice(0, 4) : 'Saved',
+                                  classKey: 'UNRANKED',
+                                });
+                              }
+                            }}
+                          >
+                            Unranked+
+                          </button>
+                        )
+                      )
+                    ) : null}
+                    {watchlist.isInWatchlist(item.id) ? (
+                        <button
+                          type="button"
+                          className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            watchlist.removeFromWatchlist(item.id);
+                          }}
+                        >
+                          Watchlist-
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            watchlist.addToWatchlist(
+                              {
+                                id: item.id,
+                                title: item.title,
+                                posterPath: item.posterPath,
+                                releaseDate: item.releaseDate
+                              },
+                              row.mediaType === 'movie' ? 'movies' : 'tv'
+                            );
+                          }}
+                        >
+                          Watchlist+
+                        </button>
+                    )}
+                  </div>
+                ) : null
+              }
               tileOverlayBadges={
                 isCollection ? (
                   <>
