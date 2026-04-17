@@ -416,6 +416,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                       {(() => {
                         const entryId = `tmdb-${project.mediaType}-${project.id}`;
                         const saved = project.mediaType === 'movie' ? !!getMovieById(entryId) : !!getShowById(entryId);
+                        const onWatchlist = isInWatchlist(entryId);
                         return (
                           <div className="info-modal-person-card">
                             {project.posterPath ? (
@@ -423,6 +424,9 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                             ) : (
                               <div className="info-modal-cast-placeholder info-modal-cast-portrait">{project.title[0]}</div>
                             )}
+                            {onWatchlist ? (
+                              <span className="info-modal-person-watchlist-badge">Watchlisted</span>
+                            ) : null}
                             <div className="info-modal-person-actions">
                               <button
                                 type="button"

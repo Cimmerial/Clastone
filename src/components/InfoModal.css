@@ -624,6 +624,32 @@
   pointer-events: auto;
 }
 
+.info-modal-person-watchlist-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 0.28rem;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: inline-block;
+  padding: 0.2rem 0.42rem 0.18rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #bae6fd;
+  background: rgba(12, 40, 70, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.info-modal-person-card:hover .info-modal-person-watchlist-badge {
+  opacity: 1;
+}
+
 .info-modal-person-action-btn {
   width: 28px;
   height: 28px;

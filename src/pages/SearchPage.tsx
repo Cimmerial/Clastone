@@ -1608,7 +1608,7 @@ export function SearchPage() {
                 </button>
               </div>
               <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Show watchlist</span>
+                <span className="wander-toggle-label">Show watchlisted</span>
                 <button
                   type="button"
                   className={`wander-genre-btn ${doomscrollShowWatchlist ? 'active' : ''}`}
@@ -1644,7 +1644,7 @@ export function SearchPage() {
                 </div>
               </div>
               <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Show watchlist</span>
+                <span className="wander-toggle-label">Show watchlisted</span>
                 <button
                   type="button"
                   className={`wander-genre-btn ${unreleasedShowWatchlist ? 'active' : ''}`}
