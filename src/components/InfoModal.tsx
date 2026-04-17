@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbPersonCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useListsStore } from '../state/listsStore';
 import { PersonInfoModal } from './PersonInfoModal';
 import { PersonRankingModal, type PersonRankingTarget } from './PersonRankingModal';
 import './InfoModal.css';
@@ -56,6 +57,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [showAgeAtRelease, setShowAgeAtRelease] = useState(false);
   const [personBirthdayCache, setPersonBirthdayCache] = useState<Record<number, string | null>>({});
   const [isSavingPerson, setIsSavingPerson] = useState(false);
+  const { collectionIdsByEntryId, globalCollections } = useListsStore();
   const { getPersonById, addPersonFromSearch, moveItemToClass: movePersonToClass, removePersonEntry, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
 
@@ -332,6 +334,15 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   };
 
   const watchProviderGroups = getWatchProviderGroups();
+  const resolvedCollectionTags = useMemo(() => {
+    if (collectionTags.length > 0) return collectionTags;
+    const entryId = `tmdb-${mediaType}-${tmdbId}`;
+    return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({
+      id,
+      label: globalCollections.find((item) => item.id === id)?.name ?? id,
+      color: globalCollections.find((item) => item.id === id)?.color,
+    }));
+  }, [collectionTags, mediaType, tmdbId, collectionIdsByEntryId, globalCollections]);
   const rankTargetSavedEntry = personRankTarget
     ? personRankTarget.type === 'actor'
       ? getPersonById(`tmdb-person-${personRankTarget.id}`)
@@ -573,9 +584,9 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                     <div className="info-modal-info-item">
                       <Calendar size={16} />
                       <span>Released: {details.releaseDate || 'Unknown'}</span>
-                      {mediaType === 'movie' && collectionTags.length > 0 && (
+                      {resolvedCollectionTags.length > 0 && (
                         <div className="info-modal-collection-tags-inline">
-                          {collectionTags.map((tag) => (
+                          {resolvedCollectionTags.map((tag) => (
                             <span
                               key={tag.id}
                               className="info-modal-collection-tag"

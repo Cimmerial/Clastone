@@ -508,7 +508,8 @@ export function ListDetailPage() {
     updateMovieWatchRecords,
     moveItemToClass: moveMovieToClass,
     getMovieById,
-    addMovieFromSearch
+    addMovieFromSearch,
+    removeMovieEntry
   } = useMoviesStore();
   const {
     byClass: tvByClass,
@@ -517,7 +518,8 @@ export function ListDetailPage() {
     updateShowWatchRecords,
     moveItemToClass: moveShowToClass,
     getShowById,
-    addShowFromSearch
+    addShowFromSearch,
+    removeShowEntry
   } = useTvStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
@@ -553,6 +555,22 @@ export function ListDetailPage() {
     }
     return [];
   }, [isCollection, activeCollection, activeList, entriesByListId, entryMap]);
+  const movieIdsInNonUnrankedClasses = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [classKey, items] of Object.entries(movieByClass)) {
+      if (classKey === 'UNRANKED') continue;
+      for (const item of items ?? []) ids.add(item.id);
+    }
+    return ids;
+  }, [movieByClass]);
+  const tvIdsInNonUnrankedClasses = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [classKey, items] of Object.entries(tvByClass)) {
+      if (classKey === 'UNRANKED') continue;
+      for (const item of items ?? []) ids.add(item.id);
+    }
+    return ids;
+  }, [tvByClass]);
   const title = isCollection ? activeCollection?.name : activeList?.name;
   const canDrag = (Boolean(activeList) && !isCollection) || (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
@@ -641,8 +659,20 @@ export function ListDetailPage() {
             reorderEntriesInList(activeList.id, ids);
           }
         } : undefined}
-        renderRow={(row) => row.item ? (
-          <div className="lists-entry-tile-wrap">
+        renderRow={(row) => row.item ? (() => {
+          const isSavedUnranked = isCollection && row.source === 'saved' && row.item.classKey === 'UNRANKED';
+          const appearsInOtherClass = row.mediaType === 'movie'
+            ? movieIdsInNonUnrankedClasses.has(row.item.id)
+            : tvIdsInNonUnrankedClasses.has(row.item.id);
+          const isUnrankedOnly = isSavedUnranked && !appearsInOtherClass;
+          return (
+          <div
+            className={`lists-entry-tile-wrap ${
+              isUnrankedOnly ? 'lists-entry-tile-wrap--unranked' : ''
+            } ${
+              isCollection && watchlist.isInWatchlist(row.item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
+            }`}
+          >
             {isCollection && canEditCollections ? (
               <button
                 type="button"
@@ -657,12 +687,44 @@ export function ListDetailPage() {
                 ×
               </button>
             ) : null}
-            <EntryRowMovieShow item={row.item} listType={row.mediaType === 'movie' ? 'movies' : 'shows'} viewMode="tile" tileMinimalActions tileUnseenMuted={isCollection && row.source === 'unseen'} onInfo={(entry) => { const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0); setInfoModalTarget({ tmdbId, entryId: entry.id, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType }); }} onOpenSettings={(entry) => setSettingsFor(entry)} />
+            <EntryRowMovieShow
+              item={row.item}
+              listType={row.mediaType === 'movie' ? 'movies' : 'shows'}
+              viewMode="tile"
+              tileMinimalActions
+              tileUnseenMuted={isCollection && (row.source === 'unseen' || isUnrankedOnly)}
+              tileOverlayBadges={
+                isCollection ? (
+                  <>
+                    {isUnrankedOnly ? (
+                      <div className="lists-entry-status-badge lists-entry-status-badge--unranked">Unranked</div>
+                    ) : null}
+                    {watchlist.isInWatchlist(row.item.id) ? (
+                      <div className="lists-entry-status-badge lists-entry-status-badge--watchlisted">Watchlisted</div>
+                    ) : null}
+                  </>
+                ) : null
+              }
+              onInfo={(entry) => {
+                const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0);
+                setInfoModalTarget({ tmdbId, entryId: entry.id, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType });
+              }}
+              onOpenSettings={(entry) => setSettingsFor(entry)}
+            />
           </div>
-        ) : <UnseenTile title={row.title} />}
+          );
+        })() : <UnseenTile title={row.title} />}
       />
       {showAddEntryModal && activeList ? <AddSavedEntryModal title={`Add to ${activeList.name}`} items={addableSavedItems} onClose={() => setShowAddEntryModal(false)} onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')} /> : null}
       {settingsFor ? (
+        (() => {
+          const isTvSettingsItem = settingsFor.id.startsWith('tmdb-tv-');
+          const existingSavedItem = isTvSettingsItem ? getShowById(settingsFor.id) : getMovieById(settingsFor.id);
+          const effectiveClassKey = existingSavedItem?.classKey;
+          const effectiveClassLabel = effectiveClassKey
+            ? (isTvSettingsItem ? getTvClassLabel(effectiveClassKey) : getMovieClassLabel(effectiveClassKey))
+            : undefined;
+          return (
         <UniversalEditModal
           target={{
             id: settingsFor.id,
@@ -674,11 +736,11 @@ export function ListDetailPage() {
             releaseDate: settingsFor.releaseDate,
             runtimeMinutes: settingsFor.runtimeMinutes,
             totalEpisodes: settingsFor.totalEpisodes,
-            existingClassKey: settingsFor.classKey
+            existingClassKey: effectiveClassKey
           } as UniversalEditTarget}
           initialWatches={settingsFor.watchRecords}
-          currentClassKey={settingsFor.classKey}
-          currentClassLabel={settingsFor.id.startsWith('tmdb-tv-') ? getTvClassLabel(settingsFor.classKey) : getMovieClassLabel(settingsFor.classKey)}
+          currentClassKey={effectiveClassKey}
+          currentClassLabel={effectiveClassLabel}
           rankedClasses={settingsFor.id.startsWith('tmdb-tv-') ? tvClasses : movieClasses}
           isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)}
           onAddToWatchlist={() => {
@@ -710,6 +772,12 @@ export function ListDetailPage() {
           }))}
           isSaving={false}
           onClose={() => setSettingsFor(null)}
+          onRemoveEntry={existingSavedItem ? (itemId) => {
+            const isTv = itemId.startsWith('tmdb-tv-');
+            if (isTv) removeShowEntry(itemId);
+            else removeMovieEntry(itemId);
+            setSettingsFor(null);
+          } : undefined}
           onSave={async (params, goToMedia) => {
             const watches: WatchRecord[] = params.watches.map((w) => {
               let type: WatchRecord['type'] = 'DATE';
@@ -777,6 +845,8 @@ export function ListDetailPage() {
             setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]);
           }}
         />
+          );
+        })()
       ) : null}
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} collectionTags={infoModalTarget.mediaType === 'movie' ? (() => { const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`; return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color })); })() : []} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
       {showRenameModal ? (

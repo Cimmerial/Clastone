@@ -525,6 +525,42 @@
   position: relative;
 }
 
+.lists-entry-status-badge {
+  z-index: 4;
+  border-radius: 999px;
+  padding: 0.18rem 0.46rem 0.16rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+.lists-entry-status-badge--unranked {
+  color: #ccfbe3;
+  background: rgba(10, 55, 30, 0.9);
+  border: 1px solid rgba(74, 222, 128, 0.65);
+}
+
+.lists-entry-status-badge--watchlisted {
+  color: #d9efff;
+  background: rgba(14, 42, 78, 0.92);
+  border: 1px solid rgba(77, 163, 255, 0.72);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.lists-entry-tile-wrap--watchlisted:hover .lists-entry-status-badge--watchlisted {
+  opacity: 1;
+}
+
+.lists-entry-status-badge--unranked + .lists-entry-status-badge--watchlisted {
+  margin-top: 0.06rem;
+}
+
 .lists-entry-remove-btn {
   position: absolute;
   top: 36px;

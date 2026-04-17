@@ -735,6 +735,7 @@
   position: absolute;
   inset: 0;
   background: rgba(26, 26, 26, 0.68);
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -829,6 +830,7 @@
   top: 0.5rem;
   left: 0.5rem;
   opacity: 0;
+  z-index: 5;
   transition: opacity 0.2s ease;
 }
 
@@ -871,6 +873,7 @@
   flex-direction: column;
   gap: 0.35rem;
   opacity: 0;
+  z-index: 5;
   transition: opacity 0.2s ease;
 }
 
@@ -886,12 +889,25 @@
   opacity: 1;
 }
 
+.entry-tile-bottom-badges {
+  position: absolute;
+  left: 50%;
+  bottom: 0.28rem;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
 .entry-tile-quick-actions button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid var(--accent-primary);
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
   display: flex;
   align-items: center;
@@ -1003,4 +1019,5 @@
 
 .entry-tile-quick-actions button:hover {
   background: var(--accent-primary);
+  border-color: var(--accent-primary);
 }

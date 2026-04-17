@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
 import { RankedItemBase } from './RankedList';
 import { Info, Film, Settings, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
 import {
@@ -89,6 +89,7 @@ type Props = {
   viewMode?: 'detailed' | 'minimized' | 'tile';
   tileMinimalActions?: boolean;
   tileUnseenMuted?: boolean;
+  tileOverlayBadges?: ReactNode;
 };
 
 function parsePercentile(s: string): number | null {
@@ -126,7 +127,8 @@ export function EntryRowMovieShow({
   onInfo,
   viewMode: propViewMode,
   tileMinimalActions = false,
-  tileUnseenMuted = false
+  tileUnseenMuted = false,
+  tileOverlayBadges
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -256,6 +258,9 @@ export function EntryRowMovieShow({
             <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
             {!tileMinimalActions && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
+          {tileOverlayBadges ? (
+            <div className="entry-tile-bottom-badges">{tileOverlayBadges}</div>
+          ) : null}
         </div>
         <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
       </article>

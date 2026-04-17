@@ -582,6 +582,7 @@ export function UniversalEditModal({
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
+  const isBrandNewEntry = !currentClassKey;
 
   // Lock body scroll when modal is open (only on desktop)
   useEffect(() => {
@@ -1128,7 +1129,7 @@ export function UniversalEditModal({
                     disabled={isSaving || !selectedClassKey}
                     title={!selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (no watch)' : 'Save and Exit'}
+                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (Long Ago watch)' : 'Save and Exit'}
                   </button>
                   <button
                     type="button"
@@ -1139,24 +1140,26 @@ export function UniversalEditModal({
                     disabled={isSaving || !selectedClassKey}
                     title={!selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (no watch)' : 'Save and Go To'}
+                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (Long Ago watch)' : 'Save and Go To'}
                   </button>
-                  <button
-                    type="button"
-                    className="uem-btn uem-btn--ghost"
-                    onClick={async () => {
-                      const finalEntries = entries.length > 0 ? entries : [{
-                        id: crypto.randomUUID(),
-                        watchType: 'LONG_AGO' as const,
-                        watchPercent: 100,
-                        watchStatus: 'NONE' as const,
-                      }];
-                      await onSave({ watches: finalEntries, classKey: 'UNRANKED' }, false);
-                    }}
-                    disabled={isSaving}
-                  >
-                    Add as Unranked & Exit
-                  </button>
+                  {isBrandNewEntry && (
+                    <button
+                      type="button"
+                      className="uem-btn uem-btn--ghost"
+                      onClick={async () => {
+                        const finalEntries = entries.length > 0 ? entries : [{
+                          id: crypto.randomUUID(),
+                          watchType: 'LONG_AGO' as const,
+                          watchPercent: 100,
+                          watchStatus: 'NONE' as const,
+                        }];
+                        await onSave({ watches: finalEntries, classKey: 'UNRANKED' }, false);
+                      }}
+                      disabled={isSaving}
+                    >
+                      Add as Unranked & Exit
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
