@@ -437,6 +437,15 @@ export function FriendProfilePage() {
     return ids;
   }, [myMoviesByClass]);
 
+  const friendWatchlistMovieIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of friendWatchlistData?.movies ?? []) {
+      const tmdbId = (item?.tmdbId ?? parseInt(String(item?.id ?? '').replace(/\D/g, ''), 10)) || 0;
+      if (tmdbId > 0) ids.add(`tmdb-movie-${tmdbId}`);
+    }
+    return ids;
+  }, [friendWatchlistData]);
+
   const friendMovieCollectionProgress = useMemo(() => {
     const total = friendWatchedMovieIds.size;
     if (total === 0) {
@@ -445,8 +454,7 @@ export function FriendProfilePage() {
     let seen = 0;
     let watchlistUnseen = 0;
     for (const itemId of friendWatchedMovieIds) {
-      const isSeen = mySeenMovieIds.has(itemId);
-      if (isSeen) {
+      if (mySeenMovieIds.has(itemId)) {
         seen += 1;
       } else if (isInWatchlist(itemId)) {
         watchlistUnseen += 1;
@@ -480,6 +488,15 @@ export function FriendProfilePage() {
     return ids;
   }, [myTvByClass]);
 
+  const friendWatchlistShowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of friendWatchlistData?.tv ?? []) {
+      const tmdbId = (item?.tmdbId ?? parseInt(String(item?.id ?? '').replace(/\D/g, ''), 10)) || 0;
+      if (tmdbId > 0) ids.add(`tmdb-tv-${tmdbId}`);
+    }
+    return ids;
+  }, [friendWatchlistData]);
+
   const friendShowCollectionProgress = useMemo(() => {
     const total = friendWatchedShowIds.size;
     if (total === 0) {
@@ -488,8 +505,7 @@ export function FriendProfilePage() {
     let seen = 0;
     let watchlistUnseen = 0;
     for (const itemId of friendWatchedShowIds) {
-      const isSeen = mySeenShowIds.has(itemId);
-      if (isSeen) {
+      if (mySeenShowIds.has(itemId)) {
         seen += 1;
       } else if (isInWatchlist(itemId)) {
         watchlistUnseen += 1;
@@ -512,7 +528,9 @@ export function FriendProfilePage() {
           const isMovieEntry = entryId.startsWith('tmdb-movie-');
           const isSeen = isMovieEntry ? friendWatchedMovieIds.has(entryId) : friendWatchedShowIds.has(entryId);
           if (isSeen) seen += 1;
-          else if (isInWatchlist(entryId)) watchlistUnseen += 1;
+          else if (isMovieEntry ? friendWatchlistMovieIds.has(entryId) : friendWatchlistShowIds.has(entryId)) {
+            watchlistUnseen += 1;
+          }
         }
         return {
           id: collection.id,
@@ -523,7 +541,7 @@ export function FriendProfilePage() {
         };
       })
       .filter((item) => item.total > 0);
-  }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, isInWatchlist]);
+  }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
