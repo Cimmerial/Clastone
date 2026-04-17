@@ -46,6 +46,8 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBiography, setShowBiography] = useState(false);
+  const [projectTypeFilter, setProjectTypeFilter] = useState<'ALL' | 'MOVIE' | 'SHOW'>('ALL');
+  const [projectRoleFilter, setProjectRoleFilter] = useState<'ALL' | 'ACTOR' | 'DIRECTOR_OR_PRODUCER' | 'OTHER'>('ALL');
   const [projectInfoTarget, setProjectInfoTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const [projectEditTarget, setProjectEditTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const [isSavingProject, setIsSavingProject] = useState(false);
@@ -151,7 +153,30 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     console.log('=== End Filter Debug ===');
     
     return filtered;
-  }, [details?.roles, settings.boycottTalkShows]);
+  }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
+
+  const getRoleCategory = (role: { character?: string; job?: string }) => {
+    const hasCharacter = !!role.character?.trim();
+    const job = (role.job || '').toLowerCase();
+
+    if (hasCharacter) return 'ACTOR' as const;
+    if (job.includes('director') || job.includes('producer')) return 'DIRECTOR_OR_PRODUCER' as const;
+    return 'OTHER' as const;
+  };
+
+  const displayRoles = useMemo(() => {
+    return filteredRoles.filter((role) => {
+      const typeMatch =
+        projectTypeFilter === 'ALL' ||
+        (projectTypeFilter === 'MOVIE' && role.mediaType === 'movie') ||
+        (projectTypeFilter === 'SHOW' && role.mediaType === 'tv');
+
+      const roleCategory = getRoleCategory(role);
+      const roleMatch = projectRoleFilter === 'ALL' || projectRoleFilter === roleCategory;
+
+      return typeMatch && roleMatch;
+    });
+  }, [filteredRoles, projectTypeFilter, projectRoleFilter]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -392,8 +417,11 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                         <Calendar size={16} />
                         <span>
                           Born: {formatDate(details.birthday)}
-                          {getAge() && ` (age ${getAge()})`}
-                          {details.deathday && ` - Died: {formatDate(details.deathday)}`}
+                          {details.deathday
+                            ? ` - Died: ${formatDate(details.deathday)}${getAge() ? ` (age at death ${getAge()})` : ''}`
+                            : getAge()
+                              ? ` (age ${getAge()})`
+                              : ''}
                         </span>
                       </div>
                     )}
@@ -409,9 +437,43 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
 
               {/* Projects Section (equivalent to Cast section) */}
               <div className="info-modal-section">
-                <h3 className="info-modal-section-title">Projects</h3>
+                <div className="info-modal-section-header">
+                  <h3 className="info-modal-section-title">Projects</h3>
+                  <div className="info-modal-inline-toggles">
+                    <div className="info-modal-inline-toggle-group">
+                      <span className="info-modal-inline-toggle-label">Type:</span>
+                      <div className="info-modal-inline-toggle-options">
+                        {(['ALL', 'MOVIE', 'SHOW'] as const).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            className={`info-modal-inline-toggle-btn ${projectTypeFilter === option ? 'is-active' : ''}`}
+                            onClick={() => setProjectTypeFilter(option)}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="info-modal-inline-toggle-group">
+                      <span className="info-modal-inline-toggle-label">Role:</span>
+                      <div className="info-modal-inline-toggle-options">
+                        {(['ALL', 'ACTOR', 'DIRECTOR_OR_PRODUCER', 'OTHER'] as const).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            className={`info-modal-inline-toggle-btn ${projectRoleFilter === option ? 'is-active' : ''}`}
+                            onClick={() => setProjectRoleFilter(option)}
+                          >
+                            {option === 'DIRECTOR_OR_PRODUCER' ? 'DIRECTOR/PRODUCER' : option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="info-modal-cast-scroll">
-                  {filteredRoles.slice(0, 20).map(project => (
+                  {displayRoles.slice(0, 20).map(project => (
                     <div key={`${project.mediaType}-${project.id}`} className="info-modal-cast-member">
                       {(() => {
                         const entryId = `tmdb-${project.mediaType}-${project.id}`;

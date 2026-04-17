@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Info, ChevronDown, ChevronUp, Clock, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbPersonCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
@@ -53,6 +53,8 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [personInfoTarget, setPersonInfoTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
   const [personRankTarget, setPersonRankTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [personRankCache, setPersonRankCache] = useState<TmdbPersonCache | null>(null);
+  const [showAgeAtRelease, setShowAgeAtRelease] = useState(false);
+  const [personBirthdayCache, setPersonBirthdayCache] = useState<Record<number, string | null>>({});
   const [isSavingPerson, setIsSavingPerson] = useState(false);
   const { getPersonById, addPersonFromSearch, moveItemToClass: movePersonToClass, removePersonEntry, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
@@ -152,6 +154,60 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
     };
   }, [watchOptionsOpen]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setShowAgeAtRelease(false);
+      return;
+    }
+
+    setPersonBirthdayCache({});
+  }, [isOpen, tmdbId, mediaType]);
+
+  const releaseDateObj = useMemo(() => {
+    const date = details?.releaseDate;
+    if (!date) return null;
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [details?.releaseDate]);
+
+  useEffect(() => {
+    if (!showAgeAtRelease || !releaseDateObj || !details) return;
+
+    const leadPeople = mediaType === 'movie' ? (details.directors ?? []) : (details.creators ?? []);
+    const peopleToLoad = [...leadPeople, ...details.cast.slice(0, 20)];
+    const missingIds = peopleToLoad
+      .map((person) => person.id)
+      .filter((id) => personBirthdayCache[id] === undefined);
+
+    if (!missingIds.length) return;
+
+    let cancelled = false;
+
+    void Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const person = await tmdbPersonDetailsFull(id);
+          return [id, person?.birthday ?? null] as const;
+        } catch {
+          return [id, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setPersonBirthdayCache((prev) => {
+        const next = { ...prev };
+        for (const [id, birthday] of entries) {
+          next[id] = birthday;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showAgeAtRelease, releaseDateObj, details, mediaType, personBirthdayCache]);
+
   if (!isOpen) return null;
 
   const formatRuntime = (minutes?: number) => {
@@ -186,6 +242,22 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const getYear = (date?: string) => {
     if (!date) return '';
     return date.split('-')[0];
+  };
+
+  const getAgeAtRelease = (personId: number) => {
+    if (!showAgeAtRelease || !releaseDateObj) return '';
+    const birthday = personBirthdayCache[personId];
+    if (!birthday) return '';
+
+    const birthDate = new Date(birthday);
+    if (Number.isNaN(birthDate.getTime())) return '';
+
+    let age = releaseDateObj.getFullYear() - birthDate.getFullYear();
+    const hasHadBirthdayThisYear =
+      releaseDateObj.getMonth() > birthDate.getMonth() ||
+      (releaseDateObj.getMonth() === birthDate.getMonth() && releaseDateObj.getDate() >= birthDate.getDate());
+    if (!hasHadBirthdayThisYear) age -= 1;
+    return age >= 0 ? ` (${age})` : '';
   };
 
   type WatchProviderCategory = 'flatrate' | 'rent' | 'buy' | 'ads';
@@ -525,7 +597,30 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
 
               {/* Cast Section */}
               <div className="info-modal-section">
-                <h3 className="info-modal-section-title">Cast</h3>
+                <div className="info-modal-section-header">
+                  <h3 className="info-modal-section-title">Cast</h3>
+                  <div className="info-modal-inline-toggles">
+                    <div className="info-modal-inline-toggle-group">
+                      <span className="info-modal-inline-toggle-label">Ages at release:</span>
+                      <div className="info-modal-inline-toggle-options">
+                        <button
+                          type="button"
+                          className={`info-modal-inline-toggle-btn ${!showAgeAtRelease ? 'is-active' : ''}`}
+                          onClick={() => setShowAgeAtRelease(false)}
+                        >
+                          OFF
+                        </button>
+                        <button
+                          type="button"
+                          className={`info-modal-inline-toggle-btn ${showAgeAtRelease ? 'is-active' : ''}`}
+                          onClick={() => setShowAgeAtRelease(true)}
+                        >
+                          ON
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="info-modal-cast-scroll">
                   {(mediaType === 'movie' ? details.directors : details.creators)?.map(person => (
                     <div key={`lead-${person.id}`} className="info-modal-cast-member">
@@ -560,7 +655,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                         );
                       })()}
                       <div className="info-modal-cast-info">
-                        <div className="info-modal-cast-name">{person.name}</div>
+                        <div className="info-modal-cast-name">{person.name}{getAgeAtRelease(person.id)}</div>
                         <div className="info-modal-cast-character">
                           {mediaType === 'movie' ? 'Director' : 'Creator'}
                         </div>
@@ -605,7 +700,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                         );
                       })()}
                       <div className="info-modal-cast-info">
-                        <div className="info-modal-cast-name">{person.name}</div>
+                        <div className="info-modal-cast-name">{person.name}{getAgeAtRelease(person.id)}</div>
                         {person.character && (
                           <div className="info-modal-cast-character">{person.character}</div>
                         )}
