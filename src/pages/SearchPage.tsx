@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Info, User, Film, ArrowUp, ChevronLeft, ChevronRight, Clapperboard } from 'lucide-react';
+import { Info, User, Film, ArrowUp, Clapperboard } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import {
   tmdbSearchMovies,
@@ -11,6 +11,10 @@ import {
   tmdbImagePath,
   tmdbDiscoverMoviesByYear,
   tmdbDiscoverTvByYear,
+  tmdbDiscoverMoviesByReleaseYearRange,
+  tmdbDiscoverTvByFirstAirYearRange,
+  tmdbDiscoverUnreleasedMovies,
+  tmdbDiscoverUnreleasedTv,
   type TmdbMultiResult
 } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
@@ -21,7 +25,6 @@ import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
-import { GenreEditModal } from '../components/GenreEditModal';
 import type { WatchRecord } from '../components/EntryRowMovieShow';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
@@ -41,8 +44,6 @@ const SEARCH_LOAD_MORE_INCREMENT = 12;
 const SEARCH_MAX_LOAD_MORE_CLICKS = 2;
 const SEARCH_FETCH_LIMIT =
   SEARCH_INITIAL_RESULT_LIMIT + SEARCH_LOAD_MORE_INCREMENT * SEARCH_MAX_LOAD_MORE_CLICKS;
-const MIN_WANDER_YEAR = 1915;
-
 function parseQueryWithOptionalYear(raw: string): { textQuery: string; yearHint?: number } {
   const trimmed = raw.trim();
   const match = trimmed.match(/^(.*?)(?:\s+)(19\d{2}|20\d{2})$/);
@@ -169,6 +170,194 @@ function rankResultsWithYearHint(results: TmdbMultiResult[], yearHint?: number, 
   return scored.map((entry) => entry.result);
 }
 
+const MIN_DOOMSCROLL_YEAR = 1900;
+
+export type DoomscrollYearFilter =
+  | { mode: 'all' }
+  | { mode: 'single'; year: number }
+  | { mode: 'range'; fromYear: number; toYear: number };
+
+function parseDoomscrollYearFilter(): DoomscrollYearFilter {
+  try {
+    const raw = sessionStorage.getItem('doomscroll_year_filter');
+    if (!raw) return { mode: 'all' };
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    if (o.mode === 'single' && typeof o.year === 'number' && Number.isFinite(o.year)) {
+      return { mode: 'single', year: Math.floor(o.year) };
+    }
+    if (
+      o.mode === 'range' &&
+      typeof o.fromYear === 'number' &&
+      typeof o.toYear === 'number' &&
+      Number.isFinite(o.fromYear) &&
+      Number.isFinite(o.toYear)
+    ) {
+      return { mode: 'range', fromYear: Math.floor(o.fromYear), toYear: Math.floor(o.toYear) };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { mode: 'all' };
+}
+
+/** Movies only: UI "Popularity" → vote_count; "Box office" → revenue. TV always uses vote_count in fetch. */
+function doomscrollMovieSortBy(mode: 'popularity' | 'box_office'): string {
+  return mode === 'box_office' ? 'revenue.desc' : 'vote_count.desc';
+}
+
+function formatDoomscrollYearFilterLabel(f: DoomscrollYearFilter): string {
+  if (f.mode === 'all') return 'All years';
+  if (f.mode === 'single') return `Year ${f.year}`;
+  const lo = Math.min(f.fromYear, f.toYear);
+  const hi = Math.max(f.fromYear, f.toYear);
+  return lo === hi ? `${lo}` : `${lo}–${hi}`;
+}
+
+function DoomscrollYearModal({
+  open,
+  onClose,
+  initialValue,
+  maxYear,
+  onApply
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialValue: DoomscrollYearFilter;
+  maxYear: number;
+  onApply: (value: DoomscrollYearFilter) => void;
+}) {
+  const [mode, setMode] = useState<'all' | 'single' | 'range'>('all');
+  const [singleYear, setSingleYear] = useState(maxYear);
+  const [fromYear, setFromYear] = useState(maxYear - 5);
+  const [toYear, setToYear] = useState(maxYear);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialValue.mode === 'all') {
+      setMode('all');
+    } else if (initialValue.mode === 'single') {
+      setMode('single');
+      setSingleYear(initialValue.year);
+    } else {
+      setMode('range');
+      setFromYear(initialValue.fromYear);
+      setToYear(initialValue.toYear);
+    }
+  }, [open, initialValue]);
+
+  const yearOptionsDesc = useMemo(
+    () => Array.from({ length: maxYear - MIN_DOOMSCROLL_YEAR + 1 }, (_, i) => maxYear - i),
+    [maxYear]
+  );
+
+  if (!open) return null;
+
+  const handleApply = () => {
+    if (mode === 'all') {
+      onApply({ mode: 'all' });
+      return;
+    }
+    if (mode === 'single') {
+      const y = Math.min(maxYear, Math.max(MIN_DOOMSCROLL_YEAR, singleYear));
+      onApply({ mode: 'single', year: y });
+      return;
+    }
+    const lo = Math.min(fromYear, toYear);
+    const hi = Math.max(fromYear, toYear);
+    const a = Math.min(maxYear, Math.max(MIN_DOOMSCROLL_YEAR, lo));
+    const b = Math.min(maxYear, Math.max(MIN_DOOMSCROLL_YEAR, hi));
+    onApply({ mode: 'range', fromYear: a, toYear: b });
+  };
+
+  return (
+    <div className="doomscroll-year-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="doomscroll-year-modal" role="dialog" aria-labelledby="doomscroll-year-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h3 id="doomscroll-year-modal-title" className="doomscroll-year-modal-title">
+          Doomscroll years
+        </h3>
+        <p className="doomscroll-year-modal-sub">Choose all releases, a single year, or a range (inclusive).</p>
+
+        <div className="doomscroll-year-modal-modes">
+          <label className="doomscroll-year-modal-option">
+            <input type="radio" name="doomscroll-year-mode" checked={mode === 'all'} onChange={() => setMode('all')} />
+            <span>All years</span>
+          </label>
+          <label className="doomscroll-year-modal-option">
+            <input type="radio" name="doomscroll-year-mode" checked={mode === 'single'} onChange={() => setMode('single')} />
+            <span>Single year</span>
+          </label>
+          <label className="doomscroll-year-modal-option">
+            <input type="radio" name="doomscroll-year-mode" checked={mode === 'range'} onChange={() => setMode('range')} />
+            <span>Year range</span>
+          </label>
+        </div>
+
+        {mode === 'single' ? (
+          <div className="doomscroll-year-modal-row">
+            <label className="doomscroll-year-modal-label" htmlFor="doomscroll-single-year">Year</label>
+            <select
+              id="doomscroll-single-year"
+              className="doomscroll-year-modal-select"
+              value={singleYear}
+              onChange={(e) => setSingleYear(parseInt(e.target.value, 10))}
+            >
+              {yearOptionsDesc.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
+        {mode === 'range' ? (
+          <div className="doomscroll-year-modal-range">
+            <div className="doomscroll-year-modal-row">
+              <label className="doomscroll-year-modal-label" htmlFor="doomscroll-from-year">From</label>
+              <select
+                id="doomscroll-from-year"
+                className="doomscroll-year-modal-select"
+                value={fromYear}
+                onChange={(e) => setFromYear(parseInt(e.target.value, 10))}
+              >
+                {yearOptionsDesc.map((y) => (
+                  <option key={`f-${y}`} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doomscroll-year-modal-row">
+              <label className="doomscroll-year-modal-label" htmlFor="doomscroll-to-year">To</label>
+              <select
+                id="doomscroll-to-year"
+                className="doomscroll-year-modal-select"
+                value={toYear}
+                onChange={(e) => setToYear(parseInt(e.target.value, 10))}
+              >
+                {yearOptionsDesc.map((y) => (
+                  <option key={`t-${y}`} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="doomscroll-year-modal-actions">
+          <button type="button" className="doomscroll-year-modal-btn doomscroll-year-modal-btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="doomscroll-year-modal-btn" onClick={handleApply}>
+            Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SearchPage() {
   // Persist search query and results
   const [query, setQuery] = useState(() => {
@@ -204,40 +393,13 @@ export function SearchPage() {
   });
 
   // Tab selection
-  const [activeTab, setActiveTab] = useState<'search' | 'wander' | 'doomscroll'>(() => {
+  const [activeTab, setActiveTab] = useState<'search' | 'doomscroll' | 'unreleased'>(() => {
     const saved = sessionStorage.getItem('search_active_tab');
-    return saved === 'wander' || saved === 'doomscroll' ? saved : 'search';
+    if (saved === 'wander') return 'doomscroll';
+    if (saved === 'doomscroll' || saved === 'unreleased') return saved;
+    return 'search';
   });
 
-  // Wander state
-  const [wanderYear, setWanderYear] = useState<number | 'ALL'>(() => {
-    const saved = sessionStorage.getItem('wander_year');
-    return saved ? (saved === 'ALL' ? 'ALL' : parseInt(saved, 10)) : new Date().getFullYear();
-  });
-  const [wanderMediaType, setWanderMediaType] = useState<'movies' | 'shows'>('movies');
-  const [wanderResults, setWanderResults] = useState<TmdbMultiResult[]>([]);
-  const [wanderPage, setWanderPage] = useState(1);
-  const [wanderLoading, setWanderLoading] = useState(false);
-  const [wanderError, setWanderError] = useState<string | null>(null);
-  const [lastPageWasFull, setLastPageWasFull] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [wanderColumnCount, setWanderColumnCount] = useState<1 | 2 | 3>(() => {
-    const saved = sessionStorage.getItem('wander_column_count');
-    return saved ? (parseInt(saved) as 1 | 2 | 3) : 2;
-  });
-  
-  // Genre filter state
-  const [wanderSelectedGenres, setWanderSelectedGenres] = useState<string[]>(() => {
-    const saved = sessionStorage.getItem('wander_selected_genres');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isGenreModalOpen, setIsGenreModalOpen] = useState(false);
-
-  // Sort type state
-  const [wanderSortType, setWanderSortType] = useState<string>(() => {
-    const saved = sessionStorage.getItem('wander_sort_type');
-    return saved || 'vote_count.desc';
-  });
   const [doomscrollMediaType, setDoomscrollMediaType] = useState<'movies' | 'shows'>(() => {
     const saved = sessionStorage.getItem('doomscroll_media_type');
     return saved === 'shows' ? 'shows' : 'movies';
@@ -250,6 +412,10 @@ export function SearchPage() {
     const saved = sessionStorage.getItem('doomscroll_show_watchlist');
     return saved ? JSON.parse(saved) : false;
   });
+  const [doomscrollDiscoverMode, setDoomscrollDiscoverMode] = useState<'popularity' | 'box_office'>(() => {
+    const saved = sessionStorage.getItem('doomscroll_discover_mode');
+    return saved === 'box_office' ? 'box_office' : 'popularity';
+  });
   const [doomscrollResults, setDoomscrollResults] = useState<TmdbMultiResult[]>([]);
   const [doomscrollPage, setDoomscrollPage] = useState(1);
   const [doomscrollLoading, setDoomscrollLoading] = useState(false);
@@ -257,21 +423,39 @@ export function SearchPage() {
   const [doomscrollLastPageWasFull, setDoomscrollLastPageWasFull] = useState(true);
   const [doomscrollIsLoadingMore, setDoomscrollIsLoadingMore] = useState(false);
   const [doomscrollKeepVisibleIds, setDoomscrollKeepVisibleIds] = useState<string[]>([]);
+  const [doomscrollYearFilter, setDoomscrollYearFilter] = useState<DoomscrollYearFilter>(() => parseDoomscrollYearFilter());
+  const [showDoomscrollYearModal, setShowDoomscrollYearModal] = useState(false);
+
+  const [unreleasedMediaType, setUnreleasedMediaType] = useState<'movies' | 'shows'>(() => {
+    const saved = sessionStorage.getItem('unreleased_media_type');
+    return saved === 'shows' ? 'shows' : 'movies';
+  });
+  const [unreleasedShowWatchlist, setUnreleasedShowWatchlist] = useState<boolean>(() => {
+    const saved = sessionStorage.getItem('unreleased_show_watchlist');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [unreleasedResults, setUnreleasedResults] = useState<TmdbMultiResult[]>([]);
+  const [unreleasedPage, setUnreleasedPage] = useState(1);
+  const [unreleasedLoading, setUnreleasedLoading] = useState(false);
+  const [unreleasedError, setUnreleasedError] = useState<string | null>(null);
+  const [unreleasedLastPageWasFull, setUnreleasedLastPageWasFull] = useState(true);
+  const [unreleasedIsLoadingMore, setUnreleasedIsLoadingMore] = useState(false);
+  const [unreleasedKeepVisibleIds, setUnreleasedKeepVisibleIds] = useState<string[]>([]);
 
   useEffect(() => { sessionStorage.setItem('search_movies', JSON.stringify(showMovies)); }, [showMovies]);
   useEffect(() => { sessionStorage.setItem('search_tv', JSON.stringify(showTv)); }, [showTv]);
   useEffect(() => { sessionStorage.setItem('search_people', JSON.stringify(showPeople)); }, [showPeople]);
   useEffect(() => { sessionStorage.setItem('search_depth', searchDepth); }, [searchDepth]);
   useEffect(() => { sessionStorage.setItem('search_active_tab', activeTab); }, [activeTab]);
-  useEffect(() => { sessionStorage.setItem('wander_column_count', wanderColumnCount.toString()); }, [wanderColumnCount]);
-  useEffect(() => { sessionStorage.setItem('wander_selected_genres', JSON.stringify(wanderSelectedGenres)); }, [wanderSelectedGenres]);
-  useEffect(() => { 
-    sessionStorage.setItem('wander_year', wanderYear.toString()); 
-  }, [wanderYear]);
-  useEffect(() => { sessionStorage.setItem('wander_sort_type', wanderSortType); }, [wanderSortType]);
   useEffect(() => { sessionStorage.setItem('doomscroll_media_type', doomscrollMediaType); }, [doomscrollMediaType]);
   useEffect(() => { sessionStorage.setItem('doomscroll_show_seen', JSON.stringify(doomscrollShowSeen)); }, [doomscrollShowSeen]);
   useEffect(() => { sessionStorage.setItem('doomscroll_show_watchlist', JSON.stringify(doomscrollShowWatchlist)); }, [doomscrollShowWatchlist]);
+  useEffect(() => { sessionStorage.setItem('doomscroll_discover_mode', doomscrollDiscoverMode); }, [doomscrollDiscoverMode]);
+  useEffect(() => { sessionStorage.setItem('unreleased_media_type', unreleasedMediaType); }, [unreleasedMediaType]);
+  useEffect(() => { sessionStorage.setItem('unreleased_show_watchlist', JSON.stringify(unreleasedShowWatchlist)); }, [unreleasedShowWatchlist]);
+  useEffect(() => {
+    sessionStorage.setItem('doomscroll_year_filter', JSON.stringify(doomscrollYearFilter));
+  }, [doomscrollYearFilter]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -836,101 +1020,6 @@ export function SearchPage() {
     if (goToList) navigate(isActor ? '/actors' : '/directors', { replace: true, state: { scrollToId: id } });
   };
 
-  // Wander functionality
-  const loadWanderContent = async (reset: boolean = false) => {
-    if (wanderLoading || isLoadingMore) return;
-    
-    const page = reset ? 1 : wanderPage + 1;
-    const isLoadMore = !reset;
-    
-    if (isLoadMore) {
-      setIsLoadingMore(true);
-    } else {
-      setWanderLoading(true);
-    }
-    setWanderError(null);
-    
-    try {
-      console.log(`Loading ${wanderMediaType} for year ${wanderYear}, page ${page}, reset=${reset}, genres=${wanderSelectedGenres.length > 0 ? wanderSelectedGenres.join(' OR ') : 'none (all)'}`);
-      
-      // Calculate how many pages to load based on media type
-      const targetItemsPerLoad = wanderMediaType === 'movies' ? 50 : 26;
-      const pagesToLoad = Math.ceil(targetItemsPerLoad / 20); // TMDB returns 20 per page
-      
-      let allResults: TmdbMultiResult[] = [];
-      
-      // Load multiple pages at once
-      for (let i = 0; i < pagesToLoad; i++) {
-        const currentPage = page + i;
-        console.log(`Fetching page ${currentPage} of ${pagesToLoad}`);
-        
-        const results = wanderMediaType === 'movies' 
-          ? await tmdbDiscoverMoviesByYear(wanderYear === 'ALL' ? undefined : wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType)
-          : await tmdbDiscoverTvByYear(wanderYear === 'ALL' ? undefined : wanderYear, currentPage, undefined, wanderSelectedGenres, wanderSortType);
-        
-        console.log(`API returned ${results.length} results for page ${currentPage}`);
-        
-        if (results.length === 0) break; // No more results
-        
-        allResults = [...allResults, ...results];
-        
-        // If we didn't get a full page, this might be the last page
-        if (results.length < 20) {
-          break;
-        }
-      }
-      
-      console.log(`Total fetched: ${allResults.length} results`);
-      
-      // Track if the last page was full
-      const lastPageWasFull = allResults.length >= 20 && allResults.length % 20 === 0;
-      setLastPageWasFull(lastPageWasFull);
-      
-      if (reset) {
-        // Ensure uniqueness even on reset
-        const uniqueResults = allResults.filter((item, index, self) => 
-          index === self.findIndex((t) => `${t.media_type}-${t.id}` === `${item.media_type}-${item.id}`)
-        );
-        setWanderResults(uniqueResults);
-        setWanderPage(pagesToLoad);
-        console.log(`Reset: set ${uniqueResults.length} results (was ${allResults.length})`);
-      } else {
-        // Prevent duplicates by filtering out existing IDs
-        const existingIds = new Set(wanderResults.map(r => `${r.media_type}-${r.id}`));
-        console.log(`Existing IDs count: ${existingIds.size}`);
-        
-        const newResults = allResults.filter(r => {
-          const key = `${r.media_type}-${r.id}`;
-          const isDuplicate = existingIds.has(key);
-          if (isDuplicate) {
-            console.log(`Duplicate found: ${key} - ${r.title}`);
-          }
-          return !isDuplicate;
-        });
-        
-        console.log(`Filtered duplicates: ${newResults.length} new results out of ${allResults.length}`);
-        
-        // Additional safety: dedupe the final array
-        const finalResults = [...wanderResults, ...newResults];
-        const uniqueResults = finalResults.filter((item, index, self) => 
-          index === self.findIndex((t) => `${t.media_type}-${t.id}` === `${item.media_type}-${item.id}`)
-        );
-        
-        console.log(`Final unique count: ${uniqueResults.length} (was ${finalResults.length})`);
-        
-        setWanderResults(uniqueResults);
-        setWanderPage(page + pagesToLoad - 1);
-      }
-    } catch (err) {
-      console.error('Error loading wander content:', err);
-      setWanderError(err instanceof Error ? err.message : String(err));
-      setLastPageWasFull(false);
-    } finally {
-      setWanderLoading(false);
-      setIsLoadingMore(false);
-    }
-  };
-
   const loadDoomscrollContent = async (reset: boolean = false) => {
     if (doomscrollLoading || doomscrollIsLoadingMore) return;
 
@@ -955,11 +1044,42 @@ export function SearchPage() {
         setDoomscrollResults([]);
       }
 
+      const sortBy =
+        doomscrollMediaType === 'shows' ? 'vote_count.desc' : doomscrollMovieSortBy(doomscrollDiscoverMode);
+      const fetchDoomscrollPage = async (currentPage: number): Promise<TmdbMultiResult[]> => {
+        if (doomscrollMediaType === 'movies') {
+          if (doomscrollYearFilter.mode === 'all') {
+            return tmdbDiscoverMoviesByYear(undefined, currentPage, undefined, [], sortBy);
+          }
+          if (doomscrollYearFilter.mode === 'single') {
+            return tmdbDiscoverMoviesByYear(doomscrollYearFilter.year, currentPage, undefined, [], sortBy);
+          }
+          return tmdbDiscoverMoviesByReleaseYearRange(
+            doomscrollYearFilter.fromYear,
+            doomscrollYearFilter.toYear,
+            currentPage,
+            undefined,
+            sortBy
+          );
+        }
+        if (doomscrollYearFilter.mode === 'all') {
+          return tmdbDiscoverTvByYear(undefined, currentPage, undefined, [], sortBy);
+        }
+        if (doomscrollYearFilter.mode === 'single') {
+          return tmdbDiscoverTvByYear(doomscrollYearFilter.year, currentPage, undefined, [], sortBy);
+        }
+        return tmdbDiscoverTvByFirstAirYearRange(
+          doomscrollYearFilter.fromYear,
+          doomscrollYearFilter.toYear,
+          currentPage,
+          undefined,
+          sortBy
+        );
+      };
+
       for (let i = 0; i < pagesToLoad; i++) {
         const currentPage = page + i;
-        const results = doomscrollMediaType === 'movies'
-          ? await tmdbDiscoverMoviesByYear(undefined, currentPage, undefined, [], 'vote_count.desc')
-          : await tmdbDiscoverTvByYear(undefined, currentPage, undefined, [], 'vote_count.desc');
+        const results = await fetchDoomscrollPage(currentPage);
 
         if (results.length === 0) {
           hitEnd = true;
@@ -999,49 +1119,82 @@ export function SearchPage() {
     }
   };
 
+  const loadUnreleasedContent = async (reset: boolean = false) => {
+    if (unreleasedLoading || unreleasedIsLoadingMore) return;
+
+    const page = reset ? 1 : unreleasedPage + 1;
+    const isLoadMore = !reset;
+
+    if (isLoadMore) {
+      setUnreleasedIsLoadingMore(true);
+    } else {
+      setUnreleasedLoading(true);
+    }
+    setUnreleasedError(null);
+
+    try {
+      const targetItemsPerLoad = 250;
+      const pagesToLoad = Math.ceil(targetItemsPerLoad / 20);
+      let fetchedPages = 0;
+      let hitEnd = false;
+      let lastBatchSize = 0;
+
+      if (reset) {
+        setUnreleasedResults([]);
+      }
+
+      for (let i = 0; i < pagesToLoad; i++) {
+        const currentPage = page + i;
+        const results = unreleasedMediaType === 'movies'
+          ? await tmdbDiscoverUnreleasedMovies(currentPage)
+          : await tmdbDiscoverUnreleasedTv(currentPage);
+
+        if (results.length === 0) {
+          hitEnd = true;
+          break;
+        }
+
+        fetchedPages += 1;
+        lastBatchSize = results.length;
+
+        setUnreleasedResults((prev) => {
+          const existingIds = new Set(prev.map((r) => `${r.media_type}-${r.id}`));
+          const dedupedIncoming = results.filter((r) => !existingIds.has(`${r.media_type}-${r.id}`));
+          return [...prev, ...dedupedIncoming];
+        });
+
+        if (results.length < 20) {
+          hitEnd = true;
+          break;
+        }
+      }
+
+      const canLoadMore = fetchedPages > 0 && !hitEnd && lastBatchSize === 20;
+      setUnreleasedLastPageWasFull(canLoadMore);
+
+      if (fetchedPages > 0) {
+        setUnreleasedPage(page + fetchedPages - 1);
+      } else if (reset) {
+        setUnreleasedPage(1);
+      }
+    } catch (err) {
+      setUnreleasedError(err instanceof Error ? err.message : String(err));
+      setUnreleasedLastPageWasFull(false);
+    } finally {
+      setUnreleasedLoading(false);
+      setUnreleasedIsLoadingMore(false);
+    }
+  };
+
   // Scroll to top function
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Calculate if we should show load more button - use a simple approach without useMemo to avoid re-render issues
-  const shouldShowLoadMore = wanderResults.length > 0 && lastPageWasFull && !isLoadingMore;
   const shouldLoadMoreDoomscroll = doomscrollResults.length > 0 && doomscrollLastPageWasFull && !doomscrollIsLoadingMore;
+  const shouldLoadMoreUnreleased = unreleasedResults.length > 0 && unreleasedLastPageWasFull && !unreleasedIsLoadingMore;
 
-  // Generate year options for dropdown (ALL + 1915 to current year)
   const currentYear = new Date().getFullYear();
-  const yearOptions = useMemo(() => {
-    const options = ['ALL', ...Array.from({ length: currentYear - MIN_WANDER_YEAR + 1 }, (_, i) => MIN_WANDER_YEAR + i)];
-    return options;
-  }, [currentYear]);
-
-  const handleYearIncrement = () => {
-    if (wanderYear !== 'ALL' && wanderYear < currentYear) {
-      handleWanderYearChange(wanderYear + 1);
-    }
-  };
-
-  const handleYearDecrement = () => {
-    if (wanderYear !== 'ALL' && wanderYear > MIN_WANDER_YEAR) {
-      handleWanderYearChange(wanderYear - 1);
-    }
-  };
-
-  const handleWanderYearChange = (newYear: number | 'ALL') => {
-    setWanderYear(newYear);
-    setWanderResults([]);
-    setWanderPage(1);
-    setLastPageWasFull(false); // Don't assume full page until we load
-    setWanderError(null);
-  };
-
-  const handleWanderMediaTypeChange = (mediaType: 'movies' | 'shows') => {
-    setWanderMediaType(mediaType);
-    setWanderResults([]);
-    setWanderPage(1);
-    setLastPageWasFull(false); // Don't assume full page until we load
-    setWanderError(null);
-  };
 
   const handleDoomscrollMediaTypeChange = (mediaType: 'movies' | 'shows') => {
     setDoomscrollMediaType(mediaType);
@@ -1052,34 +1205,45 @@ export function SearchPage() {
     setDoomscrollKeepVisibleIds([]);
   };
 
-  const handleWanderGenresChange = (genres: string[]) => {
-    setWanderSelectedGenres(genres);
-    setWanderResults([]);
-    setWanderPage(1);
-    setLastPageWasFull(false);
-    setWanderError(null);
+  const handleDoomscrollDiscoverModeChange = (mode: 'popularity' | 'box_office') => {
+    setDoomscrollDiscoverMode(mode);
+    setDoomscrollResults([]);
+    setDoomscrollPage(1);
+    setDoomscrollLastPageWasFull(false);
+    setDoomscrollError(null);
+    setDoomscrollKeepVisibleIds([]);
   };
 
-  const handleWanderSortTypeChange = (sortType: string) => {
-    setWanderSortType(sortType);
-    setWanderResults([]);
-    setWanderPage(1);
-    setLastPageWasFull(false);
-    setWanderError(null);
+  const applyDoomscrollYearFilter = (next: DoomscrollYearFilter) => {
+    setDoomscrollYearFilter(next);
+    setDoomscrollResults([]);
+    setDoomscrollPage(1);
+    setDoomscrollLastPageWasFull(false);
+    setDoomscrollError(null);
+    setDoomscrollKeepVisibleIds([]);
+    setShowDoomscrollYearModal(false);
   };
 
-  // Load initial wander content when media type, year, genres, or sort type change
-  useEffect(() => {
-    if (activeTab === 'wander' && wanderResults.length === 0) {
-      loadWanderContent(true);
-    }
-  }, [wanderYear, wanderMediaType, wanderSelectedGenres, wanderSortType, activeTab]);
+  const handleUnreleasedMediaTypeChange = (mediaType: 'movies' | 'shows') => {
+    setUnreleasedMediaType(mediaType);
+    setUnreleasedResults([]);
+    setUnreleasedPage(1);
+    setUnreleasedLastPageWasFull(false);
+    setUnreleasedError(null);
+    setUnreleasedKeepVisibleIds([]);
+  };
 
   useEffect(() => {
     if (activeTab === 'doomscroll' && doomscrollResults.length === 0) {
       loadDoomscrollContent(true);
     }
-  }, [activeTab, doomscrollMediaType]);
+  }, [activeTab, doomscrollMediaType, doomscrollYearFilter, doomscrollDiscoverMode]);
+
+  useEffect(() => {
+    if (activeTab === 'unreleased' && unreleasedResults.length === 0) {
+      void loadUnreleasedContent(true);
+    }
+  }, [activeTab, unreleasedMediaType]);
 
   useEffect(() => {
     if (activeTab !== 'doomscroll') return;
@@ -1096,6 +1260,31 @@ export function SearchPage() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, [activeTab, shouldLoadMoreDoomscroll, doomscrollLoading, doomscrollIsLoadingMore, doomscrollLastPageWasFull, doomscrollPage, doomscrollMediaType, doomscrollResults.length]);
+
+  useEffect(() => {
+    if (activeTab !== 'unreleased') return;
+    if (!shouldLoadMoreUnreleased) return;
+
+    const onScroll = () => {
+      if (unreleasedLoading || unreleasedIsLoadingMore || !unreleasedLastPageWasFull) return;
+      const bottomOffset = document.documentElement.scrollHeight - (window.innerHeight + window.scrollY);
+      if (bottomOffset < 300) {
+        void loadUnreleasedContent(false);
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [
+    activeTab,
+    shouldLoadMoreUnreleased,
+    unreleasedLoading,
+    unreleasedIsLoadingMore,
+    unreleasedLastPageWasFull,
+    unreleasedPage,
+    unreleasedMediaType,
+    unreleasedResults.length
+  ]);
 
   const filteredResults = useMemo(() => {
     return remoteResults.filter(r => {
@@ -1124,6 +1313,22 @@ export function SearchPage() {
       return true;
     });
   }, [doomscrollResults, doomscrollKeepVisibleIds, doomscrollShowSeen, doomscrollShowWatchlist, isInWatchlist, getMovieById, getShowById]);
+
+  const filteredUnreleasedResults = useMemo(() => {
+    const keepVisible = new Set(unreleasedKeepVisibleIds);
+    return unreleasedResults.filter((r) => {
+      const id = resultId(r);
+      const isMovie = r.media_type === 'movie';
+      const isTv = r.media_type === 'tv';
+      const watchlistId = isMovie ? id : `tmdb-tv-${r.id}`;
+      const inWatchlist = isInWatchlist(watchlistId);
+
+      if (keepVisible.has(id)) return true;
+
+      if (!unreleasedShowWatchlist && inWatchlist) return false;
+      return true;
+    });
+  }, [unreleasedResults, unreleasedKeepVisibleIds, unreleasedShowWatchlist, isInWatchlist]);
 
   const visibleSearchResults = useMemo(
     () => filteredResults.slice(0, searchVisibleCount),
@@ -1242,17 +1447,17 @@ export function SearchPage() {
             </button>
             <button
               type="button"
-              className={`search-tab ${activeTab === 'wander' ? 'active' : ''}`}
-              onClick={() => setActiveTab('wander')}
-            >
-              Wander
-            </button>
-            <button
-              type="button"
               className={`search-tab ${activeTab === 'doomscroll' ? 'active' : ''}`}
               onClick={() => setActiveTab('doomscroll')}
             >
               Doomscroll
+            </button>
+            <button
+              type="button"
+              className={`search-tab ${activeTab === 'unreleased' ? 'active' : ''}`}
+              onClick={() => setActiveTab('unreleased')}
+            >
+              Unreleased
             </button>
           </div>
         </div>
@@ -1339,124 +1544,6 @@ export function SearchPage() {
           </div>
         )}
 
-        {/* Wander Controls */}
-        {activeTab === 'wander' && (
-          <div className="wander-controls">
-            <div className="wander-toggles">
-              <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Type</span>
-                <div className="wander-toggle-buttons wander-type-toggle">
-                  <button
-                    type="button"
-                    className={`wander-toggle-btn ${wanderMediaType === 'movies' ? 'active' : ''}`}
-                    onClick={() => handleWanderMediaTypeChange('movies')}
-                  >
-                    Movies
-                  </button>
-                  <button
-                    type="button"
-                    className={`wander-toggle-btn ${wanderMediaType === 'shows' ? 'active' : ''}`}
-                    onClick={() => handleWanderMediaTypeChange('shows')}
-                  >
-                    TV Shows
-                  </button>
-                </div>
-              </div>
-              <div className="wander-year-group">
-                <span className="wander-toggle-label">Year</span>
-                <div className="wander-year-selector">
-                  <button
-                    type="button"
-                    className="wander-year-btn wander-year-decrement"
-                    onClick={handleYearDecrement}
-                    disabled={wanderYear === 'ALL' || wanderYear <= MIN_WANDER_YEAR}
-                    aria-label="Previous year"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <div className="wander-year-dropdown">
-                    <select
-                      value={wanderYear}
-                      onChange={(e) => handleWanderYearChange(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
-                      className="wander-year-select"
-                    >
-                      {yearOptions.map(year => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="wander-year-btn wander-year-increment"
-                    onClick={handleYearIncrement}
-                    disabled={wanderYear === 'ALL' || wanderYear >= currentYear}
-                    aria-label="Next year"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-              <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Columns</span>
-                <div className="wander-toggle-buttons wander-type-toggle">
-                  <button
-                    type="button"
-                    className={`wander-toggle-btn ${wanderColumnCount === 1 ? 'active' : ''}`}
-                    onClick={() => setWanderColumnCount(1)}
-                  >
-                    1
-                  </button>
-                  <button
-                    type="button"
-                    className={`wander-toggle-btn ${wanderColumnCount === 2 ? 'active' : ''}`}
-                    onClick={() => setWanderColumnCount(2)}
-                  >
-                    2
-                  </button>
-                  <button
-                    type="button"
-                    className={`wander-toggle-btn ${wanderColumnCount === 3 ? 'active' : ''}`}
-                    onClick={() => setWanderColumnCount(3)}
-                  >
-                    3
-                  </button>
-                </div>
-              </div>
-              <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Genre</span>
-                <button
-                  type="button"
-                  className={`wander-genre-btn ${wanderSelectedGenres.length > 0 ? 'active' : ''}`}
-                  onClick={() => setIsGenreModalOpen(true)}
-                >
-                  {wanderSelectedGenres.length === 0 
-                    ? 'Filter Disabled' 
-                    : `${wanderSelectedGenres.length} Selected`
-                  }
-                </button>
-              </div>
-              <div className="wander-toggle-group">
-                <span className="wander-toggle-label">Sort</span>
-                <select
-                  value={wanderSortType}
-                  onChange={(e) => handleWanderSortTypeChange(e.target.value)}
-                  className="wander-sort-select"
-                >
-                  <option value="vote_count.desc">Vote Count</option>
-                  <option value="revenue.desc">Box Office</option>
-                  <option value="popularity.desc">Current Popularity</option>
-                  <option value="vote_average.desc">Rating</option>
-                  <option value="primary_release_date.desc">Release Date</option>
-                  <option value="original_title.asc">Title (A-Z)</option>
-                  <option value="original_title.desc">Title (Z-A)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'doomscroll' && (
           <div className="wander-controls">
             <div className="wander-toggles">
@@ -1479,6 +1566,37 @@ export function SearchPage() {
                   </button>
                 </div>
               </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Years</span>
+                <button
+                  type="button"
+                  className="wander-genre-btn"
+                  onClick={() => setShowDoomscrollYearModal(true)}
+                >
+                  {formatDoomscrollYearFilterLabel(doomscrollYearFilter)}
+                </button>
+              </div>
+              {doomscrollMediaType === 'movies' ? (
+                <div className="wander-toggle-group">
+                  <span className="wander-toggle-label">Filter</span>
+                  <div className="wander-toggle-buttons wander-type-toggle">
+                    <button
+                      type="button"
+                      className={`wander-toggle-btn ${doomscrollDiscoverMode === 'popularity' ? 'active' : ''}`}
+                      onClick={() => handleDoomscrollDiscoverModeChange('popularity')}
+                    >
+                      Popularity
+                    </button>
+                    <button
+                      type="button"
+                      className={`wander-toggle-btn ${doomscrollDiscoverMode === 'box_office' ? 'active' : ''}`}
+                      onClick={() => handleDoomscrollDiscoverModeChange('box_office')}
+                    >
+                      Box office
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div className="wander-toggle-group">
                 <span className="wander-toggle-label">Show seen</span>
                 <button
@@ -1503,9 +1621,45 @@ export function SearchPage() {
           </div>
         )}
 
+        {activeTab === 'unreleased' && (
+          <div className="wander-controls">
+            <div className="wander-toggles">
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Type</span>
+                <div className="wander-toggle-buttons wander-type-toggle">
+                  <button
+                    type="button"
+                    className={`wander-toggle-btn ${unreleasedMediaType === 'movies' ? 'active' : ''}`}
+                    onClick={() => handleUnreleasedMediaTypeChange('movies')}
+                  >
+                    Movies
+                  </button>
+                  <button
+                    type="button"
+                    className={`wander-toggle-btn ${unreleasedMediaType === 'shows' ? 'active' : ''}`}
+                    onClick={() => handleUnreleasedMediaTypeChange('shows')}
+                  >
+                    TV Shows
+                  </button>
+                </div>
+              </div>
+              <div className="wander-toggle-group">
+                <span className="wander-toggle-label">Show watchlist</span>
+                <button
+                  type="button"
+                  className={`wander-genre-btn ${unreleasedShowWatchlist ? 'active' : ''}`}
+                  onClick={() => setUnreleasedShowWatchlist((prev) => !prev)}
+                >
+                  {unreleasedShowWatchlist ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {error && <div className="search-error">{error}</div>}
-        {wanderError && <div className="search-error">{wanderError}</div>}
         {doomscrollError && <div className="search-error">{doomscrollError}</div>}
+        {unreleasedError && <div className="search-error">{unreleasedError}</div>}
 
         {/* Search Results */}
         {activeTab === 'search' && (
@@ -1864,252 +2018,6 @@ export function SearchPage() {
           </div>
         )}
 
-        {/* Wander Results */}
-        {activeTab === 'wander' && (
-          <div className="wander-results">
-            <div className={`wander-grid wander-grid-${wanderColumnCount}-columns`}>
-              {wanderResults.map((r) => {
-                const id = resultId(r);
-                const isMovie = r.media_type === 'movie';
-                const isTv = r.media_type === 'tv';
-                const imgPath = r.poster_path;
-                const imgUrl = tmdbImagePath(imgPath);
-                const existingMovie = isMovie ? getMovieById(id) : null;
-                const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
-                const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
-                const inWatchlist = (isMovie || isTv) && isInWatchlist(id);
-                const inSelectedCollection = isInSelectedQuickCollection(r);
-
-                const handleAddToWatchlist = () => {
-                  if (isMovie) {
-                    addToWatchlist(
-                      { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
-                      'movies'
-                    );
-                  } else if (isTv) {
-                    addToWatchlist(
-                      { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
-                      'tv'
-                    );
-                  }
-                };
-
-                return (
-                  <article key={`${r.media_type}-${r.id}`} className={`search-card wander-card ${wanderMediaType === 'shows' ? 'wander-show-card' : ''}`}>
-                    <div className="search-card-poster">
-                      {imgUrl ? (
-                        <img src={imgUrl} alt={r.title} />
-                      ) : (
-                        <div className="search-card-poster-fallback">
-                          <Film size={24} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="search-card-main">
-                      <div className="search-card-info">
-                        <div className="search-card-badge">
-                          {r.media_type === 'movie' ? 'MOVIE' : 'TV'}
-                        </div>
-                        <div className="search-card-title">
-                          {r.title}
-                          <button
-                            type="button"
-                            className="search-card-info-btn"
-                            onClick={() => setInfoModalTarget({
-                              tmdbId: r.id,
-                              mediaType: r.media_type as 'movie' | 'tv',
-                              title: r.title,
-                              posterPath: r.poster_path,
-                              releaseDate: r.release_date,
-                            })}
-                          >
-                            <Info size={14} />
-                          </button>
-                        </div>
-                        <div className="search-card-subtitle">
-                          {r.subtitle}
-                        </div>
-                      </div>
-                    </div>
-                    {isMovie ? (
-                      <div className="search-card-actions">
-                        <button
-                          type="button"
-                          className={`search-card-action ${existingMovie && !inUnrankedMovie ? 'search-card-action-blue' : 'search-card-action-green'}`}
-                          disabled={isSaving}
-                          onClick={() => handleOpenRecord(r)}
-                        >
-                          {existingMovie && !inUnrankedMovie ? 'EDIT WATCHES' : 'RANK'}
-                        </button>
-                        {!existingMovie && (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-dim-green"
-                            disabled={isSaving}
-                            onClick={() => void handleAddToUnranked(r)}
-                          >
-                            ADD UNRANKED
-                          </button>
-                        )}
-                        {existingMovie && existingMovie.classKey === 'UNRANKED' && (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-red"
-                            disabled={isSaving}
-                            onClick={() => {
-                              console.log('Removing movie from unranked:', id);
-                              runAfterInteractionAnimation(() => removeMovieEntry(id));
-                            }}
-                          >
-                            REMOVE UNRANKED
-                          </button>
-                        )}
-                        {inWatchlist ? (
-                          <button 
-                            type="button" 
-                            className="search-card-action search-card-action-red"
-                            disabled={isSaving}
-                            onClick={() => {
-                              console.log('Removing from watchlist:', id);
-                              runAfterInteractionAnimation(() => removeFromWatchlist(id));
-                            }}
-                          >
-                            REMOVE WATCHLIST
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-dim-green"
-                            disabled={isSaving}
-                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
-                          >
-                            ADD WATCHLIST
-                          </button>
-                        )}
-                        {canUseQuickAdd && (
-                          <button
-                            type="button"
-                            className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
-                            disabled={isSaving}
-                            onClick={() => void handleQuickAddToCollection(r)}
-                          >
-                            {inSelectedCollection
-                              ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
-                              : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="search-card-actions">
-                        <button
-                          type="button"
-                          className={`search-card-action ${existingTv && existingTv.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green'}`}
-                          disabled={isSaving}
-                          onClick={() => handleOpenRecord(r)}
-                        >
-                          {existingTv && existingTv.classKey !== 'UNRANKED' ? 'EDIT WATCHES' : 'RANK'}
-                        </button>
-                        {!existingTv && (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-dim-green"
-                            disabled={isSaving}
-                            onClick={() => void handleAddTvToUnranked(r)}
-                          >
-                            ADD UNRANKED
-                          </button>
-                        )}
-                        {existingTv && existingTv.classKey === 'UNRANKED' && (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-red"
-                            disabled={isSaving}
-                            onClick={() => {
-                              console.log('Removing TV show from unranked:', `tmdb-tv-${r.id}`);
-                              runAfterInteractionAnimation(() => removeShowEntry(`tmdb-tv-${r.id}`));
-                            }}
-                          >
-                            REMOVE UNRANKED
-                          </button>
-                        )}
-                        {inWatchlist ? (
-                          <button 
-                            type="button" 
-                            className="search-card-action search-card-action-red"
-                            disabled={isSaving}
-                            onClick={() => {
-                              console.log('Removing TV show from watchlist:', `tmdb-tv-${r.id}`);
-                              runAfterInteractionAnimation(() => removeFromWatchlist(`tmdb-tv-${r.id}`));
-                            }}
-                          >
-                            REMOVE WATCHLIST
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="search-card-action search-card-action-dim-green"
-                            disabled={isSaving}
-                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
-                          >
-                            ADD WATCHLIST
-                          </button>
-                        )}
-                        {canUseQuickAdd && (
-                          <button
-                            type="button"
-                            className={`search-card-action ${inSelectedCollection ? 'search-card-action-red' : 'search-card-action-dim-green'}`}
-                            disabled={isSaving}
-                            onClick={() => void handleQuickAddToCollection(r)}
-                          >
-                            {inSelectedCollection
-                              ? `REMOVE FROM ${selectedQuickCollection?.name.toUpperCase()}`
-                              : `ADD TO ${quickDirection.toUpperCase()} OF ${selectedQuickCollection?.name.toUpperCase()}`}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-            
-            {/* Load More Button */}
-            {shouldShowLoadMore && (
-              <div className="wander-load-more">
-                <button
-                  type="button"
-                  className="wander-load-more-btn"
-                  onClick={() => loadWanderContent(false)}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? 'Loading...' : `Load More ${wanderMediaType === 'movies' ? 'Movies' : 'Shows'}`}
-                </button>
-              </div>
-            )}
-            
-            {wanderResults.length === 0 && !wanderLoading && !wanderError && (
-              <div className="wander-empty">
-                {wanderMediaType === 'movies' 
-                  ? `No movies found for ${wanderYear}. Try a different year.`
-                  : `No TV shows found for ${wanderYear}. Try a different year.`
-                }
-              </div>
-            )}
-            
-            {/* To Top Button - only show when there are results and user has scrolled */}
-            {wanderResults.length > 0 && (
-              <button
-                type="button"
-                className="wander-to-top-btn"
-                onClick={scrollToTop}
-                aria-label="Scroll to top"
-              >
-                <ArrowUp size={14} /> Top
-              </button>
-            )}
-          </div>
-        )}
-
         {activeTab === 'doomscroll' && (
           <div className="wander-results">
             <div className="wander-grid doomscroll-grid">
@@ -2122,6 +2030,9 @@ export function SearchPage() {
                 const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
                 const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
                 const inWatchlist = isMovie ? isInWatchlist(id) : isInWatchlist(`tmdb-tv-${r.id}`);
+                const seen =
+                  Boolean(isMovie && existingMovie?.watchRecords && existingMovie.watchRecords.length > 0) ||
+                  Boolean(isTv && existingTv?.watchRecords && existingTv.watchRecords.length > 0);
 
                 const handleAddToWatchlist = () => {
                   if (isMovie) {
@@ -2139,7 +2050,10 @@ export function SearchPage() {
                 };
 
                 return (
-                  <article key={`${r.media_type}-${r.id}`} className={`search-card wander-card doomscroll-card ${doomscrollMediaType === 'shows' ? 'wander-show-card' : ''}`}>
+                  <article
+                    key={`${r.media_type}-${r.id}`}
+                    className={`search-card wander-card doomscroll-card ${doomscrollMediaType === 'shows' ? 'wander-show-card' : ''}${doomscrollShowSeen && seen ? ' doomscroll-card--seen' : ''}`}
+                  >
                     <div className="search-card-main">
                       <div className="search-card-info">
                         <div className="search-card-badge">
@@ -2293,6 +2207,190 @@ export function SearchPage() {
             )}
           </div>
         )}
+
+        {activeTab === 'unreleased' && (
+          <div className="wander-results">
+            <div className="wander-grid doomscroll-grid">
+              {filteredUnreleasedResults.map((r) => {
+                const id = resultId(r);
+                const isMovie = r.media_type === 'movie';
+                const isTv = r.media_type === 'tv';
+                const imgUrl = tmdbImagePath(r.poster_path);
+                const existingMovie = isMovie ? getMovieById(id) : null;
+                const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
+                const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+                const inWatchlist = isMovie ? isInWatchlist(id) : isInWatchlist(`tmdb-tv-${r.id}`);
+
+                const handleAddToWatchlist = () => {
+                  if (isMovie) {
+                    addToWatchlist(
+                      { id, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                      'movies'
+                    );
+                  } else if (isTv) {
+                    addToWatchlist(
+                      { id: `tmdb-tv-${r.id}`, title: r.title, posterPath: r.poster_path, releaseDate: r.release_date },
+                      'tv'
+                    );
+                  }
+                  setUnreleasedKeepVisibleIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+                };
+
+                return (
+                  <article key={`${r.media_type}-${r.id}`} className={`search-card wander-card doomscroll-card ${unreleasedMediaType === 'shows' ? 'wander-show-card' : ''}`}>
+                    <div className="search-card-main">
+                      <div className="search-card-info">
+                        <div className="search-card-badge">
+                          {r.media_type === 'movie' ? 'MOVIE' : 'TV'}
+                        </div>
+                        <div className="search-card-title">{r.title}</div>
+                      </div>
+                    </div>
+                    <div className="search-card-poster doomscroll-poster">
+                      {imgUrl ? (
+                        <img src={imgUrl} alt={r.title} />
+                      ) : (
+                        <div className="search-card-poster-fallback">
+                          <Film size={24} />
+                        </div>
+                      )}
+                      <div className="doomscroll-poster-actions">
+                        <button
+                          type="button"
+                          className="search-card-info-btn"
+                          onClick={() => setInfoModalTarget({
+                            tmdbId: r.id,
+                            mediaType: r.media_type as 'movie' | 'tv',
+                            title: r.title,
+                            posterPath: r.poster_path,
+                            releaseDate: r.release_date,
+                          })}
+                          title="Info"
+                        >
+                          <Info size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`search-card-action ${isMovie
+                            ? (existingMovie && !inUnrankedMovie ? 'search-card-action-blue' : 'search-card-action-green')
+                            : (existingTv && existingTv.classKey !== 'UNRANKED' ? 'search-card-action-blue' : 'search-card-action-green')
+                            } doomscroll-rank-btn`}
+                          disabled={isSaving}
+                          onClick={() => handleOpenRecord(r)}
+                        >
+                          {isMovie
+                            ? (existingMovie && !inUnrankedMovie ? 'Edit' : 'Rank')
+                            : (existingTv && existingTv.classKey !== 'UNRANKED' ? 'Edit' : 'Rank')}
+                        </button>
+                      </div>
+                    </div>
+                    {isMovie ? (
+                      <div className="search-card-actions">
+                        {!existingMovie && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => void handleAddToUnranked(r)}
+                          >
+                            Unranked+
+                          </button>
+                        )}
+                        {existingMovie && existingMovie.classKey === 'UNRANKED' && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(() => removeMovieEntry(id))}
+                          >
+                            Unranked-
+                          </button>
+                        )}
+                        {inWatchlist ? (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(() => removeFromWatchlist(id))}
+                          >
+                            Watchlist-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
+                          >
+                            Watchlist+
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="search-card-actions">
+                        {!existingTv && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => void handleAddTvToUnranked(r)}
+                          >
+                            Unranked+
+                          </button>
+                        )}
+                        {existingTv && existingTv.classKey === 'UNRANKED' && (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(() => removeShowEntry(`tmdb-tv-${r.id}`))}
+                          >
+                            Unranked-
+                          </button>
+                        )}
+                        {inWatchlist ? (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-red"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(() => removeFromWatchlist(`tmdb-tv-${r.id}`))}
+                          >
+                            Watchlist-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="search-card-action search-card-action-dim-green"
+                            disabled={isSaving}
+                            onClick={() => runAfterInteractionAnimation(handleAddToWatchlist)}
+                          >
+                            Watchlist+
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            {unreleasedIsLoadingMore && (
+              <div className="wander-empty">Loading more...</div>
+            )}
+            {filteredUnreleasedResults.length === 0 && !unreleasedLoading && !unreleasedError && (
+              <div className="wander-empty">No upcoming titles for current filters.</div>
+            )}
+            {unreleasedResults.length > 0 && (
+              <button
+                type="button"
+                className="wander-to-top-btn"
+                onClick={scrollToTop}
+                aria-label="Scroll to top"
+              >
+                <ArrowUp size={14} /> Top
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Universal Edit Modal for Movies/TV */}
@@ -2416,12 +2514,12 @@ export function SearchPage() {
         />
       )}
 
-      {/* Genre Edit Modal */}
-      <GenreEditModal
-        isOpen={isGenreModalOpen}
-        onClose={() => setIsGenreModalOpen(false)}
-        selectedGenres={wanderSelectedGenres}
-        onGenresChange={handleWanderGenresChange}
+      <DoomscrollYearModal
+        open={showDoomscrollYearModal}
+        onClose={() => setShowDoomscrollYearModal(false)}
+        initialValue={doomscrollYearFilter}
+        maxYear={currentYear}
+        onApply={applyDoomscrollYearFilter}
       />
 
       {/* Info Modal */}

@@ -1057,6 +1057,11 @@
   padding: 0.5rem;
 }
 
+.doomscroll-card.doomscroll-card--seen {
+  background: rgba(74, 222, 128, 0.14);
+  border-radius: 0.5rem;
+}
+
 .doomscroll-card .search-card-main {
   width: 100%;
   display: flex;
@@ -1118,6 +1123,25 @@
   pointer-events: auto;
 }
 
+.doomscroll-poster:hover .doomscroll-rank-btn {
+  opacity: 1 !important;
+  transform: scale(1.12);
+  font-size: 0.64rem !important;
+  padding: 0.2rem 0.48rem !important;
+  line-height: 1.15 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.doomscroll-poster:hover .doomscroll-rank-btn.search-card-action-green {
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.52), rgba(232, 93, 4, 0.38)) !important;
+  border-color: rgba(244, 162, 97, 0.95) !important;
+}
+
+.doomscroll-poster:hover .doomscroll-rank-btn.search-card-action-blue {
+  background: radial-gradient(circle at top left, rgba(33, 150, 243, 0.52), rgba(30, 136, 229, 0.38)) !important;
+  border-color: rgba(33, 150, 243, 0.95) !important;
+}
+
 .doomscroll-poster-actions .search-card-info-btn {
   width: 22px;
   height: 22px;
@@ -1127,6 +1151,7 @@
   font-size: 0.55rem !important;
   padding: 0.15rem 0.35rem !important;
   line-height: 1.1 !important;
+  transition: transform 0.16s ease, opacity 0.16s ease, font-size 0.16s ease, padding 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
 
 .doomscroll-card .search-card-action {
@@ -1283,4 +1308,134 @@
     padding: 0.4rem 1.8rem 0.4rem 0.5rem;
     font-size: 0.8rem;
   }
+}
+
+/* Doomscroll year filter modal */
+.doomscroll-year-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.doomscroll-year-modal {
+  width: 100%;
+  max-width: 22rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(18, 18, 22, 0.96);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 1.15rem 1.2rem 1.1rem;
+}
+
+.doomscroll-year-modal-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.doomscroll-year-modal-sub {
+  margin: 0 0 1rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.doomscroll-year-modal-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.doomscroll-year-modal-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.doomscroll-year-modal-option input {
+  accent-color: var(--accent, #f4a261);
+}
+
+.doomscroll-year-modal-range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.doomscroll-year-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.doomscroll-year-modal-label {
+  flex: 0 0 3.2rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-muted);
+}
+
+.doomscroll-year-modal-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.doomscroll-year-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doomscroll-year-modal-btn {
+  border-radius: 0.45rem;
+  border: 1px solid rgba(244, 162, 97, 0.45);
+  background: rgba(244, 162, 97, 0.18);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.doomscroll-year-modal-btn:hover {
+  background: rgba(244, 162, 97, 0.28);
+  border-color: rgba(244, 162, 97, 0.75);
+}
+
+.doomscroll-year-modal-btn--ghost {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.doomscroll-year-modal-btn--ghost:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
 }

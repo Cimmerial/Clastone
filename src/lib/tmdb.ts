@@ -844,3 +844,140 @@ export async function tmdbDiscoverTvByYear(
   return allResults.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 }
 
+/** Discover movies with primary release date within the inclusive calendar years [fromYear, toYear]. */
+export async function tmdbDiscoverMoviesByReleaseYearRange(
+  fromYear: number,
+  toYear: number,
+  page: number = 1,
+  signal?: AbortSignal,
+  sortBy: string = 'vote_count.desc'
+): Promise<TmdbMultiResult[]> {
+  const lo = Math.min(fromYear, toYear);
+  const hi = Math.max(fromYear, toYear);
+  const url = new URL(`${TMDB_BASE}/discover/movie`);
+  url.searchParams.set('sort_by', sortBy);
+  url.searchParams.set('primary_release_date.gte', `${lo}-01-01`);
+  url.searchParams.set('primary_release_date.lte', `${hi}-12-31`);
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+
+  return (data.results || []).map((r: any) => ({
+    media_type: 'movie' as const,
+    id: r.id,
+    title: r.title ?? 'Unknown',
+    subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.release_date ?? undefined
+  }));
+}
+
+/** Discover TV with first air date within the inclusive calendar years [fromYear, toYear]. */
+export async function tmdbDiscoverTvByFirstAirYearRange(
+  fromYear: number,
+  toYear: number,
+  page: number = 1,
+  signal?: AbortSignal,
+  sortBy: string = 'vote_count.desc'
+): Promise<TmdbMultiResult[]> {
+  const lo = Math.min(fromYear, toYear);
+  const hi = Math.max(fromYear, toYear);
+  const url = new URL(`${TMDB_BASE}/discover/tv`);
+  url.searchParams.set('sort_by', sortBy);
+  url.searchParams.set('first_air_date.gte', `${lo}-01-01`);
+  url.searchParams.set('first_air_date.lte', `${hi}-12-31`);
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+
+  return (data.results || []).map((r: any) => ({
+    media_type: 'tv' as const,
+    id: r.id,
+    title: r.name ?? 'Unknown',
+    subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
+    poster_path: r.poster_path ?? undefined,
+    popularity: r.popularity,
+    release_date: r.first_air_date ?? undefined
+  }));
+}
+
+function formatLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Movies whose primary release is strictly after today (local calendar). */
+export async function tmdbDiscoverUnreleasedMovies(
+  page: number = 1,
+  signal?: AbortSignal,
+  sortBy: string = 'popularity.desc'
+): Promise<TmdbMultiResult[]> {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  const minDate = formatLocalYmd(start);
+
+  const url = new URL(`${TMDB_BASE}/discover/movie`);
+  url.searchParams.set('sort_by', sortBy);
+  url.searchParams.set('primary_release_date.gte', minDate);
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+
+  return (data.results || [])
+    .filter((r: any) => r.release_date && String(r.release_date) >= minDate)
+    .map((r: any) => ({
+      media_type: 'movie' as const,
+      id: r.id,
+      title: r.title ?? 'Unknown',
+      subtitle: r.release_date ? `${r.release_date.slice(5, 7)}/${r.release_date.slice(0, 4)}` : '',
+      poster_path: r.poster_path ?? undefined,
+      popularity: r.popularity,
+      release_date: r.release_date ?? undefined
+    }));
+}
+
+/** TV whose first air date is strictly after today (local calendar). */
+export async function tmdbDiscoverUnreleasedTv(
+  page: number = 1,
+  signal?: AbortSignal,
+  sortBy: string = 'popularity.desc'
+): Promise<TmdbMultiResult[]> {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  const minDate = formatLocalYmd(start);
+
+  const url = new URL(`${TMDB_BASE}/discover/tv`);
+  url.searchParams.set('sort_by', sortBy);
+  url.searchParams.set('first_air_date.gte', minDate);
+  url.searchParams.set('page', page.toString());
+  url.searchParams.set('include_adult', 'false');
+
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+  if (!res.ok) return [];
+  const data = await res.json() as any;
+
+  return (data.results || [])
+    .filter((r: any) => r.first_air_date && String(r.first_air_date) >= minDate)
+    .map((r: any) => ({
+      media_type: 'tv' as const,
+      id: r.id,
+      title: r.name ?? 'Unknown',
+      subtitle: r.first_air_date ? `${r.first_air_date.slice(5, 7)}/${r.first_air_date.slice(0, 4)}` : '',
+      poster_path: r.poster_path ?? undefined,
+      popularity: r.popularity,
+      release_date: r.first_air_date ?? undefined
+    }));
+}
+

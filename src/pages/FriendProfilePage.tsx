@@ -49,6 +49,11 @@ interface Friend {
   addedAt: string;
 }
 
+function formatWatchRatePercent(count: number, total: number): string {
+  if (total <= 0) return '0.0';
+  return ((count / total) * 100).toFixed(1);
+}
+
 function getRecentWatches(
   moviesByClass: Record<string, MovieShowItem[]>,
   tvByClass: Record<string, MovieShowItem[]>,
@@ -1918,19 +1923,19 @@ export function FriendProfilePage() {
                 <span className="profile-stat-label">Total movie watches</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{(stats.movieTotalWatches ?? 0) > 0 ? Math.round((stats.movieDNFCount ?? 0) / (stats.movieTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieDNFCount ?? 0, stats.movieTotalWatches ?? 0)}%</span>
                 <span className="profile-stat-label">Movie DNF rate</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{(stats.movieTotalWatches ?? 0) > 0 ? Math.round((stats.movieRewatchCount ?? 0) / (stats.movieTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieRewatchCount ?? 0, stats.movieTotalWatches ?? 0)}%</span>
                 <span className="profile-stat-label">Movie rewatch rate</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{(stats.tvTotalWatches ?? 0) > 0 ? Math.round((stats.tvDNFCount ?? 0) / (stats.tvTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvDNFCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
                 <span className="profile-stat-label">Show DNF rate</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{(stats.tvTotalWatches ?? 0) > 0 ? Math.round((stats.tvRewatchCount ?? 0) / (stats.tvTotalWatches ?? 1) * 100) : 0}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvRewatchCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
                 <span className="profile-stat-label">Show rewatch rate</span>
               </div>
             </div>
