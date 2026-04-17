@@ -25,6 +25,13 @@ import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedS
 import { Award } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useListsStore } from '../state/listsStore';
+import { ThemedDropdown } from '../components/ThemedDropdown';
+import {
+  buildTopTenByWatchYear,
+  PROFILE_MEDIA_LIST_MODE_OPTIONS,
+  type ProfileMediaListMode,
+  type ProfileWatchYearFilter,
+} from '../lib/profileMediaListHelpers';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -395,8 +402,10 @@ export function ProfilePage() {
   const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
   const [scatterYAxisMode, setScatterYAxisMode] = useState<'rank' | 'release_year'>('rank');
   const [pruneScatterOutliers, setPruneScatterOutliers] = useState(false);
-  const [movieViewMode, setMovieViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
-  const [showViewMode, setShowViewMode] = useState<'top10' | 'all_with_classes' | 'top5_each_year'>('top10');
+  const [movieViewMode, setMovieViewMode] = useState<ProfileMediaListMode>('top10');
+  const [movieWatchYearFilter, setMovieWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
+  const [showViewMode, setShowViewMode] = useState<ProfileMediaListMode>('top10');
+  const [showWatchYearFilter, setShowWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
 
@@ -1175,6 +1184,14 @@ export function ProfilePage() {
   
   const topMoviesByYear = useMemo(() => buildTopFiveByYear(rankedMovies), [rankedMovies]);
   const topShowsByYear = useMemo(() => buildTopFiveByYear(rankedShows), [rankedShows]);
+  const topMoviesByWatchYear = useMemo(
+    () => buildTopTenByWatchYear(rankedMovies, movieWatchYearFilter),
+    [rankedMovies, movieWatchYearFilter]
+  );
+  const topShowsByWatchYear = useMemo(
+    () => buildTopTenByWatchYear(rankedShows, showWatchYearFilter),
+    [rankedShows, showWatchYearFilter]
+  );
 
   const getMoviePosterSrc = useCallback(
     (item: MovieShowItem) =>
@@ -1554,18 +1571,24 @@ export function ProfilePage() {
         </div>
         
         <div className="profile-stats-top-row">
-          <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{formatWatchtimeHours(stats.totalMinutes)}</span>
-            <span className="profile-stat-label">Watchtime</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{stats.moviesSeen}</span>
-            <span className="profile-stat-label">Movies seen</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{stats.showsSeen}</span>
-            <span className="profile-stat-label">Shows seen</span>
-          </div>
+          {stats.totalMinutes > 0 && (
+            <div className="profile-stat">
+              <span className="profile-stat-value profile-stat-value--hero">{formatWatchtimeHours(stats.totalMinutes)}</span>
+              <span className="profile-stat-label">Watchtime</span>
+            </div>
+          )}
+          {stats.moviesSeen > 0 && (
+            <div className="profile-stat">
+              <span className="profile-stat-value profile-stat-value--hero">{stats.moviesSeen}</span>
+              <span className="profile-stat-label">Movies seen</span>
+            </div>
+          )}
+          {stats.showsSeen > 0 && (
+            <div className="profile-stat">
+              <span className="profile-stat-value profile-stat-value--hero">{stats.showsSeen}</span>
+              <span className="profile-stat-label">Shows seen</span>
+            </div>
+          )}
           {stats.actorsSaved > 0 && (
             <div className="profile-stat">
               <span className="profile-stat-value profile-stat-value--hero">{stats.actorsSaved}</span>
@@ -1578,14 +1601,18 @@ export function ProfilePage() {
               <span className="profile-stat-label">Directors saved</span>
             </div>
           )}
-          <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{watchlist.movies.length}</span>
-            <span className="profile-stat-label">Movie watchlist</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat-value profile-stat-value--hero">{watchlist.tv.length}</span>
-            <span className="profile-stat-label">Show watchlist</span>
-          </div>
+          {watchlist.movies.length > 0 && (
+            <div className="profile-stat">
+              <span className="profile-stat-value profile-stat-value--hero">{watchlist.movies.length}</span>
+              <span className="profile-stat-label">Movie watchlist</span>
+            </div>
+          )}
+          {watchlist.tv.length > 0 && (
+            <div className="profile-stat">
+              <span className="profile-stat-value profile-stat-value--hero">{watchlist.tv.length}</span>
+              <span className="profile-stat-label">Show watchlist</span>
+            </div>
+          )}
         </div>
 
         {showExpandedStats && (
@@ -2326,6 +2353,7 @@ export function ProfilePage() {
         )}
       </div>
 
+      <div className="profile-grids-stack">
       <div className="profile-grid">
         <div className="profile-card card-surface">
           <div className="profile-card-header">
@@ -2333,31 +2361,47 @@ export function ProfilePage() {
               {movieViewMode === 'all_with_classes'
                 ? `All ${rankedMovies.length} Movies`
                 : movieViewMode === 'top5_each_year'
-                  ? 'Top 5 Movies Each Year'
-                  : 'Top 10 Movies'}
+                  ? 'Top 5 Movies by Release Year'
+                  : movieViewMode === 'top10_by_watch_year'
+                    ? 'Top 10 Movies by Watch Year'
+                    : 'Top 10 Movies'}
             </h2>
-            <div className="profile-card-actions">
-              <button
-                type="button"
-                className="profile-stats-expand-btn profile-tiny-expand-btn"
-                onClick={() =>
-                  setMovieViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
-                }
-              >
-                {movieViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
-              </button>
-              <button
-                type="button"
-                className="profile-stats-expand-btn profile-tiny-expand-btn"
-                onClick={() =>
-                  setMovieViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
-                }
-              >
-                {movieViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
-              </button>
+            <div className="profile-card-actions profile-card-actions--with-dropdown">
+              <ThemedDropdown
+                className="profile-list-mode-dropdown"
+                value={movieViewMode}
+                options={PROFILE_MEDIA_LIST_MODE_OPTIONS}
+                onChange={setMovieViewMode}
+                aria-label="Movies list view"
+              />
+              {movieViewMode === 'top10_by_watch_year' && (
+                <div className="profile-chart-toggle profile-list-watch-toggle" role="group" aria-label="Watch year filter">
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${movieWatchYearFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setMovieWatchYearFilter('all')}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${movieWatchYearFilter === 'first_watch' ? 'active' : ''}`}
+                    onClick={() => setMovieWatchYearFilter('first_watch')}
+                  >
+                    First watch
+                  </button>
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${movieWatchYearFilter === 'rewatch' ? 'active' : ''}`}
+                    onClick={() => setMovieWatchYearFilter('rewatch')}
+                  >
+                    Rewatch
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          {movieViewMode === 'top10' ? (
+          {movieViewMode === 'top10' || movieViewMode === 'top10_by_watch_year' ? (
             <Link to="/movies" className="profile-preview-link">
               View all movies →
             </Link>
@@ -2410,12 +2454,16 @@ export function ProfilePage() {
                 </div>
               ))}
             </div>
-          ) : movieViewMode === 'top5_each_year' ? (
+          ) : movieViewMode === 'top5_each_year' || movieViewMode === 'top10_by_watch_year' ? (
             <div className="profile-classes-view">
-              {topMoviesByYear.map(({ year, items }) => (
+              {(movieViewMode === 'top5_each_year' ? topMoviesByYear : topMoviesByWatchYear).map(({ year, items }) => (
                 <div key={year} className="profile-class-section">
                   <h3 className="profile-class-title">{year}</h3>
-                  <div className="profile-class-grid profile-class-grid--yearly">
+                  <div
+                    className={`profile-class-grid profile-class-grid--yearly${
+                      movieViewMode === 'top10_by_watch_year' ? ' profile-class-grid--yearly-ten' : ''
+                    }`}
+                  >
                     {items.map((m) => {
                       const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
                       const userStatus = getUserMovieStatus(tmdbId);
@@ -2494,31 +2542,47 @@ export function ProfilePage() {
               {showViewMode === 'all_with_classes'
                 ? `All ${rankedShows.length} Shows`
                 : showViewMode === 'top5_each_year'
-                  ? 'Top 5 Shows Each Year'
-                  : 'Top 10 Shows'}
+                  ? 'Top 5 Shows by Release Year'
+                  : showViewMode === 'top10_by_watch_year'
+                    ? 'Top 10 Shows by Watch Year'
+                    : 'Top 10 Shows'}
             </h2>
-            <div className="profile-card-actions">
-              <button
-                type="button"
-                className="profile-stats-expand-btn profile-tiny-expand-btn"
-                onClick={() =>
-                  setShowViewMode((prev) => (prev === 'all_with_classes' ? 'top10' : 'all_with_classes'))
-                }
-              >
-                {showViewMode === 'all_with_classes' ? 'Show Top 10' : 'Show all with classes'}
-              </button>
-              <button
-                type="button"
-                className="profile-stats-expand-btn profile-tiny-expand-btn"
-                onClick={() =>
-                  setShowViewMode((prev) => (prev === 'top5_each_year' ? 'top10' : 'top5_each_year'))
-                }
-              >
-                {showViewMode === 'top5_each_year' ? 'Show Top 10' : 'Show top 5 each year'}
-              </button>
+            <div className="profile-card-actions profile-card-actions--with-dropdown">
+              <ThemedDropdown
+                className="profile-list-mode-dropdown"
+                value={showViewMode}
+                options={PROFILE_MEDIA_LIST_MODE_OPTIONS}
+                onChange={setShowViewMode}
+                aria-label="Shows list view"
+              />
+              {showViewMode === 'top10_by_watch_year' && (
+                <div className="profile-chart-toggle profile-list-watch-toggle" role="group" aria-label="Watch year filter">
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${showWatchYearFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setShowWatchYearFilter('all')}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${showWatchYearFilter === 'first_watch' ? 'active' : ''}`}
+                    onClick={() => setShowWatchYearFilter('first_watch')}
+                  >
+                    First watch
+                  </button>
+                  <button
+                    type="button"
+                    className={`profile-chart-toggle-btn ${showWatchYearFilter === 'rewatch' ? 'active' : ''}`}
+                    onClick={() => setShowWatchYearFilter('rewatch')}
+                  >
+                    Rewatch
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          {showViewMode === 'top10' ? (
+          {showViewMode === 'top10' || showViewMode === 'top10_by_watch_year' ? (
             <Link to="/tv" className="profile-preview-link">
               View all shows →
             </Link>
@@ -2571,12 +2635,16 @@ export function ProfilePage() {
                 </div>
               ))}
             </div>
-          ) : showViewMode === 'top5_each_year' ? (
+          ) : showViewMode === 'top5_each_year' || showViewMode === 'top10_by_watch_year' ? (
             <div className="profile-classes-view">
-              {topShowsByYear.map(({ year, items }) => (
+              {(showViewMode === 'top5_each_year' ? topShowsByYear : topShowsByWatchYear).map(({ year, items }) => (
                 <div key={year} className="profile-class-section">
                   <h3 className="profile-class-title">{year}</h3>
-                  <div className="profile-class-grid profile-class-grid--yearly">
+                  <div
+                    className={`profile-class-grid profile-class-grid--yearly${
+                      showViewMode === 'top10_by_watch_year' ? ' profile-class-grid--yearly-ten' : ''
+                    }`}
+                  >
                     {items.map((s) => {
                       const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
                       const userStatus = getUserShowStatus(tmdbId);
@@ -2843,6 +2911,7 @@ export function ProfilePage() {
           )}
         </div>
       )}
+      </div>
 
       <div className="profile-split-layout">
         <div className="profile-recent profile-card card-surface">

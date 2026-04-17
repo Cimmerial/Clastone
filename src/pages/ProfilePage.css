@@ -320,22 +320,6 @@
   color: var(--text-muted);
 }
 
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.4rem;
-}
-
-.profile-grid--people {
-  margin-top: 0.4rem;
-}
-
-@media (min-width: 860px) {
-  .profile-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 .profile-card {
   padding: 1.1rem 1.05rem 1.2rem;
 }
@@ -355,7 +339,9 @@
 .profile-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   margin-bottom: 0.85rem;
 }
 
@@ -365,6 +351,26 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.profile-card-actions--with-dropdown {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.profile-list-mode-dropdown {
+  flex: 0 1 15rem;
+  min-width: 10.5rem;
+  max-width: min(100%, 17rem);
+}
+
+.profile-list-mode-dropdown.themed-dropdown {
+  width: auto;
+}
+
+.profile-list-watch-toggle {
+  flex-shrink: 0;
 }
 
 .profile-tiny-expand-btn {
@@ -428,6 +434,12 @@
   gap: 0.55rem;
 }
 
+/* Up to 10 posters per year: slightly tighter cells */
+.profile-class-grid--yearly.profile-class-grid--yearly-ten {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 0.45rem;
+}
+
 .profile-class-grid .profile-top-item {
   aspect-ratio: 2/3;
 }
@@ -452,6 +464,9 @@
   .profile-class-grid--yearly {
     grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
   }
+  .profile-class-grid--yearly.profile-class-grid--yearly-ten {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
@@ -460,6 +475,9 @@
   }
   .profile-class-grid--yearly {
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  }
+  .profile-class-grid--yearly.profile-class-grid--yearly-ten {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
   }
 }
 

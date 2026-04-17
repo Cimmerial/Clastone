@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { ArrowLeft, Info, Settings, Tv } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { InfoModal } from '../components/InfoModal';
+import { PageSearch } from '../components/PageSearch';
 import '../components/RankedList.css';
 import './FriendMovieCollectionPage.css';
 
@@ -49,7 +50,10 @@ function FriendShowCollectionTile({
   onToggleWatchlist: (entry: FriendCollectionEntry) => void;
 }) {
   return (
-    <article className={`entry-tile friend-collection-tile ${entry.viewerSeen ? '' : 'entry-tile--unseen-muted'}`}>
+    <article
+      id={`friend-collection-tile-${entry.id}`}
+      className={`entry-tile friend-collection-tile ${entry.viewerSeen ? '' : 'entry-tile--unseen-muted'}`}
+    >
       <div className={`entry-tile-poster ${entry.viewerSeen ? '' : 'entry-tile-poster--unseen-muted'}`}>
         <button type="button" className="friend-collection-icon-btn friend-collection-icon-btn--info" onClick={() => onOpenInfo(entry)} aria-label={`Info for ${entry.item.title}`}>
           <Info size={12} />
@@ -188,6 +192,19 @@ export function FriendTvCollectionPage() {
     return orderedFriendShowEntries;
   }, [filter, orderedFriendShowEntries]);
 
+  const collectionSearchItems = useMemo(
+    () => visibleEntries.map((e) => ({ id: e.id, title: e.item.title })),
+    [visibleEntries]
+  );
+
+  const handleCollectionSearchSelect = useCallback((id: string) => {
+    const el = document.getElementById(`friend-collection-tile-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('highlighted-entry');
+    window.setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
+  }, []);
+
   if (loading) {
     return (
       <section className="friend-movie-collection-page">
@@ -229,17 +246,26 @@ export function FriendTvCollectionPage() {
         </div>
       </header>
 
-      <div className="friend-movie-collection-filters">
-        {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={`filter-toggle-btn friend-movie-collection-filter-btn ${filter === option ? 'friend-movie-collection-filter-btn--active' : ''}`}
-            onClick={() => setFilter(option)}
-          >
-            {option}
-          </button>
-        ))}
+      <div className="friend-movie-collection-toolbar">
+        <div className="friend-movie-collection-filters">
+          {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`filter-toggle-btn friend-movie-collection-filter-btn ${filter === option ? 'friend-movie-collection-filter-btn--active' : ''}`}
+              onClick={() => setFilter(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        <PageSearch
+          items={collectionSearchItems}
+          onSelect={handleCollectionSearchSelect}
+          placeholder="Search this collection…"
+          className="friend-collection-page-search"
+          pageKey={`friend-tv-collection-${friendProfile.uid}`}
+        />
       </div>
 
       {visibleEntries.length === 0 ? (

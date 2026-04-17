@@ -9,9 +9,69 @@
   margin-bottom: 0;
 }
 
+.friend-movie-collection-page .friend-movie-collection-toolbar {
+  margin-top: 0.5rem;
+}
+
 .friend-movie-collection-page .friend-movie-collection-grid,
 .friend-movie-collection-page .friend-movie-collection-empty {
   margin-top: 0.75rem;
+}
+
+.friend-movie-collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  justify-content: space-between;
+}
+
+.friend-movie-collection-toolbar .friend-movie-collection-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.friend-collection-page-search {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 22rem;
+  min-width: 10rem;
+  flex: 1 1 14rem;
+  margin: 0 !important;
+  z-index: 10 !important;
+}
+
+.friend-collection-page-search .page-search-input-wrapper {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.friend-collection-page-search .page-search-results {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.friend-collection-tile.highlighted-entry {
+  animation: friendCollectionHighlight 2s ease-in-out;
+}
+
+@keyframes friendCollectionHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(232, 93, 4, 0.55);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(232, 93, 4, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(232, 93, 4, 0);
+  }
 }
 
 .friend-profile-loading {
@@ -59,13 +119,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-.friend-movie-collection-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .friend-movie-collection-filter-btn {

@@ -1252,7 +1252,9 @@
 .profile-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   margin-bottom: 0.85rem;
 }
 
@@ -1262,6 +1264,66 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.profile-card-actions--with-dropdown {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.profile-list-mode-dropdown {
+  flex: 0 1 15rem;
+  min-width: 10.5rem;
+  max-width: min(100%, 17rem);
+}
+
+.profile-list-mode-dropdown.themed-dropdown {
+  width: auto;
+}
+
+.profile-list-watch-toggle {
+  flex-shrink: 0;
+}
+
+.profile-chart-toggle {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem;
+}
+
+.profile-chart-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-chart-toggle-btn:hover {
+  color: var(--text);
+}
+
+.profile-chart-toggle-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.profile-preview-link {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: var(--accent-soft);
+  margin-bottom: 0.6rem;
+  text-decoration: none;
+}
+
+.profile-preview-link:hover {
+  text-decoration: underline;
 }
 
 .profile-tiny-expand-btn {
@@ -1325,6 +1387,11 @@
   gap: 0.55rem;
 }
 
+.profile-class-grid--yearly.profile-class-grid--yearly-ten {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 0.45rem;
+}
+
 .profile-class-grid .profile-top-item {
   aspect-ratio: 2/3;
 }
@@ -1349,6 +1416,9 @@
   .profile-class-grid--yearly {
     grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
   }
+  .profile-class-grid--yearly.profile-class-grid--yearly-ten {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
@@ -1357,6 +1427,9 @@
   }
   .profile-class-grid--yearly {
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  }
+  .profile-class-grid--yearly.profile-class-grid--yearly-ten {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
   }
 }
 

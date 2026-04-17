@@ -1,3 +1,26 @@
+/* Stack media (movies/shows) grid + people grid with same gap as internal profile-grid cells */
+.profile-grids-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+}
+
+.profile-grid--people {
+  margin-top: 0;
+}
+
+@media (min-width: 860px) {
+  .profile-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* Profile layout with recently watched on left, watchlist on right */
 .profile-split-layout {
   display: grid;
