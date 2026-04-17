@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getPersistDebounceMs, subscribePersistDebounce } from '../lib/persistDebounce';
 import {
   mergeWatchlistWithIncoming,
   type IncomingWatchRecommendation
@@ -61,8 +62,11 @@ export function WatchlistProvider({
   const [movies, setMovies] = useState<WatchlistEntry[]>(initialMovies);
   const [tv, setTv] = useState<WatchlistEntry[]>(initialTv);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [persistDebounceTick, setPersistDebounceTick] = useState(0);
 
   const [pendingChanges, setPendingChanges] = useState(0);
+
+  useEffect(() => subscribePersistDebounce(() => setPersistDebounceTick((t) => t + 1)), []);
 
   // Track what was last explicitly saved to calculate diffs.
   const lastSavedStateRef = useRef({ movies, tv });
@@ -152,7 +156,7 @@ export function WatchlistProvider({
       lastSavedStateRef.current = { movies: savedMovies, tv: savedTv };
       setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 10000); // 10s debounce
+    }, getPersistDebounceMs());
 
     return () => {
       if (persistTimeoutRef.current) {
@@ -160,7 +164,7 @@ export function WatchlistProvider({
         persistTimeoutRef.current = null;
       }
     };
-  }, [movies, tv, onPersist]);
+  }, [movies, tv, onPersist, persistDebounceTick]);
 
   // Handle browser tab closure / refresh.
   useEffect(() => {

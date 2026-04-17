@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getPersistDebounceMs, subscribePersistDebounce } from '../lib/persistDebounce';
 import { pruneItem } from '../lib/firestoreMovies';
 import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
@@ -252,7 +253,10 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     initialByClass ?? initialMoviesByClass
   );
   const [pendingChanges, setPendingChanges] = useState(0);
+  const [persistDebounceTick, setPersistDebounceTick] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => subscribePersistDebounce(() => setPersistDebounceTick((t) => t + 1)), []);
 
   // Track what was last explicitly saved to calculate diffs.
   const lastSavedStateRef = useRef({ byClass, classes });
@@ -311,7 +315,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       lastSavedStateRef.current = { byClass: savedByClass, classes: savedClasses };
       setPendingChanges(0);
       persistTimeoutRef.current = null;
-    }, 10000); // 10s debounce
+    }, getPersistDebounceMs());
 
     return () => {
       // Don't save on cleanup during active changes; let the new timeout handle it.
@@ -320,7 +324,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         persistTimeoutRef.current = null;
       }
     };
-  }, [byClass, classes, onPersist]);
+  }, [byClass, classes, onPersist, persistDebounceTick]);
 
   // Handle browser tab closure / refresh.
   useEffect(() => {

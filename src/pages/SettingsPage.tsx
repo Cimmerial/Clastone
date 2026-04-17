@@ -24,11 +24,17 @@ import {
   type QuoteCategory,
 } from '../lib/firestoreQuotes';
 import { tmdbImagePath } from '../lib/tmdb';
+import {
+  getPersistDebounceMs,
+  setPersistDebounceMs,
+  subscribePersistDebounce,
+  DEFAULT_PERSIST_DEBOUNCE_MS,
+} from '../lib/persistDebounce';
 import './SettingsPage.css';
 
 const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings', 'general'];
 
-type ClassSectionKey = 'movies' | 'tv' | 'actors' | 'directors' | 'display' | 'dev';
+type ClassSectionKey = 'movies' | 'tv' | 'actors' | 'directors' | 'display' | 'dev' | 'babydev';
 
 type BabyRoleUser = {
   uid: string;
@@ -99,7 +105,11 @@ export function SettingsPage() {
     directors: false,
     display: false,
     dev: false,
+    babydev: false,
   });
+  const [persistDebounceSec, setPersistDebounceSec] = useState(() =>
+    Math.round(getPersistDebounceMs() / 1000)
+  );
   const [quotes, setQuotes] = useState<FirebaseQuote[]>([]);
   const [quoteForm, setQuoteForm] = useState({
     category: 'settings' as QuoteCategory,
@@ -219,7 +229,12 @@ export function SettingsPage() {
   };
 
   const canManageQuotes = isAdmin || isBabyDev;
-  const canManageDevPanel = isAdmin && import.meta.env.DEV;
+  const canManageDevPanel = isAdmin;
+  const canManageBabydevPanel = isBabyDev;
+
+  useEffect(() => subscribePersistDebounce(() => {
+    setPersistDebounceSec(Math.round(getPersistDebounceMs() / 1000));
+  }), []);
 
   useEffect(() => {
     if (!signedIn || !canManageQuotes || !db) return;
@@ -282,7 +297,7 @@ export function SettingsPage() {
   };
 
   const loadBabyRoleUsers = async () => {
-    if (!db || !canManageDevPanel) return;
+    if (!db || !isAdmin) return;
     setBabyUsersLoading(true);
     setBabyUsersError(null);
     try {
@@ -306,7 +321,7 @@ export function SettingsPage() {
   };
 
   const toggleBabyDev = async (targetUid: string, enable: boolean) => {
-    if (!db || !canManageDevPanel) return;
+    if (!db || !isAdmin) return;
     try {
       await setDoc(doc(db, 'users', targetUid), { devRole: enable ? 'babydev' : null }, { merge: true });
       setBabyUsers((prev) => prev.map((u) => (u.uid === targetUid ? { ...u, devRole: enable ? 'babydev' : undefined } : u)));
@@ -345,7 +360,158 @@ export function SettingsPage() {
     resetQuoteForm();
   };
 
+  const renderQuoteTools = (sectionTitle: string) => (
+    <div className="settings-dev-quotes">
+      <h3 className="settings-subtitle settings-subtitle-spaced">{sectionTitle}</h3>
+      {quotesError ? <p className="settings-quote-error">{quotesError}</p> : null}
+      <div className="settings-list-actions">
+        <button type="button" className="settings-btn" disabled={!db} onClick={openAddQuoteModal}>
+          Add Quote
+        </button>
+        <button
+          type="button"
+          className="settings-btn settings-btn-subtle"
+          onClick={() => setShowQuotesList((prev) => !prev)}
+          disabled={quotesLoading}
+        >
+          {showQuotesList ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {showQuotesList ? 'Hide All Quotes' : 'Show All Quotes'}
+        </button>
+      </div>
 
+      {showQuotesList && (
+        <div className="settings-list settings-quotes-dropdown">
+          {quotesLoading && <p className="settings-muted">Loading quotes…</p>}
+          {!quotesLoading && sortedQuotes.length === 0 && <p className="settings-muted">No quotes in Firebase yet.</p>}
+          {!quotesLoading &&
+            sortedQuotes.map((quote) => (
+              <div key={quote.id} className="settings-list-item">
+                <span className="settings-class-name">
+                  <span className="settings-class-name-main">{quote.category.toUpperCase()}</span>
+                  <span className="settings-class-tagline">
+                    {' '}
+                    | &ldquo;{quote.text}&rdquo; — {quote.character} ({quote.source})
+                  </span>
+                </span>
+                <div className="settings-list-actions">
+                  <button type="button" className="settings-btn settings-btn-subtle" onClick={() => openEditQuoteModal(quote)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-btn settings-btn-subtle ${pendingDeleteQuoteId === quote.id ? 'settings-btn-danger' : ''}`}
+                    onClick={async () => {
+                      if (!db) return;
+                      if (pendingDeleteQuoteId !== quote.id) {
+                        setPendingDeleteQuoteId(quote.id);
+                        return;
+                      }
+                      try {
+                        await deleteGlobalQuote(db, quote.id);
+                        setPendingDeleteQuoteId(null);
+                        await refreshQuotes();
+                      } catch (error) {
+                        setQuotesError(error instanceof Error ? error.message : 'Failed to delete quote.');
+                      }
+                    }}
+                  >
+                    {pendingDeleteQuoteId === quote.id ? 'Confirm Delete' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {showQuoteModal && (
+        <div className="settings-modal-backdrop" role="presentation" onClick={closeQuoteModal}>
+          <div
+            className="settings-modal card-surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingQuoteId ? 'Edit quote modal' : 'Add quote modal'}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="settings-title">{editingQuoteId ? 'Edit Quote' : 'Add Quote'}</h4>
+            <div className="settings-quote-form">
+              <select
+                className="settings-select"
+                value={quoteForm.category}
+                onChange={(e) => setQuoteForm((prev) => ({ ...prev, category: e.target.value as QuoteCategory }))}
+              >
+                {quoteCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="settings-input"
+                placeholder="Quote text"
+                value={quoteForm.text}
+                onChange={(e) => setQuoteForm((prev) => ({ ...prev, text: e.target.value }))}
+              />
+              <input
+                className="settings-input"
+                placeholder="Character / speaker"
+                value={quoteForm.character}
+                onChange={(e) => setQuoteForm((prev) => ({ ...prev, character: e.target.value }))}
+              />
+              <input
+                className="settings-input"
+                placeholder="Source title"
+                value={quoteForm.source}
+                onChange={(e) => setQuoteForm((prev) => ({ ...prev, source: e.target.value }))}
+              />
+              <div className="settings-list-actions">
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={
+                    !db ||
+                    quoteForm.text.trim().length === 0 ||
+                    quoteForm.character.trim().length === 0 ||
+                    quoteForm.source.trim().length === 0
+                  }
+                  onClick={async () => {
+                    if (!db) return;
+                    try {
+                      if (editingQuoteId) {
+                        await updateGlobalQuote(db, editingQuoteId, {
+                          category: quoteForm.category,
+                          text: quoteForm.text,
+                          character: quoteForm.character,
+                          source: quoteForm.source,
+                        });
+                        setQuotesNotice('Quote updated.');
+                      } else {
+                        await addGlobalQuote(db, {
+                          category: quoteForm.category,
+                          text: quoteForm.text,
+                          character: quoteForm.character,
+                          source: quoteForm.source,
+                        });
+                        setQuotesNotice('Quote added.');
+                      }
+                      closeQuoteModal();
+                      await refreshQuotes();
+                    } catch (error) {
+                      setQuotesError(error instanceof Error ? error.message : 'Failed to save quote.');
+                    }
+                  }}
+                >
+                  Save
+                </button>
+                <button type="button" className="settings-btn settings-btn-subtle" onClick={closeQuoteModal}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <section>
@@ -357,6 +523,11 @@ export function SettingsPage() {
       </header>
 
       <div className="settings-grid">
+        {quotesNotice ? (
+          <p className="settings-muted" style={{ gridColumn: '1 / -1', marginBottom: '0.15rem' }}>
+            {quotesNotice}
+          </p>
+        ) : null}
         <div className="settings-card card-surface settings-collapsible-card">
           <div className="settings-card-heading-row">
             <h2 className="settings-title">Movie Class Management</h2>
@@ -1076,6 +1247,98 @@ export function SettingsPage() {
           )}
         </div>
 
+        {signedIn && canManageDevPanel && (
+          <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
+            <div className="settings-card-heading-row">
+              <h2 className="settings-title">Dev</h2>
+              <button
+                type="button"
+                className="settings-collapse-toggle"
+                onClick={() => handleToggleSection('dev')}
+                aria-label={expandedSections.dev ? 'Collapse dev settings' : 'Expand dev settings'}
+              >
+                {expandedSections.dev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+              </button>
+            </div>
+            {expandedSections.dev && (
+              <>
+                <p className="settings-muted">Admin tools (all environments).</p>
+                <div className="settings-toggle-row">
+                  <div className="settings-toggle-info">
+                    <span className="settings-toggle-label">Global persist debounce</span>
+                    <span className="settings-toggle-description">
+                      Idle seconds after movies, TV, actors, directors, or watchlist changes before auto-save (1–120).
+                      Default {DEFAULT_PERSIST_DEBOUNCE_MS / 1000}s. Takes effect on the next save cycle.
+                    </span>
+                  </div>
+                </div>
+                <div className="settings-add-row">
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    className="settings-input"
+                    style={{ maxWidth: '6rem' }}
+                    value={persistDebounceSec}
+                    onChange={(e) => setPersistDebounceSec(Number(e.target.value))}
+                  />
+                  <span className="settings-muted" style={{ alignSelf: 'center' }}>
+                    seconds
+                  </span>
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => {
+                      const raw = Number(persistDebounceSec);
+                      const sec = Math.min(120, Math.max(1, Math.round(Number.isFinite(raw) ? raw : DEFAULT_PERSIST_DEBOUNCE_MS / 1000)));
+                      setPersistDebounceMs(sec * 1000);
+                      setPersistDebounceSec(sec);
+                      setQuotesNotice(`Persist debounce set to ${sec}s.`);
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+                {signedIn && canManageQuotes ? renderQuoteTools('Movie/Show Quote Management (Dev)') : null}
+                <div className="settings-list-actions">
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => {
+                      setShowManageBabiesModal(true);
+                      void loadBabyRoleUsers();
+                    }}
+                  >
+                    Manage babies
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {signedIn && canManageBabydevPanel && (
+          <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
+            <div className="settings-card-heading-row">
+              <h2 className="settings-title">Babydev</h2>
+              <button
+                type="button"
+                className="settings-collapse-toggle"
+                onClick={() => handleToggleSection('babydev')}
+                aria-label={expandedSections.babydev ? 'Collapse babydev settings' : 'Expand babydev settings'}
+              >
+                {expandedSections.babydev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+              </button>
+            </div>
+            {expandedSections.babydev && (
+              <>
+                <p className="settings-muted">Quote tools for BabyDev access.</p>
+                {signedIn && canManageQuotes ? renderQuoteTools('Movie/Show Quote Management (BabyDev)') : null}
+              </>
+            )}
+          </div>
+        )}
+
         <div className="settings-card card-surface settings-card-wide">
           <h2 className="settings-title">Account</h2>
           <div className="settings-account-card">
@@ -1114,195 +1377,7 @@ export function SettingsPage() {
               Sign out
             </button>
           )}
-
-          {signedIn && canManageQuotes && (
-            <div className="settings-dev-quotes">
-              <h3 className="settings-subtitle settings-subtitle-spaced">
-                {isAdmin ? 'Movie/Show Quote Management (Dev)' : 'Movie/Show Quote Management (BabyDev)'}
-              </h3>
-              {quotesError ? <p className="settings-quote-error">{quotesError}</p> : null}
-              <div className="settings-list-actions">
-                <button
-                  type="button"
-                  className="settings-btn"
-                  disabled={!db}
-                  onClick={openAddQuoteModal}
-                >
-                  Add Quote
-                </button>
-                <button
-                  type="button"
-                  className="settings-btn settings-btn-subtle"
-                  onClick={() => setShowQuotesList((prev) => !prev)}
-                  disabled={quotesLoading}
-                >
-                  {showQuotesList ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  {showQuotesList ? 'Hide All Quotes' : 'Show All Quotes'}
-                </button>
-              </div>
-
-              {showQuotesList && (
-                <div className="settings-list settings-quotes-dropdown">
-                  {quotesLoading && <p className="settings-muted">Loading quotes…</p>}
-                  {!quotesLoading && sortedQuotes.length === 0 && <p className="settings-muted">No quotes in Firebase yet.</p>}
-                  {!quotesLoading && sortedQuotes.map((quote) => (
-                    <div key={quote.id} className="settings-list-item">
-                      <span className="settings-class-name">
-                        <span className="settings-class-name-main">{quote.category.toUpperCase()}</span>
-                        <span className="settings-class-tagline"> | "{quote.text}" — {quote.character} ({quote.source})</span>
-                      </span>
-                      <div className="settings-list-actions">
-                        <button
-                          type="button"
-                          className="settings-btn settings-btn-subtle"
-                          onClick={() => openEditQuoteModal(quote)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className={`settings-btn settings-btn-subtle ${pendingDeleteQuoteId === quote.id ? 'settings-btn-danger' : ''}`}
-                          onClick={async () => {
-                            if (!db) return;
-                            if (pendingDeleteQuoteId !== quote.id) {
-                              setPendingDeleteQuoteId(quote.id);
-                              return;
-                            }
-                            try {
-                              await deleteGlobalQuote(db, quote.id);
-                              setPendingDeleteQuoteId(null);
-                              await refreshQuotes();
-                            } catch (error) {
-                              setQuotesError(error instanceof Error ? error.message : 'Failed to delete quote.');
-                            }
-                          }}
-                        >
-                          {pendingDeleteQuoteId === quote.id ? 'Confirm Delete' : 'Delete'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {showQuoteModal && (
-                <div className="settings-modal-backdrop" role="presentation" onClick={closeQuoteModal}>
-                  <div
-                    className="settings-modal card-surface"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label={editingQuoteId ? 'Edit quote modal' : 'Add quote modal'}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <h4 className="settings-title">{editingQuoteId ? 'Edit Quote' : 'Add Quote'}</h4>
-                    <div className="settings-quote-form">
-                      <select
-                        className="settings-select"
-                        value={quoteForm.category}
-                        onChange={(e) => setQuoteForm((prev) => ({ ...prev, category: e.target.value as QuoteCategory }))}
-                      >
-                        {quoteCategories.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="settings-input"
-                        placeholder="Quote text"
-                        value={quoteForm.text}
-                        onChange={(e) => setQuoteForm((prev) => ({ ...prev, text: e.target.value }))}
-                      />
-                      <input
-                        className="settings-input"
-                        placeholder="Character / speaker"
-                        value={quoteForm.character}
-                        onChange={(e) => setQuoteForm((prev) => ({ ...prev, character: e.target.value }))}
-                      />
-                      <input
-                        className="settings-input"
-                        placeholder="Source title"
-                        value={quoteForm.source}
-                        onChange={(e) => setQuoteForm((prev) => ({ ...prev, source: e.target.value }))}
-                      />
-                      <div className="settings-list-actions">
-                        <button
-                          type="button"
-                          className="settings-btn"
-                          disabled={!db || quoteForm.text.trim().length === 0 || quoteForm.character.trim().length === 0 || quoteForm.source.trim().length === 0}
-                          onClick={async () => {
-                            if (!db) return;
-                            try {
-                              if (editingQuoteId) {
-                                await updateGlobalQuote(db, editingQuoteId, {
-                                  category: quoteForm.category,
-                                  text: quoteForm.text,
-                                  character: quoteForm.character,
-                                  source: quoteForm.source,
-                                });
-                                setQuotesNotice('Quote updated.');
-                              } else {
-                                await addGlobalQuote(db, {
-                                  category: quoteForm.category,
-                                  text: quoteForm.text,
-                                  character: quoteForm.character,
-                                  source: quoteForm.source,
-                                });
-                                setQuotesNotice('Quote added.');
-                              }
-                              closeQuoteModal();
-                              await refreshQuotes();
-                            } catch (error) {
-                              setQuotesError(error instanceof Error ? error.message : 'Failed to save quote.');
-                            }
-                          }}
-                        >
-                          Save
-                        </button>
-                        <button type="button" className="settings-btn settings-btn-subtle" onClick={closeQuoteModal}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-
-        {signedIn && canManageDevPanel && (
-          <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
-            <div className="settings-card-heading-row">
-              <h2 className="settings-title">Dev</h2>
-              <button
-                type="button"
-                className="settings-collapse-toggle"
-                onClick={() => handleToggleSection('dev')}
-                aria-label={expandedSections.dev ? 'Collapse dev settings' : 'Expand dev settings'}
-              >
-                {expandedSections.dev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-              </button>
-            </div>
-            {expandedSections.dev && (
-              <>
-                <p className="settings-muted">Admin-only dev controls.</p>
-                <div className="settings-list-actions">
-                  <button
-                    type="button"
-                    className="settings-btn"
-                    onClick={() => {
-                      setShowManageBabiesModal(true);
-                      void loadBabyRoleUsers();
-                    }}
-                  >
-                    Manage babies
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {showPfpModal && (

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getPersistDebounceMs, subscribePersistDebounce } from '../lib/persistDebounce';
 import { pruneItem } from '../lib/firestoreDirectors';
 import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
@@ -116,7 +117,10 @@ export function DirectorsProvider({
     const { byClass: tvByClass } = useTvStore();
 
     const [pendingChanges, setPendingChanges] = useState(0);
+    const [persistDebounceTick, setPersistDebounceTick] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => subscribePersistDebounce(() => setPersistDebounceTick((t) => t + 1)), []);
 
     // Track what was last explicitly saved to calculate diffs.
     const lastSavedStateRef = useRef({ byClass, classes });
@@ -271,7 +275,7 @@ export function DirectorsProvider({
 
             setPendingChanges(0);
             persistTimeoutRef.current = null;
-        }, 10000); // 10s debounce
+        }, getPersistDebounceMs());
 
         return () => {
             if (persistTimeoutRef.current) {
@@ -279,7 +283,7 @@ export function DirectorsProvider({
                 persistTimeoutRef.current = null;
             }
         };
-    }, [byClass, classes, onPersist]);
+    }, [byClass, classes, onPersist, persistDebounceTick]);
 
     // Handle browser tab closure / refresh
     useEffect(() => {
