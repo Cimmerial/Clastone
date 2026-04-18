@@ -155,13 +155,16 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     return filtered;
   }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
 
-  const getRoleCategory = (role: { character?: string; job?: string }) => {
-    const hasCharacter = !!role.character?.trim();
-    const job = (role.job || '').toLowerCase();
+  const isDirectorOrProducerJob = (job?: string) => {
+    const j = (job || '').toLowerCase();
+    return j.includes('director') || j.includes('producer');
+  };
 
-    if (hasCharacter) return 'ACTOR' as const;
-    if (job.includes('director') || job.includes('producer')) return 'DIRECTOR_OR_PRODUCER' as const;
-    return 'OTHER' as const;
+  const formatProjectRoleSummary = (role: { character?: string; job?: string }) => {
+    const char = role.character?.trim();
+    const job = role.job?.trim();
+    if (char && job) return `${char} · ${job}`;
+    return char || job || 'Unknown Role';
   };
 
   const displayRoles = useMemo(() => {
@@ -171,10 +174,15 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
         (projectTypeFilter === 'MOVIE' && role.mediaType === 'movie') ||
         (projectTypeFilter === 'SHOW' && role.mediaType === 'tv');
 
-      const roleCategory = getRoleCategory(role);
-      const roleMatch = projectRoleFilter === 'ALL' || projectRoleFilter === roleCategory;
+      if (projectRoleFilter === 'ALL') return typeMatch;
 
-      return typeMatch && roleMatch;
+      const hasCharacter = !!role.character?.trim();
+      const dirProd = isDirectorOrProducerJob(role.job);
+
+      if (projectRoleFilter === 'ACTOR') return typeMatch && hasCharacter;
+      if (projectRoleFilter === 'DIRECTOR_OR_PRODUCER') return typeMatch && dirProd;
+      // OTHER: crew-style row without acting credit and without director/producer job
+      return typeMatch && !hasCharacter && !dirProd;
     });
   }, [filteredRoles, projectTypeFilter, projectRoleFilter]);
 
@@ -525,7 +533,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                       <div className="info-modal-cast-info">
                         <div className="info-modal-cast-name">{project.title}</div>
                         <div className="info-modal-cast-character">
-                          {project.character || project.job || 'Unknown Role'} • {project.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+                          {formatProjectRoleSummary(project)} • {project.mediaType === 'movie' ? 'Movie' : 'TV Show'}
                           {project.releaseDate && ` • ${getYear(project.releaseDate)}`}
                         </div>
                       </div>
