@@ -109,6 +109,17 @@ type TmdbMultiResponse = {
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
+/** Per-request TMDB diagnostics (per-season errors, skipped paths). */
+function isTmdbVerboseLog(): boolean {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('clastone-debugTmdb') === 'true') return true;
+  } catch {
+    /* ignore */
+  }
+  const v = import.meta.env.VITE_DEBUG_TMDB as string | undefined;
+  return v === 'true' || v === '1';
+}
+
 // TMDB Genre ID mappings
 const GENRE_NAME_TO_ID: Record<string, number> = {
   'Action': 28,
@@ -444,34 +455,72 @@ type TmdbTvSeasonResponse = {
   episodes?: Array<{ runtime?: number | null }>;
 };
 
-/** Run async work on `items` with at most `limit` in flight (avoids dozens of parallel TMDB fetches). */
-async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  if (items.length === 0) return [];
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (true) {
-      const i = next++;
-      if (i >= items.length) break;
-      results[i] = await fn(items[i]);
-    }
-  };
-  const n = Math.min(Math.max(1, limit), items.length);
-  await Promise.all(Array.from({ length: n }, () => worker()));
-  return results;
+/** Serialize TV season detail fetches app-wide so visible rows cannot stack parallel /season calls. */
+let tmdbSeasonFetchChain: Promise<void> = Promise.resolve();
+
+async function withTmdbSeasonFetchMutex<T>(work: () => Promise<T>): Promise<T> {
+  const previous = tmdbSeasonFetchChain;
+  let releaseNext!: () => void;
+  tmdbSeasonFetchChain = new Promise<void>((resolve) => {
+    releaseNext = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    releaseNext();
+  }
 }
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 async function tmdbTvRuntimeFromSeasons(
   tvId: number,
   seasonNumbers: number[],
   signal?: AbortSignal
 ): Promise<{ totalRuntimeMinutes?: number; episodeRuntimeMinutes?: number }> {
+  const skip =
+    import.meta.env.VITE_TMDB_SKIP_SEASON_RUNTIME === 'true' ||
+    import.meta.env.VITE_TMDB_SKIP_SEASON_RUNTIME === '1';
   if (seasonNumbers.length === 0) return {};
-  // Unbounded Promise.all per season can overwhelm browsers (notably Firefox on Linux/Windows):
-  // many parallel credentialed requests + CORS preflights → dropped connections, misreported as CORS.
-  const seasons = await mapPool(seasonNumbers, 4, (n) =>
-    tmdbGet<TmdbTvSeasonResponse>(`/tv/${tvId}/season/${n}`, signal)
-  );
+  if (skip) {
+    if (isTmdbVerboseLog()) {
+      console.info('[Clastone TMDB] Skipping /season/* runtime backfill (VITE_TMDB_SKIP_SEASON_RUNTIME)', { tvId });
+    }
+    return {};
+  }
+
+  // One season at a time + short pause: avoids connection storms (Windows Firefox, AV, filters).
+  // Per-season errors are ignored so one blocked URL does not fail the whole TV details load.
+  const maxSeasons = 18;
+  const delayMs = 180;
+  const capped = seasonNumbers.slice(0, maxSeasons);
+  const seasons: TmdbTvSeasonResponse[] = [];
+  let failCount = 0;
+  for (let i = 0; i < capped.length; i++) {
+    if (signal?.aborted) break;
+    const n = capped[i];
+    try {
+      seasons.push(await tmdbGet<TmdbTvSeasonResponse>(`/tv/${tvId}/season/${n}`, signal));
+    } catch (e) {
+      failCount += 1;
+      if (isTmdbVerboseLog()) {
+        console.warn('[Clastone TMDB] Season request failed', {
+          tvId,
+          season: n,
+          path: `/tv/${tvId}/season/${n}`,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
+    if (i < capped.length - 1 && delayMs > 0) await pause(delayMs);
+  }
+  if (failCount > 0 && seasons.length === 0 && capped.length > 0 && !isTmdbVerboseLog()) {
+    console.warn(
+      '[Clastone TMDB] Every season runtime request failed (often extensions, firewall, or TLS). TV metadata still loads; total runtime may be missing. For per-season errors: localStorage.setItem("clastone-debugTmdb","true") then reload.',
+      { tvId, attemptedSeasons: capped, aborted: Boolean(signal?.aborted) }
+    );
+  }
   const episodes = seasons.flatMap((s) => s.episodes ?? []);
   const total = episodes.reduce((sum, ep) => sum + (ep.runtime ?? 0), 0);
   if (total <= 0 || episodes.length === 0) return {};
@@ -515,7 +564,16 @@ export async function tmdbTvDetailsFull(
   signal?: AbortSignal
 ): Promise<TmdbTvCache | null> {
   const data = await tmdbGet<TmdbTvDetailsResponse>(`/tv/${tvId}?append_to_response=aggregate_credits`, signal).catch(
-    () => null
+    (e) => {
+      if (isTmdbVerboseLog()) {
+        console.warn('[Clastone TMDB] TV details request failed', {
+          tvId,
+          path: `/tv/${tvId}?append_to_response=aggregate_credits`,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+      return null;
+    }
   );
   if (!data) return null;
   const castFromAggregate = (data.aggregate_credits?.cast ?? []).slice(0, 20).map((c) => ({
@@ -546,7 +604,9 @@ export async function tmdbTvDetailsFull(
   let effectiveEpisodeRuntime = episodeRuntimeMinutes;
   if ((runtimeMinutes == null || runtimeMinutes === 0) && seasonNumbers.length > 0) {
     try {
-      const seasonRuntime = await tmdbTvRuntimeFromSeasons(tvId, seasonNumbers, signal);
+      const seasonRuntime = await withTmdbSeasonFetchMutex(() =>
+        tmdbTvRuntimeFromSeasons(tvId, seasonNumbers, signal)
+      );
       if (seasonRuntime.totalRuntimeMinutes != null) runtimeMinutes = seasonRuntime.totalRuntimeMinutes;
       if (seasonRuntime.episodeRuntimeMinutes != null) effectiveEpisodeRuntime = seasonRuntime.episodeRuntimeMinutes;
     } catch {
