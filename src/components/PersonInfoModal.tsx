@@ -155,9 +155,9 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     return filtered;
   }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
 
-  const isDirectorOrProducerJob = (job?: string) => {
+  const isDirectorProducerOrCreatorJob = (job?: string) => {
     const j = (job || '').toLowerCase();
-    return j.includes('director') || j.includes('producer');
+    return j.includes('director') || j.includes('producer') || j.includes('creator');
   };
 
   const formatProjectRoleSummary = (role: { character?: string; job?: string }) => {
@@ -177,12 +177,12 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
       if (projectRoleFilter === 'ALL') return typeMatch;
 
       const hasCharacter = !!role.character?.trim();
-      const dirProd = isDirectorOrProducerJob(role.job);
+      const dirProdCreator = isDirectorProducerOrCreatorJob(role.job);
 
       if (projectRoleFilter === 'ACTOR') return typeMatch && hasCharacter;
-      if (projectRoleFilter === 'DIRECTOR_OR_PRODUCER') return typeMatch && dirProd;
-      // OTHER: crew-style row without acting credit and without director/producer job
-      return typeMatch && !hasCharacter && !dirProd;
+      if (projectRoleFilter === 'DIRECTOR_OR_PRODUCER') return typeMatch && dirProdCreator;
+      // OTHER: crew-style row without acting credit and without director/producer/creator job
+      return typeMatch && !hasCharacter && !dirProdCreator;
     });
   }, [filteredRoles, projectTypeFilter, projectRoleFilter]);
 
@@ -473,7 +473,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                             className={`info-modal-inline-toggle-btn ${projectRoleFilter === option ? 'is-active' : ''}`}
                             onClick={() => setProjectRoleFilter(option)}
                           >
-                            {option === 'DIRECTOR_OR_PRODUCER' ? 'DIRECTOR/PRODUCER' : option}
+                            {option === 'DIRECTOR_OR_PRODUCER' ? 'DIRECTOR/PRODUCER/CREATOR' : option}
                           </button>
                         ))}
                       </div>
