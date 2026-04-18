@@ -19,6 +19,10 @@ export type WatchlistType = 'movies' | 'tv';
 type WatchlistStore = {
   movies: WatchlistEntry[];
   tv: WatchlistEntry[];
+  watchingNextMovieIds: string[];
+  watchingNextTvIds: string[];
+  setWatchingNextMovieIds: (ids: string[] | ((prev: string[]) => string[])) => void;
+  setWatchingNextTvIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   addToWatchlist: (entry: WatchlistEntry, type: WatchlistType) => void;
   removeFromWatchlist: (id: string) => void;
   reorderWatchlist: (type: WatchlistType, orderedIds: string[]) => void;
@@ -35,9 +39,13 @@ type WatchlistProviderProps = {
   children: React.ReactNode;
   initialMovies?: WatchlistEntry[];
   initialTv?: WatchlistEntry[];
+  initialWatchingNextMovieIds?: string[];
+  initialWatchingNextTvIds?: string[];
   onPersist?: (payload: {
     movies: WatchlistEntry[];
     tv: WatchlistEntry[];
+    watchingNextMovieIds: string[];
+    watchingNextTvIds: string[];
     pendingCount?: number;
     dirtyMovies?: boolean;
     dirtyTv?: boolean;
@@ -56,11 +64,15 @@ export function WatchlistProvider({
   children,
   initialMovies = [],
   initialTv = [],
+  initialWatchingNextMovieIds = [],
+  initialWatchingNextTvIds = [],
   onPersist,
   onBeforeRemoveFromWatchlist
 }: WatchlistProviderProps) {
   const [movies, setMovies] = useState<WatchlistEntry[]>(initialMovies);
   const [tv, setTv] = useState<WatchlistEntry[]>(initialTv);
+  const [watchingNextMovieIds, setWatchingNextMovieIds] = useState<string[]>(initialWatchingNextMovieIds);
+  const [watchingNextTvIds, setWatchingNextTvIds] = useState<string[]>(initialWatchingNextTvIds);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [persistDebounceTick, setPersistDebounceTick] = useState(0);
 
@@ -69,12 +81,22 @@ export function WatchlistProvider({
   useEffect(() => subscribePersistDebounce(() => setPersistDebounceTick((t) => t + 1)), []);
 
   // Track what was last explicitly saved to calculate diffs.
-  const lastSavedStateRef = useRef({ movies, tv });
+  const lastSavedStateRef = useRef({
+    movies,
+    tv,
+    watchingNextMovieIds,
+    watchingNextTvIds
+  });
   const isHydratedRef = useRef(false);
 
   // We need current values for the strict forceSync
-  const currentStateRef = useRef({ movies, tv });
-  currentStateRef.current = { movies, tv };
+  const currentStateRef = useRef({
+    movies,
+    tv,
+    watchingNextMovieIds,
+    watchingNextTvIds
+  });
+  currentStateRef.current = { movies, tv, watchingNextMovieIds, watchingNextTvIds };
 
   // Batch refresh on mount to move released movies
   useEffect(() => {
@@ -120,9 +142,30 @@ export function WatchlistProvider({
   }, []);
 
   useEffect(() => {
+    const allow = new Set(movies.map((m) => m.id));
+    setWatchingNextMovieIds((prev) => {
+      const next = prev.filter((id) => allow.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [movies]);
+
+  useEffect(() => {
+    const allow = new Set(tv.map((t) => t.id));
+    setWatchingNextTvIds((prev) => {
+      const next = prev.filter((id) => allow.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [tv]);
+
+  useEffect(() => {
     // 1. Skip the very first "fresh load" mutation
     if (!isHydratedRef.current) {
-      lastSavedStateRef.current = { movies, tv };
+      lastSavedStateRef.current = {
+        movies,
+        tv,
+        watchingNextMovieIds,
+        watchingNextTvIds
+      };
       isHydratedRef.current = true;
       return;
     }
@@ -132,9 +175,11 @@ export function WatchlistProvider({
     // 2. Diffing
     const dirtyMovies = movies !== lastSavedStateRef.current.movies;
     const dirtyTv = tv !== lastSavedStateRef.current.tv;
+    const dirtyWtnM = watchingNextMovieIds !== lastSavedStateRef.current.watchingNextMovieIds;
+    const dirtyWtnT = watchingNextTvIds !== lastSavedStateRef.current.watchingNextTvIds;
 
     // 3. Early return if no changes
-    if (!dirtyMovies && !dirtyTv) {
+    if (!dirtyMovies && !dirtyTv && !dirtyWtnM && !dirtyWtnT) {
       return;
     }
 
@@ -144,16 +189,27 @@ export function WatchlistProvider({
 
     const savedMovies = movies;
     const savedTv = tv;
+    const savedWtnM = watchingNextMovieIds;
+    const savedWtnT = watchingNextTvIds;
 
     persistTimeoutRef.current = setTimeout(() => {
+      const touchMoviesDoc = dirtyMovies || dirtyWtnM;
+      const touchTvDoc = dirtyTv || dirtyWtnT;
       onPersist({
         movies: savedMovies,
         tv: savedTv,
-        pendingCount: (dirtyMovies ? 1 : 0) + (dirtyTv ? 1 : 0),
-        dirtyMovies,
-        dirtyTv
+        watchingNextMovieIds: savedWtnM,
+        watchingNextTvIds: savedWtnT,
+        pendingCount: (touchMoviesDoc ? 1 : 0) + (touchTvDoc ? 1 : 0),
+        dirtyMovies: touchMoviesDoc,
+        dirtyTv: touchTvDoc
       });
-      lastSavedStateRef.current = { movies: savedMovies, tv: savedTv };
+      lastSavedStateRef.current = {
+        movies: savedMovies,
+        tv: savedTv,
+        watchingNextMovieIds: savedWtnM,
+        watchingNextTvIds: savedWtnT
+      };
       setPendingChanges(0);
       persistTimeoutRef.current = null;
     }, getPersistDebounceMs());
@@ -164,7 +220,7 @@ export function WatchlistProvider({
         persistTimeoutRef.current = null;
       }
     };
-  }, [movies, tv, onPersist, persistDebounceTick]);
+  }, [movies, tv, watchingNextMovieIds, watchingNextTvIds, onPersist, persistDebounceTick]);
 
   // Handle browser tab closure / refresh.
   useEffect(() => {
@@ -172,12 +228,18 @@ export function WatchlistProvider({
       if (persistTimeoutRef.current && onPersist) {
         const dirtyMovies = currentStateRef.current.movies !== lastSavedStateRef.current.movies;
         const dirtyTv = currentStateRef.current.tv !== lastSavedStateRef.current.tv;
+        const dirtyWtnM =
+          currentStateRef.current.watchingNextMovieIds !== lastSavedStateRef.current.watchingNextMovieIds;
+        const dirtyWtnT =
+          currentStateRef.current.watchingNextTvIds !== lastSavedStateRef.current.watchingNextTvIds;
+        const touchMoviesDoc = dirtyMovies || dirtyWtnM;
+        const touchTvDoc = dirtyTv || dirtyWtnT;
 
         onPersist({
           ...currentStateRef.current,
-          pendingCount: (dirtyMovies ? 1 : 0) + (dirtyTv ? 1 : 0),
-          dirtyMovies,
-          dirtyTv
+          pendingCount: (touchMoviesDoc ? 1 : 0) + (touchTvDoc ? 1 : 0),
+          dirtyMovies: touchMoviesDoc,
+          dirtyTv: touchTvDoc
         });
 
         if (pendingChanges > 0) {
@@ -219,6 +281,8 @@ export function WatchlistProvider({
         }
         setMovies((prev) => prev.filter((e) => e.id !== id));
         setTv((prev) => prev.filter((e) => e.id !== id));
+        setWatchingNextMovieIds((prev) => prev.filter((x) => x !== id));
+        setWatchingNextTvIds((prev) => prev.filter((x) => x !== id));
       })();
     },
     [onBeforeRemoveFromWatchlist]
@@ -273,18 +337,28 @@ export function WatchlistProvider({
       reorderWatchlist,
       isInWatchlist,
       applyIncomingRecommendations,
+      watchingNextMovieIds,
+      watchingNextTvIds,
+      setWatchingNextMovieIds,
+      setWatchingNextTvIds,
       forceSync: async () => {
         if (onPersist) {
           const dirtyMovies = currentStateRef.current.movies !== lastSavedStateRef.current.movies;
           const dirtyTv = currentStateRef.current.tv !== lastSavedStateRef.current.tv;
+          const dirtyWtnM =
+            currentStateRef.current.watchingNextMovieIds !== lastSavedStateRef.current.watchingNextMovieIds;
+          const dirtyWtnT =
+            currentStateRef.current.watchingNextTvIds !== lastSavedStateRef.current.watchingNextTvIds;
+          const touchMoviesDoc = dirtyMovies || dirtyWtnM;
+          const touchTvDoc = dirtyTv || dirtyWtnT;
 
-          if (dirtyMovies || dirtyTv) {
+          if (touchMoviesDoc || touchTvDoc) {
             await onPersist({
               ...currentStateRef.current,
-              dirtyMovies,
-              dirtyTv
+              dirtyMovies: touchMoviesDoc,
+              dirtyTv: touchTvDoc
             });
-            lastSavedStateRef.current = currentStateRef.current;
+            lastSavedStateRef.current = { ...currentStateRef.current };
           }
         }
       }
@@ -292,6 +366,8 @@ export function WatchlistProvider({
     [
       movies,
       tv,
+      watchingNextMovieIds,
+      watchingNextTvIds,
       addToWatchlist,
       removeFromWatchlist,
       reorderWatchlist,

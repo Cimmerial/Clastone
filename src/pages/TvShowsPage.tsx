@@ -21,7 +21,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { FilterModal } from '../components/FilterModal';
 import { PageSearch } from '../components/PageSearch';
-import { Filter as FilterIcon } from 'lucide-react';
+import { Filter as FilterIcon, Maximize2, Minimize2 } from 'lucide-react';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
@@ -51,6 +51,10 @@ export function TvShowsPage() {
   const [recordPersonTarget, setRecordPersonTarget] = useState<{ id: number; name: string; profilePath?: string; type: 'actor' | 'director' } | null>(null);
   const [recordPersonDetails, setRecordPersonDetails] = useState<any | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string } | null>(null);
+  const [forcedExpandClassKey, setForcedExpandClassKey] = useState<string | null>(null);
+  const [classVisibilityNonce, setClassVisibilityNonce] = useState(0);
+  const [classVisibilityMode, setClassVisibilityMode] = useState<'expand-all' | 'collapse-all'>('expand-all');
+  const [classVisibilitySummary, setClassVisibilitySummary] = useState({ allExpanded: true, allCollapsed: false });
   const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
     useTvStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
@@ -138,6 +142,13 @@ export function TvShowsPage() {
   const hasActiveModal = !!settingsFor || !!recordWatchFor || !!recordPersonTarget || isFilterModalOpen;
 
   const scrollToId = (location.state as { scrollToId?: string } | null)?.scrollToId;
+  const scrollToClassKey = useMemo(
+    () =>
+      scrollToId
+        ? classOrder.find((classKey) => (computedByClass[classKey] ?? []).some((item) => item.id === scrollToId)) ?? null
+        : null,
+    [scrollToId, classOrder, computedByClass]
+  );
   useEffect(() => {
     if (!scrollToId) return;
     const t = setTimeout(() => {
@@ -159,6 +170,30 @@ export function TvShowsPage() {
         </div>
         {!hasActiveModal && (
           <div className="page-actions-row">
+            <button
+              className="class-visibility-btn"
+              onClick={() => {
+                setClassVisibilityMode('expand-all');
+                setClassVisibilityNonce((prev) => prev + 1);
+              }}
+              title="Expand all classes"
+              disabled={classVisibilitySummary.allExpanded}
+            >
+              <Maximize2 size={18} />
+              <span className="filter-label">Expand</span>
+            </button>
+            <button
+              className="class-visibility-btn"
+              onClick={() => {
+                setClassVisibilityMode('collapse-all');
+                setClassVisibilityNonce((prev) => prev + 1);
+              }}
+              title="Collapse all classes"
+              disabled={classVisibilitySummary.allCollapsed}
+            >
+              <Minimize2 size={18} />
+              <span className="filter-label">Collapse</span>
+            </button>
             <ViewToggle />
             <button
               className="filter-button"
@@ -176,8 +211,18 @@ export function TvShowsPage() {
         <PageSearch
           items={allShows}
           onSelect={(id: string) => {
+            const targetClassKey =
+              classOrder.find((classKey) => (computedByClass[classKey] ?? []).some((item) => item.id === id)) ?? null;
+            setForcedExpandClassKey(targetClassKey);
             const el = document.getElementById(`entry-${id}`);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              setTimeout(() => {
+                const delayedEl = document.getElementById(`entry-${id}`);
+                if (delayedEl) delayedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 50);
+            }
           }}
           placeholder="Search TV shows..."
           className="page-search-locked"
@@ -188,6 +233,15 @@ export function TvShowsPage() {
       <RankedList<MovieShowItem>
         ref={scrollContainerRef}
         viewMode={mobileViewMode}
+        minimizationScopeKey="tv"
+        forceExpandClassKey={scrollToClassKey ?? forcedExpandClassKey}
+        classVisibilityAction={
+          classVisibilityNonce > 0
+            ? { mode: classVisibilityMode, nonce: classVisibilityNonce }
+            : null
+        }
+        onClassVisibilitySummaryChange={setClassVisibilitySummary}
+        isNonRankedClassKey={(classKey) => !isRankedClass(classKey)}
         classOrder={classOrder}
         itemsByClass={computedByClass}
         getClassLabel={getClassLabel}

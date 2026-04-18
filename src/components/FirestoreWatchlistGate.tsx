@@ -15,6 +15,21 @@ import { useSyncStatus } from '../context/SyncStatusContext';
 
 type Props = { children: React.ReactNode };
 
+const LS_WTN_MOVIES = 'clastone-watchlist-watching-next-movies';
+const LS_WTN_TV = 'clastone-watchlist-watching-next-tv';
+
+function loadLocalWatchingNext(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === 'string');
+  } catch {
+    return [];
+  }
+}
+
 function WatchlistIncomingRecommendationsSync({ userId }: { userId: string }) {
   const { applyIncomingRecommendations } = useWatchlistStore();
 
@@ -37,6 +52,8 @@ export function FirestoreWatchlistGate({ children }: Props) {
   const { user } = useAuth();
   const [initialMovies, setInitialMovies] = useState<WatchlistEntry[] | null>(null);
   const [initialTv, setInitialTv] = useState<WatchlistEntry[] | null>(null);
+  const [initialWtnMovies, setInitialWtnMovies] = useState<string[] | null>(null);
+  const [initialWtnTv, setInitialWtnTv] = useState<string[] | null>(null);
   const { updateStatus } = useSyncStatus();
   const didLogLoadRef = useRef(false);
 
@@ -44,6 +61,8 @@ export function FirestoreWatchlistGate({ children }: Props) {
     if (!user || !db) {
       setInitialMovies(null);
       setInitialTv(null);
+      setInitialWtnMovies(null);
+      setInitialWtnTv(null);
       return;
     }
     Promise.all([loadWatchlist(db, user.uid), loadIncomingRecommendations(db, user.uid)]).then(
@@ -59,6 +78,11 @@ export function FirestoreWatchlistGate({ children }: Props) {
         }
         setInitialMovies(merged.movies);
         setInitialTv(merged.tv);
+        const wtnM =
+          data.watchingNextMovieIds.length > 0 ? data.watchingNextMovieIds : loadLocalWatchingNext(LS_WTN_MOVIES);
+        const wtnT = data.watchingNextTvIds.length > 0 ? data.watchingNextTvIds : loadLocalWatchingNext(LS_WTN_TV);
+        setInitialWtnMovies(wtnM);
+        setInitialWtnTv(wtnT);
         updateStatus('watchlist', 'idle', { isMigrated: data.isMigrated });
       }
     );
@@ -69,6 +93,8 @@ export function FirestoreWatchlistGate({ children }: Props) {
     async (payload: {
       movies: WatchlistEntry[];
       tv: WatchlistEntry[];
+      watchingNextMovieIds: string[];
+      watchingNextTvIds: string[];
       pendingCount?: number;
       dirtyMovies?: boolean;
       dirtyTv?: boolean;
@@ -94,7 +120,7 @@ export function FirestoreWatchlistGate({ children }: Props) {
     [user?.uid]
   );
 
-  if (user && (initialMovies === null || initialTv === null)) {
+  if (user && (initialMovies === null || initialTv === null || initialWtnMovies === null || initialWtnTv === null)) {
     return (
       <div className="app-loading">
         <p>Loading your list…</p>
@@ -102,7 +128,7 @@ export function FirestoreWatchlistGate({ children }: Props) {
     );
   }
 
-  if (initialMovies === null || initialTv === null) {
+  if (initialMovies === null || initialTv === null || initialWtnMovies === null || initialWtnTv === null) {
     return (
       <WatchlistProvider initialMovies={[]} initialTv={[]}>
         {children}
@@ -114,6 +140,8 @@ export function FirestoreWatchlistGate({ children }: Props) {
     <WatchlistProvider
       initialMovies={initialMovies}
       initialTv={initialTv}
+      initialWatchingNextMovieIds={initialWtnMovies}
+      initialWatchingNextTvIds={initialWtnTv}
       onPersist={user && db ? onPersist : undefined}
       onBeforeRemoveFromWatchlist={user && db ? onBeforeRemoveFromWatchlist : undefined}
     >

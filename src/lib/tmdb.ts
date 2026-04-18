@@ -166,13 +166,40 @@ function authHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}`, Accept: 'application/json' };
 }
 
+function isRetryableNetworkError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return false;
+  // Browser fetch network/CORS failures usually surface as TypeError.
+  return err instanceof TypeError;
+}
+
 async function tmdbGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${TMDB_BASE}${path}`, { method: 'GET', headers: authHeaders(), signal });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
+  const retries = 2;
+  let attempt = 0;
+  while (true) {
+    try {
+      const res = await fetch(`${TMDB_BASE}${path}`, { method: 'GET', headers: authHeaders(), signal });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`TMDB error ${res.status}: ${text || res.statusText}`);
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      if (attempt >= retries || !isRetryableNetworkError(err) || signal?.aborted) {
+        throw err;
+      }
+      attempt += 1;
+      const delay = 250 * attempt;
+      if (isTmdbVerboseLog()) {
+        console.warn('[Clastone TMDB] Retrying network failure', {
+          path,
+          attempt,
+          delayMs: delay,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+      await pause(delay);
+    }
   }
-  return (await res.json()) as T;
 }
 
 /** Poster or profile image URL (w200 for list thumbnails). */

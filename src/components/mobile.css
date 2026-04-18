@@ -108,7 +108,8 @@
      ---------------------------------------------------------------- */
   .watchlist-services-open-btn,
   .watchlist-visibility-toggle,
-  .view-toggle-btn {
+  .view-toggle-btn,
+  .class-visibility-btn {
     display: none !important;
   }
   

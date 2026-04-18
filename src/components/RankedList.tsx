@@ -14,7 +14,8 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { forwardRef, useState, useCallback, useRef, createContext, useContext, useEffect } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import { forwardRef, useState, useCallback, useRef, createContext, useContext, useEffect, useLayoutEffect } from 'react';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import './RankedList.css';
 
@@ -24,6 +25,10 @@ export type RankedItemBase = {
   id: string;
   classKey: ClassKey;
 };
+
+type ClassVisibilityAction =
+  | { mode: 'expand-all' | 'collapse-all'; nonce: number }
+  | null;
 
 type RankedListProps<T extends RankedItemBase> = {
   classOrder: ClassKey[];
@@ -40,9 +45,19 @@ type RankedListProps<T extends RankedItemBase> = {
   /** When provided, entries can be dragged between classes. */
   onMoveBetweenClasses?: (itemId: string, toClass: ClassKey, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => void;
   /** Optional view mode for layout adjustments */
-  viewMode?: 'minimized' | 'detailed' | 'tile';
+  viewMode?: 'minimized' | 'detailed' | 'tile' | 'compact';
   /** Optional actions rendered on the right side of a class header. */
   renderClassActions?: (classKey: ClassKey, items: T[]) => JSX.Element | null;
+  /** Optional localStorage namespace for class minimization per page. */
+  minimizationScopeKey?: string;
+  /** Force a specific class expanded (used by goto/scroll flows). */
+  forceExpandClassKey?: ClassKey | null;
+  /** External bulk action to collapse/expand all classes. */
+  classVisibilityAction?: ClassVisibilityAction;
+  /** Reports whether all classes are expanded/collapsed. */
+  onClassVisibilitySummaryChange?: (summary: { allExpanded: boolean; allCollapsed: boolean }) => void;
+  /** Optional predicate for classes considered non-ranked. */
+  isNonRankedClassKey?: (classKey: ClassKey) => boolean;
 };
 
 // Context for drag initiation
@@ -122,11 +137,17 @@ function RankedListInner<T extends RankedItemBase>(
     onReorderWithinClass,
     onMoveBetweenClasses,
     viewMode = 'detailed',
-    renderClassActions
+    renderClassActions,
+    minimizationScopeKey,
+    forceExpandClassKey = null,
+    classVisibilityAction = null,
+    onClassVisibilitySummaryChange,
+    isNonRankedClassKey
   }: RankedListProps<T>,
   ref: React.Ref<HTMLDivElement>
 ) {
-  const isTile = viewMode === 'tile';
+  const isTile = viewMode === 'tile' || viewMode === 'compact';
+  const isCompact = viewMode === 'compact';
   const { isMobile } = useMobileViewMode();
   const canReorderWithinClass = isMobile ? undefined : onReorderWithinClass;
   const canMoveBetweenClasses = isMobile ? undefined : onMoveBetweenClasses;
@@ -138,6 +159,30 @@ function RankedListInner<T extends RankedItemBase>(
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [insertAfter, setInsertAfter] = useState<boolean>(false);
   const [programmaticDrag, setProgrammaticDrag] = useState<{ itemId: string; item: T; classKey: ClassKey } | null>(null);
+  const minimizationStorageKey = minimizationScopeKey
+    ? `clastone-class-minimized:${minimizationScopeKey}`
+    : null;
+  const persistMinimizedState = useCallback((value: Record<ClassKey, boolean>) => {
+    if (!minimizationStorageKey || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(minimizationStorageKey, JSON.stringify(value));
+    } catch {
+      // localStorage may be unavailable; fail silently.
+    }
+  }, [minimizationStorageKey]);
+  const readMinimizedState = useCallback((): Record<ClassKey, boolean> => {
+    if (!minimizationStorageKey || typeof window === 'undefined') return {};
+    try {
+      const raw = window.localStorage.getItem(minimizationStorageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }, [minimizationStorageKey]);
+  const [minimizedByClass, setMinimizedByClass] = useState<Record<ClassKey, boolean>>(() => readMinimizedState());
+  const lastAppliedVisibilityNonceRef = useRef<number | null>(null);
   const lastHoverState = useRef<{ classKey: ClassKey | null; itemId: string | null; insertAfter: boolean }>({ classKey: null, itemId: null, insertAfter: false });
   const hoverRafRef = useRef<number | null>(null);
   const queuedHoverRef = useRef<{ classKey: ClassKey | null; itemId: string | null; insertAfter: boolean }>({
@@ -150,6 +195,60 @@ function RankedListInner<T extends RankedItemBase>(
   const effectiveActiveId = activeId ?? programmaticDrag?.itemId ?? null;
   const effectiveDraggedItem = draggedItem ?? programmaticDrag?.item ?? null;
   const effectiveDraggedFromClass = draggedFromClass ?? programmaticDrag?.classKey ?? null;
+  useLayoutEffect(() => {
+    if (!minimizationStorageKey || typeof window === 'undefined') {
+      setMinimizedByClass({});
+      return;
+    }
+    setMinimizedByClass(readMinimizedState());
+  }, [minimizationStorageKey, readMinimizedState]);
+
+  useLayoutEffect(() => {
+    if (!forceExpandClassKey) return;
+    setMinimizedByClass((prev) => {
+      if (!prev[forceExpandClassKey]) return prev;
+      const next = { ...prev, [forceExpandClassKey]: false };
+      persistMinimizedState(next);
+      return next;
+    });
+  }, [forceExpandClassKey, persistMinimizedState]);
+
+  useLayoutEffect(() => {
+    if (!classVisibilityAction) return;
+    if (lastAppliedVisibilityNonceRef.current === classVisibilityAction.nonce) return;
+    lastAppliedVisibilityNonceRef.current = classVisibilityAction.nonce;
+    const next =
+      classVisibilityAction.mode === 'expand-all'
+        ? {}
+        : classOrder.reduce<Record<ClassKey, boolean>>((acc, key) => {
+            acc[key] = true;
+            return acc;
+          }, {});
+    setMinimizedByClass(next);
+    persistMinimizedState(next);
+  }, [classVisibilityAction, classOrder, persistMinimizedState]);
+
+  const toggleClassMinimized = useCallback((classKey: ClassKey) => {
+    setMinimizedByClass((prev) => {
+      const next = { ...prev, [classKey]: !prev[classKey] };
+      persistMinimizedState(next);
+      return next;
+    });
+  }, [persistMinimizedState]);
+
+  useEffect(() => {
+    if (!onClassVisibilitySummaryChange) return;
+    const relevantClassKeys = classOrder.filter((k) => (itemsByClass[k] ?? []).length > 0);
+    if (relevantClassKeys.length === 0) {
+      onClassVisibilitySummaryChange({ allExpanded: true, allCollapsed: false });
+      return;
+    }
+    const minimizedCount = relevantClassKeys.reduce((count, key) => count + (minimizedByClass[key] ? 1 : 0), 0);
+    onClassVisibilitySummaryChange({
+      allExpanded: minimizedCount === 0,
+      allCollapsed: minimizedCount === relevantClassKeys.length
+    });
+  }, [classOrder, itemsByClass, minimizedByClass, onClassVisibilitySummaryChange]);
 
   useEffect(() => {
     return () => {
@@ -518,24 +617,35 @@ function RankedListInner<T extends RankedItemBase>(
   }, [programmaticDrag, dragOverClass, dragOverItemId, insertAfter, itemsByClass, canMoveBetweenClasses, cancelDrag]);
   const content = (
     <div className="ranked-list-body">
-      {classOrder.map((classKey) => {
+      {(() => {
+        const fallbackNonRankedSet = new Set<ClassKey>([
+          'BABY',
+          'DELICIOUS_GARBAGE',
+          'UNRANKED',
+          'DONT_REMEMBER',
+          'CANNOT_RANK'
+        ]);
+        const isNonRankedClass = (classKey: ClassKey) =>
+          isNonRankedClassKey ? isNonRankedClassKey(classKey) : fallbackNonRankedSet.has(classKey);
+        const firstNonRankedClass = classOrder.find((key) => isNonRankedClass(key)) ?? null;
+        return classOrder.map((classKey) => {
         const items = itemsByClass[classKey] ?? [];
         const subtitle = getClassSubtitle?.(classKey, items) ?? '';
-        const isNonRankedDivider = classKey === 'BABY';
+        const isNonRankedDivider = firstNonRankedClass === classKey;
         const label = getClassLabel ? getClassLabel(classKey) : classKey;
         const tagline = getClassTagline?.(classKey);
-        const isNonRankedClass =
-          classKey === 'BABY' || classKey === 'DELICIOUS_GARBAGE' || classKey === 'UNRANKED';
+        const isNonRankedClassStyle = isNonRankedClass(classKey);
         const sortableIds = items.map((i) => i.id);
         const classUsesSortableDuringActiveDrag =
           !isDragActive ||
           classKey === effectiveDraggedFromClass ||
           classKey === dragOverClass;
+        const isMinimized = Boolean(minimizedByClass[classKey]);
         return (
           <div key={classKey}>
             {isNonRankedDivider && (
               <div className="class-divider" aria-hidden="true">
-                <span>Saved / not ranked yet</span>
+                <span>NON-RANKED CLASSES</span>
               </div>
             )}
             <DroppableClassSection 
@@ -545,7 +655,7 @@ function RankedListInner<T extends RankedItemBase>(
             >
               <section
                 id={`class-section-${classKey}`}
-                className={`class-section ${isNonRankedClass ? 'class-section--nonranked' : ''} ${
+                className={`class-section ${isNonRankedClassStyle ? 'class-section--nonranked' : ''} ${
                   dragOverClass === classKey ? 'class-section--drag-over' : ''
                 }`}
               >
@@ -559,9 +669,23 @@ function RankedListInner<T extends RankedItemBase>(
                     {items.length} entries{subtitle ? ` | ${subtitle}` : ''}
                   </p>
                 </div>
-                {renderClassActions ? renderClassActions(classKey, items) : null}
+                <div className="class-section-header-actions">
+                  {minimizationStorageKey ? (
+                    <button
+                      type="button"
+                      className="class-section-minimize-btn"
+                      onClick={() => toggleClassMinimized(classKey)}
+                      aria-label={isMinimized ? `Expand ${label}` : `Minimize ${label}`}
+                      title={isMinimized ? 'Expand class' : 'Minimize class'}
+                    >
+                      {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+                    </button>
+                  ) : null}
+                  {renderClassActions ? renderClassActions(classKey, items) : null}
+                </div>
               </header>
-              <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''}`}>
+              {!isMinimized ? (
+              <div className={`class-section-rows ${isTile ? 'class-section-rows--tile' : ''} ${isCompact ? 'class-section-rows--compact' : ''}`}>
                 {canReorderWithinClass && classUsesSortableDuringActiveDrag ? (
                   <SortableContext
                     items={sortableIds}
@@ -614,11 +738,13 @@ function RankedListInner<T extends RankedItemBase>(
                   ))
                 )}
               </div>
+              ) : null}
             </section>
             </DroppableClassSection>
           </div>
         );
-      })}
+      });
+      })()}
     </div>
   );
 

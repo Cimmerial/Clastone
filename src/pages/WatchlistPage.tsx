@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import { PageSearch, type SearchableItem } from '../components/PageSearch';
-import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { useSettingsStore } from '../state/settingsStore';
 import { InfoModal } from '../components/InfoModal';
@@ -15,9 +14,9 @@ import {
   KeyboardSensor,
   PointerSensor,
   useSensor,
-  useSensors
+  useSensors,
 } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { arrayMove, SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useWatchlistStore, type WatchlistEntry, type WatchlistType } from '../state/watchlistStore';
 import { useListsStore } from '../state/listsStore';
@@ -32,6 +31,137 @@ import './WatchlistPage.css';
 
 type WatchlistSectionKey = 'default' | 'rewatch' | 'unreleased';
 type WatchlistVisibilityMode = 'ALL' | 'FREE';
+
+const WATCHING_NEXT_STORAGE_KEY_MOVIES = 'clastone-watchlist-watching-next-movies';
+const WATCHING_NEXT_STORAGE_KEY_TV = 'clastone-watchlist-watching-next-tv';
+
+function sanitizeWatchingNextIds(
+  ids: string[],
+  released: WatchlistEntry[],
+  rewatch: WatchlistEntry[],
+  unreleased: WatchlistEntry[]
+): string[] {
+  const allowed = new Set([...released, ...rewatch, ...unreleased].map((e) => e.id));
+  return ids.filter((id) => allowed.has(id));
+}
+
+/** Reorder the visible subsequence inside `watchingIds` using a drag within Watching Next. */
+function reorderWatchingNextIdsInPlace(
+  watchingIds: string[],
+  visibleOrdered: string[],
+  activeId: string,
+  overId: string
+): string[] {
+  const visibleSet = new Set(visibleOrdered);
+  const oldI = visibleOrdered.indexOf(activeId);
+  const newI = visibleOrdered.indexOf(overId);
+  if (oldI === -1 || newI === -1) return watchingIds;
+  const newVis = arrayMove(visibleOrdered, oldI, newI);
+  let vi = 0;
+  return watchingIds.map((id) => {
+    if (!visibleSet.has(id)) return id;
+    return newVis[vi++]!;
+  });
+}
+
+function partitionWatchlistFullScan(
+  fullList: WatchlistEntry[],
+  hasWatched: (id: string) => boolean
+): { released: WatchlistEntry[]; rewatch: WatchlistEntry[]; unreleased: WatchlistEntry[] } {
+  const released: WatchlistEntry[] = [];
+  const rewatch: WatchlistEntry[] = [];
+  const unreleased: WatchlistEntry[] = [];
+  for (const entry of fullList) {
+    if (isUnreleased(entry.releaseDate)) {
+      unreleased.push(entry);
+    } else if (hasWatched(entry.id)) {
+      rewatch.push(entry);
+    } else {
+      released.push(entry);
+    }
+  }
+  return { released, rewatch, unreleased: sortUnreleasedByDate(unreleased) };
+}
+
+function entryWatchlistBucket(
+  entry: WatchlistEntry,
+  hasWatched: (id: string) => boolean
+): 'released' | 'rewatch' | 'unreleased' {
+  if (isUnreleased(entry.releaseDate)) return 'unreleased';
+  if (hasWatched(entry.id)) return 'rewatch';
+  return 'released';
+}
+
+function prependEntryToBucket(list: WatchlistEntry[], entryId: string): WatchlistEntry[] {
+  const i = list.findIndex((e) => e.id === entryId);
+  if (i <= 0) return list;
+  const next = [...list];
+  const [x] = next.splice(i, 1);
+  return [x, ...next];
+}
+
+/** Full watchlist order: Watching Next (in saved order), then released / rewatch / unreleased strips. */
+function rebuildFullListFromWatchingNext(
+  fullList: WatchlistEntry[],
+  hasWatched: (id: string) => boolean,
+  watchingIds: string[]
+): WatchlistEntry[] {
+  const { released, rewatch, unreleased } = partitionWatchlistFullScan(fullList, hasWatched);
+  const allowed = new Set([...released, ...rewatch, ...unreleased].map((e) => e.id));
+  const wSan = watchingIds.filter((id) => allowed.has(id));
+  const wSet = new Set(wSan);
+  const byId = new Map(fullList.map((e) => [e.id, e]));
+  const wEntries = wSan.map((id) => byId.get(id)).filter(Boolean) as WatchlistEntry[];
+  const relR = released.filter((e) => !wSet.has(e.id));
+  const rewR = rewatch.filter((e) => !wSet.has(e.id));
+  const unrR = unreleased.filter((e) => !wSet.has(e.id));
+  return [...wEntries, ...relR, ...rewR, ...unrR];
+}
+
+function rebuildAfterRemoveFromWatchingNext(
+  fullList: WatchlistEntry[],
+  hasWatched: (id: string) => boolean,
+  nextWatchingIds: string[],
+  removedId: string
+): WatchlistEntry[] {
+  const base = rebuildFullListFromWatchingNext(fullList, hasWatched, nextWatchingIds);
+  const entry = fullList.find((e) => e.id === removedId);
+  if (!entry) return base;
+  const bucket = entryWatchlistBucket(entry, hasWatched);
+  const { released, rewatch, unreleased } = partitionWatchlistFullScan(base, hasWatched);
+  const allowed = new Set([...released, ...rewatch, ...unreleased].map((e) => e.id));
+  const wSan = nextWatchingIds.filter((id) => allowed.has(id));
+  const wSet = new Set(wSan);
+  const byId = new Map(base.map((e) => [e.id, e]));
+  const wEntries = wSan.map((id) => byId.get(id)).filter(Boolean) as WatchlistEntry[];
+  let relR = released.filter((e) => !wSet.has(e.id));
+  let rewR = rewatch.filter((e) => !wSet.has(e.id));
+  let unrR = unreleased.filter((e) => !wSet.has(e.id));
+  if (bucket === 'released') relR = prependEntryToBucket(relR, removedId);
+  else if (bucket === 'rewatch') rewR = prependEntryToBucket(rewR, removedId);
+  else unrR = prependEntryToBucket(unrR, removedId);
+  return [...wEntries, ...relR, ...rewR, ...unrR];
+}
+
+/** Replace the visible subsequence (same ID set as `subsequence`) in fullList with `newOrder`. */
+function applySubsequenceOrder(
+  fullList: WatchlistEntry[],
+  subsequence: WatchlistEntry[],
+  newOrder: WatchlistEntry[]
+): WatchlistEntry[] {
+  const subSet = new Set(subsequence.map((e) => e.id));
+  if (subsequence.length !== newOrder.length) return fullList;
+  for (const e of newOrder) {
+    if (!subSet.has(e.id)) return fullList;
+  }
+  const byId = new Map(newOrder.map((e) => [e.id, e]));
+  const newIds = newOrder.map((e) => e.id);
+  let r = 0;
+  return fullList.map((m) => {
+    if (!subSet.has(m.id)) return m;
+    return byId.get(newIds[r++])!;
+  });
+}
 
 const WATCH_PROVIDERS_SESSION_KEY = 'clastone_watchProviders_v2';
 const WATCH_PROVIDER_CATALOG_SESSION_KEY = 'clastone_watchProviderCatalog_v1';
@@ -225,6 +355,16 @@ function getWatchlistSectionId(type: WatchlistType, section: WatchlistSectionKey
   return `watchlist-section-${type}-${section}`;
 }
 
+function WatchingNextHeader() {
+  return (
+    <div className="watchlist-divider">
+      <div className="watchlist-divider-line" />
+      <div className="watchlist-divider-label">Watching Next</div>
+      <div className="watchlist-divider-line" />
+    </div>
+  );
+}
+
 function watchlistRecommendedTitle(entry: WatchlistEntry): string | undefined {
   if (!entry.recommendedBy?.length) return undefined;
   return `Recommended by ${formatRecommendersLabel(entry.recommendedBy)}`;
@@ -243,7 +383,12 @@ function WatchlistTile({
   providers,
   onInfo,
   sortableEnabled = true,
-  runtimeMinutes
+  runtimeMinutes,
+  sortableSection = 'released',
+  showWatchingNextAdd = false,
+  showWatchingNextRemove = false,
+  onAddWatchingNext,
+  onRemoveWatchingNext,
 }: {
   entry: WatchlistEntry;
   type: WatchlistType;
@@ -254,6 +399,11 @@ function WatchlistTile({
   onInfo?: () => void;
   sortableEnabled?: boolean;
   runtimeMinutes?: number;
+  sortableSection?: 'released' | 'rewatch' | 'unreleased' | 'watching';
+  showWatchingNextAdd?: boolean;
+  showWatchingNextRemove?: boolean;
+  onAddWatchingNext?: () => void;
+  onRemoveWatchingNext?: () => void;
 }) {
   const [clickCount, setClickCount] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -278,7 +428,7 @@ function WatchlistTile({
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
-    data: { type },
+    data: { type, section: sortableSection },
     disabled: !sortableEnabled
   });
   const style = transform ? { transform: CSS.Transform.toString(transform), transition } : undefined;
@@ -382,6 +532,38 @@ function WatchlistTile({
             {showConfirm ? '✓' : '✕'}
           </button>
         </div>
+        {(showWatchingNextAdd || showWatchingNextRemove) && (
+          <div className="watchlist-tile-wtn-poster-action">
+            {showWatchingNextAdd && onAddWatchingNext && (
+              <button
+                type="button"
+                className="watchlist-tile-wtn-btn watchlist-tile-wtn-btn--add"
+                title="Add to the end of Watching Next"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddWatchingNext();
+                }}
+              >
+                ADD WATCHING NEXT
+              </button>
+            )}
+            {showWatchingNextRemove && onRemoveWatchingNext && (
+              <button
+                type="button"
+                className="watchlist-tile-wtn-btn watchlist-tile-wtn-btn--remove"
+                title="Remove from Watching Next and move to the top of Up Next"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveWatchingNext();
+                }}
+              >
+                REMOVE FROM
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="entry-tile-title">
         {entry.title}
@@ -621,11 +803,18 @@ function WatchlistRow({
 
 export function WatchlistPage() {
   const navigate = useNavigate();
-  const { movies, tv, reorderWatchlist, removeFromWatchlist } = useWatchlistStore();
+  const {
+    movies,
+    tv,
+    reorderWatchlist,
+    removeFromWatchlist,
+    watchingNextMovieIds,
+    watchingNextTvIds,
+    setWatchingNextMovieIds,
+    setWatchingNextTvIds
+  } = useWatchlistStore();
   const { settings, updateSettings } = useSettingsStore();
-  const { mode: mobileViewMode, isMobile } = useMobileViewMode();
-  // On mobile this is forced to 'tile'; on desktop it follows user settings
-  const activeViewMode = mobileViewMode;
+  const { isMobile } = useMobileViewMode();
   const { friends } = useFriends();
   const {
     getMovieById,
@@ -697,6 +886,22 @@ export function WatchlistPage() {
     }
   });
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WATCHING_NEXT_STORAGE_KEY_MOVIES, JSON.stringify(watchingNextMovieIds));
+    } catch {
+      /* ignore */
+    }
+  }, [watchingNextMovieIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WATCHING_NEXT_STORAGE_KEY_TV, JSON.stringify(watchingNextTvIds));
+    } catch {
+      /* ignore */
+    }
+  }, [watchingNextTvIds]);
 
   useEffect(() => {
     const fetchAllProviders = async () => {
@@ -824,19 +1029,6 @@ export function WatchlistPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const type = active.data.current?.type as WatchlistType | undefined;
-    if (!type) return;
-    const list = type === 'movies' ? movies : tv;
-    const oldIndex = list.findIndex((e) => e.id === active.id);
-    const newIndex = list.findIndex((e) => e.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove([...list], oldIndex, newIndex);
-    reorderWatchlist(type, reordered.map((e) => e.id));
-  };
 
   const handleRecordWatch = async (entry: WatchlistEntry, type: WatchlistType) => {
     const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
@@ -1061,241 +1253,342 @@ export function WatchlistPage() {
 
   const sortableEnabled = watchlistVisibilityMode === 'ALL' && !isMobile;
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+    const type = active.data.current?.type as WatchlistType | undefined;
+    if (!type) return;
+
+    const fullList = type === 'movies' ? movies : tv;
+    const entries = type === 'movies' ? visibleMovies : visibleTv;
+    const watchingIds = type === 'movies' ? watchingNextMovieIds : watchingNextTvIds;
+
+    const activeContainer = active.data.current?.sortable?.containerId as string | undefined;
+    const overContainer = over.data.current?.sortable?.containerId as string | undefined;
+    const activeSection = (active.data.current?.section as string | undefined) ?? 'released';
+
+    const fullPart = separateReleasedAndUnreleased(fullList, hasWatched);
+    const visPart = separateReleasedAndUnreleased(entries, hasWatched);
+    const wFull = sanitizeWatchingNextIds(watchingIds, fullPart.released, fullPart.rewatch, fullPart.unreleased);
+    const watchSet = new Set(wFull);
+
+    if (activeContainer === `wl-${type}-watching`) {
+      if (overContainer !== `wl-${type}-watching`) return;
+      const visAllow = new Set(
+        [...visPart.released, ...visPart.rewatch, ...visPart.unreleased].map((e) => e.id)
+      );
+      const visibleOrdered = wFull.filter((id) => visAllow.has(id));
+      const newIds = reorderWatchingNextIdsInPlace(watchingIds, visibleOrdered, String(active.id), String(over.id));
+      const newFull = rebuildFullListFromWatchingNext(fullList, hasWatched, newIds);
+      reorderWatchlist(type, newFull.map((e) => e.id));
+      if (type === 'movies') setWatchingNextMovieIds(newIds);
+      else setWatchingNextTvIds(newIds);
+      return;
+    }
+
+    const { released: visReleased, rewatch: visRewatch, unreleased: visUnreleased } = visPart;
+
+    if (
+      activeSection === 'released' &&
+      activeContainer === `wl-${type}-rest` &&
+      overContainer === `wl-${type}-rest`
+    ) {
+      const visReleasedIds = new Set(visReleased.map((e) => e.id));
+      const watchingReleasedOrdered = wFull
+        .filter((id) => visReleasedIds.has(id))
+        .map((id) => visReleased.find((e) => e.id === id))
+        .filter(Boolean) as WatchlistEntry[];
+      const wRelCount = watchingReleasedOrdered.length;
+      const releasedRest = visReleased.filter((e) => !watchSet.has(e.id));
+      const combined = [...watchingReleasedOrdered, ...releasedRest];
+      const oldIndex = combined.findIndex((e) => e.id === active.id);
+      const newIndex = combined.findIndex((e) => e.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      if (oldIndex < wRelCount || newIndex < wRelCount) return;
+      const newCombined = arrayMove(combined, oldIndex, newIndex);
+      const newFullList = applySubsequenceOrder(fullList, visReleased, newCombined);
+      reorderWatchlist(type, newFullList.map((e) => e.id));
+      return;
+    }
+
+    if (
+      activeSection === 'rewatch' &&
+      activeContainer === `wl-${type}-rewatch` &&
+      overContainer === `wl-${type}-rewatch`
+    ) {
+      const visRewIds = new Set(visRewatch.map((e) => e.id));
+      const wRew = wFull
+        .filter((id) => visRewIds.has(id))
+        .map((id) => visRewatch.find((e) => e.id === id))
+        .filter(Boolean) as WatchlistEntry[];
+      const wRewCount = wRew.length;
+      const rewatchRest = visRewatch.filter((e) => !watchSet.has(e.id));
+      const combined = [...wRew, ...rewatchRest];
+      const oldIndex = combined.findIndex((e) => e.id === active.id);
+      const newIndex = combined.findIndex((e) => e.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      if (oldIndex < wRewCount || newIndex < wRewCount) return;
+      const newCombined = arrayMove(combined, oldIndex, newIndex);
+      const newFullList = applySubsequenceOrder(fullList, visRewatch, newCombined);
+      reorderWatchlist(type, newFullList.map((e) => e.id));
+      return;
+    }
+
+    if (
+      activeSection === 'unreleased' &&
+      activeContainer === `wl-${type}-unreleased` &&
+      overContainer === `wl-${type}-unreleased`
+    ) {
+      const visUnrIds = new Set(visUnreleased.map((e) => e.id));
+      const wUn = wFull
+        .filter((id) => visUnrIds.has(id))
+        .map((id) => visUnreleased.find((e) => e.id === id))
+        .filter(Boolean) as WatchlistEntry[];
+      const wUnCount = wUn.length;
+      const unreleasedRest = visUnreleased.filter((e) => !watchSet.has(e.id));
+      const combined = [...wUn, ...unreleasedRest];
+      const oldIndex = combined.findIndex((e) => e.id === active.id);
+      const newIndex = combined.findIndex((e) => e.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      if (oldIndex < wUnCount || newIndex < wUnCount) return;
+      const newCombined = arrayMove(combined, oldIndex, newIndex);
+      const newFullList = applySubsequenceOrder(fullList, visUnreleased, newCombined);
+      reorderWatchlist(type, newFullList.map((e) => e.id));
+    }
+  };
+
+  const addToWatchingNextEnd = (wt: WatchlistType, entryId: string) => {
+    const fullList = wt === 'movies' ? movies : tv;
+    const { released, rewatch, unreleased } = separateReleasedAndUnreleased(fullList, hasWatched);
+    const allowed = new Set([...released, ...rewatch, ...unreleased].map((e) => e.id));
+    if (!allowed.has(entryId)) return;
+    const watchingIds = wt === 'movies' ? watchingNextMovieIds : watchingNextTvIds;
+    const sanitized = sanitizeWatchingNextIds(watchingIds, released, rewatch, unreleased);
+    if (sanitized.includes(entryId)) return;
+    const newWatchingIds = [...sanitized, entryId];
+    const newFull = rebuildFullListFromWatchingNext(fullList, hasWatched, newWatchingIds);
+    reorderWatchlist(wt, newFull.map((e) => e.id));
+    if (wt === 'movies') setWatchingNextMovieIds(newWatchingIds);
+    else setWatchingNextTvIds(newWatchingIds);
+  };
+
+  const removeWatchingNextToRestTop = (wt: WatchlistType, entryId: string) => {
+    const fullList = wt === 'movies' ? movies : tv;
+    const { released, rewatch, unreleased } = separateReleasedAndUnreleased(fullList, hasWatched);
+    const watchingIds = wt === 'movies' ? watchingNextMovieIds : watchingNextTvIds;
+    const sanitized = sanitizeWatchingNextIds(watchingIds, released, rewatch, unreleased);
+    if (!sanitized.includes(entryId)) return;
+    const nextWatchingIds = sanitized.filter((id) => id !== entryId);
+    const newFull = rebuildAfterRemoveFromWatchingNext(fullList, hasWatched, nextWatchingIds, entryId);
+    reorderWatchlist(wt, newFull.map((e) => e.id));
+    if (wt === 'movies') setWatchingNextMovieIds(nextWatchingIds);
+    else setWatchingNextTvIds(nextWatchingIds);
+  };
+
   const renderSeparatedWatchlist = (
     entries: WatchlistEntry[],
     type: WatchlistType
   ) => {
-    const { released, rewatch, unreleased } = separateReleasedAndUnreleased(entries, hasWatched);
-    const hasReleased = released.length > 0;
-    const hasRewatch = rewatch.length > 0;
-    const hasUnreleased = unreleased.length > 0;
+    const fullList = type === 'movies' ? movies : tv;
+    const visPart = separateReleasedAndUnreleased(entries, hasWatched);
+    const fullPart = separateReleasedAndUnreleased(fullList, hasWatched);
+    const watchingIdsRaw = type === 'movies' ? watchingNextMovieIds : watchingNextTvIds;
+    const sanitizedWatchIds = sanitizeWatchingNextIds(
+      watchingIdsRaw,
+      fullPart.released,
+      fullPart.rewatch,
+      fullPart.unreleased
+    );
+    const visAllow = new Set(
+      [...visPart.released, ...visPart.rewatch, ...visPart.unreleased].map((e) => e.id)
+    );
+    const displayWatchIds = sanitizedWatchIds.filter((id) => visAllow.has(id));
+    const watchSet = new Set(sanitizedWatchIds);
+    const { released, rewatch, unreleased } = visPart;
+    const resolveEntry = (id: string) =>
+      released.find((e) => e.id === id) ??
+      rewatch.find((e) => e.id === id) ??
+      unreleased.find((e) => e.id === id);
+    const watchingNext = displayWatchIds.map((id) => resolveEntry(id)).filter(Boolean) as WatchlistEntry[];
+    const releasedRest = released.filter((e) => !watchSet.has(e.id));
+    const rewatchRest = rewatch.filter((e) => !watchSet.has(e.id));
+    const unreleasedRest = unreleased.filter((e) => !watchSet.has(e.id));
+
+    const hasMediaSection = released.length > 0 || rewatch.length > 0 || unreleased.length > 0;
+    const showDefaultBlock = watchingNext.length > 0 || releasedRest.length > 0;
+    const showRewatchDivider =
+      rewatchRest.length > 0 && (watchingNext.length > 0 || releasedRest.length > 0);
+    const showUnreleasedDivider =
+      unreleasedRest.length > 0 &&
+      (watchingNext.length > 0 || releasedRest.length > 0 || rewatchRest.length > 0);
 
     return (
       <>
-        {hasReleased && (
-          <div id={getWatchlistSectionId(type, 'default')}>
-            {activeViewMode === 'tile' ? (
-              <div className="class-section-rows class-section-rows--tile">
-                <SortableContext items={released.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
-                  {released.map((entry, index) => (
-                    <WatchlistTile
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            ) : activeViewMode === 'minimized' ? (
-              <div className="class-section-rows">
-                <SortableContext items={released.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {released.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
-                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < released.length - 1}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      minimized={true}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            ) : (
-              <div className="class-section-rows">
-                <SortableContext items={released.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {released.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
-                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < released.length - 1}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {(hasReleased && hasRewatch) && (
-          <div className="watchlist-divider">
-            <div className="watchlist-divider-line"></div>
-            <div className="watchlist-divider-label">Rewatch</div>
-            <div className="watchlist-divider-line"></div>
-          </div>
-        )}
-        
-        {hasRewatch && (
-          <div id={getWatchlistSectionId(type, 'rewatch')}>
-            {activeViewMode === 'tile' ? (
-              <div className="class-section-rows class-section-rows--tile class-section-rows--rewatch">
-                <SortableContext items={rewatch.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
-                  {rewatch.map((entry, index) => (
-                    <WatchlistTile
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            ) : activeViewMode === 'minimized' ? (
-              <div className="class-section-rows class-section-rows--rewatch">
-                <SortableContext items={rewatch.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {rewatch.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
-                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < rewatch.length - 1}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      minimized={true}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            ) : (
-              <div className="class-section-rows class-section-rows--rewatch">
-                <SortableContext items={rewatch.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-                  {rewatch.map((entry, index) => (
-                    <WatchlistRow
-                      key={entry.id}
-                      entry={entry}
-                      runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                      type={type}
-                      onRecordWatch={() => handleRecordWatch(entry, type)}
-                      onMoveUp={() => moveWatchlistEntry(type, index, -1)}
-                      onMoveDown={() => moveWatchlistEntry(type, index, 1)}
-                      onRemove={() => removeFromWatchlist(entry.id)}
-                      hasWatched={hasWatched(entry.id)}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < rewatch.length - 1}
-                      providers={watchProviders[entry.id]}
-                      sortableEnabled={sortableEnabled}
-                      onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                    />
-                  ))}
-                </SortableContext>
+        {hasMediaSection && (
+          <>
+            {showDefaultBlock && (
+              <div id={getWatchlistSectionId(type, 'default')}>
+                {watchingNext.length > 0 && (
+                  <>
+                    <WatchingNextHeader />
+                    <div className="class-section-rows class-section-rows--tile">
+                      <SortableContext
+                        id={`wl-${type}-watching`}
+                        items={watchingNext.map((e) => e.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        {watchingNext.map((entry) => (
+                          <WatchlistTile
+                            key={entry.id}
+                            entry={entry}
+                            runtimeMinutes={
+                              type === 'movies'
+                                ? getMovieById(entry.id)?.runtimeMinutes
+                                : getShowById(entry.id)?.runtimeMinutes
+                            }
+                            type={type}
+                            onRecordWatch={() => handleRecordWatch(entry, type)}
+                            onRemove={() => removeFromWatchlist(entry.id)}
+                            hasWatched={hasWatched(entry.id)}
+                            providers={watchProviders[entry.id]}
+                            sortableEnabled={sortableEnabled}
+                            sortableSection="watching"
+                            showWatchingNextRemove
+                            onRemoveWatchingNext={() => removeWatchingNextToRestTop(type, entry.id)}
+                            onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                          />
+                        ))}
+                      </SortableContext>
+                    </div>
+                  </>
+                )}
+
+                {releasedRest.length > 0 && (
+                  <>
+                    <div className="watchlist-divider">
+                      <div className="watchlist-divider-line"></div>
+                      <div className="watchlist-divider-label">Up Next / Later</div>
+                      <div className="watchlist-divider-line"></div>
+                    </div>
+                    <div className="class-section-rows class-section-rows--tile">
+                      <SortableContext
+                        id={`wl-${type}-rest`}
+                        items={releasedRest.map((e) => e.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        {releasedRest.map((entry) => (
+                          <WatchlistTile
+                            key={entry.id}
+                            entry={entry}
+                            runtimeMinutes={
+                              type === 'movies'
+                                ? getMovieById(entry.id)?.runtimeMinutes
+                                : getShowById(entry.id)?.runtimeMinutes
+                            }
+                            type={type}
+                            onRecordWatch={() => handleRecordWatch(entry, type)}
+                            onRemove={() => removeFromWatchlist(entry.id)}
+                            hasWatched={hasWatched(entry.id)}
+                            providers={watchProviders[entry.id]}
+                            sortableEnabled={sortableEnabled}
+                            sortableSection="released"
+                            showWatchingNextAdd
+                            onAddWatchingNext={() => addToWatchingNextEnd(type, entry.id)}
+                            onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                          />
+                        ))}
+                      </SortableContext>
+                    </div>
+                  </>
+                )}
               </div>
             )}
-          </div>
-        )}
-        
-        {((hasReleased || hasRewatch) && hasUnreleased) && (
-          <div className="watchlist-divider">
-            <div className="watchlist-divider-line"></div>
-            <div className="watchlist-divider-label">Unreleased</div>
-            <div className="watchlist-divider-line"></div>
-          </div>
-        )}
-        
-        {hasUnreleased && (
-          <div id={getWatchlistSectionId(type, 'unreleased')}>
-            {activeViewMode === 'tile' ? (
-              <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
-                {unreleased.map((entry) => (
-                  <WatchlistTile
-                    key={entry.id}
-                    entry={entry}
-                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                    type={type}
-                    onRecordWatch={() => handleRecordWatch(entry, type)}
-                    onRemove={() => removeFromWatchlist(entry.id)}
-                    hasWatched={hasWatched(entry.id)}
-                    providers={watchProviders[entry.id]}
-                    sortableEnabled={sortableEnabled}
-                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                  />
-                ))}
-              </div>
-            ) : activeViewMode === 'minimized' ? (
-              <div className="class-section-rows class-section-rows--unreleased">
-                {unreleased.map((entry, index) => (
-                  <WatchlistRow
-                    key={entry.id}
-                    entry={entry}
-                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                    type={type}
-                    onRecordWatch={() => handleRecordWatch(entry, type)}
-                    onMoveUp={() => {}} // Disabled for unreleased
-                    onMoveDown={() => {}} // Disabled for unreleased
-                    onRemove={() => removeFromWatchlist(entry.id)}
-                    hasWatched={hasWatched(entry.id)}
-                    canMoveUp={false}
-                    canMoveDown={false}
-                    providers={watchProviders[entry.id]}
-                    sortableEnabled={sortableEnabled}
-                    minimized={true}
-                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="class-section-rows class-section-rows--unreleased">
-                {unreleased.map((entry, index) => (
-                  <WatchlistRow
-                    key={entry.id}
-                    entry={entry}
-                    runtimeMinutes={type === 'movies' ? getMovieById(entry.id)?.runtimeMinutes : getShowById(entry.id)?.runtimeMinutes}
-                    type={type}
-                    onRecordWatch={() => handleRecordWatch(entry, type)}
-                    onMoveUp={() => {}} // Disabled for unreleased
-                    onMoveDown={() => {}} // Disabled for unreleased
-                    onRemove={() => removeFromWatchlist(entry.id)}
-                    hasWatched={hasWatched(entry.id)}
-                    canMoveUp={false}
-                    canMoveDown={false}
-                    providers={watchProviders[entry.id]}
-                    sortableEnabled={sortableEnabled}
-                    onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
-                  />
-                ))}
+
+            {showRewatchDivider && (
+              <div className="watchlist-divider">
+                <div className="watchlist-divider-line"></div>
+                <div className="watchlist-divider-label">Rewatch</div>
+                <div className="watchlist-divider-line"></div>
               </div>
             )}
-          </div>
+
+            {rewatchRest.length > 0 && (
+              <div id={getWatchlistSectionId(type, 'rewatch')}>
+                <div className="class-section-rows class-section-rows--tile class-section-rows--rewatch">
+                  <SortableContext
+                    id={`wl-${type}-rewatch`}
+                    items={rewatchRest.map((e) => e.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {rewatchRest.map((entry) => (
+                      <WatchlistTile
+                        key={entry.id}
+                        entry={entry}
+                        runtimeMinutes={
+                          type === 'movies'
+                            ? getMovieById(entry.id)?.runtimeMinutes
+                            : getShowById(entry.id)?.runtimeMinutes
+                        }
+                        type={type}
+                        onRecordWatch={() => handleRecordWatch(entry, type)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        providers={watchProviders[entry.id]}
+                        sortableEnabled={sortableEnabled}
+                        sortableSection="rewatch"
+                        showWatchingNextAdd
+                        onAddWatchingNext={() => addToWatchingNextEnd(type, entry.id)}
+                        onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              </div>
+            )}
+
+            {showUnreleasedDivider && (
+              <div className="watchlist-divider">
+                <div className="watchlist-divider-line"></div>
+                <div className="watchlist-divider-label">Unreleased</div>
+                <div className="watchlist-divider-line"></div>
+              </div>
+            )}
+
+            {unreleasedRest.length > 0 && (
+              <div id={getWatchlistSectionId(type, 'unreleased')}>
+                <div className="class-section-rows class-section-rows--tile class-section-rows--unreleased">
+                  <SortableContext
+                    id={`wl-${type}-unreleased`}
+                    items={unreleasedRest.map((e) => e.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {unreleasedRest.map((entry) => (
+                      <WatchlistTile
+                        key={entry.id}
+                        entry={entry}
+                        runtimeMinutes={
+                          type === 'movies'
+                            ? getMovieById(entry.id)?.runtimeMinutes
+                            : getShowById(entry.id)?.runtimeMinutes
+                        }
+                        type={type}
+                        onRecordWatch={() => handleRecordWatch(entry, type)}
+                        onRemove={() => removeFromWatchlist(entry.id)}
+                        hasWatched={hasWatched(entry.id)}
+                        providers={watchProviders[entry.id]}
+                        sortableEnabled={sortableEnabled}
+                        sortableSection="unreleased"
+                        showWatchingNextAdd
+                        onAddWatchingNext={() => addToWatchingNextEnd(type, entry.id)}
+                        onInfo={() => handleInfo(entry, type === 'movies' ? 'movie' : 'tv')}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </>
     );
@@ -1310,7 +1603,6 @@ export function WatchlistPage() {
         </div>
         {!hasActiveModal && (
           <div className="page-actions-row">
-            <ViewToggle />
             <button
               type="button"
               className={`watchlist-overlap-open-btn ${overlapFriendUids.length > 0 ? 'watchlist-overlap-open-btn--active' : ''}`}

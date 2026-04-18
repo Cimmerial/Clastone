@@ -86,7 +86,7 @@ type Props = {
   onClassDown?: () => void;
   onRecordPerson?: (info: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => void;
   onInfo?: (item: MovieShowItem) => void;
-  viewMode?: 'detailed' | 'minimized' | 'tile';
+  viewMode?: 'detailed' | 'minimized' | 'tile' | 'compact';
   tileMinimalActions?: boolean;
   tileUnseenMuted?: boolean;
   tileOverlayControls?: ReactNode;
@@ -200,7 +200,8 @@ export function EntryRowMovieShow({
   const { updateShowCache } = useTvStore();
 
   const finalViewMode = propViewMode ?? settings.viewMode;
-  const isTile = finalViewMode === 'tile';
+  const isTile = finalViewMode === 'tile' || finalViewMode === 'compact';
+  const isCompact = finalViewMode === 'compact';
   const isMinimized = finalViewMode === 'minimized';
 
   useEffect(() => {
@@ -249,7 +250,7 @@ export function EntryRowMovieShow({
               <Info size={14} />
             </button>
           </div>
-          {!tileMinimalActions && (
+          {!tileMinimalActions && !isCompact && (
             <div className="entry-tile-stats-overlay">
               <div className="entry-stat-pill">{item.percentileRank}</div>
               <div className="entry-stat-pill">{item.absoluteRank}</div>
@@ -258,16 +259,18 @@ export function EntryRowMovieShow({
           )}
           <div className="entry-tile-quick-actions">
             <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)}><Settings size={14} /></button>
-            {!tileMinimalActions && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
+            {!tileMinimalActions && !isCompact && isUnranked && <button type="button" onClick={() => onRecordFirstWatch?.(item)}>RW</button>}
           </div>
-          {tileOverlayControls ? (
+          {tileOverlayControls && !isCompact ? (
             <div className="entry-tile-under-cogs">{tileOverlayControls}</div>
           ) : null}
-          {tileOverlayBadges ? (
+          {tileOverlayBadges && !isCompact ? (
             <div className="entry-tile-bottom-badges">{tileOverlayBadges}</div>
           ) : null}
         </div>
-        <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
+        {!isCompact ? (
+          <div className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</div>
+        ) : null}
       </article>
     );
   }

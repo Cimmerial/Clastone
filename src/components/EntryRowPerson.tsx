@@ -20,7 +20,7 @@ type Props = {
   onUpdateCache?: (id: string, cache: TmdbPersonCache) => void;
   onRecordMedia?: (media: { id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string }) => void;
   onInfo?: (item: PersonItem | DirectorItem) => void;
-  viewMode?: 'detailed' | 'minimized' | 'tile';
+  viewMode?: 'detailed' | 'minimized' | 'tile' | 'compact';
 };
 
 export function EntryRowPerson({
@@ -191,7 +191,8 @@ export function EntryRowPerson({
 
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const finalViewMode = propViewMode ?? mobileViewMode;
-  const isTile = finalViewMode === 'tile';
+  const isTile = finalViewMode === 'tile' || finalViewMode === 'compact';
+  const isCompact = finalViewMode === 'compact';
   const isMinimized = finalViewMode === 'minimized';
 
   if (isTile) {
@@ -236,17 +237,19 @@ export function EntryRowPerson({
                 <Info size={16} />
               </button>
             </div>
-            <div className="entry-tile-stats-overlay">
+            {!isCompact && <div className="entry-tile-stats-overlay">
               <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
               {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
-            </div>
+            </div>}
             <div className="entry-tile-quick-actions">
                <button type="button" className="entry-settings-btn" onClick={() => onOpenSettings?.(item)} title="Settings">⚙</button>
             </div>
           </div>
-          <div className="entry-tile-content">
-             <h4 className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</h4>
-          </div>
+          {!isCompact && (
+            <div className="entry-tile-content">
+               <h4 className={`entry-tile-title ${item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{item.title}</h4>
+            </div>
+          )}
         </article>
       );
     }

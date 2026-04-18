@@ -54,6 +54,8 @@ function pruneWatchlistEntry(entry: WatchlistEntry): WatchlistEntry {
 export async function loadWatchlist(db: Firestore, userId: string): Promise<{
   movies: WatchlistEntry[];
   tv: WatchlistEntry[];
+  watchingNextMovieIds: string[];
+  watchingNextTvIds: string[];
   isMigrated: boolean
 }> {
   const movieRef = doc(db, NEW_ROOT, userId, WATCHLIST_FOLDER, MOVIES_DOC_ID);
@@ -62,9 +64,17 @@ export async function loadWatchlist(db: Firestore, userId: string): Promise<{
   const [movieSnap, tvSnap] = await Promise.all([getDoc(movieRef), getDoc(tvRef)]);
 
   if (movieSnap.exists() || tvSnap.exists()) {
+    const md = movieSnap.data() as { items?: WatchlistEntry[]; watchingNextIds?: string[] } | undefined;
+    const td = tvSnap.data() as { items?: WatchlistEntry[]; watchingNextIds?: string[] } | undefined;
     return {
-      movies: (movieSnap.data()?.items || []) as WatchlistEntry[],
-      tv: (tvSnap.data()?.items || []) as WatchlistEntry[],
+      movies: (md?.items || []) as WatchlistEntry[],
+      tv: (td?.items || []) as WatchlistEntry[],
+      watchingNextMovieIds: Array.isArray(md?.watchingNextIds)
+        ? md!.watchingNextIds!.filter((x): x is string => typeof x === 'string')
+        : [],
+      watchingNextTvIds: Array.isArray(td?.watchingNextIds)
+        ? td!.watchingNextIds!.filter((x): x is string => typeof x === 'string')
+        : [],
       isMigrated: true
     };
   }
@@ -79,11 +89,13 @@ export async function loadWatchlist(db: Firestore, userId: string): Promise<{
     return {
       movies: (data?.movies || []).map(pruneWatchlistEntry),
       tv: (data?.tv || []).map(pruneWatchlistEntry),
+      watchingNextMovieIds: [],
+      watchingNextTvIds: [],
       isMigrated: false
     };
   }
 
-  return { movies: [], tv: [], isMigrated: true };
+  return { movies: [], tv: [], watchingNextMovieIds: [], watchingNextTvIds: [], isMigrated: true };
 }
 
 export async function saveWatchlist(
@@ -92,6 +104,8 @@ export async function saveWatchlist(
   payload: {
     movies: WatchlistEntry[];
     tv: WatchlistEntry[];
+    watchingNextMovieIds: string[];
+    watchingNextTvIds: string[];
     dirtyMovies?: boolean;
     dirtyTv?: boolean;
   }
@@ -106,10 +120,22 @@ export async function saveWatchlist(
   const tvRef = doc(db, NEW_ROOT, userId, WATCHLIST_FOLDER, TV_DOC_ID);
 
   if (payload.dirtyMovies || payload.dirtyMovies === undefined) {
-    batch.set(movieRef, stripUndefined({ items: payload.movies.map(pruneWatchlistEntry) }));
+    batch.set(
+      movieRef,
+      stripUndefined({
+        items: payload.movies.map(pruneWatchlistEntry),
+        watchingNextIds: payload.watchingNextMovieIds
+      })
+    );
   }
   if (payload.dirtyTv || payload.dirtyTv === undefined) {
-    batch.set(tvRef, stripUndefined({ items: payload.tv.map(pruneWatchlistEntry) }));
+    batch.set(
+      tvRef,
+      stripUndefined({
+        items: payload.tv.map(pruneWatchlistEntry),
+        watchingNextIds: payload.watchingNextTvIds
+      })
+    );
   }
 
   const legacyRef = doc(db, LEGACY_ROOT, userId, LEGACY_SUB, LEGACY_DOC);

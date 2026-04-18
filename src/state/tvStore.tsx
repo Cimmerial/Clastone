@@ -89,6 +89,11 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
   const [pendingChanges, setPendingChanges] = useState(0);
   const [persistDebounceTick, setPersistDebounceTick] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onPersistRef = useRef(onPersist);
+
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
 
   useEffect(() => subscribePersistDebounce(() => setPersistDebounceTick((t) => t + 1)), []);
 
@@ -109,7 +114,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       return;
     }
 
-    if (!onPersist) return;
+    if (!onPersistRef.current) return;
 
     // 2. Diffing: figure out what actually changed since the last save
     const dirtyClasses: ClassKey[] = [];
@@ -139,7 +144,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
 
     persistTimeoutRef.current = setTimeout(() => {
       console.info(`[TvStore] Debounce finished. Executing onPersist...`);
-      onPersist({
+      void onPersistRef.current?.({
         byClass: savedByClass,
         classes: savedClasses,
         pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
@@ -157,12 +162,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         persistTimeoutRef.current = null;
       }
     };
-  }, [byClass, classes, onPersist, persistDebounceTick]);
+  }, [byClass, classes, persistDebounceTick]);
 
   // Handle browser tab closure / refresh.
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (persistTimeoutRef.current && onPersist) {
+      if (persistTimeoutRef.current && onPersistRef.current) {
         // Force an immediate save of the known dirty state before the window dies
         const dirtyClasses: ClassKey[] = [];
         const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
@@ -173,7 +178,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         }
 
         console.info(`[TvStore] beforeunload triggered. Forcing emergency save of dirty state...`);
-        onPersist({
+        void onPersistRef.current({
           ...currentStateRef.current,
           pendingCount: dirtyClasses.length + (classesMetadataChanged ? 1 : 0),
           dirtyClasses,
@@ -189,7 +194,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [onPersist, pendingChanges]);
+  }, [pendingChanges]);
 
   // Ensure keys exist for all classes.
   useEffect(() => {
@@ -291,8 +296,8 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     setByClass(nextByClass);
     setClasses(nextClasses);
 
-    if (onPersist) {
-      void onPersist({
+    if (onPersistRef.current) {
+      void onPersistRef.current({
         byClass: nextByClass,
         classes: nextClasses,
         classesMetadataChanged: true,
@@ -305,7 +310,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           // If immediate save fails, user can retry later.
         });
     }
-  }, [onPersist]);
+  }, []);
 
   const moveWithinClass = useCallback(
     (itemId: string, delta: number) => {
@@ -777,7 +782,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       removeShowEntry,
       getShowById,
       forceSync: async () => {
-        if (onPersist) {
+        if (onPersistRef.current) {
           const dirtyClasses: ClassKey[] = [];
           const classesMetadataChanged = currentStateRef.current.classes !== lastSavedStateRef.current.classes;
           for (const c of currentStateRef.current.classes) {
@@ -787,7 +792,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           }
 
           if (dirtyClasses.length > 0 || classesMetadataChanged) {
-            await onPersist({
+            await onPersistRef.current({
               ...currentStateRef.current,
               dirtyClasses,
               classesMetadataChanged
@@ -821,7 +826,6 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateBatchShowCache,
       getShowById,
       removeShowEntry,
-      onPersist
     ]
   );
 

@@ -4,7 +4,7 @@ export type GlobalSettings = {
     topCastCount: number;
     topRoleCount: number;
     personProjectsLimit: number;
-    viewMode: 'minimized' | 'detailed' | 'tile';
+    viewMode: 'minimized' | 'detailed' | 'tile' | 'compact';
     tileViewSize: 'small' | 'default' | 'big';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
@@ -36,8 +36,8 @@ function getInitialSettings(): GlobalSettings {
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
-        let viewMode: 'minimized' | 'detailed' | 'tile' = 'tile';
-        if (vm === 'detailed' || vm === 'tile') {
+        let viewMode: 'minimized' | 'detailed' | 'tile' | 'compact' = 'tile';
+        if (vm === 'detailed' || vm === 'tile' || vm === 'compact') {
             viewMode = vm as any;
         } else if (vm === 'minimized') {
             // Migrate old "Simple" mode to Tile mode.

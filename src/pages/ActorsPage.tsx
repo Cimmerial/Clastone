@@ -19,6 +19,7 @@ import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { PersonInfoModal } from '../components/PersonInfoModal';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 export function ActorsPage() {
   const { scrollContainerRef } = usePageState<HTMLDivElement>('actors');
@@ -42,10 +43,21 @@ export function ActorsPage() {
   const [recordMediaTarget, setRecordMediaTarget] = useState<{ id: number; title: string; posterPath?: string; mediaType: 'movie' | 'tv'; releaseDate?: string } | null>(null);
   const [isSavingMedia, setIsSavingMedia] = useState(false);
   const [personInfoModalTarget, setPersonInfoModalTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
+  const [forcedExpandClassKey, setForcedExpandClassKey] = useState<string | null>(null);
+  const [classVisibilityNonce, setClassVisibilityNonce] = useState(0);
+  const [classVisibilityMode, setClassVisibilityMode] = useState<'expand-all' | 'collapse-all'>('expand-all');
+  const [classVisibilitySummary, setClassVisibilitySummary] = useState({ allExpanded: true, allCollapsed: false });
   const hasActiveModal = !!recordTarget || !!recordMediaTarget;
 
   const location = useLocation();
   const scrollToId = location.state?.scrollToId;
+  const scrollToClassKey = useMemo(
+    () =>
+      scrollToId
+        ? classOrder.find((classKey) => (byClass[classKey] ?? []).some((item) => item.id === scrollToId)) ?? null
+        : null,
+    [scrollToId, classOrder, byClass]
+  );
 
   useEffect(() => {
     if (scrollToId) {
@@ -188,6 +200,30 @@ export function ActorsPage() {
         </div>
         {!hasActiveModal && (
           <div className="page-actions-row">
+            <button
+              className="class-visibility-btn"
+              onClick={() => {
+                setClassVisibilityMode('expand-all');
+                setClassVisibilityNonce((prev) => prev + 1);
+              }}
+              title="Expand all classes"
+              disabled={classVisibilitySummary.allExpanded}
+            >
+              <Maximize2 size={18} />
+              <span className="filter-label">Expand</span>
+            </button>
+            <button
+              className="class-visibility-btn"
+              onClick={() => {
+                setClassVisibilityMode('collapse-all');
+                setClassVisibilityNonce((prev) => prev + 1);
+              }}
+              title="Collapse all classes"
+              disabled={classVisibilitySummary.allCollapsed}
+            >
+              <Minimize2 size={18} />
+              <span className="filter-label">Collapse</span>
+            </button>
             <ViewToggle />
           </div>
         )}
@@ -196,6 +232,15 @@ export function ActorsPage() {
       <RankedList<PersonItem>
         ref={scrollContainerRef}
         viewMode={mobileViewMode}
+        minimizationScopeKey="actors"
+        forceExpandClassKey={scrollToClassKey ?? forcedExpandClassKey}
+        classVisibilityAction={
+          classVisibilityNonce > 0
+            ? { mode: classVisibilityMode, nonce: classVisibilityNonce }
+            : null
+        }
+        onClassVisibilitySummaryChange={setClassVisibilitySummary}
+        isNonRankedClassKey={(classKey) => !(classes.find((c) => c.key === classKey)?.isRanked ?? true)}
         classOrder={classOrder}
         itemsByClass={byClass}
         getClassLabel={(key) => classes.find(c => c.key === key)?.label ?? key}
@@ -375,8 +420,18 @@ export function ActorsPage() {
       <PageSearch
         items={flatItems.map(i => ({ id: i.id, title: i.title }))}
         onSelect={(id) => {
+          const targetClassKey =
+            classOrder.find((classKey) => (byClass[classKey] ?? []).some((item) => item.id === id)) ?? null;
+          setForcedExpandClassKey(targetClassKey);
           const el = document.querySelector(`[data-item-id="${id}"]`);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } else {
+            setTimeout(() => {
+              const delayedEl = document.querySelector(`[data-item-id="${id}"]`);
+              if (delayedEl) delayedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
+          }
         }}
         placeholder="Search actors..."
         className="page-search-locked"

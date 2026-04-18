@@ -21,10 +21,45 @@
     min-width: fit-content;
 }
 
+.class-visibility-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(26, 26, 26, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    padding: 6px 12px;
+    border-radius: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 0.75;
+    min-width: fit-content;
+}
+
 .filter-label {
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
+}
+
+.class-visibility-btn:hover {
+    background: rgba(26, 26, 26, 0.8);
+    border-color: var(--accent-soft);
+    color: var(--text-primary);
+    opacity: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.class-visibility-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
 }
 
 .filter-button:hover {
