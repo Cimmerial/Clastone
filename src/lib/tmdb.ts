@@ -585,6 +585,78 @@ export async function tmdbMovieDetailsFull(
   return cache;
 }
 
+/** Maximal `append_to_response` for dev/diagnostics (cast, crew incl. cinematographer, companies, countries, languages, providers, etc.). */
+const TMDB_MOVIE_APPEND_FULL =
+  'credits,keywords,release_dates,external_ids,watch/providers,videos,images,recommendations,similar,reviews,translations';
+
+/** Single GET returning the full TMDB movie payload plus appended sub-resources. */
+export async function tmdbMovieFullApiDump(movieId: number, signal?: AbortSignal): Promise<unknown> {
+  const params = new URLSearchParams();
+  params.set('append_to_response', TMDB_MOVIE_APPEND_FULL);
+  return tmdbGet<unknown>(`/movie/${movieId}?${params.toString()}`, signal);
+}
+
+export type TmdbMovieProbeResult = {
+  query: { title: string; year: number };
+  searchFirstPage: Awaited<ReturnType<typeof tmdbSearchMovies>>;
+  picked: { id: number; title: string; release_date?: string } | null;
+  movieDump: unknown | null;
+  collectionDump: unknown | null;
+  /** Where to look in `movieDump` for common fields */
+  fieldHints: Record<string, string>;
+};
+
+/**
+ * Search TMDB for a title/year, then fetch one movie details response with all common appends.
+ * Optionally fetches `/collection/{id}` when `belongs_to_collection` is set.
+ */
+export async function tmdbMovieProbeByTitleYear(
+  title: string,
+  year: number,
+  signal?: AbortSignal
+): Promise<TmdbMovieProbeResult> {
+  const searchFirstPage = await tmdbSearchMovies(title, signal, year, 1);
+  const fieldHints: Record<string, string> = {
+    'movie.production_companies': 'Studios and companies TMDB lists (often includes distributors)',
+    'movie.production_countries': 'Production / origin countries',
+    'movie.spoken_languages': 'Languages',
+    'movie.original_language': 'Primary language (ISO 639-1)',
+    'movie.credits.cast': 'Cast (billing order)',
+    'movie.credits.crew': 'Crew — filter by job (e.g. Director of Photography = cinematographer)',
+    'movie.release_dates': 'Per-region releases and certifications',
+    'movie["watch/providers"]': 'Streaming / rent / buy by country',
+    'movie.keywords': 'Keyword tags',
+    'movie.external_ids': 'External IDs such as imdb_id',
+    'movie.belongs_to_collection': 'Franchise collection; when set, `collectionDump` is loaded',
+    collection: 'Franchise collection parts list when applicable'
+  };
+  if (searchFirstPage.length === 0) {
+    return {
+      query: { title, year },
+      searchFirstPage,
+      picked: null,
+      movieDump: null,
+      collectionDump: null,
+      fieldHints
+    };
+  }
+  const first = searchFirstPage[0];
+  const movieDump = await tmdbMovieFullApiDump(first.id, signal);
+  const md = movieDump as { belongs_to_collection?: { id: number } | null };
+  let collectionDump: unknown | null = null;
+  if (md?.belongs_to_collection?.id != null) {
+    collectionDump = await tmdbGet<unknown>(`/collection/${md.belongs_to_collection.id}`, signal).catch(() => null);
+  }
+  return {
+    query: { title, year },
+    searchFirstPage,
+    picked: { id: first.id, title: first.title, release_date: first.release_date },
+    movieDump,
+    collectionDump,
+    fieldHints
+  };
+}
+
 /** Fetch full TV details + credits for caching on the entry. One API call. */
 export async function tmdbTvDetailsFull(
   tvId: number,

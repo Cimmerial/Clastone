@@ -393,7 +393,8 @@ export function FriendTvCollectionPage() {
           onClose={() => setSettingsFor(null)}
           onSave={async (params, goToMedia) => {
             const entryId = settingsFor.id;
-            if (!getShowById(entryId)) {
+            const keepModalOpen = Boolean(params.keepModalOpen);
+            if (!keepModalOpen && !getShowById(entryId)) {
               addShowFromSearch({
                 id: entryId,
                 title: settingsFor.title,
@@ -424,8 +425,10 @@ export function FriendTvCollectionPage() {
               const moveOptions = { toTop: params.position === 'top', toMiddle: params.position === 'middle' };
               moveItemToClass(entryId, params.classKey, moveOptions);
             }
-            setSettingsFor(null);
-            if (goToMedia) {
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+            }
+            if (goToMedia && !keepModalOpen) {
               navigate('/tv', { replace: true, state: { scrollToId: entryId } });
             }
           }}

@@ -253,6 +253,10 @@ export function TvShowsPage() {
               }, 50);
             }
           }}
+          onEdit={(id) => {
+            const item = Object.values(byClass).flat().find((s) => s.id === id);
+            if (item) setSettingsFor(item);
+          }}
           placeholder="Search TV shows..."
           className="page-search-locked"
           pageKey="tv"
@@ -389,6 +393,7 @@ export function TvShowsPage() {
           onSave={async (params, goToMedia) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
+            const keepModalOpen = Boolean(params.keepModalOpen);
 
             const watches = prepareWatchRecordsForSave(
               watchMatrixEntriesToWatchRecords(params.watches),
@@ -399,7 +404,9 @@ export function TvShowsPage() {
               classOrder
             );
 
-            if (recordWatchFor && watches.length > 0) {
+            if (keepModalOpen) {
+              updateShowWatchRecords(targetItem.id, watches);
+            } else if (recordWatchFor && watches.length > 0) {
               addWatchToShow(targetItem.id, watches[0]);
             } else if (settingsFor) {
               updateShowWatchRecords(targetItem.id, watches);
@@ -415,10 +422,12 @@ export function TvShowsPage() {
               setEntryListMembership(targetItem.id, 'tv', params.listMemberships);
             }
 
-            setSettingsFor(null);
-            setRecordWatchFor(null);
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+              setRecordWatchFor(null);
+            }
 
-            if (goToMedia) {
+            if (goToMedia && !keepModalOpen) {
               setTimeout(() => {
                 const el = document.getElementById(`entry-${targetItem.id}`);
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   tmdbMovieDetailsFull,
+  tmdbMovieProbeByTitleYear,
   tmdbTvDetailsFull,
   type TmdbMovieCache,
   type TmdbTvCache,
@@ -49,21 +50,13 @@ export function DevTools() {
     const saved = localStorage.getItem('dev_quick_collection_direction');
     return saved === 'bottom' ? 'bottom' : 'top';
   });
-  const [selectedCollectionSummaryDraft, setSelectedCollectionSummaryDraft] = useState('');
+  const [hamnetProbeJson, setHamnetProbeJson] = useState<string | null>(null);
+  const [hamnetProbeLoading, setHamnetProbeLoading] = useState(false);
 
   const quickCollectionOptions = useMemo(
     () => globalCollections.map((collection) => ({ id: collection.id, name: collection.name })),
     [globalCollections]
   );
-  const selectedQuickCollection = useMemo(
-    () => globalCollections.find((collection) => collection.id === quickCollectionId) ?? null,
-    [globalCollections, quickCollectionId]
-  );
-
-  useEffect(() => {
-    setSelectedCollectionSummaryDraft(selectedQuickCollection?.summary ?? '');
-  }, [selectedQuickCollection?.id, selectedQuickCollection?.summary]);
-
   const movieItems = useMemo(() => {
     const out: Array<{ classKey: ClassKey; item: MovieShowItem }> = [];
     for (const classKey of movieClassOrder) {
@@ -818,20 +811,17 @@ export function DevTools() {
     }
   };
 
-  const updateSelectedCollectionSummary = async () => {
-    if (!db || !selectedQuickCollection) return;
+  const runHamnetTmdbProbe = async () => {
+    setHamnetProbeLoading(true);
     setLastError(null);
+    setHamnetProbeJson(null);
     try {
-      const nextSummary = selectedCollectionSummaryDraft.trim();
-      const nextCollection = {
-        ...selectedQuickCollection,
-        summary: nextSummary || undefined,
-        updatedAt: new Date().toISOString()
-      };
-      await upsertGlobalCollection(db, nextCollection);
-      upsertCollectionInStore(nextCollection);
+      const result = await tmdbMovieProbeByTitleYear('Hamnet', 2025);
+      setHamnetProbeJson(JSON.stringify(result, null, 2));
     } catch (e) {
       setLastError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHamnetProbeLoading(false);
     }
   };
 
@@ -980,6 +970,28 @@ export function DevTools() {
                 </p>
               )}
 
+              <h3 className="dev-modal-title" style={{ fontSize: 14, marginTop: 12 }}>TMDB movie API probe</h3>
+              <p className="dev-note">
+                Searches &quot;Hamnet&quot; (2025), takes the first hit, then one GET with credits, keywords, release dates,
+                external IDs, watch providers, videos, images, recommendations, similar, reviews, translations — plus
+                collection details if the title belongs to a franchise collection.
+              </p>
+              <div className="dev-actions">
+                <button
+                  type="button"
+                  className="dev-secondary"
+                  disabled={hamnetProbeLoading || isRunning}
+                  onClick={() => void runHamnetTmdbProbe()}
+                >
+                  {hamnetProbeLoading ? 'Fetching…' : 'Fetch full TMDB dump: Hamnet (2025)'}
+                </button>
+              </div>
+              {hamnetProbeJson && (
+                <pre className="dev-json-dump" tabIndex={0}>
+                  {hamnetProbeJson}
+                </pre>
+              )}
+
               <h3 className="dev-modal-title" style={{ fontSize: 14, marginTop: 12 }}>Global collection editor</h3>
               <div className="dev-row">
                 <label className="dev-label">Collection to add to with quick button</label>
@@ -1028,30 +1040,6 @@ export function DevTools() {
                   }}
                 >
                   Bottom
-                </button>
-              </div>
-              <h3 className="dev-modal-title" style={{ fontSize: 14, marginTop: 10 }}>Selected collection summary</h3>
-              <div className="dev-row">
-                <label className="dev-label">Summary shown under collection name</label>
-              </div>
-              <div className="dev-row">
-                <textarea
-                  className="dev-input dev-textarea"
-                  value={selectedCollectionSummaryDraft}
-                  onChange={(e) => setSelectedCollectionSummaryDraft(e.target.value)}
-                  placeholder="One-line collection summary"
-                  rows={2}
-                  disabled={!selectedQuickCollection}
-                />
-              </div>
-              <div className="dev-actions">
-                <button
-                  type="button"
-                  className="dev-primary"
-                  disabled={!selectedQuickCollection}
-                  onClick={() => void updateSelectedCollectionSummary()}
-                >
-                  Save collection summary
                 </button>
               </div>
               <h3 className="dev-modal-title" style={{ fontSize: 14, marginTop: 10 }}>Selected collection maintenance</h3>

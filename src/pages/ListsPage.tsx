@@ -894,6 +894,7 @@ export function ListDetailPage() {
             setSettingsFor(null);
           } : undefined}
           onSave={async (params, goToMedia) => {
+            const keepModalOpen = Boolean(params.keepModalOpen);
             const watches = prepareWatchRecordsForSave(
               watchMatrixEntriesToWatchRecords(params.watches),
               settingsFor.id,
@@ -940,8 +941,10 @@ export function ListDetailPage() {
             if (params.listMemberships?.length) {
               setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships);
             }
-            setSettingsFor(null);
-            if (goToMedia) {
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+            }
+            if (goToMedia && !keepModalOpen) {
               navigate(isTv ? '/tv' : '/movies', { replace: true, state: { scrollToId: settingsFor.id } });
             }
           }}

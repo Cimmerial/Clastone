@@ -184,6 +184,21 @@
   font-size: 0.74rem;
 }
 
+.dev-json-dump {
+  margin-top: 8px;
+  max-height: min(50vh, 420px);
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .dev-textarea {
   min-height: 56px;
   resize: vertical;

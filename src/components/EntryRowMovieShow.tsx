@@ -26,6 +26,8 @@ export type WatchReview = {
   title: string;
   body: string;
   publiclyViewable: boolean;
+  /** When true, review may spoil plot; shown for future public UI. Omitted on older saves — treat as true. */
+  containsSpoilers?: boolean;
   updatedAt: string;
 };
 

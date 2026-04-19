@@ -257,6 +257,10 @@ export function MoviesPage() {
               }, 50);
             }
           }}
+          onEdit={(id) => {
+            const item = Object.values(byClass).flat().find((m) => m.id === id);
+            if (item) setSettingsFor(item);
+          }}
           placeholder="Search movies..."
           className="page-search-locked"
           pageKey="movies"
@@ -393,6 +397,7 @@ export function MoviesPage() {
           onSave={async (params, goToMedia) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
+            const keepModalOpen = Boolean(params.keepModalOpen);
 
             const watches = prepareWatchRecordsForSave(
               watchMatrixEntriesToWatchRecords(params.watches),
@@ -403,7 +408,9 @@ export function MoviesPage() {
               tvClassOrder
             );
 
-            if (recordWatchFor && watches.length > 0) {
+            if (keepModalOpen) {
+              updateMovieWatchRecords(targetItem.id, watches);
+            } else if (recordWatchFor && watches.length > 0) {
               addWatchToMovie(targetItem.id, watches[0]);
             } else if (settingsFor) {
               updateMovieWatchRecords(targetItem.id, watches);
@@ -419,10 +426,12 @@ export function MoviesPage() {
               setEntryListMembership(targetItem.id, 'movie', params.listMemberships);
             }
 
-            setSettingsFor(null);
-            setRecordWatchFor(null);
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+              setRecordWatchFor(null);
+            }
 
-            if (goToMedia) {
+            if (goToMedia && !keepModalOpen) {
               // Close modal first, then navigate
               setTimeout(() => {
                 const el = document.getElementById(`entry-${targetItem.id}`);

@@ -384,7 +384,8 @@ export function FriendMovieCollectionPage() {
           onClose={() => setSettingsFor(null)}
           onSave={async (params, goToMedia) => {
             const entryId = settingsFor.id;
-            if (!getMovieById(entryId)) {
+            const keepModalOpen = Boolean(params.keepModalOpen);
+            if (!keepModalOpen && !getMovieById(entryId)) {
               addMovieFromSearch({
                 id: entryId,
                 title: settingsFor.title,
@@ -406,8 +407,10 @@ export function FriendMovieCollectionPage() {
               const moveOptions = { toTop: params.position === 'top', toMiddle: params.position === 'middle' };
               moveItemToClass(entryId, params.classKey, moveOptions);
             }
-            setSettingsFor(null);
-            if (goToMedia) {
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+            }
+            if (goToMedia && !keepModalOpen) {
               navigate('/movies', { replace: true, state: { scrollToId: entryId } });
             }
           }}

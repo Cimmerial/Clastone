@@ -15,6 +15,173 @@
   padding: 20px;
 }
 
+/* Modal + optional cast sidebar */
+.uem-modal-cluster {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  max-width: min(1320px, 96vw);
+  gap: 0;
+}
+
+.uem-cast-sidebar {
+  flex: 0 0 200px;
+  width: 200px;
+  max-height: min(90vh, 900px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px;
+  margin-right: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(18, 18, 20, 0.98);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.uem-review-cluster {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  max-width: min(920px, 96vw);
+  max-height: min(85vh, 900px);
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Let cast + review modal share one viewport cap; scroll inside each column */
+.uem-review-cluster > .uem-cast-sidebar--in-review,
+.uem-review-cluster > .uem-review-modal {
+  min-height: 0;
+}
+
+.uem-cast-sidebar--in-review {
+  flex: 0 0 200px;
+  width: 200px;
+  align-self: stretch;
+  margin-right: 8px;
+  min-height: 0;
+  max-height: min(85vh, 900px);
+}
+
+.uem-review-cluster .uem-review-modal {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.uem-review-cluster .uem-review-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.uem-cast-sidebar-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.uem-cast-sidebar-sub {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #777;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.uem-cast-sidebar-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 6px 0;
+}
+
+.uem-cast-sidebar-status,
+.uem-cast-sidebar-empty {
+  font-size: 0.72rem;
+  color: #777;
+  margin: 4px 0;
+  font-style: italic;
+}
+
+.uem-cast-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.uem-cast-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.uem-cast-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.uem-cast-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #888;
+}
+
+.uem-cast-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.uem-cast-name {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #d4d4d4;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.uem-cast-role {
+  font-size: 0.62rem;
+  color: #6a6a6a;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
 /* ── Modal shell ── */
 .uem-modal {
   background: #161618;
@@ -22,10 +189,17 @@
   border-radius: 16px;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
   width: min(1100px, 95vw);
   max-height: min(90vh, 900px);
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
   overflow: hidden;
+}
+
+.uem-modal-cluster > .uem-modal:only-child {
+  width: min(1100px, 95vw);
+  flex: 0 1 auto;
 }
 
 /* ── Header ── */
@@ -999,6 +1173,34 @@
   gap: 12px;
 }
 
+.uem-footer-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.uem-show-cast-btn {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #9a9a9a;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.uem-show-cast-btn:hover {
+  border-color: rgba(184, 152, 64, 0.35);
+  color: #c4a050;
+  background: rgba(184, 152, 64, 0.08);
+}
+
 .uem-save-btns {
   display: flex;
   align-items: center;
@@ -1187,21 +1389,125 @@
   color: #7a7a7a;
 }
 
-.uem-review-toggle {
-  margin-top: 6px;
-  display: inline-flex;
-  align-items: center;
+.uem-review-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  font-size: 0.8rem;
-  color: #c0c0c0;
+  margin-top: 6px;
+}
+
+.uem-review-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  min-width: 0;
+}
+
+.uem-review-switch:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uem-review-switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.uem-review-switch-track {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 1px;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.uem-review-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(200, 200, 200, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.uem-review-switch-input:checked + .uem-review-switch-track {
+  background: rgba(184, 152, 64, 0.18);
+  border-color: rgba(184, 152, 64, 0.28);
+}
+
+.uem-review-switch-input:checked + .uem-review-switch-track::after {
+  transform: translateX(16px);
+  background: rgba(22, 22, 24, 0.95);
+  box-shadow: 0 0 0 1px rgba(184, 152, 64, 0.35);
+}
+
+.uem-review-switch-input:focus-visible + .uem-review-switch-track {
+  box-shadow: 0 0 0 1px rgba(184, 152, 64, 0.25);
+}
+
+.uem-review-switch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.uem-review-switch-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(200, 200, 200, 0.88);
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+
+.uem-review-switch-hint {
+  font-size: 0.58rem;
+  line-height: 1.3;
+  color: rgba(110, 110, 110, 0.95);
 }
 
 .uem-review-footer {
   padding: 12px 18px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.uem-review-footer .uem-show-cast-btn {
+  margin-right: auto;
+}
+
+.uem-show-cast-btn--in-review {
+  height: 36px;
+  padding: 0 11px;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 520px) {
+  .uem-review-toggles {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Responsive ── */
@@ -1210,10 +1516,43 @@
     padding: 26px 12px;
   }
 
+  .uem-modal-cluster {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: calc(100vw - 16px);
+  }
+
+  .uem-cast-sidebar {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: min(34vh, 260px);
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
+  .uem-review-cluster {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: calc(100vw - 16px);
+    max-height: min(90vh, 900px);
+  }
+
+  .uem-cast-sidebar--in-review {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: min(34vh, 260px);
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
   .uem-modal {
     width: min(680px, calc(100vw - 20px));
     max-height: 80vh;
     border-radius: 12px;
+  }
+
+  .uem-modal-cluster > .uem-modal:only-child {
+    width: min(680px, calc(100vw - 20px));
   }
 
   .uem-header {

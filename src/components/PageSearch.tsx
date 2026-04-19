@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Settings } from 'lucide-react';
 import { usePageState } from '../hooks/usePageState';
 import './PageSearch.css';
 
@@ -11,13 +11,15 @@ export interface SearchableItem {
 interface PageSearchProps {
     items: SearchableItem[];
     onSelect: (id: string) => void;
+    /** When set, shows a control on each result row to edit without running onSelect (e.g. open settings modal). */
+    onEdit?: (id: string) => void;
     offsetRight?: string;
     placeholder?: string;
     className?: string;
     pageKey?: string; // Add pageKey for state persistence
 }
 
-export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholder = 'Search page...', className = '', pageKey }: PageSearchProps) {
+export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', placeholder = 'Search page...', className = '', pageKey }: PageSearchProps) {
     // Use page state if pageKey is provided, otherwise use local state
     const pageState = pageKey ? usePageState(pageKey) : null;
     const [query, setQuery] = useState(pageState?.searchQuery || '');
@@ -73,6 +75,12 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
         setIsOpen(false);
     };
 
+    const handleEdit = (id: string) => {
+        onEdit?.(id);
+        handleQueryChange('');
+        setIsOpen(false);
+    };
+
 
 
     return (
@@ -104,7 +112,21 @@ export function PageSearch({ items, onSelect, offsetRight = '1.5rem', placeholde
                             className="page-search-result-item"
                             onClick={() => handleSelect(item.id)}
                         >
-                            {item.title}
+                            <span className="page-search-result-title">{item.title}</span>
+                            {onEdit ? (
+                                <button
+                                    type="button"
+                                    className="page-search-result-edit"
+                                    title="Edit"
+                                    aria-label={`Edit ${item.title}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(item.id);
+                                    }}
+                                >
+                                    <Settings size={14} aria-hidden />
+                                </button>
+                            ) : null}
                         </div>
                     ))}
                 </div>

@@ -8,6 +8,7 @@ import { usePageState } from '../hooks/usePageState';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
+import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { getTotalMinutesFromRecords } from '../state/moviesStore';
 import { PageSearch } from '../components/PageSearch';
@@ -41,6 +42,7 @@ export function DirectorsPage() {
     byClass: moviesByClass,
     classOrder: movieClassOrder,
     addWatchToMovie,
+    updateMovieWatchRecords,
     moveItemToClass: moveMovieToClass,
     classes: movieClasses,
     addMovieFromSearch,
@@ -49,10 +51,12 @@ export function DirectorsPage() {
     byClass: tvByClass,
     classOrder: tvClassOrder,
     addWatchToShow,
+    updateShowWatchRecords,
     moveItemToClass: moveTvToClass,
     classes: tvClasses,
     addShowFromSearch,
   } = useTvStore();
+  const { setEntryListMembership } = useListsStore();
   const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
   const { mode: mobileViewMode } = useMobileViewMode();
@@ -373,6 +377,7 @@ export function DirectorsPage() {
           }}
           onSave={async (params, goToMedia) => {
             const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            const keepModalOpen = Boolean(params.keepModalOpen);
             const watchRecords = prepareWatchRecordsForSave(
               watchMatrixEntriesToWatchRecords(params.watches),
               id,
@@ -381,7 +386,19 @@ export function DirectorsPage() {
               movieClassOrder,
               tvClassOrder
             );
-            
+
+            if (keepModalOpen) {
+              if (recordMediaTarget.mediaType === 'movie') {
+                updateMovieWatchRecords(id, watchRecords);
+              } else {
+                updateShowWatchRecords(id, watchRecords);
+              }
+              if (params.listMemberships?.length) {
+                setEntryListMembership(id, recordMediaTarget.mediaType === 'movie' ? 'movie' : 'tv', params.listMemberships);
+              }
+              return;
+            }
+
             if (recordMediaTarget.mediaType === 'movie') {
               const cache = await tmdbMovieDetailsFull(recordMediaTarget.id);
               addMovieFromSearch({
@@ -420,9 +437,9 @@ export function DirectorsPage() {
                 });
               }
             }
-            
+
             setRecordMediaTarget(null);
-            
+
             if (goToMedia) {
               const page = recordMediaTarget.mediaType === 'movie' ? '/movies' : '/tv';
               setTimeout(() => {

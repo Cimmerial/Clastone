@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye, FileText } from 'lucide-react';
-import type { WatchRecord, WatchReview } from './EntryRowMovieShow';
+import type { CachedCastMember, CachedDirector, WatchRecord, WatchReview } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
   getYearOptions,
@@ -11,7 +11,7 @@ import {
   DATE_PRESET_OPTIONS,
   type DatePreset
 } from '../lib/dateDropdowns';
-import { tmdbTvDetailsFull } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { getWatchRecordSortKey, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { watchMatrixEntryToWatchRecord } from '../lib/watchMatrixMapping';
@@ -42,6 +42,7 @@ type WatchReviewDraft = {
   title: string;
   body: string;
   publiclyViewable: boolean;
+  containsSpoilers: boolean;
 };
 
 export interface WatchMatrixEntry {
@@ -640,6 +641,7 @@ export function UniversalEditModal({
     title: '',
     body: '',
     publiclyViewable: false,
+    containsSpoilers: true,
   });
   const [selectedClassKey, setSelectedClassKey] = useState<string>('');
   const [selectedPosition, setSelectedPosition] = useState<'top' | 'middle' | 'bottom'>('top');
@@ -654,6 +656,13 @@ export function UniversalEditModal({
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [seasonEpisodeCounts, setSeasonEpisodeCounts] = useState<number[] | undefined>(undefined);
   const entriesEndRef = useRef<HTMLDivElement>(null);
+  const [castSidebarOpen, setCastSidebarOpen] = useState(false);
+  const [reviewCastSidebarOpen, setReviewCastSidebarOpen] = useState(false);
+  const [castRefLoading, setCastRefLoading] = useState(false);
+  const [castRefFetched, setCastRefFetched] = useState<{
+    cast: CachedCastMember[];
+    directors: CachedDirector[];
+  } | null>(null);
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
@@ -676,6 +685,68 @@ export function UniversalEditModal({
     batchUpdateShowWatchRecords,
     forceSync: forceSyncTv,
   } = useTvStore();
+
+  const storeMediaItem = useMemo(() => {
+    if (target.mediaType === 'movie') return getMovieById(target.id);
+    if (target.mediaType === 'tv') return getShowById(target.id);
+    return null;
+  }, [target.id, target.mediaType, getMovieById, getShowById]);
+
+  const castRefDirectors = useMemo(() => {
+    const fromStore = storeMediaItem?.directors ?? [];
+    if (fromStore.length > 0) return fromStore;
+    return castRefFetched?.directors ?? [];
+  }, [storeMediaItem, castRefFetched]);
+
+  const castRefCast = useMemo(() => {
+    const fromStore = storeMediaItem?.cast ?? [];
+    if (fromStore.length > 0) return fromStore;
+    return castRefFetched?.cast ?? [];
+  }, [storeMediaItem, castRefFetched]);
+
+  useEffect(() => {
+    setCastRefFetched(null);
+  }, [target.id]);
+
+  useEffect(() => {
+    if ((!castSidebarOpen && !reviewCastSidebarOpen) || !target.tmdbId) return;
+    if (target.mediaType !== 'movie' && target.mediaType !== 'tv') return;
+    const hasStore =
+      (storeMediaItem?.directors?.length ?? 0) > 0 || (storeMediaItem?.cast?.length ?? 0) > 0;
+    if (hasStore) {
+      setCastRefLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCastRefLoading(true);
+    void (async () => {
+      try {
+        if (target.mediaType === 'movie') {
+          const cache = await tmdbMovieDetailsFull(target.tmdbId!);
+          if (!cancelled && cache) {
+            setCastRefFetched({ cast: cache.cast ?? [], directors: cache.directors ?? [] });
+          }
+        } else {
+          const cache = await tmdbTvDetailsFull(target.tmdbId!);
+          if (!cancelled && cache) {
+            setCastRefFetched({
+              cast: cache.cast ?? [],
+              directors: (cache.creators ?? []).map((c) => ({
+                id: c.id,
+                name: c.name,
+                profilePath: c.profilePath,
+              })),
+            });
+          }
+        }
+      } finally {
+        if (!cancelled) setCastRefLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [castSidebarOpen, reviewCastSidebarOpen, target.tmdbId, target.mediaType, storeMediaItem]);
 
   const libraryFlat = useMemo(
     () =>
@@ -723,12 +794,14 @@ export function UniversalEditModal({
       title: existing?.title ?? '',
       body: existing?.body ?? '',
       publiclyViewable: existing?.publiclyViewable ?? false,
+      containsSpoilers: existing?.containsSpoilers !== false,
     });
     setEditingReviewEntryId(entryId);
   }, [entries]);
 
   const closeReviewModal = useCallback(() => {
     setEditingReviewEntryId(null);
+    setReviewCastSidebarOpen(false);
   }, []);
 
   const saveReviewModal = useCallback(async () => {
@@ -741,6 +814,7 @@ export function UniversalEditModal({
           title: sanitizedTitle,
           body: sanitizedBody,
           publiclyViewable: reviewDraft.publiclyViewable,
+          containsSpoilers: reviewDraft.containsSpoilers,
           updatedAt: new Date().toISOString(),
         }
       : undefined;
@@ -1177,9 +1251,64 @@ export function UniversalEditModal({
     </div>
   );
 
+  const directorRoleLabel = target.mediaType === 'tv' ? 'Creator' : 'Director';
+
+  const renderCastSidebar = (extraClass?: string) => (
+    <aside
+      className={['uem-cast-sidebar', extraClass].filter(Boolean).join(' ')}
+      aria-label="Cast and crew reference"
+    >
+      <div className="uem-cast-sidebar-title">People</div>
+      {castRefLoading ? <p className="uem-cast-sidebar-status">Loading…</p> : null}
+      {!castRefLoading && castRefDirectors.length === 0 && castRefCast.length === 0 ? (
+        <p className="uem-cast-sidebar-empty">No cast info available.</p>
+      ) : null}
+      {castRefDirectors.map((d) => (
+        <div key={`uem-cast-dir-${d.id}`} className="uem-cast-row">
+          <div className="uem-cast-avatar">
+            {d.profilePath ? (
+              <img src={tmdbImagePath(d.profilePath, 'w45') ?? ''} alt="" loading="lazy" />
+            ) : (
+              <span className="uem-cast-avatar-fallback">{d.name.charAt(0)}</span>
+            )}
+          </div>
+          <div className="uem-cast-meta">
+            <span className="uem-cast-name">{d.name}</span>
+            <span className="uem-cast-role">{directorRoleLabel}</span>
+          </div>
+        </div>
+      ))}
+      {castRefCast.length > 0 ? (
+        <>
+          {castRefDirectors.length > 0 ? <div className="uem-cast-sidebar-divider" /> : null}
+          <div className="uem-cast-sidebar-sub">Cast</div>
+          {castRefCast.map((c, castIdx) => (
+            <div key={`uem-cast-${c.id}-${castIdx}`} className="uem-cast-row">
+              <div className="uem-cast-avatar">
+                {c.profilePath ? (
+                  <img src={tmdbImagePath(c.profilePath, 'w45') ?? ''} alt="" loading="lazy" />
+                ) : (
+                  <span className="uem-cast-avatar-fallback">{c.name.charAt(0)}</span>
+                )}
+              </div>
+              <div className="uem-cast-meta">
+                <span className="uem-cast-name">{c.name}</span>
+                {c.character ? <span className="uem-cast-role">{c.character}</span> : null}
+              </div>
+            </div>
+          ))}
+        </>
+      ) : null}
+    </aside>
+  );
+
   return (
     <div className="uem-backdrop" onClick={onClose}>
-      <div className="uem-modal" onClick={e => e.stopPropagation()}>
+      <div className="uem-modal-cluster" onClick={e => e.stopPropagation()}>
+        {castSidebarOpen && !editingReviewEntry && (target.mediaType === 'movie' || target.mediaType === 'tv')
+          ? renderCastSidebar()
+          : null}
+        <div className="uem-modal">
         {/* Header */}
         <div className="uem-header">
           <div className="uem-header-info">
@@ -1403,15 +1532,26 @@ export function UniversalEditModal({
         <div className="uem-footer">
           {error && <div className="uem-error">{error}</div>}
           <div className="uem-footer-inner">
-            {onRemoveEntry && (isRankedItem || currentClassKey === 'UNRANKED') && (
-              <button
-                type="button"
-                className={`uem-delete-btn${removeClickCount === 1 ? ' uem-delete-btn--confirm' : ''}`}
-                onClick={handleRemoveClick}
-              >
-                {removeClickCount === 1 ? 'Click again to confirm' : 'Remove Entry'}
-              </button>
-            )}
+            <div className="uem-footer-start">
+              {(target.mediaType === 'movie' || target.mediaType === 'tv') && (
+                <button
+                  type="button"
+                  className="uem-show-cast-btn"
+                  onClick={() => setCastSidebarOpen((open) => !open)}
+                >
+                  {castSidebarOpen ? 'Hide cast' : 'Show cast'}
+                </button>
+              )}
+              {onRemoveEntry && (isRankedItem || currentClassKey === 'UNRANKED') && (
+                <button
+                  type="button"
+                  className={`uem-delete-btn${removeClickCount === 1 ? ' uem-delete-btn--confirm' : ''}`}
+                  onClick={handleRemoveClick}
+                >
+                  {removeClickCount === 1 ? 'Click again to confirm' : 'Remove Entry'}
+                </button>
+              )}
+            </div>
             <div className="uem-save-btns">
               {/* For new items: Save buttons disabled until class selected and watch added */}
               {hasNeverBeenRanked ? (
@@ -1484,17 +1624,22 @@ export function UniversalEditModal({
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {editingReviewEntry ? (
         <div className="uem-review-backdrop" onClick={(event) => event.stopPropagation()}>
-          <div
-            className="uem-review-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="uem-review-title"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="uem-review-cluster" onClick={(event) => event.stopPropagation()}>
+            {reviewCastSidebarOpen && (target.mediaType === 'movie' || target.mediaType === 'tv')
+              ? renderCastSidebar('uem-cast-sidebar--in-review')
+              : null}
+            <div
+              className="uem-review-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="uem-review-title"
+              onClick={(event) => event.stopPropagation()}
+            >
             <div className="uem-review-header">
               <h3 id="uem-review-title" className="uem-review-title">
                 Review of {target.title} on {formatReviewContextDate(editingReviewEntry)}
@@ -1534,22 +1679,55 @@ export function UniversalEditModal({
               />
               <div className="uem-review-count">{reviewDraft.body.length}/{REVIEW_BODY_MAX}</div>
 
-              <label className="uem-review-toggle">
-                <input
-                  type="checkbox"
-                  checked={reviewDraft.publiclyViewable}
-                  onChange={(event) => setReviewDraft((prev) => ({ ...prev, publiclyViewable: event.target.checked }))}
-                />
-                Publicly Viewable
-              </label>
+              <div className="uem-review-toggles" role="group" aria-label="Review options">
+                <label className="uem-review-switch" htmlFor="uem-review-spoilers">
+                  <input
+                    id="uem-review-spoilers"
+                    type="checkbox"
+                    className="uem-review-switch-input"
+                    checked={reviewDraft.containsSpoilers}
+                    onChange={(event) =>
+                      setReviewDraft((prev) => ({ ...prev, containsSpoilers: event.target.checked }))
+                    }
+                  />
+                  <span className="uem-review-switch-track" aria-hidden />
+                  <span className="uem-review-switch-copy">
+                    <span className="uem-review-switch-label">Contains spoilers</span>
+                    <span className="uem-review-switch-hint">Mark if this review discusses plot or twists</span>
+                  </span>
+                </label>
+                <label className="uem-review-switch" htmlFor="uem-review-public">
+                  <input
+                    id="uem-review-public"
+                    type="checkbox"
+                    className="uem-review-switch-input"
+                    checked={reviewDraft.publiclyViewable}
+                    onChange={(event) =>
+                      setReviewDraft((prev) => ({ ...prev, publiclyViewable: event.target.checked }))
+                    }
+                  />
+                  <span className="uem-review-switch-track" aria-hidden />
+                  <span className="uem-review-switch-copy">
+                    <span className="uem-review-switch-label">Publicly viewable</span>
+                    <span className="uem-review-switch-hint">Allow on a future public reviews page</span>
+                  </span>
+                </label>
+              </div>
             </div>
             <div className="uem-review-footer">
-              <button type="button" className="uem-btn uem-btn--secondary" onClick={closeReviewModal}>
-                Exit
-              </button>
+              {(target.mediaType === 'movie' || target.mediaType === 'tv') && (
+                <button
+                  type="button"
+                  className="uem-show-cast-btn uem-show-cast-btn--in-review"
+                  onClick={() => setReviewCastSidebarOpen((open) => !open)}
+                >
+                  {reviewCastSidebarOpen ? 'Hide cast' : 'Show cast'}
+                </button>
+              )}
               <button type="button" className="uem-btn uem-btn--primary" onClick={() => void saveReviewModal()} disabled={isSaving}>
                 {isSaving ? 'Saving…' : 'Save'}
               </button>
+            </div>
             </div>
           </div>
         </div>
