@@ -22,6 +22,13 @@ const tmdbRefreshLastFailureAt = new Map<string, number>();
 /** Watch type for display and validation. */
 export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'DNF_LONG_AGO' | 'UNKNOWN';
 
+export type WatchReview = {
+  title: string;
+  body: string;
+  publiclyViewable: boolean;
+  updatedAt: string;
+};
+
 /** One recorded watch: type + optional date(s). */
 export type WatchRecord = {
   id: string;
@@ -38,6 +45,8 @@ export type WatchRecord = {
   dnfPercent?: number;
   /** Same calendar day as other watches: higher = later in day (end of day). */
   dayOrder?: number;
+  /** Optional per-watch review. */
+  review?: WatchReview;
 };
 
 /** Cached cast member (stored so we don't need to re-fetch from API). */

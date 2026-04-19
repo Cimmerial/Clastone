@@ -4,6 +4,7 @@ import { Info } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
 import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { useSettingsStore } from '../state/settingsStore';
 import { InfoModal } from '../components/InfoModal';
 import { useFriends } from '../context/FriendsContext';
@@ -201,10 +202,9 @@ function MyServicesModal({
   // Lock body scroll when modal is open
   useEffect(() => {
     if (!isOpen) return;
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = orig || 'unset';
+      unlockBodyScroll();
     };
   }, [isOpen]);
 
@@ -1072,6 +1072,7 @@ export function WatchlistPage() {
   const handleRecordSave = async (params: UniversalEditSaveParams, goToMovie: boolean) => {
     if (!recordTarget) return;
     const { watches, classKey: recordClassKey, position } = params;
+    const keepModalOpen = Boolean(params.keepModalOpen);
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
     const isMovie = recordTarget.mediaType === 'movie';
@@ -1175,15 +1176,17 @@ export function WatchlistPage() {
       }
     }
 
-    if (recordWatchlistId) {
+    if (!keepModalOpen && recordWatchlistId) {
       removeFromWatchlist(recordWatchlistId);
       setRecordWatchlistId(null);
     }
     if (params.listMemberships?.length) {
       setEntryListMembership(recordTarget.id, recordTarget.mediaType, params.listMemberships);
     }
-    setRecordTarget(null);
-    if (goToMovie) {
+    if (!keepModalOpen) {
+      setRecordTarget(null);
+    }
+    if (goToMovie && !keepModalOpen) {
       navigate(isMovie ? '/movies' : '/tv', { replace: true, state: { scrollToId: id } });
     }
   };

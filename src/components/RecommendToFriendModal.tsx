@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFriends } from '../context/FriendsContext';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { db } from '../lib/firebase';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
 import {
@@ -115,10 +116,9 @@ export function RecommendToFriendModal({ isOpen, target, onClose }: Props) {
 
   useEffect(() => {
     if (!isOpen) return;
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = orig || 'unset';
+      unlockBodyScroll();
     };
   }, [isOpen]);
 

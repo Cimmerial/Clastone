@@ -22,6 +22,7 @@ import { SpotlightBackground } from './components/SpotlightBackground';
 import { FriendsProvider } from './context/FriendsContext';
 import { useSettingsStore } from './state/settingsStore';
 import { useEffect } from 'react';
+import { AppLoading } from './components/AppLoading';
 import './components/SpotlightBackground.css';
 
 function TileSizeManager() {
@@ -110,11 +111,7 @@ function App() {
   const { user, loading, needsUsername } = useAuth();
 
   if (loading) {
-    return (
-      <div className="app-loading">
-        <p>Loading…</p>
-      </div>
-    );
+    return <AppLoading message="Loading..." />;
   }
 
   if (!user) {

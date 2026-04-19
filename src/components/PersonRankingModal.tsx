@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUp, ArrowDown, X, ChevronLeft } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, ChevronLeft, Info } from 'lucide-react';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
+import { PersonInfoModal } from './PersonInfoModal';
 import './PersonRankingModal.css';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -50,6 +52,7 @@ export function PersonRankingModal({
   const [showClassOverride, setShowClassOverride] = useState(false);
   const [removeClickCount, setRemoveClickCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
@@ -61,9 +64,10 @@ export function PersonRankingModal({
 
   // Lock body scroll when modal is open
   useEffect(() => {
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = orig || 'unset'; };
+    lockBodyScroll();
+    return () => {
+      unlockBodyScroll();
+    };
   }, []);
 
   // Reset remove click count after 3 seconds
@@ -174,9 +178,22 @@ export function PersonRankingModal({
               {target.mediaType === 'actor' ? 'Actor' : 'Director'}
             </span>
           </div>
-          <button type="button" className="prm-close-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
+          <div className="prm-header-actions">
+            {target.tmdbId ? (
+              <button
+                type="button"
+                className="prm-info-btn"
+                onClick={() => setShowInfoModal(true)}
+                aria-label={`View info for ${target.name}`}
+                title={`View info for ${target.name}`}
+              >
+                <Info size={16} />
+              </button>
+            ) : null}
+            <button type="button" className="prm-close-btn" onClick={onClose} aria-label="Close">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -267,6 +284,15 @@ export function PersonRankingModal({
           </div>
         </div>
       </div>
+      {showInfoModal && target.tmdbId ? (
+        <PersonInfoModal
+          isOpen={showInfoModal}
+          onClose={() => setShowInfoModal(false)}
+          tmdbId={target.tmdbId}
+          name={target.name}
+          profilePath={target.profilePath}
+        />
+      ) : null}
     </div>
   );
 }

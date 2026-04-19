@@ -7,6 +7,7 @@ import type { MovieShowItem } from './EntryRowMovieShow';
 import type { MovieClassDef } from '../mock/movies';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { TvProvider } from '../state/tvStore';
+import { AppLoading } from './AppLoading';
 
 type Props = { children: React.ReactNode };
 
@@ -66,9 +67,7 @@ export function FirestoreTvGate({ children }: Props) {
 
   if ((initialByClass === null || initialClasses === null) && user) {
     return (
-      <div className="app-loading">
-        <p>Loading your list…</p>
-      </div>
+      <AppLoading message="Loading your list..." />
     );
   }
 
@@ -82,4 +81,3 @@ export function FirestoreTvGate({ children }: Props) {
     </TvProvider>
   );
 }
-

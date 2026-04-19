@@ -1454,7 +1454,9 @@ export function ProfilePage() {
       }
     } finally {
       setIsRankingSaving(false);
-      setRankingTarget(null);
+      if (!params?.keepModalOpen) {
+        setRankingTarget(null);
+      }
     }
   };
 

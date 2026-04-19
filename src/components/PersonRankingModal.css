@@ -72,8 +72,15 @@
   margin-top: 4px;
 }
 
-.prm-close-btn {
+.prm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.prm-info-btn,
+.prm-close-btn {
   width: 34px;
   height: 34px;
   border-radius: 8px;
@@ -87,6 +94,7 @@
   transition: all 0.15s ease;
 }
 
+.prm-info-btn:hover,
 .prm-close-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #ddd;

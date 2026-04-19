@@ -5,6 +5,7 @@ import { loadGlobalCollections } from '../lib/firestoreCollections';
 import { loadUserLists, saveUserLists } from '../lib/firestoreLists';
 import { ListsProvider } from '../state/listsStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
+import { AppLoading } from './AppLoading';
 
 type Props = { children: React.ReactNode };
 
@@ -45,9 +46,7 @@ export function FirestoreListsGate({ children }: Props) {
 
   if (user && !initialLoaded) {
     return (
-      <div className="app-loading">
-        <p>Loading your lists...</p>
-      </div>
+      <AppLoading message="Loading your lists..." />
     );
   }
 

@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { DirectorsProvider, DirectorsClassDef, DirectorItem } from '../state/directorsStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { loadDirectors, saveDirectors } from '../lib/firestoreDirectors';
+import { AppLoading } from './AppLoading';
 
 export function FirestoreDirectorsGate({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
@@ -52,7 +53,7 @@ export function FirestoreDirectorsGate({ children }: { children: React.ReactNode
     };
 
     if (loading) {
-        return <div className="app-loading"><p>Loading directors…</p></div>;
+        return <AppLoading message="Loading directors..." />;
     }
 
     return (

@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { PeopleProvider, PeopleClassDef, PersonItem } from '../state/peopleStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import { loadPeople, savePeople } from '../lib/firestorePeople';
+import { AppLoading } from './AppLoading';
 
 export function FirestorePeopleGate({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
@@ -52,7 +53,7 @@ export function FirestorePeopleGate({ children }: { children: React.ReactNode })
     };
 
     if (loading) {
-        return <div className="app-loading"><p>Loading people…</p></div>;
+        return <AppLoading message="Loading people..." />;
     }
 
     return (

@@ -12,6 +12,7 @@ import { mergeWatchlistWithIncoming } from '../lib/mergeWatchlistRecommendations
 import type { WatchlistEntry } from '../state/watchlistStore';
 import { useWatchlistStore, WatchlistProvider } from '../state/watchlistStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
+import { AppLoading } from './AppLoading';
 
 type Props = { children: React.ReactNode };
 
@@ -121,11 +122,7 @@ export function FirestoreWatchlistGate({ children }: Props) {
   );
 
   if (user && (initialMovies === null || initialTv === null || initialWtnMovies === null || initialWtnTv === null)) {
-    return (
-      <div className="app-loading">
-        <p>Loading your list…</p>
-      </div>
-    );
+    return <AppLoading message="Loading your list..." />;
   }
 
   if (initialMovies === null || initialTv === null || initialWtnMovies === null || initialWtnTv === null) {

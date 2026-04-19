@@ -149,17 +149,54 @@ button {
 }
 
 .app-loading {
-  min-height: 40vh;
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.9rem;
   padding: 2rem;
+  text-align: center;
+}
+
+.app-loading::before {
+  content: 'CLASTONE';
+  font-family: var(--font-heading);
+  font-size: clamp(2.34rem, 8.1vw, 5.22rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: transparent;
+  background: linear-gradient(
+    110deg,
+    rgba(200, 140, 80, 0.2) 0%,
+    rgba(255, 206, 150, 0.92) 40%,
+    rgba(255, 243, 224, 1) 50%,
+    rgba(255, 206, 150, 0.92) 60%,
+    rgba(200, 140, 80, 0.2) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: clastone-shimmer 4.2s linear infinite;
+  animation-delay: var(--clastone-shimmer-delay, 0s);
 }
 
 .app-loading p {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes clastone-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
 }
 
 .filter-toggle-btn {

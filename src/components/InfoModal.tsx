@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Info, ChevronDown, ChevronUp, Clock, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbTvDetailsFull, tmdbWatchProviders, tmdbImagePath, type TmdbMovieCache, type TmdbPersonCache, type TmdbTvCache, type TmdbWatchProvidersResponse, type TmdbWatchProvider } from '../lib/tmdb';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
@@ -125,9 +126,10 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
-      const orig = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = orig || 'unset'; };
+      lockBodyScroll();
+      return () => {
+        unlockBodyScroll();
+      };
     }
   }, [isOpen]);
 

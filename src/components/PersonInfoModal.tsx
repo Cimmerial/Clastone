@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Info, Calendar, PlayCircle, Edit, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
@@ -210,9 +211,10 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
-      const orig = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = orig || 'unset'; };
+      lockBodyScroll();
+      return () => {
+        unlockBodyScroll();
+      };
     }
   }, [isOpen]);
 

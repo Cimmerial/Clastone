@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye } from 'lucide-react';
-import type { WatchRecord } from './EntryRowMovieShow';
+import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye, FileText } from 'lucide-react';
+import type { WatchRecord, WatchReview } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
   getYearOptions,
@@ -21,6 +21,7 @@ import {
   sortEventsForDayOrderModal,
   dayOrdersFromOrderedRecordIds,
 } from '../lib/watchDayOrderUtils';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { WatchDayOrderModal } from './WatchDayOrderModal';
 import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
@@ -34,6 +35,14 @@ export type MediaType = 'movie' | 'tv';
 
 export type WatchMatrixType = 'SINGLE_DATE' | 'DATE_RANGE' | 'LONG_AGO';
 export type WatchDetailStatus = 'NONE' | 'WATCHING' | 'DNF';
+const REVIEW_TITLE_MAX = 250;
+const REVIEW_BODY_MAX = 1500;
+
+type WatchReviewDraft = {
+  title: string;
+  body: string;
+  publiclyViewable: boolean;
+};
 
 export interface WatchMatrixEntry {
   id: string;
@@ -52,6 +61,8 @@ export interface WatchMatrixEntry {
   watchStatus: WatchDetailStatus;
   /** Same calendar day ordering; higher = later in day. */
   dayOrder?: number;
+  /** Optional review for this specific watch. */
+  review?: WatchReview;
 }
 
 export type UniversalEditTarget = {
@@ -75,6 +86,8 @@ export type UniversalEditSaveParams = {
   classKey?: string;
   position?: 'top' | 'middle' | 'bottom';
   listMemberships?: { listId: string; selected: boolean }[];
+  /** Internal autosave mode (e.g. review save) that should not close parent modal state. */
+  keepModalOpen?: boolean;
 };
 
 type Props = {
@@ -105,6 +118,21 @@ const WATCH_TYPE_OPTIONS: ThemedDropdownOption<WatchMatrixType>[] = [
   { value: 'DATE_RANGE', label: 'Date Range' },
   { value: 'LONG_AGO', label: 'Long Ago' },
 ];
+
+function sanitizeReviewText(input: string, maxLength: number): string {
+  return input
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .slice(0, maxLength);
+}
+
+function formatReviewContextDate(entry: WatchMatrixEntry): string {
+  if (entry.watchType === 'LONG_AGO' || !entry.year) return 'Long Ago';
+  const month = entry.month ?? 1;
+  const day = entry.day ?? 1;
+  const d = new Date(entry.year, month - 1, day);
+  if (Number.isNaN(d.getTime())) return `${entry.year}`;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
 
 /* ─── DatePicker Component ──────────────────────────── */
 
@@ -274,6 +302,8 @@ interface MatrixRowProps {
   applyPreset: (preset: DatePreset | 'reset') => void;
   showOrderButton?: boolean;
   onOpenDayOrder?: () => void;
+  hasReview: boolean;
+  onOpenReview: () => void;
 }
 
 function getWatchAmountLabel(
@@ -345,6 +375,8 @@ function MatrixRow({
   applyPreset,
   showOrderButton,
   onOpenDayOrder,
+  hasReview,
+  onOpenReview,
 }: MatrixRowProps) {
   const { watchType, year, month, day, endYear, endMonth, endDay, watchPercent, watchStatus } = entry;
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -505,6 +537,15 @@ function MatrixRow({
 
       {/* Actions - only delete now */}
       <div className="uem-matrix-cell uem-matrix-cell--actions">
+        <button
+          type="button"
+          className="uem-review-btn"
+          onClick={onOpenReview}
+          title={hasReview ? 'Edit review' : 'Write review'}
+        >
+          <FileText size={12} />
+          {hasReview ? 'Edit Review' : 'Write Review'}
+        </button>
         {canRemove && (
           <button 
             type="button" 
@@ -573,6 +614,7 @@ export function UniversalEditModal({
         watchPercent: r.dnfPercent ?? 100,
         watchStatus,
         dayOrder: r.dayOrder,
+        review: r.review,
       };
     });
 
@@ -593,6 +635,12 @@ export function UniversalEditModal({
   }, []);
 
   const [entries, setEntries] = useState<WatchMatrixEntry[]>(() => convertRecordsToMatrix(initialWatches));
+  const [editingReviewEntryId, setEditingReviewEntryId] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<WatchReviewDraft>({
+    title: '',
+    body: '',
+    publiclyViewable: false,
+  });
   const [selectedClassKey, setSelectedClassKey] = useState<string>('');
   const [selectedPosition, setSelectedPosition] = useState<'top' | 'middle' | 'bottom'>('top');
   const [showClassOverride, setShowClassOverride] = useState(false);
@@ -667,6 +715,72 @@ export function UniversalEditModal({
   const [dayOrderModalSortKey, setDayOrderModalSortKey] = useState<string | null>(null);
   const [isSavingDayOrder, setIsSavingDayOrder] = useState(false);
 
+  const openReviewModal = useCallback((entryId: string) => {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const existing = entry.review;
+    setReviewDraft({
+      title: existing?.title ?? '',
+      body: existing?.body ?? '',
+      publiclyViewable: existing?.publiclyViewable ?? false,
+    });
+    setEditingReviewEntryId(entryId);
+  }, [entries]);
+
+  const closeReviewModal = useCallback(() => {
+    setEditingReviewEntryId(null);
+  }, []);
+
+  const saveReviewModal = useCallback(async () => {
+    if (!editingReviewEntryId) return;
+    const sanitizedTitle = sanitizeReviewText(reviewDraft.title.trim(), REVIEW_TITLE_MAX);
+    const sanitizedBody = sanitizeReviewText(reviewDraft.body.trim(), REVIEW_BODY_MAX);
+    const hasReviewContent = sanitizedTitle.length > 0 || sanitizedBody.length > 0;
+    const review: WatchReview | undefined = hasReviewContent
+      ? {
+          title: sanitizedTitle,
+          body: sanitizedBody,
+          publiclyViewable: reviewDraft.publiclyViewable,
+          updatedAt: new Date().toISOString(),
+        }
+      : undefined;
+    const nextEntries = entries.map((entry) =>
+      entry.id === editingReviewEntryId ? { ...entry, review } : entry
+    );
+    setEntries(nextEntries);
+    setError(null);
+    try {
+      await onSave(
+        {
+          watches: mergeMatrixDayOrdersFromStore(nextEntries),
+          listMemberships: availableTags.map((tag) => ({
+            listId: tag.listId,
+            selected: Boolean(tagSelections[tag.listId]),
+          })),
+          keepModalOpen: true,
+        },
+        false
+      );
+      closeReviewModal();
+    } catch {
+      setError('Failed to auto-save review. Please try again.');
+    }
+  }, [
+    editingReviewEntryId,
+    reviewDraft,
+    entries,
+    onSave,
+    mergeMatrixDayOrdersFromStore,
+    availableTags,
+    tagSelections,
+    closeReviewModal,
+  ]);
+
+  const editingReviewEntry = useMemo(
+    () => entries.find((entry) => entry.id === editingReviewEntryId) ?? null,
+    [entries, editingReviewEntryId]
+  );
+
   const dayOrderModalInitialRows = useMemo(() => {
     if (!dayOrderModalSortKey) return [];
     return sortEventsForDayOrderModal(libraryFlat.filter((e) => e.sortKey === dayOrderModalSortKey));
@@ -735,10 +849,11 @@ export function UniversalEditModal({
   // Lock body scroll when modal is open (only on desktop)
   useEffect(() => {
     if (isMobile) return; // Don't lock scroll on mobile
-    
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = orig || 'unset'; };
+
+    lockBodyScroll();
+    return () => {
+      unlockBodyScroll();
+    };
   }, [isMobile]);
 
   // Reset remove click count after 3 seconds
@@ -1173,6 +1288,8 @@ export function UniversalEditModal({
                   applyPreset={preset => applyPresetToEntry(entry.id, preset, entry.watchType === 'DATE_RANGE')}
                   showOrderButton={showOrderBtn}
                   onOpenDayOrder={showOrderBtn ? () => setDayOrderModalSortKey(sk) : undefined}
+                  hasReview={Boolean(entry.review?.title || entry.review?.body)}
+                  onOpenReview={() => openReviewModal(entry.id)}
                 />
                 );
               })}
@@ -1368,6 +1485,75 @@ export function UniversalEditModal({
           </div>
         </div>
       </div>
+
+      {editingReviewEntry ? (
+        <div className="uem-review-backdrop" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="uem-review-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="uem-review-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="uem-review-header">
+              <h3 id="uem-review-title" className="uem-review-title">
+                Review of {target.title} on {formatReviewContextDate(editingReviewEntry)}
+              </h3>
+              <button type="button" className="uem-close-btn" onClick={closeReviewModal} aria-label="Close review editor">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="uem-review-body">
+              <label className="uem-review-label" htmlFor="uem-review-title-input">Title</label>
+              <input
+                id="uem-review-title-input"
+                type="text"
+                className="uem-review-input"
+                value={reviewDraft.title}
+                maxLength={REVIEW_TITLE_MAX}
+                onChange={(event) => {
+                  const next = sanitizeReviewText(event.target.value, REVIEW_TITLE_MAX);
+                  setReviewDraft((prev) => ({ ...prev, title: next }));
+                }}
+                placeholder="Add a review title"
+              />
+              <div className="uem-review-count">{reviewDraft.title.length}/{REVIEW_TITLE_MAX}</div>
+
+              <label className="uem-review-label" htmlFor="uem-review-body-input">Review</label>
+              <textarea
+                id="uem-review-body-input"
+                className="uem-review-textarea"
+                value={reviewDraft.body}
+                maxLength={REVIEW_BODY_MAX}
+                onChange={(event) => {
+                  const next = sanitizeReviewText(event.target.value, REVIEW_BODY_MAX);
+                  setReviewDraft((prev) => ({ ...prev, body: next }));
+                }}
+                placeholder="Write your review"
+                rows={8}
+              />
+              <div className="uem-review-count">{reviewDraft.body.length}/{REVIEW_BODY_MAX}</div>
+
+              <label className="uem-review-toggle">
+                <input
+                  type="checkbox"
+                  checked={reviewDraft.publiclyViewable}
+                  onChange={(event) => setReviewDraft((prev) => ({ ...prev, publiclyViewable: event.target.checked }))}
+                />
+                Publicly Viewable
+              </label>
+            </div>
+            <div className="uem-review-footer">
+              <button type="button" className="uem-btn uem-btn--secondary" onClick={closeReviewModal}>
+                Exit
+              </button>
+              <button type="button" className="uem-btn uem-btn--primary" onClick={() => void saveReviewModal()} disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       
       {/* Info Modal */}
       {showInfoModal && target.tmdbId && (

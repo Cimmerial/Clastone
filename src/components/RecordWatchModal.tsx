@@ -10,6 +10,7 @@ import {
   DATE_PRESET_OPTIONS,
   type DatePreset
 } from '../lib/dateDropdowns';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import './RecordWatchModal.css';
 
 /* ─── Constants ─────────────────────────────────────── */
@@ -208,9 +209,10 @@ export function RecordWatchModal({
   );
 
   useEffect(() => {
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = orig || 'unset'; };
+    lockBodyScroll();
+    return () => {
+      unlockBodyScroll();
+    };
   }, []);
 
   useEffect(() => {

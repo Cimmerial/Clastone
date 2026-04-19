@@ -1747,7 +1747,9 @@ export function FriendProfilePage() {
       }
     } finally {
       setIsRankingSaving(false);
-      setRankingTarget(null);
+      if (!params?.keepModalOpen) {
+        setRankingTarget(null);
+      }
     }
   };
 

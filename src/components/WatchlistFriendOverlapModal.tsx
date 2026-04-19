@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import type { WatchlistData } from '../lib/firestoreWatchlist';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 
 export function WatchlistFriendOverlapModal({
   isOpen,
@@ -30,10 +31,9 @@ export function WatchlistFriendOverlapModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = orig || 'unset';
+      unlockBodyScroll();
     };
   }, [isOpen]);
 

@@ -23,6 +23,7 @@ export function watchMatrixEntryToWatchRecord(entry: WatchMatrixEntry): WatchRec
     endDay: entry.endDay,
     dnfPercent: entry.watchPercent < 100 ? entry.watchPercent : undefined,
     dayOrder: entry.dayOrder,
+    review: entry.review,
   };
 
   if (type === 'LONG_AGO' || type === 'DNF_LONG_AGO') return r;

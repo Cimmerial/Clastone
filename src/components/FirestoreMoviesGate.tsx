@@ -7,6 +7,7 @@ import type { MovieShowItem } from './EntryRowMovieShow';
 import { MoviesProvider } from '../state/moviesStore';
 import { useSyncStatus } from '../context/SyncStatusContext';
 import type { MovieClassDef } from '../mock/movies';
+import { AppLoading } from './AppLoading';
 
 type Props = { children: React.ReactNode };
 
@@ -70,9 +71,7 @@ export function FirestoreMoviesGate({ children }: Props) {
 
   if ((initialByClass === null || initialClasses === null) && user) {
     return (
-      <div className="app-loading">
-        <p>Loading your list…</p>
-      </div>
+      <AppLoading message="Loading your list..." />
     );
   }
 

@@ -867,6 +867,7 @@ export function SearchPage() {
   // Handle save from UniversalEditModal for movies/TV
   const handleMediaSave = async (params: UniversalEditSaveParams, goToMedia: boolean, targetId: string, mediaType: 'movie' | 'tv') => {
     const { watches, classKey: recordClassKey, position } = params;
+    const keepModalOpen = Boolean(params.keepModalOpen);
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
 
@@ -919,8 +920,10 @@ export function SearchPage() {
       if (params.listMemberships?.length) {
         setEntryListMembership(targetId, 'movie', params.listMemberships);
       }
-      setRecordTarget(null);
-      if (goToMedia) navigate('/movies', { replace: true, state: { scrollToId: targetId } });
+      if (!keepModalOpen) {
+        setRecordTarget(null);
+      }
+      if (goToMedia && !keepModalOpen) navigate('/movies', { replace: true, state: { scrollToId: targetId } });
     } else {
       const existing = getShowById(targetId);
       setIsSaving(true);
@@ -955,8 +958,10 @@ export function SearchPage() {
       if (params.listMemberships?.length) {
         setEntryListMembership(targetId, 'tv', params.listMemberships);
       }
-      setRecordTarget(null);
-      if (goToMedia) navigate('/tv', { replace: true, state: { scrollToId: targetId } });
+      if (!keepModalOpen) {
+        setRecordTarget(null);
+      }
+      if (goToMedia && !keepModalOpen) navigate('/tv', { replace: true, state: { scrollToId: targetId } });
     }
   };
 

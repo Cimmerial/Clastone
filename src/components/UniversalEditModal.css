@@ -228,7 +228,7 @@
 /* Updated column widths: wider time (320px), wider details (200px) */
 .uem-matrix-header {
   display: grid;
-  grid-template-columns: 130px 320px 140px 200px 50px;
+  grid-template-columns: 130px 320px 140px 200px 180px;
   gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.03);
@@ -257,7 +257,7 @@
 
 .uem-matrix-row {
   display: grid;
-  grid-template-columns: 130px 320px 140px 200px 50px;
+  grid-template-columns: 130px 320px 140px 200px 180px;
   gap: 8px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.02);
@@ -522,6 +522,27 @@
   gap: 6px;
   justify-content: flex-end;
   padding-right: 4px;
+}
+
+.uem-review-btn {
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(110, 180, 255, 0.3);
+  background: rgba(70, 130, 220, 0.15);
+  color: #9dc8ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.uem-review-btn:hover {
+  background: rgba(70, 130, 220, 0.25);
+  border-color: rgba(110, 180, 255, 0.45);
 }
 
 /* Preset moved into time column, now just delete */
@@ -1089,6 +1110,100 @@
   }
 }
 
+.uem-review-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10010;
+  padding: 16px;
+}
+
+.uem-review-modal {
+  width: min(640px, 95vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #161618;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 65px rgba(0, 0, 0, 0.65);
+}
+
+.uem-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.uem-review-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e6e6e6;
+}
+
+.uem-review-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.uem-review-label {
+  font-size: 0.74rem;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.uem-review-input,
+.uem-review-textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e3e3e3;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.uem-review-textarea {
+  resize: vertical;
+  min-height: 160px;
+}
+
+.uem-review-count {
+  align-self: flex-end;
+  font-size: 0.68rem;
+  color: #7a7a7a;
+}
+
+.uem-review-toggle {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #c0c0c0;
+}
+
+.uem-review-footer {
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .uem-backdrop {
@@ -1200,7 +1315,7 @@
     justify-content: flex-end;
     align-items: center;
     width: auto;
-    min-width: 24px;
+    min-width: 120px;
     padding-right: 0;
   }
 
@@ -1278,6 +1393,13 @@
     width: 24px;
     height: 24px;
     border-radius: 5px;
+  }
+
+  .uem-review-btn {
+    height: 24px;
+    font-size: 0.58rem;
+    padding: 0 6px;
+    gap: 4px;
   }
 
   .uem-add-btn {
