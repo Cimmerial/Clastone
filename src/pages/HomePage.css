@@ -182,6 +182,13 @@
   position: relative;
 }
 
+.homepage-root.homepage-root .profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 30%;
+}
+
 .homepage-root.homepage-root .premium-badge-icon {
   position: absolute;
   bottom: -4px;

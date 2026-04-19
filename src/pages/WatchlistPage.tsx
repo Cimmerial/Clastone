@@ -1481,7 +1481,7 @@ export function WatchlistPage() {
                   <>
                     <div className="watchlist-divider">
                       <div className="watchlist-divider-line"></div>
-                      <div className="watchlist-divider-label">Up Next / Later</div>
+                      <div className="watchlist-divider-label">Backlog</div>
                       <div className="watchlist-divider-line"></div>
                     </div>
                     <div className="class-section-rows class-section-rows--tile">
@@ -1625,7 +1625,7 @@ export function WatchlistPage() {
               }}
               title="Show only items on all selected friends' watchlists"
             >
-              View overlap with friends
+              View Friend Overlap
             </button>
             <button
               type="button"
@@ -1649,7 +1649,7 @@ export function WatchlistPage() {
                 className={`watchlist-visibility-btn ${watchlistVisibilityMode === 'ALL' ? 'watchlist-visibility-btn--active' : ''}`}
                 onClick={() => setWatchlistVisibilityMode('ALL')}
               >
-                ALL
+                All
               </button>
               <button
                 type="button"
@@ -1664,7 +1664,7 @@ export function WatchlistPage() {
                 disabled={(settings.myWatchProviderIds?.length ?? 0) === 0}
                 title={(settings.myWatchProviderIds?.length ?? 0) === 0 ? 'Select services first' : undefined}
               >
-                FREE
+                Free
               </button>
             </div>
           </div>

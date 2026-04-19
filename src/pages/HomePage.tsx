@@ -8,6 +8,7 @@ import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
+import { tmdbImagePath } from '../lib/tmdb';
 import './HomePage.css';
 
 interface ExpandableSectionProps {
@@ -38,7 +39,8 @@ export function HomePage() {
     username: 'Cimmerial',
     movieCount: 0,
     showCount: 0,
-    actorCount: 0
+    actorCount: 0,
+    pfpPosterPath: null as string | null
   });
   /** Firebase UID for the featured example profile (used in /friends/:id link). */
   const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export function HomePage() {
         }
         
         const adminUid = adminSnapshot.docs[0].id;
+        const adminUserData = adminSnapshot.docs[0].data();
         console.log('Found admin UID:', adminUid);
         setExampleProfileUid(adminUid);
         
@@ -117,7 +120,8 @@ export function HomePage() {
           username: 'Cimmerial',
           movieCount,
           showCount,
-          actorCount: totalPeople
+          actorCount: totalPeople,
+          pfpPosterPath: typeof adminUserData?.pfpPosterPath === 'string' ? adminUserData.pfpPosterPath : null
         });
         
         console.log('Loaded example profile stats:', { movieCount, showCount, totalPeople });
@@ -143,7 +147,7 @@ export function HomePage() {
               <h2 className="hero-title">Rank, Track, Organize</h2>
               <p className="hero-description">
                 Keep track of your top movies, TV shows, actors, and directors all in one place. 
-                Create ranking classes and view your friends' rankings.
+                Record watches, create your watchlist, and view your friends' profiles.
               </p>
               <div className="hero-actions">
                 <NavLink to="/search" className="hero-btn primary">
@@ -180,7 +184,15 @@ export function HomePage() {
               <div className="profile-preview">
                 <div className="profile-avatar-container">
                   <div className="profile-avatar">
-                    <User size={64} />
+                    {exampleProfile.pfpPosterPath ? (
+                      <img
+                        src={tmdbImagePath(exampleProfile.pfpPosterPath, 'w185') ?? ''}
+                        alt={`${exampleProfile.username} profile`}
+                        className="profile-avatar-image"
+                      />
+                    ) : (
+                      <User size={64} />
+                    )}
                     <Sparkles className="premium-badge-icon" size={24} />
                   </div>
                 </div>
@@ -309,6 +321,7 @@ export function HomePage() {
                     <li>Refined mobile Clastone</li>
                     <li>Can copy top movies/shows/people in Detailed Stats in Profile viewer</li>
                     <li>Info modal buffed out; can go to other info modals and record watch modal from it</li>
+                    <li>You can mark movie watch order if seen more than one in a day</li>
                   </ul>
                 </div>
               </div>
@@ -320,7 +333,6 @@ export function HomePage() {
                     <li>Right now, unranked entries dont count towards anything, might make them count towards collections and other main stats on profile</li>
                     <li><strong>quick move</strong> button options for moving around entries</li>
                     <li>Option for written reviews of each movie watch</li>
-                    <li>Add system where you can mark movie watch order if seen more than one in a day</li>
                     <li>The copy list(s) doesnt work on mobile, will fix</li>
                     <li>Download profile ad PDF (custom ordering of data, select certain aspects of profile, etc)</li>
                     <li>Reduce dragging lag</li>
