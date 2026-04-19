@@ -611,10 +611,8 @@ export function UniversalEditModal({
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
   const isBrandNewEntry = !currentClassKey;
 
-  const rankedPickable = useMemo(
-    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
-    [rankedClasses]
-  );
+  /** Every class you can place an item into except the literal UNRANKED holding bucket (includes unranked tiers like BABY / DELICIOUS_GARBAGE). */
+  const rankedPickable = useMemo(() => rankedClasses.filter((c) => c.key !== 'UNRANKED'), [rankedClasses]);
 
   const {
     byClass: moviesByClass,

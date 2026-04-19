@@ -49,3 +49,169 @@
     margin-top: 0.4rem;
   }
 }
+
+/* Recently watched: range dropdown + tile/chart (own + friend profiles) */
+.profile-recent-controls--toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.profile-recent-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.profile-recent-toolbar-group--show {
+  flex: 1 1 auto;
+  min-width: min(100%, 12rem);
+}
+
+.profile-recent-range-dropdown.themed-dropdown {
+  flex: 1 1 10rem;
+  max-width: 16rem;
+  min-width: 8.5rem;
+}
+
+.profile-recent-view-toggle {
+  flex-shrink: 0;
+}
+
+.profile-recent-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  margin-top: 0.2rem;
+}
+
+.profile-recent-chart-row {
+  width: 100%;
+  padding: 0.22rem 0.32rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.profile-recent-chart-row--movie:hover {
+  border-color: rgba(244, 162, 97, 0.35);
+  background: rgba(55, 28, 10, 0.28);
+}
+
+.profile-recent-chart-row--tv:hover {
+  border-color: rgba(94, 234, 212, 0.35);
+  background: rgba(10, 45, 42, 0.28);
+}
+
+.profile-recent-chart-row--movie:focus-visible {
+  outline: 2px solid rgba(244, 162, 97, 0.75);
+  outline-offset: 1px;
+}
+
+.profile-recent-chart-row--tv:focus-visible {
+  outline: 2px solid rgba(45, 212, 191, 0.7);
+  outline-offset: 1px;
+}
+
+.profile-recent-chart-row-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.profile-recent-chart-thumb {
+  flex-shrink: 0;
+  width: 20px;
+  aspect-ratio: 2 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+}
+
+.profile-recent-chart-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-recent-chart-thumb-fallback {
+  font-size: 0.55rem;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.profile-recent-chart-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  justify-content: center;
+}
+
+.profile-recent-chart-row-head {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.profile-recent-chart-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-recent-chart-row-date {
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.profile-recent-chart-bar-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.profile-recent-chart-bar-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: width 0.22s ease;
+}
+
+/* Movies: Clastone accent (orange / warm brown); falls back if --accent unset */
+.profile-recent-chart-row--movie .profile-recent-chart-bar-fill {
+  background: linear-gradient(90deg, #9a3412 0%, var(--accent, #f4a261) 42%, #fbbf77 100%);
+}
+
+/* TV: distinct cool teal (not theme accent) */
+.profile-recent-chart-row--tv .profile-recent-chart-bar-fill {
+  background: linear-gradient(90deg, #0f766e 0%, #14b8a6 50%, #5eead4 100%);
+}

@@ -45,6 +45,11 @@ import {
   type ProfileMediaListMode,
   type ProfileWatchYearFilter,
 } from '../lib/profileMediaListHelpers';
+import {
+  PROFILE_RECENT_RANGE_OPTIONS,
+  percentileFillWidthFromBadge,
+  type ProfileRecentRange,
+} from '../lib/profileRecentWatchedOptions';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
@@ -377,7 +382,8 @@ export function FriendProfilePage() {
   const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
   const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[], tv: any[] } | null>(null);
 
-  const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time' | 'milestones'>('this_year');
+  const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
+  const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [movieViewMode, setMovieViewMode] = useState<ProfileMediaListMode>('top10');
@@ -2935,31 +2941,90 @@ export function FriendProfilePage() {
             <h2 className="profile-card-title">Recently watched</h2>
             <span className="profile-recent-count">{recentRange === 'milestones' ? allMilestoneEvents.length : filteredRecentWatches.length}</span>
           </div>
-          <div className="profile-recent-controls">
-            <span className="profile-recent-label">Show:</span>
-            {(
-              [
-                { value: 'this_year' as const, label: 'This year' },
-                { value: 'last_month' as const, label: 'In the last month' },
-                { value: 'last_year' as const, label: 'In the last year' },
-                { value: 'all_time' as const, label: 'All time' },
-                { value: 'milestones' as const, label: 'Milestones' }
-              ]
-            ).map((opt) => (
+          <div className="profile-recent-controls profile-recent-controls--toolbar">
+            <div className="profile-recent-toolbar-group profile-recent-toolbar-group--show">
+              <span className="profile-recent-label">Show</span>
+              <ThemedDropdown
+                className="profile-recent-range-dropdown"
+                value={recentRange}
+                options={PROFILE_RECENT_RANGE_OPTIONS}
+                onChange={setRecentRange}
+                aria-label="Recently watched date range"
+              />
+            </div>
+            <div className="profile-chart-toggle profile-recent-view-toggle" role="group" aria-label="Recently watched layout">
               <button
-                key={opt.value}
                 type="button"
-                className={`profile-recent-btn ${recentRange === opt.value ? 'profile-recent-btn--active' : ''}`}
-                onClick={() => setRecentRange(opt.value)}
+                className={`profile-chart-toggle-btn ${recentViewMode === 'tile' ? 'active' : ''}`}
+                onClick={() => setRecentViewMode('tile')}
               >
-                {opt.label}
+                Tile
               </button>
-            ))}
+              <button
+                type="button"
+                className={`profile-chart-toggle-btn ${recentViewMode === 'chart' ? 'active' : ''}`}
+                onClick={() => setRecentViewMode('chart')}
+              >
+                Chart
+              </button>
+            </div>
           </div>
           <div className="profile-recent-list">
             {recentRange === 'milestones' ? (
               allMilestoneEvents.length === 0 ? (
                 <p className="profile-muted">No milestones yet.</p>
+              ) : recentViewMode === 'chart' ? (
+                <div className="profile-recent-chart">
+                  {allMilestoneEvents.map((w, i) => {
+                    const friendStatus = w.isMovie
+                      ? getFriendMovieStatus(w.item.id)
+                      : getFriendShowStatus(w.item.id);
+                    const handleClick = () => {
+                      if (w.isMovie) handleMovieClick(w.item);
+                      else handleShowClick(w.item);
+                    };
+                    let displayText: string | null = null;
+                    if (friendStatus.isRanked) {
+                      const globalRanks = w.isMovie ? friendMoviesGlobalRanks : friendTvGlobalRanks;
+                      displayText = globalRanks.get(w.item.id)?.percentileRank ?? null;
+                    } else if (friendStatus.classKey === 'DELICIOUS_GARBAGE') {
+                      displayText = 'GARB';
+                    } else if (friendStatus.classKey === 'BABY') {
+                      displayText = 'BABY';
+                    } else {
+                      displayText = 'N/A';
+                    }
+                    const barPct = percentileFillWidthFromBadge(displayText);
+                    const mediaKind = w.isMovie ? 'movie' : 'tv';
+                    return (
+                      <button
+                        key={`ms-chart-${w.item.id}-${w.recordId ?? w.sortKey}-${i}`}
+                        type="button"
+                        className={`profile-recent-chart-row profile-recent-chart-row--${mediaKind} profile-top-item--clickable`}
+                        onClick={handleClick}
+                      >
+                        <div className="profile-recent-chart-row-inner">
+                          <div className="profile-recent-chart-thumb" aria-hidden>
+                            {getMoviePosterSrc(w.item) ? (
+                              <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
+                            ) : (
+                              <span className="profile-recent-chart-thumb-fallback">{w.isMovie ? '🎬' : '📺'}</span>
+                            )}
+                          </div>
+                          <div className="profile-recent-chart-row-main">
+                            <div className="profile-recent-chart-row-head">
+                              <span className="profile-recent-chart-row-title">{w.item.title}</span>
+                              <span className="profile-recent-chart-row-date">{formatProfileWatchDateLabel(w.record)}</span>
+                            </div>
+                            <div className="profile-recent-chart-bar-track" aria-hidden>
+                              <div className="profile-recent-chart-bar-fill" style={{ width: `${barPct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="profile-recent-grid">
                   {allMilestoneEvents.map((w, i) => {
@@ -3023,18 +3088,12 @@ export function FriendProfilePage() {
               )
             ) : filteredRecentWatches.length === 0 ? (
               <p className="profile-muted">No watches in this range.</p>
-            ) : (
-              <div className="profile-recent-grid">
+            ) : recentViewMode === 'chart' ? (
+              <div className="profile-recent-chart">
                 {filteredRecentWatches.map((w, i) => {
-                  const userStatus = w.isMovie 
-                    ? getUserMovieStatus(w.item.tmdbId || 0)
-                    : getUserShowStatus(w.item.tmdbId || 0);
-                  
-                  // Get friend's status for ranking display
-                  const friendStatus = w.isMovie 
+                  const friendStatus = w.isMovie
                     ? getFriendMovieStatus(w.item.id)
                     : getFriendShowStatus(w.item.id);
-                  
                   const handleClick = () => {
                     if (w.isMovie) {
                       handleMovieClick(w.item);
@@ -3042,7 +3101,71 @@ export function FriendProfilePage() {
                       handleShowClick(w.item);
                     }
                   };
-                  
+
+                  let displayText: string | null = null;
+                  if (friendStatus.isRanked) {
+                    const globalRanks = w.isMovie ? friendMoviesGlobalRanks : friendTvGlobalRanks;
+                    displayText = globalRanks.get(w.item.id)?.percentileRank ?? null;
+                  } else if (friendStatus.classKey === 'DELICIOUS_GARBAGE') {
+                    displayText = 'GARB';
+                  } else if (friendStatus.classKey === 'BABY') {
+                    displayText = 'BABY';
+                  } else {
+                    displayText = 'N/A';
+                  }
+
+                  const barPct = percentileFillWidthFromBadge(displayText);
+                  const mediaKind = w.isMovie ? 'movie' : 'tv';
+
+                  return (
+                    <button
+                      key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-chart-${i}`}
+                      type="button"
+                      className={`profile-recent-chart-row profile-recent-chart-row--${mediaKind} profile-top-item--clickable`}
+                      onClick={handleClick}
+                    >
+                      <div className="profile-recent-chart-row-inner">
+                        <div className="profile-recent-chart-thumb" aria-hidden>
+                          {getMoviePosterSrc(w.item) ? (
+                            <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
+                          ) : (
+                            <span className="profile-recent-chart-thumb-fallback">{w.isMovie ? '🎬' : '📺'}</span>
+                          )}
+                        </div>
+                        <div className="profile-recent-chart-row-main">
+                          <div className="profile-recent-chart-row-head">
+                            <span className="profile-recent-chart-row-title">{w.item.title}</span>
+                            <span className="profile-recent-chart-row-date">{formatProfileWatchDateLabel(w.record)}</span>
+                          </div>
+                          <div className="profile-recent-chart-bar-track" aria-hidden>
+                            <div className="profile-recent-chart-bar-fill" style={{ width: `${barPct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="profile-recent-grid">
+                {filteredRecentWatches.map((w, i) => {
+                  const userStatus = w.isMovie
+                    ? getUserMovieStatus(w.item.tmdbId || 0)
+                    : getUserShowStatus(w.item.tmdbId || 0);
+
+                  // Get friend's status for ranking display
+                  const friendStatus = w.isMovie
+                    ? getFriendMovieStatus(w.item.id)
+                    : getFriendShowStatus(w.item.id);
+
+                  const handleClick = () => {
+                    if (w.isMovie) {
+                      handleMovieClick(w.item);
+                    } else {
+                      handleShowClick(w.item);
+                    }
+                  };
+
                   // Get percentile ranking or special class text using FRIEND's data
                   let displayText = null;
                   if (friendStatus.isRanked) {
@@ -3056,10 +3179,10 @@ export function FriendProfilePage() {
                   } else {
                     displayText = 'N/A';
                   }
-                  
+
                   return (
-                    <div 
-                      key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`} 
+                    <div
+                      key={`${w.item.id}-${getWatchRecordSortKey(w.record)}-${i}`}
                       className="profile-recent-tile profile-top-item--clickable"
                       onClick={handleClick}
                     >

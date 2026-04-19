@@ -37,6 +37,11 @@ import {
   type ProfileMediaListMode,
   type ProfileWatchYearFilter,
 } from '../lib/profileMediaListHelpers';
+import {
+  PROFILE_RECENT_RANGE_OPTIONS,
+  percentileFillWidthFromBadge,
+  type ProfileRecentRange,
+} from '../lib/profileRecentWatchedOptions';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
@@ -397,7 +402,8 @@ export function ProfilePage() {
     globalCollections,
   } = useListsStore();
 
-  const [recentRange, setRecentRange] = useState<'this_year' | 'last_month' | 'last_year' | 'all_time' | 'milestones'>('this_year');
+  const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
+  const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
@@ -2892,31 +2898,90 @@ export function ProfilePage() {
             <h2 className="profile-card-title">Recently watched</h2>
             <span className="profile-recent-count">{recentRange === 'milestones' ? allMilestoneEvents.length : recentWatches.length}</span>
           </div>
-          <div className="profile-recent-controls">
-            <span className="profile-recent-label">Show:</span>
-            {(
-              [
-                { value: 'this_year' as const, label: 'This year' },
-                { value: 'last_month' as const, label: 'In the last month' },
-                { value: 'last_year' as const, label: 'In the last year' },
-                { value: 'all_time' as const, label: 'All time' },
-                { value: 'milestones' as const, label: 'Milestones' }
-              ]
-            ).map((opt) => (
+          <div className="profile-recent-controls profile-recent-controls--toolbar">
+            <div className="profile-recent-toolbar-group profile-recent-toolbar-group--show">
+              <span className="profile-recent-label">Show</span>
+              <ThemedDropdown
+                className="profile-recent-range-dropdown"
+                value={recentRange}
+                options={PROFILE_RECENT_RANGE_OPTIONS}
+                onChange={setRecentRange}
+                aria-label="Recently watched date range"
+              />
+            </div>
+            <div className="profile-chart-toggle profile-recent-view-toggle" role="group" aria-label="Recently watched layout">
               <button
-                key={opt.value}
                 type="button"
-                className={`profile-recent-btn ${recentRange === opt.value ? 'profile-recent-btn--active' : ''}`}
-                onClick={() => setRecentRange(opt.value)}
+                className={`profile-chart-toggle-btn ${recentViewMode === 'tile' ? 'active' : ''}`}
+                onClick={() => setRecentViewMode('tile')}
               >
-                {opt.label}
+                Tile
               </button>
-            ))}
+              <button
+                type="button"
+                className={`profile-chart-toggle-btn ${recentViewMode === 'chart' ? 'active' : ''}`}
+                onClick={() => setRecentViewMode('chart')}
+              >
+                Chart
+              </button>
+            </div>
           </div>
           <div className="profile-recent-list">
             {recentRange === 'milestones' ? (
               allMilestoneEvents.length === 0 ? (
                 <p className="profile-muted">No milestones yet.</p>
+              ) : recentViewMode === 'chart' ? (
+                <div className="profile-recent-chart">
+                  {allMilestoneEvents.map((ms, i) => {
+                    const userStatus = ms.isMovie
+                      ? getUserMovieStatus(ms.item.tmdbId || 0)
+                      : getUserShowStatus(ms.item.tmdbId || 0);
+                    const handleClick = () => {
+                      if (ms.isMovie) handleMovieClick(ms.item);
+                      else handleShowClick(ms.item);
+                    };
+                    let displayText: string | null = null;
+                    if (userStatus.isRanked) {
+                      const globalRanks = ms.isMovie ? moviesGlobalRanks : tvGlobalRanks;
+                      displayText = globalRanks.get(ms.item.id)?.percentileRank ?? null;
+                    } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
+                      displayText = 'GARB';
+                    } else if (userStatus.classKey === 'BABY') {
+                      displayText = 'BABY';
+                    } else {
+                      displayText = 'N/A';
+                    }
+                    const barPct = percentileFillWidthFromBadge(displayText);
+                    const mediaKind = ms.isMovie ? 'movie' : 'tv';
+                    return (
+                      <button
+                        key={`ms-chart-${ms.item.id}-${ms.recordId ?? ms.sortKey}-${i}`}
+                        type="button"
+                        className={`profile-recent-chart-row profile-recent-chart-row--${mediaKind} profile-top-item--clickable`}
+                        onClick={handleClick}
+                      >
+                        <div className="profile-recent-chart-row-inner">
+                          <div className="profile-recent-chart-thumb" aria-hidden>
+                            {getMoviePosterSrc(ms.item) ? (
+                              <img src={getMoviePosterSrc(ms.item) ?? ''} alt="" loading="lazy" />
+                            ) : (
+                              <span className="profile-recent-chart-thumb-fallback">{ms.isMovie ? '🎬' : '📺'}</span>
+                            )}
+                          </div>
+                          <div className="profile-recent-chart-row-main">
+                            <div className="profile-recent-chart-row-head">
+                              <span className="profile-recent-chart-row-title">{ms.item.title}</span>
+                              <span className="profile-recent-chart-row-date">{formatProfileWatchDateLabel(ms.record)}</span>
+                            </div>
+                            <div className="profile-recent-chart-bar-track" aria-hidden>
+                              <div className="profile-recent-chart-bar-fill" style={{ width: `${barPct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="profile-recent-grid">
                   {allMilestoneEvents.map((ms, i) => {
@@ -2977,10 +3042,10 @@ export function ProfilePage() {
               )
             ) : recentWatches.length === 0 ? (
               <p className="profile-muted">No watches in this range.</p>
-            ) : (
-              <div className="profile-recent-grid">
+            ) : recentViewMode === 'chart' ? (
+              <div className="profile-recent-chart">
                 {recentWatches.map((w, i) => {
-                  const userStatus = w.isMovie 
+                  const userStatus = w.isMovie
                     ? getUserMovieStatus(w.item.tmdbId || 0)
                     : getUserShowStatus(w.item.tmdbId || 0);
                   const handleClick = () => {
@@ -2990,7 +3055,65 @@ export function ProfilePage() {
                       handleShowClick(w.item);
                     }
                   };
-                  
+
+                  let displayText: string | null = null;
+                  if (userStatus.isRanked) {
+                    const globalRanks = w.isMovie ? moviesGlobalRanks : tvGlobalRanks;
+                    displayText = globalRanks.get(w.item.id)?.percentileRank ?? null;
+                  } else if (userStatus.classKey === 'DELICIOUS_GARBAGE') {
+                    displayText = 'GARB';
+                  } else if (userStatus.classKey === 'BABY') {
+                    displayText = 'BABY';
+                  } else {
+                    displayText = 'N/A';
+                  }
+
+                  const barPct = percentileFillWidthFromBadge(displayText);
+                  const mediaKind = w.isMovie ? 'movie' : 'tv';
+
+                  return (
+                    <button
+                      key={`${w.item.id}-${w.record.id}-chart-${i}`}
+                      type="button"
+                      className={`profile-recent-chart-row profile-recent-chart-row--${mediaKind} profile-top-item--clickable`}
+                      onClick={handleClick}
+                    >
+                      <div className="profile-recent-chart-row-inner">
+                        <div className="profile-recent-chart-thumb" aria-hidden>
+                          {getMoviePosterSrc(w.item) ? (
+                            <img src={getMoviePosterSrc(w.item) ?? ''} alt="" loading="lazy" />
+                          ) : (
+                            <span className="profile-recent-chart-thumb-fallback">{w.isMovie ? '🎬' : '📺'}</span>
+                          )}
+                        </div>
+                        <div className="profile-recent-chart-row-main">
+                          <div className="profile-recent-chart-row-head">
+                            <span className="profile-recent-chart-row-title">{w.item.title}</span>
+                            <span className="profile-recent-chart-row-date">{formatProfileWatchDateLabel(w.record)}</span>
+                          </div>
+                          <div className="profile-recent-chart-bar-track" aria-hidden>
+                            <div className="profile-recent-chart-bar-fill" style={{ width: `${barPct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="profile-recent-grid">
+                {recentWatches.map((w, i) => {
+                  const userStatus = w.isMovie
+                    ? getUserMovieStatus(w.item.tmdbId || 0)
+                    : getUserShowStatus(w.item.tmdbId || 0);
+                  const handleClick = () => {
+                    if (w.isMovie) {
+                      handleMovieClick(w.item);
+                    } else {
+                      handleShowClick(w.item);
+                    }
+                  };
+
                   // Get percentile ranking or special class text
                   let displayText = null;
                   if (userStatus.isRanked) {
@@ -3004,10 +3127,10 @@ export function ProfilePage() {
                   } else {
                     displayText = 'N/A';
                   }
-                  
+
                   return (
-                    <div 
-                      key={`${w.item.id}-${w.record.id}-${i}`} 
+                    <div
+                      key={`${w.item.id}-${w.record.id}-${i}`}
                       className="profile-recent-tile profile-top-item--clickable"
                       onClick={handleClick}
                     >

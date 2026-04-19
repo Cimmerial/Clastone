@@ -55,7 +55,7 @@ export function PersonRankingModal({
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
 
   const rankedPickable = useMemo(
-    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
+    () => rankedClasses.filter((c) => c.key !== 'UNRANKED'),
     [rankedClasses]
   );
 

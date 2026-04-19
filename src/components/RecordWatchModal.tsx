@@ -203,7 +203,7 @@ export function RecordWatchModal({
   const isEditWatch = mode === 'edit-watch';
 
   const rankedPickable = useMemo(
-    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
+    () => rankedClasses.filter((c) => c.key !== 'UNRANKED'),
     [rankedClasses]
   );
 
