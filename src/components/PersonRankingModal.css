@@ -209,6 +209,20 @@
   gap: 6px;
 }
 
+.prm-class-empty {
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.prm-class-empty-msg {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #a0a0a0;
+  line-height: 1.45;
+}
+
 .prm-class-row {
   display: flex;
   align-items: center;

@@ -8,6 +8,7 @@ import { tmdbPersonDetailsFull } from '../lib/tmdb';
 import { useMoviesStore } from './moviesStore';
 import { useTvStore } from './tvStore';
 import { getTotalMinutesFromRecords, getTotalEpisodesFromRecords } from './moviesStore';
+import { mergePersonByClassForTemplate, personTemplates, type PersonTemplateId } from '../lib/classTemplates';
 
 export type PersonItem = RankedItemBase & {
     title: string; // Actor name
@@ -56,6 +57,7 @@ export const defaultPeopleClasses: PeopleClassDef[] = [
     { key: 'ADORE', label: 'ADORE', isRanked: true },
     { key: 'RESPECT', label: 'RESPECT', isRanked: true },
     { key: 'LIKE', label: 'LIKE', isRanked: true },
+    { key: 'INDIFFERENT', label: 'INDIFFERENT', isRanked: true },
     { key: 'KAL-EL_NO', label: 'KAL-EL NO', isRanked: true },
     { key: 'NEMESIS', label: 'NEMESIS', isRanked: true },
     { key: 'UNRANKED', label: 'UNRANKED', isRanked: false },
@@ -87,6 +89,7 @@ type PeopleStore = {
     addClass: (label: string, options: { isRanked: boolean }) => void;
     deleteClass: (classKey: string) => void;
     forceRefreshPerson: (itemId: string) => Promise<void>;
+    applyPersonTemplate: (templateId: PersonTemplateId) => void;
 };
 
 const PeopleContext = createContext<PeopleStore | null>(null);
@@ -108,9 +111,14 @@ export function PeopleProvider({
         classesMetadataChanged?: boolean;
     }) => Promise<void>;
 }) {
-    const [classes, setClasses] = useState<PeopleClassDef[]>(initialClasses ?? defaultPeopleClasses);
+    const initialPeopleClasses = initialClasses ?? defaultPeopleClasses;
+    const [classes, setClasses] = useState<PeopleClassDef[]>(initialPeopleClasses);
     const classOrder = useMemo(() => classes.map(c => c.key), [classes]);
-    const [byClass, setByClass] = useState<Record<string, PersonItem[]>>(initialByClass ?? {});
+    const [byClass, setByClass] = useState<Record<string, PersonItem[]>>(
+        () =>
+            initialByClass ??
+            (Object.fromEntries(initialPeopleClasses.map((c) => [c.key, []])) as Record<string, PersonItem[]>)
+    );
 
 
     const { byClass: moviesByClass } = useMoviesStore();
@@ -628,6 +636,12 @@ export function PeopleProvider({
         }
     }, [byClass, updatePersonCache]);
 
+    const applyPersonTemplate = useCallback((templateId: PersonTemplateId) => {
+        const pack = personTemplates[templateId];
+        setClasses(pack.classes);
+        setByClass((prev) => mergePersonByClassForTemplate(prev, pack.classes));
+    }, []);
+
     const value = useMemo(() => ({
         classes,
         classOrder,
@@ -664,8 +678,9 @@ export function PeopleProvider({
         renameItemClassTagline,
         addClass,
         deleteClass,
-        forceRefreshPerson
-    }), [classes, classOrder, byClass, addPersonFromSearch, moveItemToClass, updatePersonCache, removePersonEntry, getPersonById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshPerson]);
+        forceRefreshPerson,
+        applyPersonTemplate
+    }), [classes, classOrder, byClass, addPersonFromSearch, moveItemToClass, updatePersonCache, removePersonEntry, getPersonById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshPerson, applyPersonTemplate]);
 
     return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }

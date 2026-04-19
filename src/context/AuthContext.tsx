@@ -23,6 +23,8 @@ const ADMIN_EMAIL = 'cimmerial@clastone.local';
 
 type AuthState = {
   user: User | null;
+  /** TMDB poster path when user chose a profile picture in Settings; drives navbar avatar. */
+  pfpPosterPath: string | null;
   isAdmin: boolean;
   isBabyDev: boolean;
   loading: boolean;
@@ -42,6 +44,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isBabyDev, setIsBabyDev] = useState(false);
   const [loading, setLoading] = useState(!!auth);
@@ -72,10 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setNeedsUsername(true);
         }
+        const pfp = userData?.pfpPosterPath;
+        setPfpPosterPath(typeof pfp === 'string' && pfp.length > 0 ? pfp : null);
       } else {
         setUsername(null);
         setNeedsUsername(false);
         setIsBabyDev(false);
+        setPfpPosterPath(null);
       }
       
       setLoading(false);
@@ -298,6 +304,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthState = {
     user,
+    pfpPosterPath,
     isAdmin,
     isBabyDev,
     loading,

@@ -6,8 +6,13 @@ import type { ClassKey } from '../components/RankedList';
 import type { TmdbMovieCache, TmdbTvCache } from '../lib/tmdb';
 import { tmdbMovieDetailsFull } from '../lib/tmdb';
 import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
-import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
-import { tvClasses, tvByClass as initialTvByClass } from '../mock/tvShows';
+import { defaultMovieClassDefs, movieClasses, type MovieClassDef } from '../mock/movies';
+import {
+  emptyByClassForMovieClasses,
+  mergeMovieByClassForTemplate,
+  movieShowTemplates,
+  type MovieShowTemplateId
+} from '../lib/classTemplates';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { formatViewingFromRecords } from './moviesStore';
 
@@ -65,6 +70,7 @@ type TvStore = {
   getShowById: (id: string) => MovieShowItem | null;
   
   forceSync: () => Promise<void>;
+  applyShowTemplate: (templateId: MovieShowTemplateId) => void;
 };
 
 type TvProviderProps = {
@@ -83,9 +89,12 @@ type TvProviderProps = {
 const TvContext = createContext<TvStore | null>(null);
 
 export function TvProvider({ children, initialByClass, initialClasses, onPersist }: TvProviderProps) {
-  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
+  const initialClassDefs = initialClasses ?? defaultMovieClassDefs;
+  const [classes, setClasses] = useState<MovieClassDef[]>(initialClassDefs);
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
-  const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(initialByClass ?? {});
+  const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(
+    () => initialByClass ?? emptyByClassForMovieClasses(initialClassDefs)
+  );
   const [pendingChanges, setPendingChanges] = useState(0);
   const [persistDebounceTick, setPersistDebounceTick] = useState(0);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -243,6 +252,40 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     });
     return map;
   }, [byClass, classOrder, isRankedClass]);
+
+  const rebalanceTvProgressForEpisodeChange = useCallback(
+    (item: MovieShowItem, incomingTotalEpisodes?: number) => {
+      const prevTotal = item.totalEpisodes;
+      const nextTotal = incomingTotalEpisodes;
+      if (!prevTotal || !nextTotal || prevTotal <= 0 || nextTotal <= 0 || prevTotal === nextTotal) {
+        return null;
+      }
+
+      const existingRecords = item.watchRecords ?? [];
+      if (existingRecords.length === 0) return null;
+
+      let changed = false;
+      const updatedRecords = existingRecords.map((record) => {
+        const t = record.type ?? 'DATE';
+        if (t !== 'DNF' && t !== 'CURRENT' && t !== 'DNF_LONG_AGO') return record;
+
+        const oldPercent = Math.min(100, Math.max(0, record.dnfPercent ?? 0));
+        const watchedEpisodes = (oldPercent / 100) * prevTotal;
+        const newPercent = Math.min(100, Math.max(0, Math.round((watchedEpisodes / nextTotal) * 100)));
+        if (newPercent === oldPercent) return record;
+        changed = true;
+        return { ...record, dnfPercent: newPercent };
+      });
+
+      if (!changed) return null;
+      const { viewingDates, percentCompleted, watchTime } = formatViewingFromRecords(
+        updatedRecords,
+        item.runtimeMinutes
+      );
+      return { updatedRecords, viewingDates, percentCompleted, watchTime };
+    },
+    []
+  );
 
   const addClass = useCallback((label: string, options?: { isRanked?: boolean }) => {
     const trimmed = label.trim();
@@ -658,6 +701,8 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         const list = next[classKey] ?? [];
         const idx = list.findIndex((m) => m.id === itemId);
         if (idx === -1) continue;
+        const item = list[idx];
+        const rebalanced = rebalanceTvProgressForEpisodeChange(item, cache.totalEpisodes);
         next[classKey] = list.map((m, i) =>
           i === idx
             ? {
@@ -671,7 +716,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
               ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
               ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
               ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
-              ...(cache.genres != null && { genres: cache.genres })
+              ...(cache.genres != null && { genres: cache.genres }),
+              ...(rebalanced != null && {
+                watchRecords: rebalanced.updatedRecords,
+                viewingDates: rebalanced.viewingDates,
+                percentCompleted: rebalanced.percentCompleted,
+                watchTime: rebalanced.watchTime || undefined
+              })
             }
             : m
         );
@@ -679,7 +730,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       }
       return prev;
     });
-  }, [classOrder]);
+  }, [classOrder, rebalanceTvProgressForEpisodeChange]);
 
   const updateBatchShowCache = useCallback((updates: Record<string, Partial<TmdbTvCache>>) => {
     setByClass((prev) => {
@@ -691,6 +742,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         const newList = list.map((m) => {
           const cache = updates[m.id];
           if (!cache) return m;
+          const rebalanced = rebalanceTvProgressForEpisodeChange(m, cache.totalEpisodes);
           changedClass = true;
           changedGlobal = true;
           return {
@@ -709,7 +761,13 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
             ...(cache.creators != null && { directors: cache.creators }),
             ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
             ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
-            ...(cache.genres != null && { genres: cache.genres })
+            ...(cache.genres != null && { genres: cache.genres }),
+            ...(rebalanced != null && {
+              watchRecords: rebalanced.updatedRecords,
+              viewingDates: rebalanced.viewingDates,
+              percentCompleted: rebalanced.percentCompleted,
+              watchTime: rebalanced.watchTime || undefined
+            })
           };
         });
         if (changedClass) {
@@ -718,7 +776,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       }
       return changedGlobal ? next : prev;
     });
-  }, [classOrder]);
+  }, [classOrder, rebalanceTvProgressForEpisodeChange]);
 
   const getShowById = useCallback(
     (id: string): MovieShowItem | null => {
@@ -745,6 +803,12 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       return prev;
     });
   }, [classOrder]);
+
+  const applyShowTemplate = useCallback((templateId: MovieShowTemplateId) => {
+    const pack = movieShowTemplates[templateId];
+    setClasses(pack.classes);
+    setByClass((prev) => mergeMovieByClassForTemplate(prev, pack.classes));
+  }, []);
 
   const value = useMemo<TvStore>(
     () => ({
@@ -781,6 +845,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateShowWatchRecords,
       removeShowEntry,
       getShowById,
+      applyShowTemplate,
       forceSync: async () => {
         if (onPersistRef.current) {
           const dirtyClasses: ClassKey[] = [];
@@ -826,6 +891,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateBatchShowCache,
       getShowById,
       removeShowEntry,
+      applyShowTemplate
     ]
   );
 

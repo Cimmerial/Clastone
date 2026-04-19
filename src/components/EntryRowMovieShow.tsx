@@ -15,6 +15,10 @@ import { useDirectorsStore } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useNavigate } from 'react-router-dom';
 
+const TMDB_REFRESH_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
+const tmdbRefreshInFlight = new Set<string>();
+const tmdbRefreshLastFailureAt = new Map<string, number>();
+
 /** Watch type for display and validation. */
 export type WatchRecordType = 'DATE' | 'RANGE' | 'DNF' | 'CURRENT' | 'LONG_AGO' | 'DNF_LONG_AGO' | 'UNKNOWN';
 
@@ -203,6 +207,23 @@ export function EntryRowMovieShow({
   const isTile = finalViewMode === 'tile' || finalViewMode === 'compact';
   const isCompact = finalViewMode === 'compact';
   const isMinimized = finalViewMode === 'minimized';
+  const isMovie = listType !== 'shows';
+  const needsRefresh = useMemo(
+    () => (isMovie ? needsMovieRefresh(item) : needsTvRefresh(item)),
+    [
+      isMovie,
+      item.tmdbId,
+      item.releaseDate,
+      item.runtimeMinutes,
+      item.posterPath,
+      item.overview,
+      item.cast,
+      item.directors,
+      item.totalEpisodes,
+      item.totalSeasons,
+      item.genres
+    ]
+  );
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -219,22 +240,48 @@ export function EntryRowMovieShow({
   }, []);
 
   useEffect(() => {
-    if (isVisible && item.tmdbId) {
-      const isMovie = listType !== 'shows';
-      const needsRefresh = isMovie ? needsMovieRefresh(item) : needsTvRefresh(item);
-      if (needsRefresh) {
+    if (!isVisible || !item.tmdbId || !needsRefresh) return;
+    const refreshKey = `${listType}:${item.id}:${item.tmdbId}`;
+    if (tmdbRefreshInFlight.has(refreshKey)) return;
+    const lastFailureAt = tmdbRefreshLastFailureAt.get(refreshKey);
+    if (lastFailureAt && Date.now() - lastFailureAt < TMDB_REFRESH_FAILURE_COOLDOWN_MS) return;
+
+    let cancelled = false;
+    tmdbRefreshInFlight.add(refreshKey);
+
+    const refresh = async () => {
+      try {
         if (isMovie) {
-          tmdbMovieDetailsFull(item.tmdbId).then((cache) => {
-            if (cache) updateMovieCache(item.id, cache);
-          });
+          const cache = await tmdbMovieDetailsFull(item.tmdbId!);
+          if (cancelled) return;
+          if (cache) {
+            updateMovieCache(item.id, cache);
+            tmdbRefreshLastFailureAt.delete(refreshKey);
+          } else {
+            tmdbRefreshLastFailureAt.set(refreshKey, Date.now());
+          }
         } else {
-          tmdbTvDetailsFull(item.tmdbId).then((cache) => {
-            if (cache) updateShowCache(item.id, cache);
-          });
+          const cache = await tmdbTvDetailsFull(item.tmdbId!);
+          if (cancelled) return;
+          if (cache) {
+            updateShowCache(item.id, cache);
+            tmdbRefreshLastFailureAt.delete(refreshKey);
+          } else {
+            tmdbRefreshLastFailureAt.set(refreshKey, Date.now());
+          }
         }
+      } catch {
+        tmdbRefreshLastFailureAt.set(refreshKey, Date.now());
+      } finally {
+        tmdbRefreshInFlight.delete(refreshKey);
       }
-    }
-  }, [isVisible, item.tmdbId, item.id, listType, updateMovieCache, updateShowCache, item]);
+    };
+
+    void refresh();
+    return () => {
+      cancelled = true;
+    };
+  }, [isVisible, item.tmdbId, item.id, listType, isMovie, needsRefresh, updateMovieCache, updateShowCache]);
 
   if (isTile) {
     return (

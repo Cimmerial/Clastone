@@ -20,6 +20,8 @@ import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { PersonInfoModal } from '../components/PersonInfoModal';
 import { Maximize2, Minimize2 } from 'lucide-react';
+import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
+import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
 
 export function ActorsPage() {
   const { scrollContainerRef } = usePageState<HTMLDivElement>('actors');
@@ -31,7 +33,8 @@ export function ActorsPage() {
     reorderWithinClass,
     moveItemWithinClass,
     updatePersonCache,
-    removePersonEntry
+    removePersonEntry,
+    applyPersonTemplate,
   } = usePeopleStore();
   const { byClass: moviesByClass, addWatchToMovie, moveItemToClass: moveMovieToClass, classes: movieClasses, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, addWatchToShow, moveItemToClass: moveTvToClass, classes: tvClasses, addShowFromSearch } = useTvStore();
@@ -191,6 +194,15 @@ export function ActorsPage() {
     }))
     , [classes]);
 
+  const needsActorTemplatePick = useMemo(() => canChooseOrSwapClassTemplate(byClass), [byClass]);
+
+  useEffect(() => {
+    if (location.hash !== '#actors-class-templates') return;
+    requestAnimationFrame(() => {
+      document.getElementById('actors-class-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.pathname]);
+
   return (
     <section>
       <header className="page-heading">
@@ -228,6 +240,10 @@ export function ActorsPage() {
           </div>
         )}
       </header>
+
+      {needsActorTemplatePick ? (
+        <ClassTemplatePicker variant="actors" anchorId="actors-class-templates" onApply={(id) => applyPersonTemplate(id)} />
+      ) : null}
 
       <RankedList<PersonItem>
         ref={scrollContainerRef}
@@ -296,6 +312,10 @@ export function ActorsPage() {
             removePersonEntry(id);
             handleCloseModal();
           }}
+          onGoPickTemplate={() => {
+            handleCloseModal();
+            navigate('/actors#actors-class-templates', { replace: true });
+          }}
         />
       )}
 
@@ -321,6 +341,11 @@ export function ActorsPage() {
           }
           isSaving={isSavingMedia}
           onClose={() => setRecordMediaTarget(null)}
+          onGoPickTemplate={() => {
+            const mt = recordMediaTarget.mediaType;
+            setRecordMediaTarget(null);
+            navigate(mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates', { replace: true });
+          }}
           onSave={async (params, goToMedia) => {
             // Convert matrix entries to watch records
             const watchRecords = params.watches.map((w) => {

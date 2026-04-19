@@ -371,6 +371,10 @@ export function FriendMovieCollectionPage() {
           onGoToWatchlist={() => {}}
           availableTags={[]}
           collectionTags={[]}
+          onGoPickTemplate={() => {
+            setSettingsFor(null);
+            navigate('/movies#movie-class-templates', { replace: true });
+          }}
           isSaving={false}
           onClose={() => setSettingsFor(null)}
           onSave={async (params, goToMedia) => {

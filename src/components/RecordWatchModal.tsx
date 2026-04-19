@@ -165,6 +165,7 @@ type Props = {
   primaryButtonLabel?: string;
   onAddToUnranked?: () => void | Promise<void>;
   onAddToWatchlist?: () => void;
+  onGoPickTemplate?: () => void;
 };
 
 /* ─── Main Modal ─────────────────────────────────────── */
@@ -172,7 +173,7 @@ type Props = {
 export function RecordWatchModal({
   target, rankedClasses, mode, initialRecords,
   currentClassKey, currentClassLabel,
-  onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked, onAddToWatchlist,
+  onSave, onClose, onRemoveEntry, isSaving, primaryButtonLabel, onAddToUnranked, onAddToWatchlist, onGoPickTemplate,
 }: Props) {
   const [records, setRecords] = useState<WatchRecord[]>(() => {
     if (initialRecords?.length) {
@@ -200,6 +201,11 @@ export function RecordWatchModal({
   const showWatches = mode !== 'person';
   const showClassPicker = mode === 'first-watch' || mode === 'person';
   const isEditWatch = mode === 'edit-watch';
+
+  const rankedPickable = useMemo(
+    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
+    [rankedClasses]
+  );
 
   useEffect(() => {
     const orig = document.body.style.overflow;
@@ -334,7 +340,7 @@ export function RecordWatchModal({
 
   const effectiveClassKey = isEditWatch
     ? (overrideClass ? recordClassKey || undefined : undefined)
-    : (recordClassKey || undefined);
+    : (recordClassKey || (showClassPicker && rankedPickable.length === 0 ? 'UNRANKED' : undefined));
   const isUnrankedSelected = effectiveClassKey === 'UNRANKED';
 
   const handleSave = async (goTo: boolean) => {
@@ -352,11 +358,14 @@ export function RecordWatchModal({
         setError('Enter at least one valid watch record.'); return;
       }
     }
-    if (showClassPicker && !isUnrankedSelected && (!recordClassKey || !rankedClasses.some(c => c.key === recordClassKey))) {
+    if (showClassPicker && !isUnrankedSelected && rankedPickable.length > 0 && (!recordClassKey || !rankedPickable.some((c) => c.key === recordClassKey))) {
       setError('Pick a class.'); return;
     }
-    if (isEditWatch && overrideClass && (!recordClassKey || !rankedClasses.some(c => c.key === recordClassKey))) {
+    if (isEditWatch && overrideClass && rankedPickable.length > 0 && (!recordClassKey || !rankedPickable.some((c) => c.key === recordClassKey))) {
       setError('Pick a class, or cancel override.'); return;
+    }
+    if (isEditWatch && overrideClass && rankedPickable.length === 0) {
+      setError('No ranked tiers yet. Pick a template on the main list, or cancel the rank change.'); return;
     }
     await onSave(
       { watches: validatedWatches, classKey: effectiveClassKey, position: (effectiveClassKey && !isUnrankedSelected) ? recordPosition : undefined },
@@ -386,8 +395,19 @@ export function RecordWatchModal({
 
   const ClassList = ({ classes }: { classes: { key: string; label: string; tagline?: string; isRanked?: boolean }[] }) => (
     <div className="rwm-class-list">
-      {classes.filter(c => c.key !== 'UNRANKED').map(c => {
-        const isRanked = c.isRanked !== false;
+      {classes.length === 0 ? (
+        <div className="rwm-class-empty">
+          <p className="rwm-class-empty-msg">
+            No ranked tiers are set up yet. Go pick a template on the main list, or use Add to Unranked.
+          </p>
+          {onGoPickTemplate ? (
+            <button type="button" className="rwm-btn rwm-btn--secondary" onClick={() => onGoPickTemplate()}>
+              Go to pick template
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        classes.map((c) => {
         const selected = recordClassKey === c.key;
         return (
           <div key={c.key} className={`rwm-class-row${selected ? ' rwm-class-row--on' : ''}`}>
@@ -398,7 +418,8 @@ export function RecordWatchModal({
             <PlacementBtns classKey={c.key} />
           </div>
         );
-      })}
+        })
+      )}
     </div>
   );
 
@@ -536,7 +557,7 @@ export function RecordWatchModal({
                   <p className="rwm-section-muted">Select a class and placement</p>
                 )}
               </div>
-              <ClassList classes={rankedClasses} />
+              <ClassList classes={rankedPickable} />
             </div>
           )}
 

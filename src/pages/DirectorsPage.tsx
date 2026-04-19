@@ -20,6 +20,8 @@ import { ClassJumpButtons } from '../components/ClassJumpButtons';
 import { tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { PersonInfoModal } from '../components/PersonInfoModal';
 import { Maximize2, Minimize2 } from 'lucide-react';
+import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
+import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
 
 export function DirectorsPage() {
   const { scrollContainerRef } = usePageState<HTMLDivElement>('directors');
@@ -31,7 +33,8 @@ export function DirectorsPage() {
     reorderWithinClass,
     moveItemWithinClass,
     updateDirectorCache,
-    removeDirectorEntry
+    removeDirectorEntry,
+    applyDirectorTemplate,
   } = useDirectorsStore();
   const { byClass: moviesByClass, addWatchToMovie, moveItemToClass: moveMovieToClass, classes: movieClasses, addMovieFromSearch } = useMoviesStore();
   const { byClass: tvByClass, addWatchToShow, moveItemToClass: moveTvToClass, classes: tvClasses, addShowFromSearch } = useTvStore();
@@ -189,6 +192,15 @@ export function DirectorsPage() {
     }))
     , [classes]);
 
+  const needsDirectorTemplatePick = useMemo(() => canChooseOrSwapClassTemplate(byClass), [byClass]);
+
+  useEffect(() => {
+    if (location.hash !== '#directors-class-templates') return;
+    requestAnimationFrame(() => {
+      document.getElementById('directors-class-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.pathname]);
+
   return (
     <section>
       <header className="page-heading">
@@ -226,6 +238,14 @@ export function DirectorsPage() {
           </div>
         )}
       </header>
+
+      {needsDirectorTemplatePick ? (
+        <ClassTemplatePicker
+          variant="directors"
+          anchorId="directors-class-templates"
+          onApply={(id) => applyDirectorTemplate(id)}
+        />
+      ) : null}
 
       <RankedList<DirectorItem>
         ref={scrollContainerRef}
@@ -294,6 +314,10 @@ export function DirectorsPage() {
             removeDirectorEntry(id);
             handleCloseModal();
           }}
+          onGoPickTemplate={() => {
+            handleCloseModal();
+            navigate('/directors#directors-class-templates', { replace: true });
+          }}
         />
       )}
 
@@ -319,6 +343,11 @@ export function DirectorsPage() {
           }
           isSaving={isSavingMedia}
           onClose={() => setRecordMediaTarget(null)}
+          onGoPickTemplate={() => {
+            const mt = recordMediaTarget.mediaType;
+            setRecordMediaTarget(null);
+            navigate(mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates', { replace: true });
+          }}
           onSave={async (params, goToMedia) => {
             // Convert matrix entries to watch records
             const watchRecords = params.watches.map((w) => {

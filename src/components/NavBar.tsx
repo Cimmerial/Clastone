@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { tmdbImagePath } from '../lib/tmdb';
 import './NavBar.css';
 
 const mainLinks = [
@@ -13,22 +14,28 @@ const mainLinks = [
   { to: '/lists', label: 'Lists' }
 ];
 
-const iconLinks = [
-  { to: '/search', label: 'Search', icon: Search as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/friends', label: 'People', icon: Users as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/profile', label: 'Profile', icon: Home as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/settings', label: 'Settings', icon: Settings as React.ComponentType<{ size?: number; className?: string }> },
-  { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw as React.ComponentType<{ size?: number; className?: string }> },
+const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/search', label: 'Search', icon: Search },
+  { to: '/friends', label: 'People', icon: Users },
+  { to: '/profile', label: 'Profile', icon: Home },
+  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw },
 ];
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, pfpPosterPath } = useAuth();
+  const profileNavPhotoUrl = pfpPosterPath ? tmdbImagePath(pfpPosterPath, 'w185') ?? null : null;
 
   // Filter icon links based on admin status
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
   }, [isAdmin]);
+
+  const desktopIconLinks = useMemo(
+    () => filteredIconLinks.filter((link) => link.to !== '/profile'),
+    [filteredIconLinks]
+  );
 
   return (
     <header className="nav-root">
@@ -62,7 +69,7 @@ export function NavBar() {
               <NavItem key={link.to} to={link.to} label={link.label} />
             ))}
             <span className="nav-sep" aria-hidden role="separator" />
-            {filteredIconLinks.map((link) => (
+            {desktopIconLinks.map((link) => (
               <NavItem
                 key={link.to}
                 to={link.to}
@@ -70,6 +77,13 @@ export function NavBar() {
                 icon={link.icon}
               />
             ))}
+            <NavItem
+              to="/profile"
+              label="Profile"
+              icon={Home}
+              profilePhotoUrl={profileNavPhotoUrl}
+              isDesktopProfile
+            />
           </nav>
         </div>
         {/* Mobile "More" overlay — shown when More tab is tapped */}
@@ -99,13 +113,13 @@ export function NavBar() {
   );
 }
 
-const mobileTabLinks = [
-  { to: '/movies', label: 'Movies', icon: Film as React.ComponentType<{ size?: number }> },
-  { to: '/tv', label: 'TV', icon: Tv as React.ComponentType<{ size?: number }> },
-  { to: '/actors', label: 'Actors', icon: UserRound as React.ComponentType<{ size?: number }> },
-  { to: '/directors', label: 'Direct.', icon: Video as React.ComponentType<{ size?: number }> },
-  { to: '/watchlist', label: 'Watchlist', icon: Bookmark as React.ComponentType<{ size?: number }> },
-  { to: '/lists', label: 'Lists', icon: List as React.ComponentType<{ size?: number }> },
+const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/movies', label: 'Movies', icon: Film },
+  { to: '/tv', label: 'TV', icon: Tv },
+  { to: '/actors', label: 'Actors', icon: UserRound },
+  { to: '/directors', label: 'Direct.', icon: Video },
+  { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
+  { to: '/lists', label: 'Lists', icon: List },
 ];
 
 export function MobileBottomNav() {
@@ -174,20 +188,39 @@ export function MobileBottomNav() {
 type NavItemProps = {
   to: string;
   label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: LucideIcon;
+  profilePhotoUrl?: string | null;
+  isDesktopProfile?: boolean;
 };
 
-function NavItem({ to, label, icon: Icon, onClick }: NavItemProps & { onClick?: () => void }) {
+function NavItem({
+  to,
+  label,
+  icon: Icon,
+  profilePhotoUrl,
+  isDesktopProfile,
+  onClick
+}: NavItemProps & { onClick?: () => void }) {
+  const linkClasses = ['nav-link', isDesktopProfile ? 'nav-link-profile' : '', isDesktopProfile ? 'nav-link-profile-push' : '']
+    .filter(Boolean)
+    .join(' ');
+
+  const isImageProfile = isDesktopProfile && Boolean(profilePhotoUrl);
+
   return (
     <NavLink
       to={to}
       className={({ isActive }: { isActive: boolean }) =>
-        ['nav-link', isActive ? 'nav-link-active' : ''].filter(Boolean).join(' ')
+        [linkClasses, isActive ? 'nav-link-active' : '', isActive && isDesktopProfile ? 'nav-link-profile-active' : '']
+          .filter(Boolean)
+          .join(' ')
       }
       aria-label={label}
       onClick={onClick}
     >
-      {Icon ? (
+      {isImageProfile ? (
+        <img src={profilePhotoUrl ?? ''} alt="" className="nav-profile-avatar" />
+      ) : Icon ? (
         <Icon size={18} className="nav-link-icon" />
       ) : (
         <span className="nav-link-label">{label}</span>

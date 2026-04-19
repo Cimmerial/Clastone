@@ -81,6 +81,8 @@ type Props = {
   onAddToWatchlist?: () => void;
   onRemoveFromWatchlist?: () => void;
   onGoToWatchlist?: () => void;
+  /** When there are no ranked tiers, Ranking section links user to pick a template (parent provides navigation). */
+  onGoPickTemplate?: () => void;
   isSaving: boolean;
 };
 
@@ -514,6 +516,7 @@ export function UniversalEditModal({
   onAddToWatchlist,
   onRemoveFromWatchlist,
   onGoToWatchlist,
+  onGoPickTemplate,
   isSaving,
 }: Props) {
   const navigate = useNavigate();
@@ -583,6 +586,12 @@ export function UniversalEditModal({
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
   const isBrandNewEntry = !currentClassKey;
+
+  const rankedPickable = useMemo(
+    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
+    [rankedClasses]
+  );
+  const needsRankPick = hasNeverBeenRanked && rankedPickable.length > 0;
 
   // Lock body scroll when modal is open (only on desktop)
   useEffect(() => {
@@ -819,18 +828,25 @@ export function UniversalEditModal({
     }
 
     // Validate class selection
-    if (hasNeverBeenRanked && !selectedClassKey) {
+    if (needsRankPick && !selectedClassKey) {
       setError('Please select a ranking class.');
       return false;
     }
-    
-    // Validate class selection if showing override
-    if (showClassOverride && (!selectedClassKey || !rankedClasses.some(c => c.key === selectedClassKey))) {
-      setError('Please select a class or cancel the class override.');
-      return false;
+
+    if (showClassOverride) {
+      if (rankedPickable.length === 0) {
+        setError('No ranked tiers yet. Pick a template on the list page, or keep your current rank.');
+        return false;
+      }
+      if (!selectedClassKey || !rankedPickable.some((c) => c.key === selectedClassKey)) {
+        setError('Please select a class or cancel the class override.');
+        return false;
+      }
     }
 
-    const effectiveClassKey = hasNeverBeenRanked ? selectedClassKey : (showClassOverride ? selectedClassKey : undefined);
+    const effectiveClassKey = hasNeverBeenRanked
+      ? (rankedPickable.length === 0 ? 'UNRANKED' : selectedClassKey)
+      : (showClassOverride ? selectedClassKey : undefined);
 
     await onSave(
       {
@@ -872,7 +888,19 @@ export function UniversalEditModal({
 
   const ClassList = () => (
     <div className="uem-class-list">
-      {rankedClasses.filter(c => c.key !== 'UNRANKED').map(c => (
+      {rankedPickable.length === 0 ? (
+        <div className="uem-class-empty">
+          <p className="uem-class-empty-msg">
+            No ranked tiers are set up yet. Go pick a template on the main list for this type, or save as Unranked.
+          </p>
+          {onGoPickTemplate ? (
+            <button type="button" className="uem-btn uem-btn--secondary" onClick={() => onGoPickTemplate()}>
+              Go to pick template
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        rankedPickable.map((c) => (
         <div
           key={c.key}
           className={`uem-class-row${selectedClassKey === c.key ? ' uem-class-row--on' : ''}`}
@@ -890,7 +918,8 @@ export function UniversalEditModal({
           </div>
           <PlacementButtons classKey={c.key} />
         </div>
-      ))}
+        ))
+      )}
     </div>
   );
 
@@ -1122,25 +1151,25 @@ export function UniversalEditModal({
                 <>
                   <button
                     type="button"
-                    className={`uem-btn uem-btn--secondary${!selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    className={`uem-btn uem-btn--secondary${needsRankPick && !selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
                       await validateAndSave(false, entries.length === 0);
                     }}
-                    disabled={isSaving || !selectedClassKey}
-                    title={!selectedClassKey ? 'Select a ranking class first' : ''}
+                    disabled={isSaving || (needsRankPick && !selectedClassKey)}
+                    title={needsRankPick && !selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (Long Ago watch)' : 'Save and Exit'}
+                    {isSaving ? 'Saving…' : needsRankPick && !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (Long Ago watch)' : 'Save and Exit'}
                   </button>
                   <button
                     type="button"
-                    className={`uem-btn uem-btn--primary${!selectedClassKey ? ' uem-btn--disabled' : ''}`}
+                    className={`uem-btn uem-btn--primary${needsRankPick && !selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
                       await validateAndSave(true, entries.length === 0);
                     }}
-                    disabled={isSaving || !selectedClassKey}
-                    title={!selectedClassKey ? 'Select a ranking class first' : ''}
+                    disabled={isSaving || (needsRankPick && !selectedClassKey)}
+                    title={needsRankPick && !selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (Long Ago watch)' : 'Save and Go To'}
+                    {isSaving ? 'Saving…' : needsRankPick && !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (Long Ago watch)' : 'Save and Go To'}
                   </button>
                   {isBrandNewEntry && (
                     <button

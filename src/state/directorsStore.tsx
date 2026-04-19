@@ -8,6 +8,7 @@ import { tmdbPersonDetailsFull } from '../lib/tmdb';
 import { useMoviesStore } from './moviesStore';
 import { useTvStore } from './tvStore';
 import { getTotalMinutesFromRecords, getTotalEpisodesFromRecords } from './moviesStore';
+import { directorTemplates, mergePersonByClassForTemplate, type PersonTemplateId } from '../lib/classTemplates';
 
 export type DirectorItem = RankedItemBase & {
     title: string; // Actor name
@@ -56,6 +57,7 @@ export const defaultDirectorsClasses: DirectorsClassDef[] = [
     { key: 'ADORE', label: 'ADORE', isRanked: true },
     { key: 'RESPECT', label: 'RESPECT', isRanked: true },
     { key: 'LIKE', label: 'LIKE', isRanked: true },
+    { key: 'INDIFFERENT', label: 'INDIFFERENT', isRanked: true },
     { key: 'KAL-EL_NO', label: 'KAL-EL NO', isRanked: true },
     { key: 'NEMESIS', label: 'NEMESIS', isRanked: true },
     { key: 'UNRANKED', label: 'UNRANKED', isRanked: false },
@@ -87,6 +89,7 @@ type DirectorsStore = {
     addClass: (label: string, options: { isRanked: boolean }) => void;
     deleteClass: (classKey: string) => void;
     forceRefreshDirector: (itemId: string) => Promise<void>;
+    applyDirectorTemplate: (templateId: PersonTemplateId) => void;
 };
 
 const DirectorsContext = createContext<DirectorsStore | null>(null);
@@ -108,9 +111,14 @@ export function DirectorsProvider({
         classesMetadataChanged?: boolean;
     }) => Promise<void>;
 }) {
-    const [classes, setClasses] = useState<DirectorsClassDef[]>(initialClasses ?? defaultDirectorsClasses);
+    const initialDirectorClasses = initialClasses ?? defaultDirectorsClasses;
+    const [classes, setClasses] = useState<DirectorsClassDef[]>(initialDirectorClasses);
     const classOrder = useMemo(() => classes.map(c => c.key), [classes]);
-    const [byClass, setByClass] = useState<Record<string, DirectorItem[]>>(initialByClass ?? {});
+    const [byClass, setByClass] = useState<Record<string, DirectorItem[]>>(
+        () =>
+            initialByClass ??
+            (Object.fromEntries(initialDirectorClasses.map((c) => [c.key, []])) as Record<string, DirectorItem[]>)
+    );
 
 
     const { byClass: moviesByClass } = useMoviesStore();
@@ -687,6 +695,12 @@ export function DirectorsProvider({
         }
     }, [byClass, updateDirectorCache]);
 
+    const applyDirectorTemplate = useCallback((templateId: PersonTemplateId) => {
+        const pack = directorTemplates[templateId];
+        setClasses(pack.classes);
+        setByClass((prev) => mergePersonByClassForTemplate<DirectorItem>(prev, pack.classes));
+    }, []);
+
     const value = useMemo(() => ({
         classes,
         classOrder,
@@ -723,8 +737,9 @@ export function DirectorsProvider({
         renameItemClassTagline,
         addClass,
         deleteClass,
-        forceRefreshDirector
-    }), [classes, classOrder, byClass, addDirectorFromSearch, moveItemToClass, updateDirectorCache, removeDirectorEntry, getDirectorById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshDirector]);
+        forceRefreshDirector,
+        applyDirectorTemplate
+    }), [classes, classOrder, byClass, addDirectorFromSearch, moveItemToClass, updateDirectorCache, removeDirectorEntry, getDirectorById, onPersist, reorderWithinClass, moveItemWithinClass, moveItemInClassOrder, renameItemClass, renameItemClassTagline, addClass, deleteClass, forceRefreshDirector, applyDirectorTemplate]);
 
     return <DirectorsContext.Provider value={value}>{children}</DirectorsContext.Provider>;
 }

@@ -28,6 +28,7 @@ type Props = {
   onSave: (params: PersonRankingSaveParams, goToList: boolean) => void | Promise<void>;
   onClose: () => void;
   onRemoveEntry?: (itemId: string) => void;
+  onGoPickTemplate?: () => void;
   isSaving: boolean;
 };
 
@@ -41,6 +42,7 @@ export function PersonRankingModal({
   onSave,
   onClose,
   onRemoveEntry,
+  onGoPickTemplate,
   isSaving,
 }: Props) {
   const [selectedClassKey, setSelectedClassKey] = useState<string>('');
@@ -51,6 +53,11 @@ export function PersonRankingModal({
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
+
+  const rankedPickable = useMemo(
+    () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
+    [rankedClasses]
+  );
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -80,16 +87,23 @@ export function PersonRankingModal({
   const validateAndSave = async (goToList: boolean) => {
     setError(null);
 
-    // Validate class selection if showing override or new item
-    if ((showClassOverride || hasNeverBeenRanked) && 
-        (!selectedClassKey || !rankedClasses.some(c => c.key === selectedClassKey))) {
+    const rankPickRequired =
+      rankedPickable.length > 0 && (showClassOverride || hasNeverBeenRanked);
+    if (rankPickRequired && (!selectedClassKey || !rankedPickable.some((c) => c.key === selectedClassKey))) {
       setError('Please select a class.');
       return;
     }
 
-    const effectiveClassKey = (showClassOverride || hasNeverBeenRanked) 
-      ? selectedClassKey 
-      : undefined;
+    if (showClassOverride && rankedPickable.length === 0) {
+      setError('No ranked tiers yet. Pick a template on the Actors or Directors page, or keep your current rank.');
+      return;
+    }
+
+    const effectiveClassKey = hasNeverBeenRanked
+      ? (rankedPickable.length === 0 ? 'UNRANKED' : selectedClassKey)
+      : showClassOverride
+        ? selectedClassKey
+        : undefined;
 
     await onSave(
       {
@@ -119,7 +133,19 @@ export function PersonRankingModal({
 
   const ClassList = () => (
     <div className="prm-class-list">
-      {rankedClasses.filter(c => c.key !== 'UNRANKED').map(c => (
+      {rankedPickable.length === 0 ? (
+        <div className="prm-class-empty">
+          <p className="prm-class-empty-msg">
+            No ranked tiers are set up yet. Go pick a template on the main list, or add as Unranked below.
+          </p>
+          {onGoPickTemplate ? (
+            <button type="button" className="prm-btn prm-btn--secondary" onClick={() => onGoPickTemplate()}>
+              Go to pick template
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        rankedPickable.map((c) => (
         <div
           key={c.key}
           className={`prm-class-row${selectedClassKey === c.key ? ' prm-class-row--on' : ''}`}
@@ -131,7 +157,8 @@ export function PersonRankingModal({
           </div>
           <PlacementButtons classKey={c.key} />
         </div>
-      ))}
+        ))
+      )}
     </div>
   );
 

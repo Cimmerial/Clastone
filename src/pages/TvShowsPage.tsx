@@ -26,6 +26,8 @@ import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
 import { useListsStore } from '../state/listsStore';
+import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
+import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
 
 function tvItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -55,8 +57,23 @@ export function TvShowsPage() {
   const [classVisibilityNonce, setClassVisibilityNonce] = useState(0);
   const [classVisibilityMode, setClassVisibilityMode] = useState<'expand-all' | 'collapse-all'>('expand-all');
   const [classVisibilitySummary, setClassVisibilitySummary] = useState({ allExpanded: true, allCollapsed: false });
-  const { byClass, classOrder, moveWithinClass, reorderWithinClass, moveToOtherClass, updateShowWatchRecords, getClassLabel, getClassTagline, isRankedClass, classes, addWatchToShow, moveItemToClass, removeShowEntry, globalRanks } =
-    useTvStore();
+  const {
+    byClass,
+    classOrder,
+    moveWithinClass,
+    reorderWithinClass,
+    moveToOtherClass,
+    updateShowWatchRecords,
+    getClassLabel,
+    getClassTagline,
+    isRankedClass,
+    classes,
+    addWatchToShow,
+    moveItemToClass,
+    removeShowEntry,
+    globalRanks,
+    applyShowTemplate,
+  } = useTvStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
   const { addDirectorFromSearch, classes: directorsClasses } = useDirectorsStore();
   const { showFilters } = useFilterStore();
@@ -161,6 +178,15 @@ export function TvShowsPage() {
 
   const allShows = useMemo(() => Object.values(byClass).flat().map(i => ({ id: i.id, title: i.title })), [byClass]);
 
+  const needsShowTemplatePick = useMemo(() => canChooseOrSwapClassTemplate(byClass), [byClass]);
+
+  useEffect(() => {
+    if (location.hash !== '#tv-class-templates') return;
+    requestAnimationFrame(() => {
+      document.getElementById('tv-class-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.pathname]);
+
   return (
     <section>
       <header className="page-heading">
@@ -229,6 +255,10 @@ export function TvShowsPage() {
           pageKey="tv"
         />
       )}
+
+      {needsShowTemplatePick ? (
+        <ClassTemplatePicker variant="tv" anchorId="tv-class-templates" onApply={(id) => applyShowTemplate(id)} />
+      ) : null}
 
       <RankedList<MovieShowItem>
         ref={scrollContainerRef}
@@ -412,6 +442,11 @@ export function TvShowsPage() {
             if (!targetItem) return;
             setEntryListMembership(targetItem.id, 'tv', [{ listId, selected }]);
           }}
+          onGoPickTemplate={() => {
+            setSettingsFor(null);
+            setRecordWatchFor(null);
+            navigate('/tv#tv-class-templates', { replace: true });
+          }}
         />
       )}
       {/* Person Ranking Modal - for actors/directors */}
@@ -435,6 +470,14 @@ export function TvShowsPage() {
           onClose={() => {
             setRecordPersonTarget(null);
             setRecordPersonDetails(null);
+          }}
+          onGoPickTemplate={() => {
+            const t = recordPersonTarget.type;
+            setRecordPersonTarget(null);
+            setRecordPersonDetails(null);
+            navigate(t === 'director' ? '/directors#directors-class-templates' : '/actors#actors-class-templates', {
+              replace: true,
+            });
           }}
           onSave={async (params, goToList) => {
             const isActor = recordPersonTarget.type === 'actor';

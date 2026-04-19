@@ -380,6 +380,10 @@ export function FriendTvCollectionPage() {
           onGoToWatchlist={() => {}}
           availableTags={[]}
           collectionTags={[]}
+          onGoPickTemplate={() => {
+            setSettingsFor(null);
+            navigate('/tv#tv-class-templates', { replace: true });
+          }}
           isSaving={false}
           onClose={() => setSettingsFor(null)}
           onSave={async (params, goToMedia) => {

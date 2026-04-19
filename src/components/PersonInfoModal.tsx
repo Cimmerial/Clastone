@@ -265,6 +265,13 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
           setProjectEditTarget(null);
           navigate('/watchlist', { state: { scrollToId: targetId } });
         }}
+        onGoPickTemplate={() => {
+          setProjectEditTarget(null);
+          navigate(
+            projectEditTarget.mediaType === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates',
+            { replace: true }
+          );
+        }}
         isSaving={isSavingProject}
         onClose={() => setProjectEditTarget(null)}
         onRemoveEntry={(itemId: string) => {

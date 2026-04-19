@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { throttledSetDoc, throttledWriteBatch, throttledDeleteDoc } from './firebaseThrottler';
 import type { PersonItem, PeopleClassDef } from '../state/peopleStore';
+import { ONLY_UNRANKED_PERSON_CLASS } from './classTemplates';
 
 const NEW_ROOT = 'users';
 const PEOPLE_DATA_COLLECTION = 'peopleData';
@@ -87,12 +88,17 @@ export async function loadPeople(db: Firestore, userId: string): Promise<{
         peopleSnap.forEach((d) => {
             const id = d.id;
             if (id === METADATA_DOC_ID) {
-                classes = (d.data().classes || []) as PeopleClassDef[];
+                const raw = d.data().classes as PeopleClassDef[] | undefined;
+                classes = raw && raw.length > 0 ? raw : ONLY_UNRANKED_PERSON_CLASS;
             } else if (id.startsWith('class_')) {
                 const classKey = id.replace('class_', '');
                 byClass[classKey] = (d.data().items || []) as PersonItem[];
             }
         });
+
+        for (const ck of classes.map((c) => c.key)) {
+            if (!byClass[ck]) byClass[ck] = [];
+        }
 
         return { byClass, classes, isMigrated: true };
     }
@@ -111,7 +117,7 @@ export async function loadPeople(db: Firestore, userId: string): Promise<{
         };
     }
 
-    return { byClass: {}, classes: [], isMigrated: true };
+    return { byClass: { UNRANKED: [] }, classes: ONLY_UNRANKED_PERSON_CLASS, isMigrated: true };
 }
 
 export async function savePeople(

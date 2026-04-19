@@ -3211,6 +3211,11 @@ export function FriendProfilePage() {
           onSave={handleRankingSave}
           onClose={() => setRankingTarget(null)}
           onRemoveEntry={handleRemoveEntry}
+          onGoPickTemplate={() => {
+            const mt = rankingTarget.mediaType;
+            setRankingTarget(null);
+            navigate(mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates', { replace: true });
+          }}
           isSaving={isRankingSaving}
         />
       )}
@@ -3230,6 +3235,14 @@ export function FriendProfilePage() {
           onSave={handlePersonRankingSave}
           onClose={() => setPersonRankingTarget(null)}
           onRemoveEntry={handleRemovePersonEntry}
+          onGoPickTemplate={() => {
+            const mt = personRankingTarget.mediaType;
+            setPersonRankingTarget(null);
+            navigate(
+              mt === 'director' ? '/directors#directors-class-templates' : '/actors#actors-class-templates',
+              { replace: true }
+            );
+          }}
           isSaving={isPersonRankingSaving}
         />
       )}

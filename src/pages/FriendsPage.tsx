@@ -246,7 +246,17 @@ export function FriendsPage() {
                 return (
                   <div key={result.uid} className="result-item">
                     <div className="user-info">
-                      <div className="user-avatar">{result.username.charAt(0).toUpperCase()}</div>
+                      <div className="user-avatar">
+                        {result.pfpPosterPath ? (
+                          <img
+                            src={tmdbImagePath(result.pfpPosterPath, 'w92') ?? ''}
+                            alt={result.username}
+                            loading="lazy"
+                          />
+                        ) : (
+                          result.username.charAt(0).toUpperCase()
+                        )}
+                      </div>
                       <div className="user-details">
                         <strong>{result.username}</strong>
                       </div>

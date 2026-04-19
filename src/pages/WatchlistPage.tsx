@@ -1751,6 +1751,12 @@ export function WatchlistPage() {
           onTagToggle={(listId, selected) => {
             setEntryListMembership(recordTarget.id, recordTarget.mediaType, [{ listId, selected }]);
           }}
+          onGoPickTemplate={() => {
+            const mt = recordTarget.mediaType;
+            setRecordTarget(null);
+            setRecordWatchlistId(null);
+            navigate(mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates', { replace: true });
+          }}
           onSave={handleRecordSave}
           onClose={() => {
             setRecordTarget(null);

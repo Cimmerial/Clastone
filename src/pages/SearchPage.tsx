@@ -470,6 +470,7 @@ export function SearchPage() {
     updateMovieWatchRecords,
     moveItemToClass,
     classOrder,
+    classes: movieClassDefs,
     getClassLabel,
     getClassTagline,
     removeMovieEntry
@@ -482,6 +483,7 @@ export function SearchPage() {
     updateShowWatchRecords,
     moveItemToClass: moveShowToClass,
     classOrder: tvClassOrder,
+    classes: tvClassDefs,
     getClassLabel: getTvClassLabel,
     getClassTagline: getTvClassTagline,
     removeShowEntry
@@ -819,31 +821,33 @@ export function SearchPage() {
 
   const tvRankedClasses = useMemo(
     () =>
-      tvClassOrder.map((k) => ({
-        key: k,
-        label: getTvClassLabel(k),
-        tagline: getTvClassTagline(k),
-        isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE' // Approximation, or use store.isRanked
-      })),
-    [tvClassOrder, getTvClassLabel, getTvClassTagline]
+      tvClassOrder
+        .map((k) => {
+          const c = tvClassDefs.find((x) => x.key === k);
+          return c
+            ? { key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }
+            : { key: k, label: getTvClassLabel(k), tagline: getTvClassTagline(k), isRanked: true };
+        }),
+    [tvClassOrder, tvClassDefs, getTvClassLabel, getTvClassTagline]
   );
 
   const movieRankedClasses = useMemo(
     () =>
-      classOrder.map((k) => ({
-        key: k,
-        label: getClassLabel(k),
-        tagline: getClassTagline(k),
-        isRanked: k !== 'UNRANKED' && k !== 'DONT_REMEMBER' && k !== 'BABY' && k !== 'DELICIOUS_GARBAGE'
-      })),
-    [classOrder, getClassLabel, getClassTagline]
+      classOrder
+        .map((k) => {
+          const c = movieClassDefs.find((x) => x.key === k);
+          return c
+            ? { key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }
+            : { key: k, label: getClassLabel(k), tagline: getClassTagline(k), isRanked: true };
+        }),
+    [classOrder, movieClassDefs, getClassLabel, getClassTagline]
   );
 
   const peopleRankedClasses = useMemo(
     () =>
       peopleClassOrder.map((k) => {
         const c = peopleClasses.find(c => c.key === k);
-        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
+        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '', isRanked: c?.isRanked ?? false };
       }),
     [peopleClassOrder, peopleClasses]
   );
@@ -852,7 +856,7 @@ export function SearchPage() {
     () =>
       directorsClassOrder.map((k) => {
         const c = directorsClasses.find(c => c.key === k);
-        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '' };
+        return { key: k, label: c?.label ?? k.replace(/_/g, ' '), tagline: c?.tagline ?? '', isRanked: c?.isRanked ?? false };
       }),
     [directorsClassOrder, directorsClasses]
   );
@@ -2472,6 +2476,14 @@ export function SearchPage() {
           onGoToWatchlist={() => {
             navigate('/watchlist', { state: { scrollToId: resultId(recordTarget) } });
           }}
+          onGoPickTemplate={() => {
+            const mt = recordTarget.media_type;
+            handleCloseRecord();
+            navigate(
+              mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates',
+              { replace: true }
+            );
+          }}
         />
       )}
 
@@ -2511,6 +2523,14 @@ export function SearchPage() {
             handleCloseRecord();
           }}
           onSave={handlePersonSave}
+          onGoPickTemplate={() => {
+            const dir = (personSaveType || 'actor') === 'director';
+            handleCloseRecord();
+            navigate(
+              dir ? '/directors#directors-class-templates' : '/actors#actors-class-templates',
+              { replace: true }
+            );
+          }}
         />
       )}
 

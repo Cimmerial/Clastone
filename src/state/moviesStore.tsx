@@ -6,7 +6,13 @@ import type { ClassKey } from '../components/RankedList';
 import type { TmdbMovieCache } from '../lib/tmdb';
 import { tmdbMovieDetailsFull } from '../lib/tmdb';
 import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
-import { defaultMovieClassDefs, movieClasses, moviesByClass as initialMoviesByClass, type MovieClassDef } from '../mock/movies';
+import { defaultMovieClassDefs, movieClasses, type MovieClassDef } from '../mock/movies';
+import {
+  emptyByClassForMovieClasses,
+  mergeMovieByClassForTemplate,
+  movieShowTemplates,
+  type MovieShowTemplateId
+} from '../lib/classTemplates';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 
 function dateParts(r: WatchRecord, useEnd = false): { y: number; m: number; d: number } {
@@ -225,6 +231,8 @@ type MoviesStore = {
   removeMovieEntry: (itemId: string) => void;
   /** Manually trigger a save to Firestore. */
   forceSync: () => Promise<void>;
+  /** Replace classes with a starter template (only for onboarding / empty class lists). */
+  applyMovieTemplate: (templateId: MovieShowTemplateId) => void;
 };
 
 const MoviesContext = createContext<MoviesStore | null>(null);
@@ -245,12 +253,11 @@ type MoviesProviderProps = {
 };
 
 export function MoviesProvider({ children, initialByClass, initialClasses, onPersist }: MoviesProviderProps) {
-  // Trust Firestore's metadata for existing users; only use defaults when there
-  // is no stored class list at all (brand new user or legacy import).
-  const [classes, setClasses] = useState<MovieClassDef[]>(initialClasses ?? defaultMovieClassDefs);
+  const initialClassDefs = initialClasses ?? defaultMovieClassDefs;
+  const [classes, setClasses] = useState<MovieClassDef[]>(initialClassDefs);
   const classOrder = useMemo(() => classes.map((c) => c.key), [classes]);
   const [byClass, setByClass] = useState<Record<ClassKey, MovieShowItem[]>>(
-    initialByClass ?? initialMoviesByClass
+    () => initialByClass ?? emptyByClassForMovieClasses(initialClassDefs)
   );
   const [pendingChanges, setPendingChanges] = useState(0);
   const [persistDebounceTick, setPersistDebounceTick] = useState(0);
@@ -873,6 +880,12 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     });
   }, [classOrder]);
 
+  const applyMovieTemplate = useCallback((templateId: MovieShowTemplateId) => {
+    const pack = movieShowTemplates[templateId];
+    setClasses(pack.classes);
+    setByClass((prev) => mergeMovieByClassForTemplate(prev, pack.classes));
+  }, []);
+
   const value = useMemo<MoviesStore>(
     () => ({
       classes,
@@ -899,6 +912,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       updateBatchMovieCache,
       getMovieById,
       removeMovieEntry,
+      applyMovieTemplate,
       forceSync: async () => {
         if (onPersist) {
           const dirtyClasses: ClassKey[] = [];
@@ -920,7 +934,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         }
       }
     }),
-    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry, onPersist]
+    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry, applyMovieTemplate, onPersist]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

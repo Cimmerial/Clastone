@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUp, ArrowDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GripVertical, Home, Pencil, Trash2, X } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
@@ -34,7 +34,9 @@ import './SettingsPage.css';
 
 const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings', 'general'];
 
-type ClassSectionKey = 'movies' | 'tv' | 'actors' | 'directors' | 'display' | 'dev' | 'babydev';
+type ClassSectionKey = 'classManagement' | 'display' | 'dev' | 'babydev';
+type ClassManagerKind = 'movies' | 'tv' | 'actors' | 'directors';
+type EditableClass = { key: string; label: string; tagline?: string; isRanked?: boolean };
 
 type BabyRoleUser = {
   uid: string;
@@ -99,14 +101,18 @@ export function SettingsPage() {
   const [newRankedLabelDirectors, setNewRankedLabelDirectors] = useState('');
   const [newUnrankedLabelDirectors, setNewUnrankedLabelDirectors] = useState('');
   const [expandedSections, setExpandedSections] = useState<Record<ClassSectionKey, boolean>>({
-    movies: false,
-    tv: false,
-    actors: false,
-    directors: false,
+    classManagement: false,
     display: false,
     dev: false,
     babydev: false,
   });
+  const [selectedClassManager, setSelectedClassManager] = useState<ClassManagerKind>('movies');
+  const [isClassTypeMenuOpen, setIsClassTypeMenuOpen] = useState(false);
+  const [draggedClassKey, setDraggedClassKey] = useState<string | null>(null);
+  const [draggedClassGroup, setDraggedClassGroup] = useState<'ranked' | 'unranked' | null>(null);
+  const [editingClass, setEditingClass] = useState<{ kind: ClassManagerKind; key: string } | null>(null);
+  const [editingLabel, setEditingLabel] = useState('');
+  const [editingTagline, setEditingTagline] = useState('');
   const [persistDebounceSec, setPersistDebounceSec] = useState(() =>
     Math.round(getPersistDebounceMs() / 1000)
   );
@@ -135,10 +141,6 @@ export function SettingsPage() {
 
   const signedIn = hasFirebaseConfig && user;
 
-  const rankedClasses = useMemo(() => classes.filter((c) => c.isRanked), [classes]);
-  const nonRankedClasses = useMemo(() => classes.filter((c) => !c.isRanked), [classes]);
-  const rankedTvClasses = useMemo(() => tvClasses.filter((c) => c.isRanked), [tvClasses]);
-  const nonRankedTvClasses = useMemo(() => tvClasses.filter((c) => !c.isRanked), [tvClasses]);
   const canAddRanked = useMemo(() => newRankedLabel.trim().length > 0, [newRankedLabel]);
   const canAddUnranked = useMemo(() => newUnrankedLabel.trim().length > 0, [newUnrankedLabel]);
   const canAddRankedTv = useMemo(() => newRankedLabelTv.trim().length > 0, [newRankedLabelTv]);
@@ -147,11 +149,6 @@ export function SettingsPage() {
   const canAddUnrankedPeople = useMemo(() => newUnrankedLabelPeople.trim().length > 0, [newUnrankedLabelPeople]);
   const canAddRankedDirectors = useMemo(() => newRankedLabelDirectors.trim().length > 0, [newRankedLabelDirectors]);
   const canAddUnrankedDirectors = useMemo(() => newUnrankedLabelDirectors.trim().length > 0, [newUnrankedLabelDirectors]);
-
-  const rankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => c.isRanked), [peopleClasses]);
-  const nonRankedPeopleClasses = useMemo(() => peopleClasses.filter((c) => !c.isRanked), [peopleClasses]);
-  const rankedDirectorClasses = useMemo(() => directorClasses.filter((c) => c.isRanked), [directorClasses]);
-  const nonRankedDirectorClasses = useMemo(() => directorClasses.filter((c) => !c.isRanked), [directorClasses]);
   const sortedQuotes = useMemo(() => {
     const categoryOrder = new Map(quoteCategories.map((category, index) => [category, index]));
     return quotes.slice().sort((a, b) => {
@@ -333,6 +330,142 @@ export function SettingsPage() {
   const handleToggleSection = (section: ClassSectionKey) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
+
+  const classManagerOptions: Array<{ key: ClassManagerKind; label: string }> = [
+    { key: 'movies', label: 'Movies' },
+    { key: 'tv', label: 'TV Shows' },
+    { key: 'actors', label: 'Actors' },
+    { key: 'directors', label: 'Directors' }
+  ];
+
+  const activeClassManager = useMemo(() => {
+    switch (selectedClassManager) {
+      case 'tv':
+        return {
+          classes: tvClasses as EditableClass[],
+          byClass: tvByClass as Record<string, unknown[]>,
+          addClass: (label: string, options?: { isRanked?: boolean }) => addTvClass(label, options),
+          renameLabel: (classKey: string, next: string) => renameTvClassLabel(classKey as any, next),
+          renameTagline: (classKey: string, next: string) => renameTvClassTagline(classKey as any, next),
+          moveClass: (classKey: string, delta: number) => moveTvClass(classKey as any, delta),
+          deleteClass: (classKey: string) => deleteTvClass(classKey as any),
+          canInitializeDefaults: false
+        };
+      case 'actors':
+        return {
+          classes: peopleClasses as EditableClass[],
+          byClass: peopleByClass as Record<string, unknown[]>,
+          addClass: addPersonClass,
+          renameLabel: renamePersonClassLabel,
+          renameTagline: renamePersonClassTagline,
+          moveClass: movePersonClass,
+          deleteClass: deletePersonClass,
+          canInitializeDefaults: true,
+          initializeDefaults: () => defaultPeopleClasses.forEach((c) => addPersonClass(c.label, { isRanked: c.isRanked }))
+        };
+      case 'directors':
+        return {
+          classes: directorClasses as EditableClass[],
+          byClass: directorByClass as Record<string, unknown[]>,
+          addClass: addDirectorClass,
+          renameLabel: renameDirectorClassLabel,
+          renameTagline: renameDirectorClassTagline,
+          moveClass: moveDirectorClass,
+          deleteClass: deleteDirectorClass,
+          canInitializeDefaults: true,
+          initializeDefaults: () =>
+            defaultDirectorsClasses.forEach((c) => addDirectorClass(c.label, { isRanked: c.isRanked }))
+        };
+      case 'movies':
+      default:
+        return {
+          classes: classes as EditableClass[],
+          byClass: byClass as Record<string, unknown[]>,
+          addClass: (label: string, options?: { isRanked?: boolean }) => addClass(label, options),
+          renameLabel: (classKey: string, next: string) => renameClassLabel(classKey as any, next),
+          renameTagline: (classKey: string, next: string) => renameClassTagline(classKey as any, next),
+          moveClass: (classKey: string, delta: number) => moveClass(classKey as any, delta),
+          deleteClass: (classKey: string) => deleteClass(classKey as any),
+          canInitializeDefaults: false
+        };
+    }
+  }, [
+    selectedClassManager,
+    tvClasses,
+    tvByClass,
+    addTvClass,
+    renameTvClassLabel,
+    renameTvClassTagline,
+    moveTvClass,
+    deleteTvClass,
+    peopleClasses,
+    peopleByClass,
+    addPersonClass,
+    renamePersonClassLabel,
+    renamePersonClassTagline,
+    movePersonClass,
+    deletePersonClass,
+    directorClasses,
+    directorByClass,
+    addDirectorClass,
+    renameDirectorClassLabel,
+    renameDirectorClassTagline,
+    moveDirectorClass,
+    deleteDirectorClass,
+    classes,
+    byClass,
+    addClass,
+    renameClassLabel,
+    renameClassTagline,
+    moveClass,
+    deleteClass
+  ]);
+
+  const rankedManagedClasses = useMemo(
+    () => activeClassManager.classes.filter((c) => c.isRanked !== false),
+    [activeClassManager]
+  );
+  const unrankedManagedClasses = useMemo(
+    () => activeClassManager.classes.filter((c) => c.isRanked === false),
+    [activeClassManager]
+  );
+
+  const canDeleteManagedClass = (classKey: string) =>
+    classKey !== 'UNRANKED' && classKey !== 'BABY' && classKey !== 'DELICIOUS_GARBAGE';
+
+  const persistClassEdits = () => {
+    if (!editingClass || editingClass.kind !== selectedClassManager) return;
+    const sanitizedLabel = sanitizeLabel(editingLabel);
+    const sanitizedTagline = sanitizeTagline(editingTagline);
+    if (isValidLabel(sanitizedLabel)) {
+      activeClassManager.renameLabel(editingClass.key, sanitizedLabel);
+    }
+    if (isValidTagline(sanitizedTagline)) {
+      activeClassManager.renameTagline(editingClass.key, sanitizedTagline);
+    }
+    setEditingClass(null);
+  };
+
+  const reorderClassWithinGroup = (
+    group: 'ranked' | 'unranked',
+    sourceKey: string,
+    targetKey: string
+  ) => {
+    const groupKeys = (group === 'ranked' ? rankedManagedClasses : unrankedManagedClasses).map((c) => c.key);
+    const fromIndex = groupKeys.indexOf(sourceKey);
+    const toIndex = groupKeys.indexOf(targetKey);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+    const delta = fromIndex < toIndex ? 1 : -1;
+    const steps = Math.abs(toIndex - fromIndex);
+    for (let i = 0; i < steps; i += 1) {
+      activeClassManager.moveClass(sourceKey, delta);
+    }
+  };
+
+  useEffect(() => {
+    setEditingClass(null);
+    setIsClassTypeMenuOpen(false);
+  }, [selectedClassManager]);
 
   const resetQuoteForm = () => {
     setQuoteForm({ category: 'settings', text: '', character: '', source: '' });
@@ -528,591 +661,304 @@ export function SettingsPage() {
             {quotesNotice}
           </p>
         ) : null}
-        <div className="settings-card card-surface settings-collapsible-card">
+        <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
           <div className="settings-card-heading-row">
-            <h2 className="settings-title">Movie Class Management</h2>
+            <h2 className="settings-title">Class Management</h2>
             <button
               type="button"
               className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('movies')}
-              aria-label={expandedSections.movies ? 'Collapse movie class management' : 'Expand movie class management'}
+              onClick={() => handleToggleSection('classManagement')}
+              aria-label={expandedSections.classManagement ? 'Collapse class management' : 'Expand class management'}
             >
-              {expandedSections.movies ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+              {expandedSections.classManagement ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
             </button>
           </div>
-          {expandedSections.movies && (
+          {expandedSections.classManagement && (
             <>
-          <p className="settings-muted">
-            Ranked classes affect global percentiles/rankings;
-            unranked ones do not.
-          </p>
-
-          <h3 className="settings-subtitle">Ranked classes</h3>
-          <div className="settings-list">
-            {rankedClasses.map((c) => {
-              const count = (byClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => moveClass(c.key, -1)}
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => moveClass(c.key, 1)}
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        const sanitized = sanitizeLabel(next);
-                        if (isValidLabel(sanitized)) {
-                          renameClassLabel(c.key, sanitized);
-                        }
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
-                        if (next === null) return;
-                        const sanitized = sanitizeTagline(next);
-                        if (isValidTagline(sanitized)) {
-                          renameClassTagline(c.key, sanitized);
-                        }
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => deleteClass(c.key)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+              <p className="settings-muted">
+                Drag to reorder classes. Ranked and unranked groups are managed separately.
+              </p>
+              <div className="settings-class-type-picker">
+                <span className="settings-select-label">Editing:</span>
+                <div className="settings-type-dropdown">
+                  <button
+                    type="button"
+                    className="settings-type-dropdown-trigger"
+                    onClick={() => setIsClassTypeMenuOpen((prev) => !prev)}
+                  >
+                    {classManagerOptions.find((opt) => opt.key === selectedClassManager)?.label}
+                    <ChevronDown size={14} />
+                  </button>
+                  {isClassTypeMenuOpen ? (
+                    <div className="settings-type-dropdown-menu">
+                      {classManagerOptions.map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          className={`settings-type-dropdown-item ${opt.key === selectedClassManager ? 'is-active' : ''}`}
+                          onClick={() => setSelectedClassManager(opt.key)}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              );
-            })}
-          </div>
+              </div>
 
-          <div className="settings-add-row">
-            <input
-              value={newRankedLabel}
-              onChange={(e) => setNewRankedLabel(e.target.value)}
-              placeholder="Add ranked class…"
-              className="settings-input"
-            />
-            <button
-              type="button"
-              className="settings-btn"
-              disabled={!canAddRanked}
-              onClick={() => {
-                const sanitized = sanitizeClassName(newRankedLabel);
-                if (sanitized) {
-                  addClass(sanitized.label, { isRanked: true });
-                  setNewRankedLabel('');
-                }
-              }}
-            >
-              Add
-            </button>
-          </div>
-
-          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
-          <div className="settings-list">
-            {nonRankedClasses.map((c) => {
-              const count = (byClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => moveClass(c.key, -1)}
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => moveClass(c.key, 1)}
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        const sanitized = sanitizeLabel(next);
-                        if (isValidLabel(sanitized)) {
-                          renameClassLabel(c.key, sanitized);
-                        }
+              <h3 className="settings-subtitle">Ranked classes</h3>
+              <div className="settings-list">
+                {rankedManagedClasses.map((c) => {
+                  const count = (activeClassManager.byClass[c.key] ?? []).length;
+                  const isEditing = editingClass?.kind === selectedClassManager && editingClass.key === c.key;
+                  const isLocked = c.key === 'UNRANKED';
+                  return (
+                    <div
+                      key={c.key}
+                      className="settings-list-item settings-class-item"
+                      draggable
+                      onDragStart={() => {
+                        setDraggedClassKey(c.key);
+                        setDraggedClassGroup('ranked');
+                      }}
+                      onDragOver={(e) => {
+                        if (draggedClassGroup === 'ranked') e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!draggedClassKey) return;
+                        reorderClassWithinGroup('ranked', draggedClassKey, c.key);
+                        setDraggedClassKey(null);
+                        setDraggedClassGroup(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedClassKey(null);
+                        setDraggedClassGroup(null);
                       }}
                     >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
-                        if (next === null) return;
-                        const sanitized = sanitizeTagline(next);
-                        if (isValidTagline(sanitized)) {
-                          renameClassTagline(c.key, sanitized);
-                        }
+                      <div className="settings-class-item-main">
+                        <span className="settings-drag-handle"><GripVertical size={14} /></span>
+                        <span className="settings-class-name">
+                          <span className="settings-class-name-main">{c.label}</span>
+                          {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}
+                          <span className="settings-class-count"> · {count} {count === 1 ? 'entry' : 'entries'}</span>
+                        </span>
+                      </div>
+                      {!isLocked ? (
+                        <div className="settings-list-actions">
+                          <button
+                            type="button"
+                            className="settings-btn settings-btn-subtle"
+                            onClick={() => {
+                              setEditingClass({ kind: selectedClassManager, key: c.key });
+                              setEditingLabel(c.label);
+                              setEditingTagline(c.tagline ?? '');
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="settings-btn settings-btn-subtle"
+                            disabled={count > 0 || !canDeleteManagedClass(c.key)}
+                            onClick={() => {
+                              if (confirm(`Delete class ${c.label}?`)) activeClassManager.deleteClass(c.key);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                      {isEditing ? (
+                        <div className="settings-inline-editor">
+                          <input className="settings-input" value={editingLabel} onChange={(e) => setEditingLabel(e.target.value)} placeholder="Class name" />
+                          <input className="settings-input" value={editingTagline} onChange={(e) => setEditingTagline(e.target.value)} placeholder="Tagline (optional)" />
+                          <div className="settings-list-actions">
+                            <button type="button" className="settings-btn settings-btn-subtle" onClick={persistClassEdits}><Check size={14} /></button>
+                            <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setEditingClass(null)}><X size={14} /></button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="settings-add-row">
+                <input
+                  value={
+                    selectedClassManager === 'movies' ? newRankedLabel :
+                    selectedClassManager === 'tv' ? newRankedLabelTv :
+                    selectedClassManager === 'actors' ? newRankedLabelPeople :
+                    newRankedLabelDirectors
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (selectedClassManager === 'movies') setNewRankedLabel(v);
+                    else if (selectedClassManager === 'tv') setNewRankedLabelTv(v);
+                    else if (selectedClassManager === 'actors') setNewRankedLabelPeople(v);
+                    else setNewRankedLabelDirectors(v);
+                  }}
+                  placeholder="Add ranked class…"
+                  className="settings-input"
+                />
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={
+                    selectedClassManager === 'movies' ? !canAddRanked :
+                    selectedClassManager === 'tv' ? !canAddRankedTv :
+                    selectedClassManager === 'actors' ? !canAddRankedPeople :
+                    !canAddRankedDirectors
+                  }
+                  onClick={() => {
+                    const raw =
+                      selectedClassManager === 'movies' ? newRankedLabel :
+                      selectedClassManager === 'tv' ? newRankedLabelTv :
+                      selectedClassManager === 'actors' ? newRankedLabelPeople :
+                      newRankedLabelDirectors;
+                    const sanitized = sanitizeClassName(raw);
+                    if (!sanitized) return;
+                    activeClassManager.addClass(sanitized.label, { isRanked: true });
+                    if (selectedClassManager === 'movies') setNewRankedLabel('');
+                    else if (selectedClassManager === 'tv') setNewRankedLabelTv('');
+                    else if (selectedClassManager === 'actors') setNewRankedLabelPeople('');
+                    else setNewRankedLabelDirectors('');
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+
+              <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
+              <div className="settings-list">
+                {unrankedManagedClasses.map((c) => {
+                  const count = (activeClassManager.byClass[c.key] ?? []).length;
+                  const isEditing = editingClass?.kind === selectedClassManager && editingClass.key === c.key;
+                  const isLocked = c.key === 'UNRANKED';
+                  return (
+                    <div
+                      key={c.key}
+                      className="settings-list-item settings-class-item"
+                      draggable
+                      onDragStart={() => {
+                        setDraggedClassKey(c.key);
+                        setDraggedClassGroup('unranked');
+                      }}
+                      onDragOver={(e) => {
+                        if (draggedClassGroup === 'unranked') e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!draggedClassKey) return;
+                        reorderClassWithinGroup('unranked', draggedClassKey, c.key);
+                        setDraggedClassKey(null);
+                        setDraggedClassGroup(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedClassKey(null);
+                        setDraggedClassGroup(null);
                       }}
                     >
-                      Tagline
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => deleteClass(c.key)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                      <div className="settings-class-item-main">
+                        <span className="settings-drag-handle"><GripVertical size={14} /></span>
+                        <span className="settings-class-name">
+                          <span className="settings-class-name-main">{c.label}</span>
+                          {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}
+                          <span className="settings-class-count"> · {count} {count === 1 ? 'entry' : 'entries'}</span>
+                        </span>
+                      </div>
+                      {!isLocked ? (
+                        <div className="settings-list-actions">
+                          <button
+                            type="button"
+                            className="settings-btn settings-btn-subtle"
+                            onClick={() => {
+                              setEditingClass({ kind: selectedClassManager, key: c.key });
+                              setEditingLabel(c.label);
+                              setEditingTagline(c.tagline ?? '');
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="settings-btn settings-btn-subtle"
+                            disabled={count > 0 || !canDeleteManagedClass(c.key)}
+                            onClick={() => {
+                              if (confirm(`Delete class ${c.label}?`)) activeClassManager.deleteClass(c.key);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                      {isEditing ? (
+                        <div className="settings-inline-editor">
+                          <input className="settings-input" value={editingLabel} onChange={(e) => setEditingLabel(e.target.value)} placeholder="Class name" />
+                          <input className="settings-input" value={editingTagline} onChange={(e) => setEditingTagline(e.target.value)} placeholder="Tagline (optional)" />
+                          <div className="settings-list-actions">
+                            <button type="button" className="settings-btn settings-btn-subtle" onClick={persistClassEdits}><Check size={14} /></button>
+                            <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setEditingClass(null)}><X size={14} /></button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="settings-add-row">
+                <input
+                  value={
+                    selectedClassManager === 'movies' ? newUnrankedLabel :
+                    selectedClassManager === 'tv' ? newUnrankedLabelTv :
+                    selectedClassManager === 'actors' ? newUnrankedLabelPeople :
+                    newUnrankedLabelDirectors
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (selectedClassManager === 'movies') setNewUnrankedLabel(v);
+                    else if (selectedClassManager === 'tv') setNewUnrankedLabelTv(v);
+                    else if (selectedClassManager === 'actors') setNewUnrankedLabelPeople(v);
+                    else setNewUnrankedLabelDirectors(v);
+                  }}
+                  placeholder="Add unranked class…"
+                  className="settings-input"
+                />
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={
+                    selectedClassManager === 'movies' ? !canAddUnranked :
+                    selectedClassManager === 'tv' ? !canAddUnrankedTv :
+                    selectedClassManager === 'actors' ? !canAddUnrankedPeople :
+                    !canAddUnrankedDirectors
+                  }
+                  onClick={() => {
+                    const raw =
+                      selectedClassManager === 'movies' ? newUnrankedLabel :
+                      selectedClassManager === 'tv' ? newUnrankedLabelTv :
+                      selectedClassManager === 'actors' ? newUnrankedLabelPeople :
+                      newUnrankedLabelDirectors;
+                    const sanitized = sanitizeClassName(raw);
+                    if (!sanitized) return;
+                    activeClassManager.addClass(sanitized.label, { isRanked: false });
+                    if (selectedClassManager === 'movies') setNewUnrankedLabel('');
+                    else if (selectedClassManager === 'tv') setNewUnrankedLabelTv('');
+                    else if (selectedClassManager === 'actors') setNewUnrankedLabelPeople('');
+                    else setNewUnrankedLabelDirectors('');
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+              {activeClassManager.canInitializeDefaults && activeClassManager.classes.length === 0 ? (
+                <div className="settings-empty-classes">
+                  <p>No classes defined.</p>
+                  <button type="button" className="settings-btn settings-btn-subtle" onClick={activeClassManager.initializeDefaults}>
+                    Initialize with Defaults
+                  </button>
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="settings-add-row">
-            <input
-              value={newUnrankedLabel}
-              onChange={(e) => setNewUnrankedLabel(e.target.value)}
-              placeholder="Add unranked class…"
-              className="settings-input"
-            />
-            <button
-              type="button"
-              className="settings-btn"
-              disabled={!canAddUnranked}
-              onClick={() => {
-                addClass(newUnrankedLabel, { isRanked: false });
-                setNewUnrankedLabel('');
-              }}
-            >
-              Add
-            </button>
-          </div>
-            </>
-          )}
-        </div>
-
-        <div className="settings-card card-surface settings-collapsible-card">
-          <div className="settings-card-heading-row">
-            <h2 className="settings-title">TV Show Class Management</h2>
-            <button
-              type="button"
-              className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('tv')}
-              aria-label={expandedSections.tv ? 'Collapse TV show class management' : 'Expand TV show class management'}
-            >
-              {expandedSections.tv ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-            </button>
-          </div>
-          {expandedSections.tv && (
-            <>
-          <p className="settings-muted">
-            Ranked classes affect global percentiles/rankings;
-            unranked ones do not.
-          </p>
-
-          <h3 className="settings-subtitle">Ranked classes</h3>
-          <div className="settings-list">
-            {rankedTvClasses.map((c) => {
-              const count = (tvByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renameTvClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
-                        if (next === null) return;
-                        renameTvClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => deleteTvClass(c.key)}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newRankedLabelTv} onChange={(e) => setNewRankedLabelTv(e.target.value)} placeholder="Add ranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddRankedTv} onClick={() => { addTvClass(newRankedLabelTv, { isRanked: true }); setNewRankedLabelTv(''); }}>Add</button>
-          </div>
-
-          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
-          <div className="settings-list">
-            {nonRankedTvClasses.map((c) => {
-              const count = (tvByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveTvClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renameTvClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline (shown as "CLASS | tagline")', c.tagline ?? '');
-                        if (next === null) return;
-                        renameTvClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => deleteTvClass(c.key)}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newUnrankedLabelTv} onChange={(e) => setNewUnrankedLabelTv(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddUnrankedTv} onClick={() => { addTvClass(newUnrankedLabelTv, { isRanked: false }); setNewUnrankedLabelTv(''); }}>Add</button>
-          </div>
-            </>
-          )}
-        </div>
-
-        <div className="settings-card card-surface settings-collapsible-card">
-          <div className="settings-card-heading-row">
-            <h2 className="settings-title">Actor Class Management</h2>
-            <button
-              type="button"
-              className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('actors')}
-              aria-label={expandedSections.actors ? 'Collapse actor class management' : 'Expand actor class management'}
-            >
-              {expandedSections.actors ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-            </button>
-          </div>
-          {expandedSections.actors && (
-            <>
-          <p className="settings-muted">
-            Ranked classes for actors.
-          </p>
-
-          <h3 className="settings-subtitle">Ranked classes</h3>
-          <div className="settings-list">
-            {rankedPeopleClasses.map((c) => {
-              const count = (peopleByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renamePersonClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline', c.tagline ?? '');
-                        if (next === null) return;
-                        renamePersonClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newRankedLabelPeople} onChange={(e) => setNewRankedLabelPeople(e.target.value)} placeholder="Add ranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddRankedPeople} onClick={() => { addPersonClass(newRankedLabelPeople, { isRanked: true }); setNewRankedLabelPeople(''); }}>Add</button>
-          </div>
-
-          {peopleClasses.length === 0 && (
-            <div className="settings-empty-classes">
-              <p>No actor classes defined.</p>
-              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => {
-                defaultPeopleClasses.forEach(c => addPersonClass(c.label, { isRanked: c.isRanked }));
-              }}>Initialize with Defaults</button>
-            </div>
-          )}
-
-          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
-          <div className="settings-list">
-            {nonRankedPeopleClasses.map((c) => {
-              const count = (peopleByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => movePersonClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renamePersonClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline', c.tagline ?? '');
-                        if (next === null) return;
-                        renamePersonClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deletePersonClass(c.key); }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newUnrankedLabelPeople} onChange={(e) => setNewUnrankedLabelPeople(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddUnrankedPeople} onClick={() => { addPersonClass(newUnrankedLabelPeople, { isRanked: false }); setNewUnrankedLabelPeople(''); }}>Add</button>
-          </div>
-            </>
-          )}
-        </div>
-
-        <div className="settings-card card-surface settings-collapsible-card">
-          <div className="settings-card-heading-row">
-            <h2 className="settings-title">Director Class Management</h2>
-            <button
-              type="button"
-              className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('directors')}
-              aria-label={expandedSections.directors ? 'Collapse director class management' : 'Expand director class management'}
-            >
-              {expandedSections.directors ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-            </button>
-          </div>
-          {expandedSections.directors && (
-            <>
-          <p className="settings-muted">
-            Ranked classes for directors.
-          </p>
-
-          <h3 className="settings-subtitle">Ranked classes</h3>
-          <div className="settings-list">
-            {rankedDirectorClasses.map((c) => {
-              const count = (directorByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renameDirectorClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline', c.tagline ?? '');
-                        if (next === null) return;
-                        renameDirectorClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newRankedLabelDirectors} onChange={(e) => setNewRankedLabelDirectors(e.target.value)} placeholder="Add ranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddRankedDirectors} onClick={() => { addDirectorClass(newRankedLabelDirectors, { isRanked: true }); setNewRankedLabelDirectors(''); }}>Add</button>
-          </div>
-
-          {directorClasses.length === 0 && (
-            <div className="settings-empty-classes">
-              <p>No director classes defined.</p>
-              <button type="button" className="settings-btn settings-btn-subtle" onClick={() => {
-                defaultDirectorsClasses.forEach(c => addDirectorClass(c.label, { isRanked: c.isRanked }));
-              }}>Initialize with Defaults</button>
-            </div>
-          )}
-
-          <h3 className="settings-subtitle settings-subtitle-spaced">Unranked / saved classes</h3>
-          <div className="settings-list">
-            {nonRankedDirectorClasses.map((c) => {
-              const count = (directorByClass[c.key] ?? []).length;
-              return (
-                <div key={c.key} className="settings-list-item">
-                  <span className="settings-class-name">
-                    <span className="settings-class-name-main">{c.label}</span>
-                    {c.tagline ? <span className="settings-class-tagline"> | {c.tagline}</span> : null}{' '}
-                    <span className="settings-class-count">
-                      · {count} {count === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </span>
-                  <div className="settings-list-actions">
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, -1)}><ArrowUp size={14} /></button>
-                    <button type="button" className="settings-btn settings-btn-subtle" onClick={() => moveDirectorClass(c.key, 1)}><ArrowDown size={14} /></button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      disabled={c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'}
-                      onClick={() => {
-                        const next = prompt('Rename class', c.label);
-                        if (!next) return;
-                        renameDirectorClassLabel(c.key, next);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-btn settings-btn-subtle"
-                      onClick={() => {
-                        const next = prompt('Tagline', c.tagline ?? '');
-                        if (next === null) return;
-                        renameDirectorClassTagline(c.key, next);
-                      }}
-                    >
-                      Tagline
-                    </button>
-                    <button type="button" className="settings-btn settings-btn-subtle" disabled={count > 0 || c.key === 'UNRANKED' || c.key === 'BABY' || c.key === 'DELICIOUS_GARBAGE'} onClick={() => { if (confirm(`Delete class ${c.label}?`)) deleteDirectorClass(c.key); }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="settings-add-row">
-            <input value={newUnrankedLabelDirectors} onChange={(e) => setNewUnrankedLabelDirectors(e.target.value)} placeholder="Add unranked class…" className="settings-input" />
-            <button type="button" className="settings-btn" disabled={!canAddUnrankedDirectors} onClick={() => { addDirectorClass(newUnrankedLabelDirectors, { isRanked: false }); setNewUnrankedLabelDirectors(''); }}>Add</button>
-          </div>
+              ) : null}
             </>
           )}
         </div>
@@ -1364,7 +1210,9 @@ export function SettingsPage() {
                     className="settings-pfp-preview"
                   />
                 ) : (
-                  'Not set'
+                  <span className="settings-pfp-placeholder" aria-label="No profile picture set">
+                    <Home size={14} strokeWidth={2.25} aria-hidden />
+                  </span>
                 )}
                 <button type="button" className="settings-btn settings-btn-subtle" onClick={() => setShowPfpModal(true)}>
                   Choose

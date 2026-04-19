@@ -878,6 +878,10 @@ export function ListDetailPage() {
             color: globalCollections.find((item) => item.id === id)?.color,
             href: `/lists/collection/${id}`
           }))}
+          onGoPickTemplate={() => {
+            setSettingsFor(null);
+            navigate(isTvSettingsItem ? '/tv#tv-class-templates' : '/movies#movie-class-templates', { replace: true });
+          }}
           isSaving={false}
           onClose={() => setSettingsFor(null)}
           onRemoveEntry={existingSavedItem ? (itemId) => {

@@ -760,6 +760,20 @@
   gap: 4px;
 }
 
+.uem-class-empty {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.uem-class-empty-msg {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: #a8a8a8;
+  line-height: 1.45;
+}
+
 .uem-class-row {
   display: flex;
   align-items: center;

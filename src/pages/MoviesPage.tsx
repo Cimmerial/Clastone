@@ -26,6 +26,8 @@ import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
 import { useListsStore } from '../state/listsStore';
+import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
+import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
 
 function movieItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -69,7 +71,8 @@ export function MoviesPage() {
     isRankedClass,
     classes,
     removeMovieEntry,
-    globalRanks // Added globalRanks from store
+    globalRanks, // Added globalRanks from store
+    applyMovieTemplate,
   } = useMoviesStore();
   const { addPersonFromSearch, classes: peopleClasses, moveItemToClass: movePersonToClass } = usePeopleStore();
   const { addDirectorFromSearch, classes: directorsClasses, moveItemToClass: moveDirectorToClass } = useDirectorsStore();
@@ -179,6 +182,15 @@ export function MoviesPage() {
   const hasActiveModal = !!settingsFor || !!recordWatchFor || !!recordPersonTarget || isFilterModalOpen;
   const allMovies = useMemo(() => Object.values(byClass).flat().map(i => ({ id: i.id, title: i.title })), [byClass]);
 
+  const needsMovieTemplatePick = useMemo(() => canChooseOrSwapClassTemplate(byClass), [byClass]);
+
+  useEffect(() => {
+    if (location.hash !== '#movie-class-templates') return;
+    requestAnimationFrame(() => {
+      document.getElementById('movie-class-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.pathname]);
+
   return (
     <section>
       <header className="page-heading">
@@ -246,6 +258,9 @@ export function MoviesPage() {
           pageKey="movies"
         />
       )}
+      {needsMovieTemplatePick ? (
+        <ClassTemplatePicker variant="movies" anchorId="movie-class-templates" onApply={(id) => applyMovieTemplate(id)} />
+      ) : null}
       <RankedList<MovieShowItem>
         ref={scrollContainerRef}
         viewMode={mobileViewMode}
@@ -431,6 +446,11 @@ export function MoviesPage() {
             if (!targetItem) return;
             setEntryListMembership(targetItem.id, 'movie', [{ listId, selected }]);
           }}
+          onGoPickTemplate={() => {
+            setSettingsFor(null);
+            setRecordWatchFor(null);
+            navigate('/movies#movie-class-templates', { replace: true });
+          }}
         />
       )}
       {/* Person Ranking Modal - for actors/directors */}
@@ -454,6 +474,14 @@ export function MoviesPage() {
           onClose={() => {
             setRecordPersonTarget(null);
             setRecordPersonDetails(null);
+          }}
+          onGoPickTemplate={() => {
+            const t = recordPersonTarget.type;
+            setRecordPersonTarget(null);
+            setRecordPersonDetails(null);
+            navigate(t === 'director' ? '/directors#directors-class-templates' : '/actors#actors-class-templates', {
+              replace: true,
+            });
           }}
           onSave={async (params, goToList) => {
             const isActor = recordPersonTarget.type === 'actor';

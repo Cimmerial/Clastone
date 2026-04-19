@@ -9,6 +9,7 @@ import { throttledSetDoc, throttledWriteBatch, throttledDeleteDoc } from './fire
 import type { ClassKey } from '../components/RankedList';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
 import { defaultMovieClassDefs, movieClasses, type MovieClassDef } from '../mock/movies';
+import { ONLY_UNRANKED_MOVIE_CLASS, emptyByClassForMovieClasses } from './classTemplates';
 
 /** Legacy paths */
 const LEGACY_ROOT = 'users';
@@ -83,7 +84,8 @@ export async function loadTvShows(db: Firestore, userId: string): Promise<{
     tvSnap.forEach((d) => {
       const id = d.id;
       if (id === METADATA_DOC_ID) {
-        classes = (d.data().classes || defaultMovieClassDefs) as MovieClassDef[];
+        const raw = d.data().classes as MovieClassDef[] | undefined;
+        classes = raw && raw.length > 0 ? raw : ONLY_UNRANKED_MOVIE_CLASS;
       } else if (id.startsWith('class_')) {
         const classKey = id.replace('class_', '') as ClassKey;
         byClass[classKey] = (d.data().items || []) as MovieShowItem[];
@@ -111,7 +113,11 @@ export async function loadTvShows(db: Firestore, userId: string): Promise<{
     };
   }
 
-  return { byClass: emptyByClass(movieClasses), classes: defaultMovieClassDefs, isMigrated: true };
+  return {
+    byClass: emptyByClassForMovieClasses(ONLY_UNRANKED_MOVIE_CLASS),
+    classes: ONLY_UNRANKED_MOVIE_CLASS,
+    isMigrated: true
+  };
 }
 
 export async function saveTvShows(

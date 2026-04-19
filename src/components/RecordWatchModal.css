@@ -463,6 +463,20 @@
   gap: 3px;
 }
 
+.rwm-class-empty {
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.rwm-class-empty-msg {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #a0a0a0;
+  line-height: 1.45;
+}
+
 .rwm-class-row {
   display: flex;
   align-items: center;
