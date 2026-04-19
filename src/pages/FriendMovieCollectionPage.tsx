@@ -6,8 +6,11 @@ import { db } from '../lib/firebase';
 import { loadMovies } from '../lib/firestoreMovies';
 import { tmdbImagePath } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
-import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
+import type { MovieShowItem } from '../components/EntryRowMovieShow';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { InfoModal } from '../components/InfoModal';
 import { PageSearch } from '../components/PageSearch';
@@ -105,6 +108,7 @@ export function FriendMovieCollectionPage() {
   const [infoFor, setInfoFor] = useState<FriendCollectionEntry | null>(null);
   const {
     byClass: myMoviesByClass,
+    classOrder: myMovieClassOrder,
     getMovieById,
     addMovieFromSearch,
     updateMovieWatchRecords,
@@ -113,6 +117,7 @@ export function FriendMovieCollectionPage() {
     classes: movieClasses,
     getClassLabel
   } = useMoviesStore();
+  const { byClass: myTvByClass, classOrder: myTvClassOrder } = useTvStore();
   const watchlist = useWatchlistStore();
 
   /** Friend list item shares canonical id with viewer's entry; modal edits *your* library row. */
@@ -388,24 +393,14 @@ export function FriendMovieCollectionPage() {
                 posterPath: settingsFor.posterPath
               });
             }
-            const watches: WatchRecord[] = params.watches.map((w) => {
-              let type: WatchRecord['type'] = 'DATE';
-              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-              else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-              return {
-                id: w.id,
-                type,
-                year: w.year,
-                month: w.month,
-                day: w.day,
-                endYear: w.endYear,
-                endMonth: w.endMonth,
-                endDay: w.endDay,
-                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined
-              };
-            });
+            const watches = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              entryId,
+              myMoviesByClass,
+              myTvByClass,
+              myMovieClassOrder,
+              myTvClassOrder
+            );
             updateMovieWatchRecords(entryId, watches);
             if (params.classKey) {
               const moveOptions = { toTop: params.position === 'top', toMiddle: params.position === 'middle' };

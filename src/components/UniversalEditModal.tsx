@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye } from 'lucide-react';
 import type { WatchRecord } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
@@ -12,6 +12,16 @@ import {
   type DatePreset
 } from '../lib/dateDropdowns';
 import { tmdbTvDetailsFull } from '../lib/tmdb';
+import { getWatchRecordSortKey, useMoviesStore } from '../state/moviesStore';
+import { useTvStore } from '../state/tvStore';
+import { watchMatrixEntryToWatchRecord } from '../lib/watchMatrixMapping';
+import {
+  collectFlatDatedWatchEvents,
+  countWatchesOnSortKey,
+  sortEventsForDayOrderModal,
+  dayOrdersFromOrderedRecordIds,
+} from '../lib/watchDayOrderUtils';
+import { WatchDayOrderModal } from './WatchDayOrderModal';
 import './UniversalEditModal.css';
 import { InfoModal } from './InfoModal';
 import { RecommendToFriendModal } from './RecommendToFriendModal';
@@ -40,6 +50,8 @@ export interface WatchMatrixEntry {
   watchPercent: number;
   // Watch details toggle
   watchStatus: WatchDetailStatus;
+  /** Same calendar day ordering; higher = later in day. */
+  dayOrder?: number;
 }
 
 export type UniversalEditTarget = {
@@ -260,6 +272,8 @@ interface MatrixRowProps {
   seasonEpisodeCounts?: number[];
   mediaType: MediaType;
   applyPreset: (preset: DatePreset | 'reset') => void;
+  showOrderButton?: boolean;
+  onOpenDayOrder?: () => void;
 }
 
 function getWatchAmountLabel(
@@ -329,6 +343,8 @@ function MatrixRow({
   seasonEpisodeCounts,
   mediaType,
   applyPreset,
+  showOrderButton,
+  onOpenDayOrder,
 }: MatrixRowProps) {
   const { watchType, year, month, day, endYear, endMonth, endDay, watchPercent, watchStatus } = entry;
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -427,15 +443,22 @@ function MatrixRow({
               )}
             </div>
             {showDate && (
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              <ThemedDropdown
-                value=""
-                options={[...DATE_PRESET_OPTIONS, { value: 'reset', label: 'Reset' }] as any}
-                triggerLabel="preset"
-                showOnHover
-                onChange={(v: string) => applyPreset(v as DatePreset | 'reset')}
-                className="uem-preset-dd"
-              />
+              <span className="uem-preset-order-wrap">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <ThemedDropdown
+                  value=""
+                  options={[...DATE_PRESET_OPTIONS, { value: 'reset', label: 'Reset' }] as any}
+                  triggerLabel="preset"
+                  showOnHover
+                  onChange={(v: string) => applyPreset(v as DatePreset | 'reset')}
+                  className="uem-preset-dd"
+                />
+                {showOrderButton && onOpenDayOrder ? (
+                  <button type="button" className="uem-order-btn" onClick={onOpenDayOrder}>
+                    Order
+                  </button>
+                ) : null}
+              </span>
             )}
           </div>
         )}
@@ -549,6 +572,7 @@ export function UniversalEditModal({
         endDay: r.endDay,
         watchPercent: r.dnfPercent ?? 100,
         watchStatus,
+        dayOrder: r.dayOrder,
       };
     });
 
@@ -591,6 +615,123 @@ export function UniversalEditModal({
     () => rankedClasses.filter((c) => c.key !== 'UNRANKED' && c.isRanked !== false),
     [rankedClasses]
   );
+
+  const {
+    byClass: moviesByClass,
+    classOrder: movieClassOrder,
+    getMovieById,
+    batchUpdateMovieWatchRecords,
+    forceSync: forceSyncMovies,
+  } = useMoviesStore();
+  const {
+    byClass: tvByClass,
+    classOrder: tvClassOrder,
+    getShowById,
+    batchUpdateShowWatchRecords,
+    forceSync: forceSyncTv,
+  } = useTvStore();
+
+  const libraryFlat = useMemo(
+    () =>
+      target.mediaType === 'movie' || target.mediaType === 'tv'
+        ? collectFlatDatedWatchEvents(moviesByClass, tvByClass, movieClassOrder, tvClassOrder)
+        : [],
+    [target.mediaType, moviesByClass, tvByClass, movieClassOrder, tvClassOrder]
+  );
+
+  /**
+   * Matrix `entries` can hold stale `dayOrder` after the library-wide day-order modal updates the store.
+   * Before save, align each row's dayOrder with the store when the calendar sortKey is unchanged so we
+   * never write stale matrix state back over Firestore.
+   */
+  const mergeMatrixDayOrdersFromStore = useCallback(
+    (matrixEntries: WatchMatrixEntry[]): WatchMatrixEntry[] => {
+      if (target.mediaType !== 'movie' && target.mediaType !== 'tv') return matrixEntries;
+      const item = target.mediaType === 'movie' ? getMovieById(target.id) : getShowById(target.id);
+      const storeById = new Map((item?.watchRecords ?? []).map((r) => [String(r.id), r]));
+
+      return matrixEntries.map((entry) => {
+        const prev = storeById.get(String(entry.id));
+        if (!prev) return entry;
+        const nextRec = watchMatrixEntryToWatchRecord(entry);
+        if (!nextRec) return entry;
+        const prevSk = getWatchRecordSortKey(prev);
+        const nextSk = getWatchRecordSortKey(nextRec);
+        if (prevSk !== nextSk || prevSk === '0000-00-00') {
+          return { ...entry, dayOrder: undefined };
+        }
+        return { ...entry, dayOrder: prev.dayOrder };
+      });
+    },
+    [target.mediaType, target.id, getMovieById, getShowById]
+  );
+
+  const [dayOrderModalSortKey, setDayOrderModalSortKey] = useState<string | null>(null);
+  const [isSavingDayOrder, setIsSavingDayOrder] = useState(false);
+
+  const dayOrderModalInitialRows = useMemo(() => {
+    if (!dayOrderModalSortKey) return [];
+    return sortEventsForDayOrderModal(libraryFlat.filter((e) => e.sortKey === dayOrderModalSortKey));
+  }, [dayOrderModalSortKey, libraryFlat]);
+
+  const handleDayOrderSave = useCallback(
+    async (orderedRecordIds: string[]) => {
+      if (!dayOrderModalSortKey) return;
+      const orderMap = dayOrdersFromOrderedRecordIds(orderedRecordIds);
+      const dayRows = libraryFlat.filter((e) => e.sortKey === dayOrderModalSortKey);
+      const uniqEntry = new Map<string, boolean>();
+      for (const row of dayRows) {
+        uniqEntry.set(row.item.id, row.isMovie);
+      }
+
+      setIsSavingDayOrder(true);
+      try {
+        const moviePatches: Record<string, WatchRecord[]> = {};
+        const tvPatches: Record<string, WatchRecord[]> = {};
+        for (const [entryId, isMovie] of uniqEntry.entries()) {
+          const item = isMovie ? getMovieById(entryId) : getShowById(entryId);
+          if (!item?.watchRecords) continue;
+          const newRecords = item.watchRecords.map((r) => {
+            const o = orderMap.get(String(r.id));
+            return o !== undefined ? { ...r, dayOrder: o } : r;
+          });
+          if (isMovie) moviePatches[entryId] = newRecords;
+          else tvPatches[entryId] = newRecords;
+        }
+        flushSync(() => {
+          if (Object.keys(moviePatches).length > 0) batchUpdateMovieWatchRecords(moviePatches);
+          if (Object.keys(tvPatches).length > 0) batchUpdateShowWatchRecords(tvPatches);
+        });
+        await Promise.all([forceSyncMovies(), forceSyncTv()]);
+        const patchedForThisTarget =
+          target.mediaType === 'movie'
+            ? moviePatches[target.id]
+            : target.mediaType === 'tv'
+              ? tvPatches[target.id]
+              : undefined;
+        if (patchedForThisTarget) {
+          setEntries(convertRecordsToMatrix(patchedForThisTarget));
+        }
+        setDayOrderModalSortKey(null);
+      } finally {
+        setIsSavingDayOrder(false);
+      }
+    },
+    [
+      dayOrderModalSortKey,
+      libraryFlat,
+      target.id,
+      target.mediaType,
+      getMovieById,
+      getShowById,
+      batchUpdateMovieWatchRecords,
+      batchUpdateShowWatchRecords,
+      forceSyncMovies,
+      forceSyncTv,
+      convertRecordsToMatrix,
+    ]
+  );
+
   const needsRankPick = hasNeverBeenRanked && rankedPickable.length > 0;
 
   // Lock body scroll when modal is open (only on desktop)
@@ -850,7 +991,7 @@ export function UniversalEditModal({
 
     await onSave(
       {
-        watches: finalEntries,
+        watches: mergeMatrixDayOrdersFromStore(finalEntries),
         classKey: effectiveClassKey,
         position: effectiveClassKey ? selectedPosition : undefined,
         listMemberships: availableTags.map((tag) => ({ listId: tag.listId, selected: Boolean(tagSelections[tag.listId]) })),
@@ -1008,7 +1149,15 @@ export function UniversalEditModal({
 
             {/* Matrix Body */}
             <div className="uem-matrix-body">
-              {entries.map((entry, index) => (
+              {entries.map((entry) => {
+                const provisional = watchMatrixEntryToWatchRecord(entry);
+                const sk = provisional ? getWatchRecordSortKey(provisional) : '0000-00-00';
+                const showOrderBtn =
+                  (target.mediaType === 'movie' || target.mediaType === 'tv') &&
+                  sk !== '0000-00-00' &&
+                  provisional !== null &&
+                  countWatchesOnSortKey(libraryFlat, sk) >= 2;
+                return (
                 <MatrixRow
                   key={entry.id}
                   entry={entry}
@@ -1024,8 +1173,11 @@ export function UniversalEditModal({
                   seasonEpisodeCounts={seasonEpisodeCounts}
                   mediaType={target.mediaType}
                   applyPreset={preset => applyPresetToEntry(entry.id, preset, entry.watchType === 'DATE_RANGE')}
+                  showOrderButton={showOrderBtn}
+                  onOpenDayOrder={showOrderBtn ? () => setDayOrderModalSortKey(sk) : undefined}
                 />
-              ))}
+                );
+              })}
               <div ref={entriesEndRef} />
             </div>
 
@@ -1250,6 +1402,16 @@ export function UniversalEditModal({
         }
         onClose={() => setRecommendOpen(false)}
       />
+
+      {dayOrderModalSortKey ? (
+        <WatchDayOrderModal
+          sortKey={dayOrderModalSortKey}
+          initialRows={dayOrderModalInitialRows}
+          onClose={() => setDayOrderModalSortKey(null)}
+          onSave={handleDayOrderSave}
+          isSaving={isSavingDayOrder}
+        />
+      ) : null}
     </div>
   );
 }

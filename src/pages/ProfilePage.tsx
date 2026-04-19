@@ -10,6 +10,11 @@ import {
   getWatchRecordSortKey,
   formatWatchLabel
 } from '../state/moviesStore';
+import {
+  compareRecentWatchEvents,
+  compareChronologicalFirstWatchList,
+  getWatchRecordDayOrder,
+} from '../lib/watchRecordChronology';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore, type PersonItem } from '../state/peopleStore';
@@ -32,6 +37,9 @@ import {
   type ProfileMediaListMode,
   type ProfileWatchYearFilter,
 } from '../lib/profileMediaListHelpers';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
+import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -129,7 +137,7 @@ function getRecentWatches(
       }
     }
   }
-  return out.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  return out.sort(compareRecentWatchEvents);
 }
 
 /** Flatten *all* watches (includes LONG_AGO/UNKNOWN -> sortKey "0000-00-00"). */
@@ -158,7 +166,7 @@ function getAllWatches(
       }
     }
   }
-  return out.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  return out.sort(compareRecentWatchEvents);
 }
 
 function toYMD(d: Date): string {
@@ -249,8 +257,8 @@ function buildUniqueWatchMilestoneData(
   username: string
 ): {
   badgeMap: Map<string, { n: number; tooltip: string }>;
-  movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
-  showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[];
+  movieMilestones: { n: number; item: MovieShowItem; sortKey: string; record: WatchRecord; recordType: string; recordId?: string; dayOrder: number }[];
+  showMilestones: { n: number; item: MovieShowItem; sortKey: string; record: WatchRecord; recordType: string; recordId?: string; dayOrder: number }[];
   totalMovies: number;
   totalShows: number;
 } {
@@ -258,8 +266,6 @@ function buildUniqueWatchMilestoneData(
   // Badge attachment must be on that exact first-watch event only.
   const firstMovieByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
   const firstShowByTitle = new Map<string, { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }>();
-
-  const tieValue = (r: WatchRecord) => r.id ?? '';
 
   for (const w of allWatches) {
     const firstMap = w.isMovie ? firstMovieByTitle : firstShowByTitle;
@@ -269,31 +275,22 @@ function buildUniqueWatchMilestoneData(
     // Earliest by sortKey (then tie-break by id) -> first watch
     if (!firstExisting) {
       firstMap.set(key, w);
-    } else {
-      const earlierSort = w.sortKey.localeCompare(firstExisting.sortKey) < 0;
-      const sameSortFirst = w.sortKey === firstExisting.sortKey;
-      const earlierTie = tieValue(w.record).localeCompare(tieValue(firstExisting.record)) < 0;
-      if (earlierSort || (sameSortFirst && earlierTie)) {
-        firstMap.set(key, w);
-      }
+    } else if (compareChronologicalFirstWatchList(w, firstExisting) < 0) {
+      firstMap.set(key, w);
     }
 
   }
 
   // Order titles by first-watch ascending (oldest -> newest)
-  const firstMovieEntries = Array.from(firstMovieByTitle.values()).sort(
-    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
-  );
-  const firstShowEntries = Array.from(firstShowByTitle.values()).sort(
-    (a, b) => a.sortKey.localeCompare(b.sortKey) || a.item.id.localeCompare(b.item.id)
-  );
+  const firstMovieEntries = Array.from(firstMovieByTitle.values()).sort(compareChronologicalFirstWatchList);
+  const firstShowEntries = Array.from(firstShowByTitle.values()).sort(compareChronologicalFirstWatchList);
 
   const totalMovies = firstMovieEntries.length;
   const totalShows = firstShowEntries.length;
 
   const badgeMap = new Map<string, { n: number; tooltip: string }>();
-  const movieMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
-  const showMilestones: { n: number; item: MovieShowItem; sortKey: string; recordType: string; recordId?: string }[] = [];
+  const movieMilestones: { n: number; item: MovieShowItem; sortKey: string; record: WatchRecord; recordType: string; recordId?: string; dayOrder: number }[] = [];
+  const showMilestones: { n: number; item: MovieShowItem; sortKey: string; record: WatchRecord; recordType: string; recordId?: string; dayOrder: number }[] = [];
 
   // Movies: n is "first watch index" (1-based) so rewatches tomorrow don't change n.
   for (let i = 0; i < firstMovieEntries.length; i++) {
@@ -308,8 +305,10 @@ function buildUniqueWatchMilestoneData(
       n,
       item: first.item,
       sortKey: first.sortKey,
+      record: first.record,
       recordType: first.record.type ?? 'DATE',
-      recordId: first.record.id
+      recordId: first.record.id,
+      dayOrder: getWatchRecordDayOrder(first.record)
     });
   }
 
@@ -326,8 +325,10 @@ function buildUniqueWatchMilestoneData(
       n,
       item: first.item,
       sortKey: first.sortKey,
+      record: first.record,
       recordType: first.record.type ?? 'DATE',
-      recordId: first.record.id
+      recordId: first.record.id,
+      dayOrder: getWatchRecordDayOrder(first.record)
     });
   }
 
@@ -1046,23 +1047,29 @@ export function ProfilePage() {
     const movieRows = milestoneData.movieMilestones.map((m) => ({
       item: m.item,
       sortKey: m.sortKey,
+      record: m.record,
       n: m.n,
       isMovie: true as const,
       recordType: m.recordType,
-      recordId: m.recordId
+      recordId: m.recordId,
+      dayOrder: m.dayOrder
     }));
     const showRows = milestoneData.showMilestones.map((m) => ({
       item: m.item,
       sortKey: m.sortKey,
+      record: m.record,
       n: m.n,
       isMovie: false as const,
       recordType: m.recordType,
-      recordId: m.recordId
+      recordId: m.recordId,
+      dayOrder: m.dayOrder
     }));
     return [...movieRows, ...showRows].sort((a, b) => {
       if (a.isMovie !== b.isMovie) return a.isMovie ? -1 : 1;
       if (a.n !== b.n) return b.n - a.n;
-      return b.sortKey.localeCompare(a.sortKey);
+      const sk = b.sortKey.localeCompare(a.sortKey);
+      if (sk !== 0) return sk;
+      return (b.dayOrder ?? 0) - (a.dayOrder ?? 0);
     });
   }, [milestoneData.movieMilestones, milestoneData.showMilestones]);
 
@@ -1360,22 +1367,18 @@ export function ProfilePage() {
     setIsRankingSaving(true);
     try {
       const tmdbId = (rankingTarget.tmdbId ?? parseInt(rankingTarget.id.replace(/\D/g, ''), 10)) || 0;
-      
+
+      const records = prepareWatchRecordsForSave(
+        watchMatrixEntriesToWatchRecords(params.watches),
+        rankingTarget.id,
+        moviesByClass,
+        tvByClass,
+        movieClassOrder,
+        tvClassOrder
+      );
+
       if (rankingTarget.mediaType === 'movie') {
         const status = getUserMovieStatus(tmdbId);
-        
-        // Convert WatchMatrixEntry[] to WatchRecord[]
-        const records: WatchRecord[] = params.watches.map((w: any) => ({
-          id: w.id || crypto.randomUUID(),
-          type: w.watchType === 'LONG_AGO' ? 'LONG_AGO' : w.watchType === 'DATE_RANGE' ? 'RANGE' : w.watchStatus === 'WATCHING' ? 'CURRENT' : w.watchStatus === 'DNF' ? 'DNF' : 'DATE',
-          year: w.year,
-          month: w.month,
-          day: w.day,
-          endYear: w.endYear,
-          endMonth: w.endMonth,
-          endDay: w.endDay,
-          dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-        }));
 
         if (status.isRanked && rankingTarget.id) {
           // Update existing
@@ -1406,18 +1409,6 @@ export function ProfilePage() {
       } else {
         // TV show
         const status = getUserShowStatus(tmdbId);
-        
-        const records: WatchRecord[] = params.watches.map((w: any) => ({
-          id: w.id || crypto.randomUUID(),
-          type: w.watchType === 'LONG_AGO' ? 'LONG_AGO' : w.watchType === 'DATE_RANGE' ? 'RANGE' : w.watchStatus === 'WATCHING' ? 'CURRENT' : w.watchStatus === 'DNF' ? 'DNF' : 'DATE',
-          year: w.year,
-          month: w.month,
-          day: w.day,
-          endYear: w.endYear,
-          endMonth: w.endMonth,
-          endDay: w.endDay,
-          dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-        }));
 
         if (status.isRanked && rankingTarget.id) {
           await updateTvShowWatchRecords(rankingTarget.id, records);
@@ -1515,24 +1506,6 @@ export function ProfilePage() {
       );
     }
     return null;
-  };
-
-  // Format date for recently watched
-  const formatWatchDate = (record: WatchRecord) => {
-    if (!record.year) return 'Unknown date';
-    
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                   'July', 'August', 'September', 'October', 'November', 'December'];
-    
-    if (record.month) {
-      const monthName = months[record.month - 1];
-      if (record.day) {
-        return `${monthName} ${record.day}, ${record.year}`;
-      }
-      return `${monthName} ${record.year}`;
-    }
-    
-    return `Sometime ${record.year}`;
   };
 
   const searchableMovies = useMemo(() => rankedMovies.map(m => ({ id: m.id, title: m.title })), [rankedMovies]);
@@ -2995,7 +2968,7 @@ export function ProfilePage() {
                         </div>
                         <div className="profile-recent-tile-info">
                           <span className="profile-recent-tile-title">{ms.item.title}</span>
-                          <span className="profile-recent-tile-date">{ms.sortKey === '0000-00-00' ? 'Unknown date' : ms.sortKey}</span>
+                          <span className="profile-recent-tile-date">{formatProfileWatchDateLabel(ms.record)}</span>
                         </div>
                       </div>
                     );
@@ -3067,9 +3040,7 @@ export function ProfilePage() {
                       </div>
                       <div className="profile-recent-tile-info">
                         <span className="profile-recent-tile-title">{w.item.title}</span>
-                        <span className="profile-recent-tile-date">
-                          {formatWatchDate(w.record)}
-                        </span>
+                        <span className="profile-recent-tile-date">{formatProfileWatchDateLabel(w.record)}</span>
                       </div>
                     </div>
                   );

@@ -25,7 +25,8 @@ import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
-import type { WatchRecord } from '../components/EntryRowMovieShow';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { SearchResultExtendedInfo } from '../components/SearchResultExtendedInfo';
 import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import { InfoModal } from '../components/InfoModal';
@@ -463,6 +464,7 @@ export function SearchPage() {
   const [searchLoadMoreClicks, setSearchLoadMoreClicks] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const {
+    byClass: moviesByClass,
     addMovieFromSearch,
     addWatchToMovie,
     getMovieById,
@@ -476,6 +478,7 @@ export function SearchPage() {
     removeMovieEntry
   } = useMoviesStore();
   const {
+    byClass: tvByClass,
     addShowFromSearch,
     addWatchToShow,
     getShowById,
@@ -867,29 +870,14 @@ export function SearchPage() {
     const toTop = position === 'top';
     const toMiddle = position === 'middle';
 
-    // Convert WatchMatrixEntry[] to WatchRecord[]
-    const watchRecords = watches.map((w) => {
-      let type: WatchRecord['type'] = 'DATE';
-      if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-      else if (w.watchType === 'LONG_AGO') {
-        type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-      }
-      
-      if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-      else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-      
-      return {
-        id: w.id,
-        type,
-        year: w.year,
-        month: w.month,
-        day: w.day,
-        endYear: w.endYear,
-        endMonth: w.endMonth,
-        endDay: w.endDay,
-        dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-      };
-    });
+    const watchRecords = prepareWatchRecordsForSave(
+      watchMatrixEntriesToWatchRecords(watches),
+      targetId,
+      moviesByClass,
+      tvByClass,
+      classOrder,
+      tvClassOrder
+    );
 
     if (mediaType === 'movie') {
       const existing = getMovieById(targetId);

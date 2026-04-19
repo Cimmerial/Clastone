@@ -36,6 +36,8 @@ export type WatchRecord = {
   endDay?: number;
   /** For DNF (movie): 0–100 percentage through before stopping. */
   dnfPercent?: number;
+  /** Same calendar day as other watches: higher = later in day (end of day). */
+  dayOrder?: number;
 };
 
 /** Cached cast member (stored so we don't need to re-fetch from API). */

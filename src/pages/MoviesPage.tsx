@@ -28,6 +28,9 @@ import { InfoModal } from '../components/InfoModal';
 import { useListsStore } from '../state/listsStore';
 import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
 import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
+import { useTvStore } from '../state/tvStore';
 
 function movieItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -74,6 +77,7 @@ export function MoviesPage() {
     globalRanks, // Added globalRanks from store
     applyMovieTemplate,
   } = useMoviesStore();
+  const { byClass: tvByClass, classOrder: tvClassOrder } = useTvStore();
   const { addPersonFromSearch, classes: peopleClasses, moveItemToClass: movePersonToClass } = usePeopleStore();
   const { addDirectorFromSearch, classes: directorsClasses, moveItemToClass: moveDirectorToClass } = useDirectorsStore();
   const { movieFilters } = useFilterStore();
@@ -390,29 +394,14 @@ export function MoviesPage() {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
 
-            // Convert WatchMatrixEntry[] to WatchRecord[]
-            const watches = params.watches.map((w) => {
-              let type: WatchRecord['type'] = 'DATE';
-              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-              else if (w.watchType === 'LONG_AGO') {
-                type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-              }
-
-              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-
-              return {
-                id: w.id,
-                type,
-                year: w.year,
-                month: w.month,
-                day: w.day,
-                endYear: w.endYear,
-                endMonth: w.endMonth,
-                endDay: w.endDay,
-                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-              };
-            });
+            const watches = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              targetItem.id,
+              byClass,
+              tvByClass,
+              classOrder,
+              tvClassOrder
+            );
 
             if (recordWatchFor && watches.length > 0) {
               addWatchToMovie(targetItem.id, watches[0]);

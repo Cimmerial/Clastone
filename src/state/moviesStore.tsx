@@ -93,7 +93,16 @@ function recordSortKey(r: WatchRecord): string {
 }
 
 function sortRecordsByRecency(records: WatchRecord[]): WatchRecord[] {
-  return [...records].sort((a, b) => recordSortKey(b).localeCompare(recordSortKey(a)));
+  return [...records].sort((a, b) => {
+    const ka = recordSortKey(a);
+    const kb = recordSortKey(b);
+    const sk = kb.localeCompare(ka);
+    if (sk !== 0) return sk;
+    const da = a.dayOrder ?? 0;
+    const db = b.dayOrder ?? 0;
+    if (db !== da) return db - da;
+    return String(b.id ?? '').localeCompare(String(a.id ?? ''));
+  });
 }
 
 export function formatDuration(totalMinutes: number): string {
@@ -221,6 +230,8 @@ type MoviesStore = {
   ) => void;
   addWatchToMovie: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
   updateMovieWatchRecords: (itemId: string, records: WatchRecord[]) => void;
+  /** Apply many watch-record updates in one state commit (same-day order across titles). */
+  batchUpdateMovieWatchRecords: (updates: Record<string, WatchRecord[]>) => void;
   setMovieRuntime: (itemId: string, runtimeMinutes: number) => void;
   /** Merge cached TMDB data onto an existing entry (e.g. when adding a watch we fetch details). */
   updateMovieCache: (itemId: string, cache: Partial<TmdbMovieCache>) => void;
@@ -830,6 +841,39 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
     });
   }, [classOrder]);
 
+  const batchUpdateMovieWatchRecords = useCallback((updates: Record<string, WatchRecord[]>) => {
+    if (Object.keys(updates).length === 0) return;
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      let changedGlobal = false;
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        let changedClass = false;
+        const newList = list.map((m) => {
+          const records = updates[m.id];
+          if (!records) return m;
+          changedClass = true;
+          changedGlobal = true;
+          const { viewingDates, percentCompleted, watchTime } = formatViewingFromRecords(
+            records,
+            m.runtimeMinutes
+          );
+          return {
+            ...m,
+            watchRecords: records,
+            viewingDates,
+            percentCompleted,
+            watchTime: watchTime || undefined
+          };
+        });
+        if (changedClass) {
+          next[classKey] = newList;
+        }
+      }
+      return changedGlobal ? next : prev;
+    });
+  }, [classOrder]);
+
   const setMovieRuntime = useCallback((itemId: string, runtimeMinutes: number) => {
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
@@ -907,6 +951,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
       addMovieFromSearch,
       addWatchToMovie,
       updateMovieWatchRecords,
+      batchUpdateMovieWatchRecords,
       setMovieRuntime,
       updateMovieCache,
       updateBatchMovieCache,
@@ -924,6 +969,10 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
           }
 
           if (dirtyClasses.length > 0 || classesMetadataChanged) {
+            if (persistTimeoutRef.current) {
+              clearTimeout(persistTimeoutRef.current);
+              persistTimeoutRef.current = null;
+            }
             await onPersist({
               ...currentStateRef.current,
               dirtyClasses,
@@ -934,7 +983,7 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         }
       }
     }),
-    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry, applyMovieTemplate, onPersist]
+    [classes, classOrder, getClassLabel, getClassTagline, isRankedClass, byClass, addClass, renameClassLabel, renameClassTagline, moveClass, deleteClass, moveToOtherClass, moveWithinClass, reorderWithinClass, moveItemToClass, addMovieFromSearch, addWatchToMovie, updateMovieWatchRecords, batchUpdateMovieWatchRecords, setMovieRuntime, updateMovieCache, updateBatchMovieCache, getMovieById, removeMovieEntry, applyMovieTemplate, onPersist]
   );
 
   return <MoviesContext.Provider value={value}>{children}</MoviesContext.Provider>;

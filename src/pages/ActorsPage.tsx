@@ -13,7 +13,8 @@ import { getTotalMinutesFromRecords } from '../state/moviesStore';
 import { PageSearch } from '../components/PageSearch';
 import { PersonRankingModal, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { UniversalEditModal, type UniversalEditSaveParams } from '../components/UniversalEditModal';
-import type { WatchRecord } from '../components/EntryRowMovieShow';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { ViewToggle } from '../components/ViewToggle';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
@@ -36,8 +37,22 @@ export function ActorsPage() {
     removePersonEntry,
     applyPersonTemplate,
   } = usePeopleStore();
-  const { byClass: moviesByClass, addWatchToMovie, moveItemToClass: moveMovieToClass, classes: movieClasses, addMovieFromSearch } = useMoviesStore();
-  const { byClass: tvByClass, addWatchToShow, moveItemToClass: moveTvToClass, classes: tvClasses, addShowFromSearch } = useTvStore();
+  const {
+    byClass: moviesByClass,
+    classOrder: movieClassOrder,
+    addWatchToMovie,
+    moveItemToClass: moveMovieToClass,
+    classes: movieClasses,
+    addMovieFromSearch,
+  } = useMoviesStore();
+  const {
+    byClass: tvByClass,
+    classOrder: tvClassOrder,
+    addWatchToShow,
+    moveItemToClass: moveTvToClass,
+    classes: tvClasses,
+    addShowFromSearch,
+  } = useTvStore();
   const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
   const { mode: mobileViewMode } = useMobileViewMode();
@@ -93,7 +108,15 @@ export function ActorsPage() {
     
     try {
       const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
-      
+      const preparedWatches = prepareWatchRecordsForSave(
+        watchMatrixEntriesToWatchRecords(params.watches),
+        id,
+        moviesByClass,
+        tvByClass,
+        movieClassOrder,
+        tvClassOrder
+      );
+
       if (recordMediaTarget.mediaType === 'movie') {
         // Fetch full movie details first
         const cache = await tmdbMovieDetailsFull(recordMediaTarget.id);
@@ -111,7 +134,7 @@ export function ActorsPage() {
         });
         
         // Then add the watch record
-        addWatchToMovie(id, params.watches[0]);
+        if (preparedWatches[0]) addWatchToMovie(id, preparedWatches[0]);
         
         // Move to class if specified (and different from initial class)
         if (params.classKey && params.classKey !== 'UNRANKED') {
@@ -136,7 +159,7 @@ export function ActorsPage() {
         });
         
         // Then add the watch record
-        addWatchToShow(id, params.watches[0]);
+        if (preparedWatches[0]) addWatchToShow(id, preparedWatches[0]);
         
         // Move to class if specified (and different from initial class)
         if (params.classKey && params.classKey !== 'UNRANKED') {
@@ -347,30 +370,15 @@ export function ActorsPage() {
             navigate(mt === 'movie' ? '/movies#movie-class-templates' : '/tv#tv-class-templates', { replace: true });
           }}
           onSave={async (params, goToMedia) => {
-            // Convert matrix entries to watch records
-            const watchRecords = params.watches.map((w) => {
-              let type: WatchRecord['type'] = 'DATE';
-              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-              else if (w.watchType === 'LONG_AGO') {
-                type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-              }
-              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-              
-              return {
-                id: w.id,
-                type,
-                year: w.year,
-                month: w.month,
-                day: w.day,
-                endYear: w.endYear,
-                endMonth: w.endMonth,
-                endDay: w.endDay,
-                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-              };
-            });
-
             const id = recordMediaTarget.mediaType === 'movie' ? `tmdb-movie-${recordMediaTarget.id}` : `tmdb-tv-${recordMediaTarget.id}`;
+            const watchRecords = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              id,
+              moviesByClass,
+              tvByClass,
+              movieClassOrder,
+              tvClassOrder
+            );
             
             if (recordMediaTarget.mediaType === 'movie') {
               const cache = await tmdbMovieDetailsFull(recordMediaTarget.id);

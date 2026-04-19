@@ -66,6 +66,8 @@ type TvStore = {
   updateBatchShowCache: (updates: Record<string, Partial<TmdbTvCache>>) => void;
   addWatchToShow: (itemId: string, watch: WatchRecord, options?: { posterPath?: string }) => void;
   updateShowWatchRecords: (itemId: string, records: WatchRecord[]) => void;
+  /** Apply many watch-record updates in one state commit (same-day order across titles). */
+  batchUpdateShowWatchRecords: (updates: Record<string, WatchRecord[]>) => void;
   removeShowEntry: (itemId: string) => void;
   getShowById: (id: string) => MovieShowItem | null;
   
@@ -694,6 +696,39 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
     });
   }, [classOrder]);
 
+  const batchUpdateShowWatchRecords = useCallback((updates: Record<string, WatchRecord[]>) => {
+    if (Object.keys(updates).length === 0) return;
+    setByClass((prev) => {
+      const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
+      let changedGlobal = false;
+      for (const classKey of classOrder) {
+        const list = next[classKey] ?? [];
+        let changedClass = false;
+        const newList = list.map((m) => {
+          const records = updates[m.id];
+          if (!records) return m;
+          changedClass = true;
+          changedGlobal = true;
+          const { viewingDates, percentCompleted, watchTime } = formatViewingFromRecords(
+            records,
+            m.runtimeMinutes
+          );
+          return {
+            ...m,
+            watchRecords: records,
+            viewingDates,
+            percentCompleted,
+            watchTime: watchTime || undefined
+          };
+        });
+        if (changedClass) {
+          next[classKey] = newList;
+        }
+      }
+      return changedGlobal ? next : prev;
+    });
+  }, [classOrder]);
+
   const updateShowCache = useCallback((itemId: string, cache: Partial<TmdbTvCache>) => {
     setByClass((prev) => {
       const next: Record<ClassKey, MovieShowItem[]> = { ...prev };
@@ -843,6 +878,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       updateBatchShowCache,
       addWatchToShow,
       updateShowWatchRecords,
+      batchUpdateShowWatchRecords,
       removeShowEntry,
       getShowById,
       applyShowTemplate,
@@ -857,6 +893,10 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           }
 
           if (dirtyClasses.length > 0 || classesMetadataChanged) {
+            if (persistTimeoutRef.current) {
+              clearTimeout(persistTimeoutRef.current);
+              persistTimeoutRef.current = null;
+            }
             await onPersistRef.current({
               ...currentStateRef.current,
               dirtyClasses,
@@ -887,6 +927,7 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
       addShowFromSearch,
       addWatchToShow,
       updateShowWatchRecords,
+      batchUpdateShowWatchRecords,
       updateShowCache,
       updateBatchShowCache,
       getShowById,

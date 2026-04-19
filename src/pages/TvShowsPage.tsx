@@ -8,7 +8,6 @@ import { usePageState } from '../hooks/usePageState';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget } from '../components/PersonRankingModal';
 import { ClassJumpButtons } from '../components/ClassJumpButtons';
-import type { WatchRecord } from '../components/EntryRowMovieShow';
 import {
   getTotalMinutesFromRecords,
   formatDuration
@@ -28,6 +27,9 @@ import { InfoModal } from '../components/InfoModal';
 import { useListsStore } from '../state/listsStore';
 import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
 import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
+import { useMoviesStore } from '../state/moviesStore';
 
 function tvItemToTarget(item: MovieShowItem): UniversalEditTarget {
   const id = item.tmdbId ?? (parseInt(item.id.replace(/\D/g, ''), 10) || 0);
@@ -74,6 +76,7 @@ export function TvShowsPage() {
     globalRanks,
     applyShowTemplate,
   } = useTvStore();
+  const { byClass: moviesByClass, classOrder: movieClassOrder } = useMoviesStore();
   const { addPersonFromSearch, classes: peopleClasses } = usePeopleStore();
   const { addDirectorFromSearch, classes: directorsClasses } = useDirectorsStore();
   const { showFilters } = useFilterStore();
@@ -387,29 +390,14 @@ export function TvShowsPage() {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
 
-            // Convert WatchMatrixEntry[] to WatchRecord[]
-            const watches = params.watches.map((w) => {
-              let type: WatchRecord['type'] = 'DATE';
-              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-              else if (w.watchType === 'LONG_AGO') {
-                type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-              }
-
-              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-
-              return {
-                id: w.id,
-                type,
-                year: w.year,
-                month: w.month,
-                day: w.day,
-                endYear: w.endYear,
-                endMonth: w.endMonth,
-                endDay: w.endDay,
-                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-              };
-            });
+            const watches = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              targetItem.id,
+              moviesByClass,
+              byClass,
+              movieClassOrder,
+              classOrder
+            );
 
             if (recordWatchFor && watches.length > 0) {
               addWatchToShow(targetItem.id, watches[0]);

@@ -24,6 +24,8 @@ import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, tmdbWatchProviderCatalog, tmdbWatchProviders, type TmdbWatchProvider } from '../lib/tmdb';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatRecommendersLabel } from '../components/RecommendToFriendModal';
 import { WatchlistFriendOverlapModal } from '../components/WatchlistFriendOverlapModal';
 import { useWatchlistFriendOverlap } from '../hooks/useWatchlistFriendOverlap';
@@ -817,6 +819,7 @@ export function WatchlistPage() {
   const { isMobile } = useMobileViewMode();
   const { friends } = useFriends();
   const {
+    byClass: moviesByClass,
     getMovieById,
     addMovieFromSearch,
     addWatchToMovie,
@@ -828,6 +831,7 @@ export function WatchlistPage() {
     removeMovieEntry
   } = useMoviesStore();
   const {
+    byClass: tvByClass,
     getShowById,
     addShowFromSearch,
     addWatchToShow,
@@ -1075,6 +1079,15 @@ export function WatchlistPage() {
     const existing = isMovie ? getMovieById(id) : getShowById(id);
     const existingIsUnranked = existing?.classKey === 'UNRANKED';
 
+    const watchRecords = prepareWatchRecordsForSave(
+      watchMatrixEntriesToWatchRecords(watches),
+      id,
+      moviesByClass,
+      tvByClass,
+      classOrder,
+      tvClassOrder
+    );
+
     if (isMovie) {
       if (existing) {
         const needsCache = existing.tmdbId == null || existing.overview == null;
@@ -1086,7 +1099,7 @@ export function WatchlistPage() {
             /* ignore */
           }
         }
-        for (const w of watches) {
+        for (const w of watchRecords) {
           addWatchToMovie(id, w, {
             posterPath: recordTarget.posterPath ?? existing.posterPath
           });
@@ -1110,15 +1123,15 @@ export function WatchlistPage() {
           title: recordTarget.title,
           subtitle: recordTarget.subtitle ?? '',
           classKey: recordClassKey,
-          firstWatch: watches[0],
+          firstWatch: watchRecords[0],
           runtimeMinutes: cache?.runtimeMinutes,
           posterPath: recordTarget.posterPath ?? cache?.posterPath,
           cache: cache ?? undefined,
           toTop
         });
         // Add additional watches if any
-        for (let i = 1; i < watches.length; i++) {
-          addWatchToMovie(id, watches[i]);
+        for (let i = 1; i < watchRecords.length; i++) {
+          addWatchToMovie(id, watchRecords[i]);
         }
         setIsSaving(false);
       }
@@ -1138,7 +1151,7 @@ export function WatchlistPage() {
         if (existing.tmdbId == null || existing.overview == null) {
           updateShowCache(id, cache);
         }
-        for (const w of watches) {
+        for (const w of watchRecords) {
           addWatchToShow(id, w, { posterPath: cache.posterPath ?? existing.posterPath });
         }
         if (existingIsUnranked && recordClassKey) {
@@ -1151,13 +1164,13 @@ export function WatchlistPage() {
           title: cache.title,
           subtitle: recordTarget.subtitle ?? '',
           classKey: recordClassKey,
-          firstWatch: watches[0],
+          firstWatch: watchRecords[0],
           cache,
           toTop
         });
         // Add additional watches if any
-        for (let i = 1; i < watches.length; i++) {
-          addWatchToShow(id, watches[i]);
+        for (let i = 1; i < watchRecords.length; i++) {
+          addWatchToShow(id, watchRecords[i]);
         }
       }
     }

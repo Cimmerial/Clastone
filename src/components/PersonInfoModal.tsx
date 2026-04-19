@@ -8,7 +8,8 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { InfoModal } from './InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from './UniversalEditModal';
-import type { WatchRecord } from './EntryRowMovieShow';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import './InfoModal.css';
 
 interface PersonInfoModalProps {
@@ -52,8 +53,28 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const [projectEditTarget, setProjectEditTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const [isSavingProject, setIsSavingProject] = useState(false);
   const { settings } = useSettingsStore();
-  const { classes: movieClasses, getClassLabel: getMovieClassLabel, getMovieById, addMovieFromSearch, updateMovieWatchRecords, moveItemToClass: moveMovieToClass, removeMovieEntry } = useMoviesStore();
-  const { classes: tvClasses, getClassLabel: getTvClassLabel, getShowById, addShowFromSearch, updateShowWatchRecords, moveItemToClass: moveShowToClass, removeShowEntry } = useTvStore();
+  const {
+    byClass: moviesByClass,
+    classOrder: movieClassOrder,
+    classes: movieClasses,
+    getClassLabel: getMovieClassLabel,
+    getMovieById,
+    addMovieFromSearch,
+    updateMovieWatchRecords,
+    moveItemToClass: moveMovieToClass,
+    removeMovieEntry,
+  } = useMoviesStore();
+  const {
+    byClass: tvByClass,
+    classOrder: tvClassOrder,
+    classes: tvClasses,
+    getClassLabel: getTvClassLabel,
+    getShowById,
+    addShowFromSearch,
+    updateShowWatchRecords,
+    moveItemToClass: moveShowToClass,
+    removeShowEntry,
+  } = useTvStore();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
 
   useEffect(() => {
@@ -280,24 +301,14 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
           setProjectEditTarget(null);
         }}
         onSave={async (params) => {
-          const watches: WatchRecord[] = params.watches.map((w: any) => {
-            let type: WatchRecord['type'] = 'DATE';
-            if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-            else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-            if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-            else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-            return {
-              id: w.id,
-              type,
-              year: w.year,
-              month: w.month,
-              day: w.day,
-              endYear: w.endYear,
-              endMonth: w.endMonth,
-              endDay: w.endDay,
-              dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined,
-            };
-          });
+          const watches = prepareWatchRecordsForSave(
+            watchMatrixEntriesToWatchRecords(params.watches),
+            targetId,
+            moviesByClass,
+            tvByClass,
+            movieClassOrder,
+            tvClassOrder
+          );
 
           setIsSavingProject(true);
           try {

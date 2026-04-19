@@ -16,7 +16,8 @@ import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
 import { InfoModal } from '../components/InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
-import type { WatchRecord } from '../components/EntryRowMovieShow';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import './ListsPage.css';
 
 type ListCard = { id: string; title: string; subtitle: string; href: string; color?: string };
@@ -503,6 +504,7 @@ export function ListDetailPage() {
   const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const {
     byClass: movieByClass,
+    classOrder: movieClassOrder,
     classes: movieClasses,
     getClassLabel: getMovieClassLabel,
     updateMovieWatchRecords,
@@ -513,6 +515,7 @@ export function ListDetailPage() {
   } = useMoviesStore();
   const {
     byClass: tvByClass,
+    classOrder: tvClassOrder,
     classes: tvClasses,
     getClassLabel: getTvClassLabel,
     updateShowWatchRecords,
@@ -891,24 +894,14 @@ export function ListDetailPage() {
             setSettingsFor(null);
           } : undefined}
           onSave={async (params, goToMedia) => {
-            const watches: WatchRecord[] = params.watches.map((w) => {
-              let type: WatchRecord['type'] = 'DATE';
-              if (w.watchType === 'DATE_RANGE') type = 'RANGE';
-              else if (w.watchType === 'LONG_AGO') type = w.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
-              if (w.watchStatus === 'WATCHING' && w.watchType !== 'LONG_AGO') type = 'CURRENT';
-              else if (w.watchStatus === 'DNF' && w.watchType !== 'LONG_AGO') type = 'DNF';
-              return {
-                id: w.id,
-                type,
-                year: w.year,
-                month: w.month,
-                day: w.day,
-                endYear: w.endYear,
-                endMonth: w.endMonth,
-                endDay: w.endDay,
-                dnfPercent: w.watchPercent < 100 ? w.watchPercent : undefined
-              };
-            });
+            const watches = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              settingsFor.id,
+              movieByClass,
+              tvByClass,
+              movieClassOrder,
+              tvClassOrder
+            );
             const isTv = settingsFor.id.startsWith('tmdb-tv-');
             if (isTv && !getShowById(settingsFor.id)) {
               addShowFromSearch({
