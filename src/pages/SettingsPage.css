@@ -376,6 +376,12 @@
   padding-bottom: 0.35rem;
 }
 
+.settings-pfp-candidate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .settings-pfp-option {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -390,6 +396,40 @@
   aspect-ratio: 2/3;
   object-fit: cover;
   display: block;
+}
+
+.settings-pfp-alt-btn {
+  width: 100%;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.settings-pfp-alt-head {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.settings-pfp-upload-row {
+  margin-top: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.settings-pfp-upload-label {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.settings-pfp-upload-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .settings-quote-error {

@@ -25,6 +25,8 @@ type AuthState = {
   user: User | null;
   /** TMDB poster path when user chose a profile picture in Settings; drives navbar avatar. */
   pfpPosterPath: string | null;
+  /** Resolved profile photo URL (uploaded image or TMDB-derived URL). */
+  pfpPhotoUrl: string | null;
   isAdmin: boolean;
   isBabyDev: boolean;
   loading: boolean;
@@ -45,6 +47,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
+  const [pfpPhotoUrl, setPfpPhotoUrl] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isBabyDev, setIsBabyDev] = useState(false);
   const [loading, setLoading] = useState(!!auth);
@@ -77,11 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const pfp = userData?.pfpPosterPath;
         setPfpPosterPath(typeof pfp === 'string' && pfp.length > 0 ? pfp : null);
+        const storedPhoto = typeof userData?.pfpPhotoUrl === 'string' && userData.pfpPhotoUrl.length > 0
+          ? userData.pfpPhotoUrl
+          : null;
+        const fallbackPhoto = typeof u.photoURL === 'string' && u.photoURL.length > 0 ? u.photoURL : null;
+        setPfpPhotoUrl(storedPhoto ?? fallbackPhoto);
       } else {
         setUsername(null);
         setNeedsUsername(false);
         setIsBabyDev(false);
         setPfpPosterPath(null);
+        setPfpPhotoUrl(null);
       }
       
       setLoading(false);
@@ -305,6 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthState = {
     user,
     pfpPosterPath,
+    pfpPhotoUrl,
     isAdmin,
     isBabyDev,
     loading,

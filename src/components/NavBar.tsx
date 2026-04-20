@@ -24,8 +24,8 @@ const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isAdmin, pfpPosterPath } = useAuth();
-  const profileNavPhotoUrl = pfpPosterPath ? tmdbImagePath(pfpPosterPath, 'w185') ?? null : null;
+  const { isAdmin, pfpPosterPath, pfpPhotoUrl } = useAuth();
+  const profileNavPhotoUrl = pfpPosterPath ? tmdbImagePath(pfpPosterPath, 'w185') ?? null : pfpPhotoUrl;
 
   // Filter icon links based on admin status
   const filteredIconLinks = useMemo(() => {

@@ -23,7 +23,7 @@ import {
   type FirebaseQuote,
   type QuoteCategory,
 } from '../lib/firestoreQuotes';
-import { tmdbImagePath } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMediaPosters } from '../lib/tmdb';
 import {
   getPersistDebounceMs,
   setPersistDebounceMs,
@@ -46,7 +46,7 @@ type BabyRoleUser = {
 };
 
 export function SettingsPage() {
-  const { user, username, signOut, isAdmin, isBabyDev } = useAuth();
+  const { user, username, signOut, isAdmin, isBabyDev, pfpPhotoUrl } = useAuth();
   const { status } = useSyncStatus();
   const { settings, updateSettings } = useSettingsStore();
   const {
@@ -134,6 +134,16 @@ export function SettingsPage() {
   const [pfpQuery, setPfpQuery] = useState('');
   const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
   const [savingPfp, setSavingPfp] = useState(false);
+  const [posterLookupTarget, setPosterLookupTarget] = useState<{
+    id: string;
+    title: string;
+    mediaType: 'movie' | 'tv';
+    tmdbId: number;
+  } | null>(null);
+  const [alternatePosterPaths, setAlternatePosterPaths] = useState<string[]>([]);
+  const [loadingAlternatePosters, setLoadingAlternatePosters] = useState(false);
+  const [alternatePosterError, setAlternatePosterError] = useState<string | null>(null);
+  const [uploadingPfp, setUploadingPfp] = useState(false);
   const [showManageBabiesModal, setShowManageBabiesModal] = useState(false);
   const [babyUsersLoading, setBabyUsersLoading] = useState(false);
   const [babyUsersError, setBabyUsersError] = useState<string | null>(null);
@@ -174,6 +184,7 @@ export function SettingsPage() {
       posterPath: item.posterPath,
       mediaType: 'movie' as const,
       absoluteRank: item.absoluteRank,
+      tmdbId: item.tmdbId,
     }));
     const shows = Object.values(tvByClass).flat().map((item) => ({
       id: item.id,
@@ -181,6 +192,7 @@ export function SettingsPage() {
       posterPath: item.posterPath,
       mediaType: 'tv' as const,
       absoluteRank: item.absoluteRank,
+      tmdbId: item.tmdbId,
     }));
     return [...movies, ...shows].filter((item) => Boolean(item.posterPath));
   }, [byClass, tvByClass]);
@@ -228,6 +240,7 @@ export function SettingsPage() {
   const canManageQuotes = isAdmin || isBabyDev;
   const canManageDevPanel = isAdmin;
   const canManageBabydevPanel = isBabyDev;
+  const canUploadCustomPfp = isAdmin || isBabyDev;
 
   useEffect(() => subscribePersistDebounce(() => {
     setPersistDebounceSec(Math.round(getPersistDebounceMs() / 1000));
@@ -284,12 +297,78 @@ export function SettingsPage() {
     try {
       const photoURL = posterPath ? tmdbImagePath(posterPath, 'w185') : null;
       await updateProfile(user, { photoURL: photoURL ?? null });
-      await setDoc(doc(db, 'users', user.uid), { pfpPosterPath: posterPath }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { pfpPosterPath: posterPath, pfpPhotoUrl: null }, { merge: true });
       setPfpPosterPath(posterPath);
       setShowPfpModal(false);
       setPfpQuery('');
+      setPosterLookupTarget(null);
+      setAlternatePosterPaths([]);
+      setAlternatePosterError(null);
     } finally {
       setSavingPfp(false);
+    }
+  };
+
+  const uploadCustomPfp = async (file: File) => {
+    if (!signedIn || !db || !user) return;
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      setAlternatePosterError('Please choose an image file.');
+      return;
+    }
+    // Stored as data URL in Firestore user doc; keep well under 1MB document limit.
+    const maxBytes = 600 * 1024;
+    if (file.size > maxBytes) {
+      setAlternatePosterError('Please use an image smaller than 600KB.');
+      return;
+    }
+    setUploadingPfp(true);
+    setAlternatePosterError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Failed to read image'));
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Invalid image data'));
+        };
+        reader.readAsDataURL(file);
+      });
+      await setDoc(doc(db, 'users', user.uid), { pfpPosterPath: null, pfpPhotoUrl: dataUrl }, { merge: true });
+      setPfpPosterPath(null);
+      setShowPfpModal(false);
+      setPfpQuery('');
+      setPosterLookupTarget(null);
+      setAlternatePosterPaths([]);
+      setAlternatePosterError(null);
+    } catch {
+      setAlternatePosterError('Could not upload that image right now.');
+    } finally {
+      setUploadingPfp(false);
+    }
+  };
+
+  const handleViewOtherPosters = async (item: (typeof filteredPfpCandidates)[number]) => {
+    if (item.tmdbId == null) {
+      setPosterLookupTarget(null);
+      setAlternatePosterPaths([]);
+      setAlternatePosterError('This saved entry has no TMDB id, so alternate posters are unavailable.');
+      return;
+    }
+    setPosterLookupTarget({ id: item.id, title: item.title, mediaType: item.mediaType, tmdbId: item.tmdbId });
+    setAlternatePosterPaths([]);
+    setAlternatePosterError(null);
+    setLoadingAlternatePosters(true);
+    try {
+      const posters = await tmdbMediaPosters(item.tmdbId, item.mediaType);
+      setAlternatePosterPaths(posters);
+      if (posters.length === 0) {
+        setAlternatePosterError('No alternate posters found on TMDB for this title.');
+      }
+    } catch {
+      setAlternatePosterError('Could not load alternate posters right now.');
+    } finally {
+      setLoadingAlternatePosters(false);
     }
   };
 
@@ -1209,6 +1288,12 @@ export function SettingsPage() {
                     alt="Current profile picture"
                     className="settings-pfp-preview"
                   />
+                ) : pfpPhotoUrl ? (
+                  <img
+                    src={pfpPhotoUrl}
+                    alt="Current profile picture"
+                    className="settings-pfp-preview"
+                  />
                 ) : (
                   <span className="settings-pfp-placeholder" aria-label="No profile picture set">
                     <Home size={14} strokeWidth={2.25} aria-hidden />
@@ -1245,29 +1330,96 @@ export function SettingsPage() {
               onChange={(e) => setPfpQuery(e.target.value)}
               autoFocus
             />
-            <div className="settings-pfp-grid">
-              {filteredPfpCandidates.slice(0, 120).map((item) => (
+            {alternatePosterError ? <p className="settings-quote-error">{alternatePosterError}</p> : null}
+            {posterLookupTarget ? (
+              <div className="settings-pfp-alt-head">
+                <span className="settings-muted">
+                  Other posters for: <strong>{posterLookupTarget.title}</strong>
+                </span>
                 <button
-                  key={item.id}
                   type="button"
-                  className="settings-pfp-option"
-                  onClick={() => void savePfp(item.posterPath ?? null)}
-                  disabled={savingPfp}
-                  title={`${item.title} (${item.mediaType === 'movie' ? 'Movie' : 'Show'})`}
+                  className="settings-btn settings-btn-subtle"
+                  onClick={() => {
+                    setPosterLookupTarget(null);
+                    setAlternatePosterPaths([]);
+                    setAlternatePosterError(null);
+                  }}
+                  disabled={savingPfp || loadingAlternatePosters}
                 >
-                  <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt={item.title} loading="lazy" />
+                  Back to saved list
                 </button>
-              ))}
-              {filteredPfpCandidates.length === 0 ? (
+              </div>
+            ) : null}
+            <div className="settings-pfp-grid">
+              {posterLookupTarget ? (
+                loadingAlternatePosters ? (
+                  <p className="settings-muted">Loading alternate posters...</p>
+                ) : (
+                  alternatePosterPaths.slice(0, 120).map((posterPath) => (
+                    <button
+                      key={`${posterLookupTarget.mediaType}-${posterLookupTarget.tmdbId}-${posterPath}`}
+                      type="button"
+                      className="settings-pfp-option"
+                      onClick={() => void savePfp(posterPath)}
+                      disabled={savingPfp}
+                      title={`Use poster from ${posterLookupTarget.title}`}
+                    >
+                      <img src={tmdbImagePath(posterPath, 'w185') ?? ''} alt={posterLookupTarget.title} loading="lazy" />
+                    </button>
+                  ))
+                )
+              ) : (
+                filteredPfpCandidates.slice(0, 120).map((item) => (
+                  <div key={`${item.mediaType}-${item.id}`} className="settings-pfp-candidate">
+                    <button
+                      type="button"
+                      className="settings-pfp-option"
+                      onClick={() => void savePfp(item.posterPath ?? null)}
+                      disabled={savingPfp}
+                      title={`${item.title} (${item.mediaType === 'movie' ? 'Movie' : 'Show'})`}
+                    >
+                      <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt={item.title} loading="lazy" />
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle settings-pfp-alt-btn"
+                      onClick={() => void handleViewOtherPosters(item)}
+                      disabled={savingPfp || loadingAlternatePosters}
+                    >
+                      View other posters
+                    </button>
+                  </div>
+                ))
+              )}
+              {!posterLookupTarget && filteredPfpCandidates.length === 0 ? (
                 <p className="settings-muted">No saved entries with posters match this search.</p>
               ) : null}
             </div>
+            {canUploadCustomPfp ? (
+              <div className="settings-pfp-upload-row">
+                <label className="settings-btn settings-btn-subtle settings-pfp-upload-label">
+                  Upload custom image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="settings-pfp-upload-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void uploadCustomPfp(file);
+                      e.currentTarget.value = '';
+                    }}
+                    disabled={savingPfp || loadingAlternatePosters || uploadingPfp}
+                  />
+                </label>
+                {uploadingPfp ? <span className="settings-muted">Uploading image...</span> : null}
+              </div>
+            ) : null}
             <div className="settings-list-actions">
               <button
                 type="button"
                 className="settings-btn settings-btn-subtle"
                 onClick={() => void savePfp(null)}
-                disabled={savingPfp}
+                disabled={savingPfp || uploadingPfp}
               >
                 Clear profile picture
               </button>

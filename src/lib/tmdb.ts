@@ -107,6 +107,14 @@ type TmdbMultiResponse = {
   }>;
 };
 
+type TmdbImagesResponse = {
+  posters?: Array<{
+    file_path?: string | null;
+    vote_average?: number;
+    vote_count?: number;
+  }>;
+};
+
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 /** Per-request TMDB diagnostics (per-season errors, skipped paths). */
@@ -854,6 +862,35 @@ export async function tmdbWatchProviderCatalog(
   const path = url.toString().replace(TMDB_BASE, '');
   const res = await tmdbGet<TmdbWatchProviderCatalogResponse>(path, signal);
   return res?.results ?? [];
+}
+
+/** Fetch available poster paths for a movie/TV entry (highest-voted first). */
+export async function tmdbMediaPosters(
+  id: number,
+  mediaType: 'movie' | 'tv',
+  signal?: AbortSignal
+): Promise<string[]> {
+  const params = new URLSearchParams();
+  params.set('include_image_language', 'en,null');
+  const data = await tmdbGet<TmdbImagesResponse>(`/${mediaType}/${id}/images?${params.toString()}`, signal).catch(
+    () => null
+  );
+  if (!data?.posters?.length) return [];
+  const unique = new Set<string>();
+  return data.posters
+    .slice()
+    .sort((a, b) => {
+      const voteCountDelta = (b.vote_count ?? 0) - (a.vote_count ?? 0);
+      if (voteCountDelta !== 0) return voteCountDelta;
+      return (b.vote_average ?? 0) - (a.vote_average ?? 0);
+    })
+    .map((poster) => poster.file_path)
+    .filter((path): path is string => typeof path === 'string' && path.length > 0)
+    .filter((path) => {
+      if (unique.has(path)) return false;
+      unique.add(path);
+      return true;
+    });
 }
 
 /** Discover top movies by year */

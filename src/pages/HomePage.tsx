@@ -40,7 +40,8 @@ export function HomePage() {
     movieCount: 0,
     showCount: 0,
     actorCount: 0,
-    pfpPosterPath: null as string | null
+    pfpPosterPath: null as string | null,
+    pfpPhotoUrl: null as string | null
   });
   /** Firebase UID for the featured example profile (used in /friends/:id link). */
   const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
@@ -121,7 +122,8 @@ export function HomePage() {
           movieCount,
           showCount,
           actorCount: totalPeople,
-          pfpPosterPath: typeof adminUserData?.pfpPosterPath === 'string' ? adminUserData.pfpPosterPath : null
+          pfpPosterPath: typeof adminUserData?.pfpPosterPath === 'string' ? adminUserData.pfpPosterPath : null,
+          pfpPhotoUrl: typeof adminUserData?.pfpPhotoUrl === 'string' ? adminUserData.pfpPhotoUrl : null
         });
         
         console.log('Loaded example profile stats:', { movieCount, showCount, totalPeople });
@@ -187,6 +189,12 @@ export function HomePage() {
                     {exampleProfile.pfpPosterPath ? (
                       <img
                         src={tmdbImagePath(exampleProfile.pfpPosterPath, 'w185') ?? ''}
+                        alt={`${exampleProfile.username} profile`}
+                        className="profile-avatar-image"
+                      />
+                    ) : exampleProfile.pfpPhotoUrl ? (
+                      <img
+                        src={exampleProfile.pfpPhotoUrl}
                         alt={`${exampleProfile.username} profile`}
                         className="profile-avatar-image"
                       />
