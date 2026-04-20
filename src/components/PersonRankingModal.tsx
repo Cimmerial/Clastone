@@ -162,14 +162,13 @@ export function PersonRankingModal({
     setImagePickerSaving(true);
     setImagePickerError(null);
     try {
-      const personId = `tmdb-person-${target.tmdbId}`;
       let didUpdate = false;
-      if (target.mediaType === 'actor' && getPersonById(personId)) {
-        updatePersonCache(personId, { profilePath: selectedImagePath });
+      if (target.mediaType === 'actor' && getPersonById(target.id)) {
+        updatePersonCache(target.id, { profilePath: selectedImagePath });
         didUpdate = true;
       }
-      if (target.mediaType === 'director' && getDirectorById(personId)) {
-        updateDirectorCache(personId, { profilePath: selectedImagePath });
+      if (target.mediaType === 'director' && getDirectorById(target.id)) {
+        updateDirectorCache(target.id, { profilePath: selectedImagePath });
         didUpdate = true;
       }
       if (didUpdate) {

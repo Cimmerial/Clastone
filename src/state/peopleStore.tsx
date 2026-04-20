@@ -510,14 +510,15 @@ export function PeopleProvider({
     const updatePersonCache = useCallback((itemId: string, cache: Partial<TmdbPersonCache>) => {
         setByClass(prev => {
             const next = { ...prev };
+            let changed = false;
             for (const k of Object.keys(next)) {
-                const idx = next[k]?.findIndex(p => p.id === itemId) ?? -1;
-                if (idx !== -1) {
-                    next[k][idx] = { ...next[k][idx], ...cache };
-                    return next;
-                }
+                const list = next[k] ?? [];
+                if (!list.some(p => p.id === itemId)) continue;
+                next[k] = list.map((item) => (item.id === itemId ? { ...item, ...cache } : item));
+                changed = true;
+                break;
             }
-            return prev;
+            return changed ? next : prev;
         });
     }, []);
 
@@ -629,7 +630,8 @@ export function PeopleProvider({
         try {
             const cache = await tmdbPersonDetailsFull(tmdbId);
             if (cache) {
-                updatePersonCache(itemId, cache);
+                const { profilePath: _ignoredProfilePath, ...cacheWithoutProfile } = cache;
+                updatePersonCache(itemId, cacheWithoutProfile);
             }
         } catch (e) {
             console.error('[Clastone] forceRefreshPerson failed', e);

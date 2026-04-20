@@ -63,7 +63,10 @@ export function EntryRowPerson({
   useEffect(() => {
     if (isVisible && item.tmdbId && (!item.roles || item.roles.length === 0)) {
       tmdbPersonDetailsFull(item.tmdbId).then(cache => {
-        if (cache) updatePersonCache(item.id, cache);
+        if (cache) {
+          const { profilePath: _ignoredProfilePath, ...cacheWithoutProfile } = cache;
+          updatePersonCache(item.id, cacheWithoutProfile as TmdbPersonCache);
+        }
       }).catch(err => console.error('[Clastone] EntryRowPerson fetch failed', err));
     }
   }, [isVisible, item.tmdbId, item.id, updatePersonCache, item.roles]);
