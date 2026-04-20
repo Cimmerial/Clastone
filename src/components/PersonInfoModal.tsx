@@ -208,6 +208,14 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     });
   }, [filteredRoles, projectTypeFilter, projectRoleFilter]);
 
+  const resolveProjectPosterPath = (project: { id: number; mediaType: 'movie' | 'tv'; posterPath?: string }) => {
+    const entryId = `tmdb-${project.mediaType}-${project.id}`;
+    const saved = project.mediaType === 'movie' ? getMovieById(entryId) : getShowById(entryId);
+    return saved?.posterPath ?? project.posterPath;
+  };
+
+  const displayProfilePath = profilePath ?? details?.profilePath;
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -384,6 +392,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     }
   };
 
+
   return (
     <div className="info-modal-backdrop" onClick={onClose}>
       <div className="info-modal" onClick={e => e.stopPropagation()}>
@@ -404,8 +413,8 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
               {/* Top Section: Profile + Basic Info */}
               <div className="info-modal-top">
                 <div className="info-modal-poster">
-                  {details.profilePath ? (
-                    <img src={tmdbImagePath(details.profilePath, 'w300')!} alt={details.name} />
+                  {displayProfilePath ? (
+                    <img src={tmdbImagePath(displayProfilePath, 'w300')!} alt={details.name} />
                   ) : (
                     <div className="info-modal-poster-placeholder">
                       <Info size={48} />
@@ -506,11 +515,12 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                       {(() => {
                         const entryId = `tmdb-${project.mediaType}-${project.id}`;
                         const saved = project.mediaType === 'movie' ? !!getMovieById(entryId) : !!getShowById(entryId);
+                        const resolvedPosterPath = resolveProjectPosterPath(project);
                         const onWatchlist = isInWatchlist(entryId);
                         return (
                           <div className="info-modal-person-card">
-                            {project.posterPath ? (
-                              <img src={tmdbImagePath(project.posterPath, 'w300')!} alt={project.title} className="info-modal-cast-portrait" />
+                            {resolvedPosterPath ? (
+                              <img src={tmdbImagePath(resolvedPosterPath, 'w300')!} alt={project.title} className="info-modal-cast-portrait" />
                             ) : (
                               <div className="info-modal-cast-placeholder info-modal-cast-portrait">{project.title[0]}</div>
                             )}
@@ -526,7 +536,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                                   tmdbId: project.id,
                                   mediaType: project.mediaType,
                                   title: project.title,
-                                  posterPath: project.posterPath,
+                                  posterPath: resolvedPosterPath,
                                   releaseDate: project.releaseDate,
                                 })}
                               >
@@ -540,7 +550,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                                   tmdbId: project.id,
                                   mediaType: project.mediaType,
                                   title: project.title,
-                                  posterPath: project.posterPath,
+                                  posterPath: resolvedPosterPath,
                                   releaseDate: project.releaseDate,
                                 })}
                               >

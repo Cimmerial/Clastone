@@ -10,6 +10,7 @@ interface Friend {
   email: string;
   addedAt: string;
   pfpPosterPath?: string;
+  pfpPhotoUrl?: string;
 }
 
 interface FriendRequest {
@@ -26,6 +27,7 @@ export interface UserProfile {
   email: string;
   createdAt: string;
   pfpPosterPath?: string;
+  pfpPhotoUrl?: string;
 }
 
 interface FriendsContextType {
@@ -68,16 +70,17 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
         username: doc.data().friendUsername,
         email: doc.data().friendEmail,
         addedAt: doc.data().addedAt,
-        pfpPosterPath: doc.data().friendPfpPosterPath
+        pfpPosterPath: doc.data().friendPfpPosterPath,
+        pfpPhotoUrl: doc.data().friendPfpPhotoUrl
       }));
       const enrichedFriends = await Promise.all(
         friendsData.map(async (friend) => {
-          if (friend.pfpPosterPath) return friend;
           try {
             const userSnap = await getDoc(doc(db!, 'users', friend.uid));
             const userData = userSnap.data();
             const pfpPosterPath = typeof userData?.pfpPosterPath === 'string' ? userData.pfpPosterPath : undefined;
-            return { ...friend, pfpPosterPath };
+            const pfpPhotoUrl = typeof userData?.pfpPhotoUrl === 'string' ? userData.pfpPhotoUrl : undefined;
+            return { ...friend, pfpPosterPath, pfpPhotoUrl };
           } catch {
             return friend;
           }
@@ -174,6 +177,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           friendUsername: request.fromUsername,
           friendEmail: requesterData.email,
           friendPfpPosterPath: requesterData.pfpPosterPath ?? null,
+          friendPfpPhotoUrl: requesterData.pfpPhotoUrl ?? null,
           addedAt: new Date().toISOString()
         });
         
@@ -183,6 +187,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           friendUsername: username,
           friendEmail: user.email,
           friendPfpPosterPath: null,
+          friendPfpPhotoUrl: null,
           addedAt: new Date().toISOString()
         });
         
@@ -192,6 +197,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           username: request.fromUsername,
           email: requesterData.email,
           pfpPosterPath: requesterData.pfpPosterPath ?? undefined,
+          pfpPhotoUrl: requesterData.pfpPhotoUrl ?? undefined,
           addedAt: new Date().toISOString()
         }]);
       }
@@ -237,7 +243,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           username: d.data().username,
           email: d.data().email,
           createdAt: d.data().createdAt,
-          pfpPosterPath: d.data().pfpPosterPath
+          pfpPosterPath: d.data().pfpPosterPath,
+          pfpPhotoUrl: d.data().pfpPhotoUrl
         }))
         .filter((u) => (user ? u.uid !== user.uid : true));
       return rankByFuzzyUsernameMatch(users, searchQuery);

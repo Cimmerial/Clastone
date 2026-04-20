@@ -355,6 +355,16 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
     rankTargetSavedEntry && rankTargetClasses
       ? rankTargetClasses.find((c) => c.key === rankTargetSavedEntry.classKey)?.label
       : undefined;
+  const resolvedPosterPath = posterPath ?? details?.posterPath;
+  const resolvedBackdropPath = details?.backdropPath;
+
+  const getSavedPersonProfilePath = (personId: number, fallback?: string) => {
+    const savedActor = getPersonById(`tmdb-person-${personId}`);
+    if (savedActor?.profilePath) return savedActor.profilePath;
+    const savedDirector = getDirectorById(`tmdb-person-${personId}`);
+    if (savedDirector?.profilePath) return savedDirector.profilePath;
+    return fallback;
+  };
 
   const openPersonRankModal = async (person: { id: number; name: string; profilePath?: string; type: 'actor' | 'director' }) => {
     setPersonRankTarget(person);
@@ -432,10 +442,10 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
       <div className="info-modal" onClick={e => e.stopPropagation()}>
         {/* Header with backdrop */}
         <div className="info-modal-header">
-          {details?.backdropPath && (
+          {resolvedBackdropPath && (
             <div 
               className="info-modal-header-backdrop"
-              style={{ backgroundImage: `url(${tmdbImagePath(details.backdropPath, 'original')})` }}
+              style={{ backgroundImage: `url(${tmdbImagePath(resolvedBackdropPath, 'original')})` }}
             />
           )}
           <div className="info-modal-header-content">
@@ -470,8 +480,8 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
               {/* Top Section: Poster + Basic Info */}
               <div className="info-modal-top">
                 <div className="info-modal-poster">
-                  {details.posterPath ? (
-                    <img src={tmdbImagePath(details.posterPath, 'w300')!} alt={details.title} />
+                  {resolvedPosterPath ? (
+                    <img src={tmdbImagePath(resolvedPosterPath, 'w300')!} alt={details.title} />
                   ) : (
                     <div className="info-modal-poster-placeholder">
                       <PlayCircle size={48} />
@@ -641,8 +651,12 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                         const saved = !!getDirectorById(`tmdb-person-${person.id}`);
                         return (
                           <div className="info-modal-person-card">
-                            {person.profilePath ? (
-                              <img src={tmdbImagePath(person.profilePath, 'w300')!} alt={person.name} className="info-modal-cast-portrait" />
+                            {getSavedPersonProfilePath(person.id, person.profilePath) ? (
+                              <img
+                                src={tmdbImagePath(getSavedPersonProfilePath(person.id, person.profilePath), 'w300')!}
+                                alt={person.name}
+                                className="info-modal-cast-portrait"
+                              />
                             ) : (
                               <div className="info-modal-cast-placeholder info-modal-cast-portrait">{person.name[0]}</div>
                             )}
@@ -651,7 +665,13 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 type="button"
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={`View ${person.name} info`}
-                                onClick={() => setPersonInfoTarget({ tmdbId: person.id, name: person.name, profilePath: person.profilePath })}
+                                onClick={() =>
+                                  setPersonInfoTarget({
+                                    tmdbId: person.id,
+                                    name: person.name,
+                                    profilePath: getSavedPersonProfilePath(person.id, person.profilePath),
+                                  })
+                                }
                               >
                                 <Info size={13} />
                               </button>
@@ -659,7 +679,14 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 type="button"
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={saved ? `Edit ${person.name}` : `Save ${person.name}`}
-                                onClick={() => void openPersonRankModal({ id: person.id, name: person.name, profilePath: person.profilePath, type: 'director' })}
+                                onClick={() =>
+                                  void openPersonRankModal({
+                                    id: person.id,
+                                    name: person.name,
+                                    profilePath: getSavedPersonProfilePath(person.id, person.profilePath),
+                                    type: 'director',
+                                  })
+                                }
                               >
                                 {saved ? <Edit size={13} /> : <Plus size={13} />}
                               </button>
@@ -686,8 +713,12 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                         const saved = !!getPersonById(`tmdb-person-${person.id}`);
                         return (
                           <div className="info-modal-person-card">
-                            {person.profilePath ? (
-                              <img src={tmdbImagePath(person.profilePath, 'w300')!} alt={person.name} className="info-modal-cast-portrait" />
+                            {getSavedPersonProfilePath(person.id, person.profilePath) ? (
+                              <img
+                                src={tmdbImagePath(getSavedPersonProfilePath(person.id, person.profilePath), 'w300')!}
+                                alt={person.name}
+                                className="info-modal-cast-portrait"
+                              />
                             ) : (
                               <div className="info-modal-cast-placeholder info-modal-cast-portrait">{person.name[0]}</div>
                             )}
@@ -696,7 +727,13 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 type="button"
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={`View ${person.name} info`}
-                                onClick={() => setPersonInfoTarget({ tmdbId: person.id, name: person.name, profilePath: person.profilePath })}
+                                onClick={() =>
+                                  setPersonInfoTarget({
+                                    tmdbId: person.id,
+                                    name: person.name,
+                                    profilePath: getSavedPersonProfilePath(person.id, person.profilePath),
+                                  })
+                                }
                               >
                                 <Info size={13} />
                               </button>
@@ -704,7 +741,14 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 type="button"
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={saved ? `Edit ${person.name}` : `Save ${person.name}`}
-                                onClick={() => void openPersonRankModal({ id: person.id, name: person.name, profilePath: person.profilePath, type: 'actor' })}
+                                onClick={() =>
+                                  void openPersonRankModal({
+                                    id: person.id,
+                                    name: person.name,
+                                    profilePath: getSavedPersonProfilePath(person.id, person.profilePath),
+                                    type: 'actor',
+                                  })
+                                }
                               >
                                 {saved ? <Edit size={13} /> : <Plus size={13} />}
                               </button>

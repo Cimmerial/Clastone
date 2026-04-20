@@ -15,6 +15,7 @@ interface UserProfile {
   email: string;
   createdAt: string;
   pfpPosterPath?: string;
+  pfpPhotoUrl?: string;
 }
 
 export function FriendsPage() {
@@ -253,6 +254,12 @@ export function FriendsPage() {
                             alt={result.username}
                             loading="lazy"
                           />
+                        ) : result.pfpPhotoUrl ? (
+                          <img
+                            src={result.pfpPhotoUrl}
+                            alt={result.username}
+                            loading="lazy"
+                          />
                         ) : (
                           result.username.charAt(0).toUpperCase()
                         )}
@@ -328,6 +335,8 @@ export function FriendsPage() {
                     <div className="friend-avatar">
                       {friend.pfpPosterPath ? (
                         <img src={tmdbImagePath(friend.pfpPosterPath, 'w92') ?? ''} alt={friend.username} loading="lazy" />
+                      ) : friend.pfpPhotoUrl ? (
+                        <img src={friend.pfpPhotoUrl} alt={friend.username} loading="lazy" />
                       ) : (
                         friend.username.charAt(0).toUpperCase()
                       )}

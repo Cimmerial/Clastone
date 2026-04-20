@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUp, ArrowDown, X, ChevronLeft, Info } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, ChevronLeft, Info, Image as ImageIcon } from 'lucide-react';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { PersonInfoModal } from './PersonInfoModal';
+import { tmdbImagePath, tmdbPersonProfiles } from '../lib/tmdb';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import './PersonRankingModal.css';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -53,6 +56,12 @@ export function PersonRankingModal({
   const [removeClickCount, setRemoveClickCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showImagePickerModal, setShowImagePickerModal] = useState(false);
+  const [imagePickerLoading, setImagePickerLoading] = useState(false);
+  const [imagePickerSaving, setImagePickerSaving] = useState(false);
+  const [imagePickerError, setImagePickerError] = useState<string | null>(null);
+  const [imagePaths, setImagePaths] = useState<string[]>([]);
+  const [selectedImagePath, setSelectedImagePath] = useState<string | null>(target.profilePath ?? null);
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
@@ -61,6 +70,12 @@ export function PersonRankingModal({
     () => rankedClasses.filter((c) => c.key !== 'UNRANKED'),
     [rankedClasses]
   );
+  const { getPersonById, updatePersonCache, forceSync: forceSyncPeople } = usePeopleStore();
+  const { getDirectorById, updateDirectorCache, forceSync: forceSyncDirectors } = useDirectorsStore();
+
+  useEffect(() => {
+    setSelectedImagePath(target.profilePath ?? null);
+  }, [target.profilePath, target.id]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -117,6 +132,55 @@ export function PersonRankingModal({
       goToList,
     );
     onClose();
+  };
+
+  const openImagePicker = async () => {
+    if (!target.tmdbId) return;
+    setShowImagePickerModal(true);
+    setImagePickerLoading(true);
+    setImagePickerError(null);
+    try {
+      const profiles = await tmdbPersonProfiles(target.tmdbId);
+      const current = target.profilePath;
+      const withCurrent = current && !profiles.includes(current) ? [current, ...profiles] : profiles;
+      setImagePaths(withCurrent);
+      if (withCurrent.length === 0) {
+        setImagePickerError('No alternate images found on TMDB for this person.');
+      }
+    } catch {
+      setImagePickerError('Could not load alternate images right now.');
+    } finally {
+      setImagePickerLoading(false);
+    }
+  };
+
+  const saveSelectedImage = async () => {
+    if (!selectedImagePath || !target.tmdbId) {
+      setImagePickerError('Select an image before saving.');
+      return;
+    }
+    setImagePickerSaving(true);
+    setImagePickerError(null);
+    try {
+      const personId = `tmdb-person-${target.tmdbId}`;
+      let didUpdate = false;
+      if (target.mediaType === 'actor' && getPersonById(personId)) {
+        updatePersonCache(personId, { profilePath: selectedImagePath });
+        didUpdate = true;
+      }
+      if (target.mediaType === 'director' && getDirectorById(personId)) {
+        updateDirectorCache(personId, { profilePath: selectedImagePath });
+        didUpdate = true;
+      }
+      if (didUpdate) {
+        await Promise.all([forceSyncPeople(), forceSyncDirectors()]);
+      }
+      setShowImagePickerModal(false);
+    } catch {
+      setImagePickerError('Could not save selected image.');
+    } finally {
+      setImagePickerSaving(false);
+    }
   };
 
   const PlacementButtons = ({ classKey }: { classKey: string }) => (
@@ -188,6 +252,17 @@ export function PersonRankingModal({
                 title={`View info for ${target.name}`}
               >
                 <Info size={16} />
+              </button>
+            ) : null}
+            {target.tmdbId ? (
+              <button
+                type="button"
+                className="prm-image-btn"
+                onClick={() => void openImagePicker()}
+                aria-label={target.mediaType === 'actor' ? 'Set Actor Image' : 'Set Director Image'}
+                title={target.mediaType === 'actor' ? 'Set Actor Image' : 'Set Director Image'}
+              >
+                <ImageIcon size={16} />
               </button>
             ) : null}
             <button type="button" className="prm-close-btn" onClick={onClose} aria-label="Close">
@@ -292,6 +367,53 @@ export function PersonRankingModal({
           name={target.name}
           profilePath={target.profilePath}
         />
+      ) : null}
+      {showImagePickerModal ? (
+        <div className="prm-image-picker-backdrop" onClick={() => setShowImagePickerModal(false)}>
+          <div className="prm-image-picker-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="prm-image-picker-header">
+              <h3 className="prm-image-picker-title">{target.mediaType === 'actor' ? 'Set Actor Image' : 'Set Director Image'}</h3>
+              <button type="button" className="prm-close-btn" onClick={() => setShowImagePickerModal(false)} aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="prm-image-picker-body">
+              <p className="prm-image-picker-label">Current image</p>
+              <div className="prm-image-picker-current">
+                {target.profilePath ? (
+                  <img src={tmdbImagePath(target.profilePath, 'w185') ?? ''} alt={target.name} />
+                ) : (
+                  <span className="prm-image-picker-empty">{target.name.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              {imagePickerError ? <div className="prm-error">{imagePickerError}</div> : null}
+              {imagePickerLoading ? (
+                <p className="prm-image-picker-loading">Loading images...</p>
+              ) : (
+                <div className="prm-image-picker-grid">
+                  {imagePaths.map((path) => (
+                    <button
+                      key={path}
+                      type="button"
+                      className={`prm-image-picker-option${selectedImagePath === path ? ' prm-image-picker-option--selected' : ''}`}
+                      onClick={() => setSelectedImagePath(path)}
+                    >
+                      <img src={tmdbImagePath(path, 'w185') ?? ''} alt={target.name} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="prm-image-picker-footer">
+              <button type="button" className="prm-btn prm-btn--secondary" onClick={() => setShowImagePickerModal(false)} disabled={imagePickerSaving}>
+                Cancel
+              </button>
+              <button type="button" className="prm-btn prm-btn--primary" onClick={() => void saveSelectedImage()} disabled={imagePickerSaving || imagePickerLoading || !selectedImagePath}>
+                {imagePickerSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

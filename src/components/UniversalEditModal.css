@@ -344,6 +344,17 @@
   background: rgba(88, 28, 135, 0.2) !important;
 }
 
+.uem-watchlist-btn--image {
+  border-color: rgba(45, 212, 191, 0.45) !important;
+  background: rgba(15, 118, 110, 0.16) !important;
+  color: rgba(153, 246, 228, 0.95) !important;
+}
+
+.uem-watchlist-btn--image:hover {
+  border-color: rgba(45, 212, 191, 0.7) !important;
+  background: rgba(15, 118, 110, 0.28) !important;
+}
+
 .uem-watchlist-btn--remove:hover {
   background: rgba(220, 60, 60, 0.18);
   border-color: rgba(220, 60, 60, 0.6);
@@ -1333,6 +1344,89 @@
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 20px 65px rgba(0, 0, 0, 0.65);
+}
+
+.uem-image-picker-modal {
+  width: min(760px, 95vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #161618;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 65px rgba(0, 0, 0, 0.65);
+}
+
+.uem-image-picker-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.uem-image-picker-current {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.uem-image-picker-current-preview {
+  width: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uem-image-picker-current-preview img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.uem-image-picker-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  aspect-ratio: 2 / 3;
+  color: #666;
+  font-size: 0.72rem;
+}
+
+.uem-image-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 46vh;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.uem-image-picker-option {
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.uem-image-picker-option img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.uem-image-picker-option--selected {
+  border-color: rgba(45, 212, 191, 0.8);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.4);
 }
 
 .uem-review-header {

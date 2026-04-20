@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye, FileText } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, Bookmark, BookmarkCheck, Trash2, Info, UserPlus, Eye, FileText, Image as ImageIcon } from 'lucide-react';
 import type { CachedCastMember, CachedDirector, WatchRecord, WatchReview } from './EntryRowMovieShow';
 import { ThemedDropdown, type ThemedDropdownOption } from './ThemedDropdown';
 import {
@@ -11,7 +11,7 @@ import {
   DATE_PRESET_OPTIONS,
   type DatePreset
 } from '../lib/dateDropdowns';
-import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMediaPosters, tmdbMovieDetailsFull, tmdbTvDetailsFull } from '../lib/tmdb';
 import { getWatchRecordSortKey, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { watchMatrixEntryToWatchRecord } from '../lib/watchMatrixMapping';
@@ -659,6 +659,12 @@ export function UniversalEditModal({
   const [castSidebarOpen, setCastSidebarOpen] = useState(false);
   const [reviewCastSidebarOpen, setReviewCastSidebarOpen] = useState(false);
   const [castRefLoading, setCastRefLoading] = useState(false);
+  const [showImagePickerModal, setShowImagePickerModal] = useState(false);
+  const [imagePickerLoading, setImagePickerLoading] = useState(false);
+  const [imagePickerSaving, setImagePickerSaving] = useState(false);
+  const [imagePickerError, setImagePickerError] = useState<string | null>(null);
+  const [imagePickerPaths, setImagePickerPaths] = useState<string[]>([]);
+  const [selectedImagePath, setSelectedImagePath] = useState<string | null>(target.posterPath ?? null);
   const [castRefFetched, setCastRefFetched] = useState<{
     cast: CachedCastMember[];
     directors: CachedDirector[];
@@ -675,6 +681,7 @@ export function UniversalEditModal({
     byClass: moviesByClass,
     classOrder: movieClassOrder,
     getMovieById,
+    updateMovieCache,
     batchUpdateMovieWatchRecords,
     forceSync: forceSyncMovies,
   } = useMoviesStore();
@@ -682,9 +689,14 @@ export function UniversalEditModal({
     byClass: tvByClass,
     classOrder: tvClassOrder,
     getShowById,
+    updateShowCache,
     batchUpdateShowWatchRecords,
     forceSync: forceSyncTv,
   } = useTvStore();
+
+  useEffect(() => {
+    setSelectedImagePath(target.posterPath ?? null);
+  }, [target.posterPath, target.id]);
 
   const storeMediaItem = useMemo(() => {
     if (target.mediaType === 'movie') return getMovieById(target.id);
@@ -1127,6 +1139,49 @@ export function UniversalEditModal({
     }
   };
 
+  const openImagePicker = useCallback(async () => {
+    if (!target.tmdbId || (target.mediaType !== 'movie' && target.mediaType !== 'tv')) return;
+    setShowImagePickerModal(true);
+    setImagePickerError(null);
+    setImagePickerLoading(true);
+    try {
+      const posters = await tmdbMediaPosters(target.tmdbId, target.mediaType);
+      const current = target.posterPath;
+      const withCurrentFirst = current && !posters.includes(current) ? [current, ...posters] : posters;
+      setImagePickerPaths(withCurrentFirst);
+      if (withCurrentFirst.length === 0) {
+        setImagePickerError('No alternate images found on TMDB for this title.');
+      }
+    } catch {
+      setImagePickerError('Unable to load alternate images right now.');
+    } finally {
+      setImagePickerLoading(false);
+    }
+  }, [target.tmdbId, target.mediaType, target.posterPath]);
+
+  const saveImageSelection = useCallback(async () => {
+    if (!selectedImagePath) {
+      setImagePickerError('Select an image before saving.');
+      return;
+    }
+    setImagePickerSaving(true);
+    setImagePickerError(null);
+    try {
+      if (target.mediaType === 'movie') {
+        updateMovieCache(target.id, { posterPath: selectedImagePath });
+        await forceSyncMovies();
+      } else if (target.mediaType === 'tv') {
+        updateShowCache(target.id, { posterPath: selectedImagePath });
+        await forceSyncTv();
+      }
+      setShowImagePickerModal(false);
+    } catch {
+      setImagePickerError('Could not save the selected image.');
+    } finally {
+      setImagePickerSaving(false);
+    }
+  }, [selectedImagePath, target.mediaType, target.id, updateMovieCache, updateShowCache, forceSyncMovies, forceSyncTv]);
+
   const validateAndSave = async (goToMedia: boolean, saveWithoutWatch: boolean = false): Promise<boolean> => {
     setError(null);
 
@@ -1252,6 +1307,12 @@ export function UniversalEditModal({
   );
 
   const directorRoleLabel = target.mediaType === 'tv' ? 'Creator' : 'Director';
+  const setImageButtonLabel =
+    target.mediaType === 'movie'
+      ? 'Set Movie Poster'
+      : target.mediaType === 'tv'
+        ? 'Set Show Poster'
+        : 'Set Image';
 
   const renderCastSidebar = (extraClass?: string) => (
     <aside
@@ -1324,6 +1385,16 @@ export function UniversalEditModal({
             {target.subtitle && <span className="uem-subtitle">{target.subtitle}</span>}
           </div>
           <div className="uem-header-actions">
+            {target.tmdbId && (target.mediaType === 'movie' || target.mediaType === 'tv') ? (
+              <button
+                type="button"
+                className="uem-watchlist-btn uem-watchlist-btn--image"
+                onClick={() => void openImagePicker()}
+              >
+                <ImageIcon size={14} />
+                {isMobile ? 'Set image' : setImageButtonLabel}
+              </button>
+            ) : null}
             {/* Watchlist Actions - always show if handlers provided */}
             {isWatchlistItem ? (
               <div className="uem-watchlist-actions">
@@ -1773,6 +1844,72 @@ export function UniversalEditModal({
           onSave={handleDayOrderSave}
           isSaving={isSavingDayOrder}
         />
+      ) : null}
+
+      {showImagePickerModal ? (
+        <div className="uem-review-backdrop" onClick={() => setShowImagePickerModal(false)}>
+          <div
+            className="uem-image-picker-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Set poster image"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="uem-review-header">
+              <h3 className="uem-review-title">Set poster/headshot image</h3>
+              <button type="button" className="uem-close-btn" onClick={() => setShowImagePickerModal(false)} aria-label="Close image picker">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="uem-image-picker-body">
+              <p className="uem-image-picker-current">
+                Current image
+              </p>
+              <div className="uem-image-picker-current-preview">
+                {target.posterPath ? (
+                  <img src={tmdbImagePath(target.posterPath, 'w185') ?? ''} alt={`${target.title} current poster`} />
+                ) : (
+                  <span className="uem-image-picker-empty">No current image</span>
+                )}
+              </div>
+              {imagePickerError ? <div className="uem-error">{imagePickerError}</div> : null}
+              {imagePickerLoading ? (
+                <p className="uem-cast-sidebar-status">Loading images...</p>
+              ) : (
+                <div className="uem-image-picker-grid">
+                  {imagePickerPaths.map((path) => (
+                    <button
+                      key={path}
+                      type="button"
+                      className={`uem-image-picker-option${selectedImagePath === path ? ' uem-image-picker-option--selected' : ''}`}
+                      onClick={() => setSelectedImagePath(path)}
+                    >
+                      <img src={tmdbImagePath(path, 'w185') ?? ''} alt={`${target.title} option`} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="uem-review-footer">
+              <button
+                type="button"
+                className="uem-btn uem-btn--secondary"
+                onClick={() => setShowImagePickerModal(false)}
+                disabled={imagePickerSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="uem-btn uem-btn--primary"
+                onClick={() => void saveImageSelection()}
+                disabled={imagePickerSaving || imagePickerLoading || !selectedImagePath}
+              >
+                {imagePickerSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

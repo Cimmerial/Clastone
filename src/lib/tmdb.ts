@@ -115,6 +115,14 @@ type TmdbImagesResponse = {
   }>;
 };
 
+type TmdbPersonImagesResponse = {
+  profiles?: Array<{
+    file_path?: string | null;
+    vote_average?: number;
+    vote_count?: number;
+  }>;
+};
+
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 /** Per-request TMDB diagnostics (per-season errors, skipped paths). */
@@ -885,6 +893,30 @@ export async function tmdbMediaPosters(
       return (b.vote_average ?? 0) - (a.vote_average ?? 0);
     })
     .map((poster) => poster.file_path)
+    .filter((path): path is string => typeof path === 'string' && path.length > 0)
+    .filter((path) => {
+      if (unique.has(path)) return false;
+      unique.add(path);
+      return true;
+    });
+}
+
+/** Fetch available profile image paths for a TMDB person (highest-voted first). */
+export async function tmdbPersonProfiles(
+  personId: number,
+  signal?: AbortSignal
+): Promise<string[]> {
+  const data = await tmdbGet<TmdbPersonImagesResponse>(`/person/${personId}/images`, signal).catch(() => null);
+  if (!data?.profiles?.length) return [];
+  const unique = new Set<string>();
+  return data.profiles
+    .slice()
+    .sort((a, b) => {
+      const voteCountDelta = (b.vote_count ?? 0) - (a.vote_count ?? 0);
+      if (voteCountDelta !== 0) return voteCountDelta;
+      return (b.vote_average ?? 0) - (a.vote_average ?? 0);
+    })
+    .map((profile) => profile.file_path)
     .filter((path): path is string => typeof path === 'string' && path.length > 0)
     .filter((path) => {
       if (unique.has(path)) return false;
