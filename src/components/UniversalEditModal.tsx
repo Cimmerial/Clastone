@@ -655,6 +655,7 @@ export function UniversalEditModal({
     return initial;
   });
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showTagHelpTooltip, setShowTagHelpTooltip] = useState(false);
   const [seasonEpisodeCounts, setSeasonEpisodeCounts] = useState<number[] | undefined>(undefined);
   const entriesEndRef = useRef<HTMLDivElement>(null);
   const [castSidebarOpen, setCastSidebarOpen] = useState(false);
@@ -673,8 +674,6 @@ export function UniversalEditModal({
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
-  const isBrandNewEntry = !currentClassKey;
-
   /** Every class you can place an item into except the literal UNRANKED holding bucket (includes unranked tiers like BABY / DELICIOUS_GARBAGE). */
   const rankedPickable = useMemo(() => rankedClasses.filter((c) => c.key !== 'UNRANKED'), [rankedClasses]);
 
@@ -1211,28 +1210,26 @@ export function UniversalEditModal({
     }
   }, [selectedImagePath, target.mediaType, target.id, updateMovieCache, updateShowCache, forceSyncMovies, forceSyncTv]);
 
-  const validateAndSave = async (goToMedia: boolean, saveWithoutWatch: boolean = false): Promise<boolean> => {
+  const validateAndSave = async (
+    goToMedia: boolean,
+    forceKeepUnranked: boolean = false
+  ): Promise<boolean> => {
     setError(null);
 
-    // If saving without watch, automatically add a long ago 100% watch entry
     let finalEntries = entries;
-    if (saveWithoutWatch && entries.length === 0) {
-      const autoWatchEntry: WatchMatrixEntry = {
+    const wantsRankedClass = Boolean(selectedClassKey && selectedClassKey !== 'UNRANKED');
+    if (finalEntries.length === 0 && wantsRankedClass && !forceKeepUnranked) {
+      finalEntries = [{
         id: crypto.randomUUID(),
         watchType: 'LONG_AGO',
         watchPercent: 100,
         watchStatus: 'NONE',
-      };
-      finalEntries = [autoWatchEntry];
+      }];
     }
-    // Otherwise, must have at least one watch entry
-    else if (entries.length === 0) {
-      setError('Please add at least one watch record using the "+ Add Watch" button.');
-      return false;
-    }
+    const shouldForceUnranked = forceKeepUnranked || finalEntries.length === 0;
 
     // Validate entries
-    for (const entry of entries) {
+    for (const entry of finalEntries) {
       if (entry.watchType !== 'LONG_AGO' && !entry.year) {
         setError('All entries must have at least a year set.');
         return false;
@@ -1240,7 +1237,7 @@ export function UniversalEditModal({
     }
 
     // Validate class selection
-    if (needsRankPick && !selectedClassKey) {
+    if (needsRankPick && !selectedClassKey && !shouldForceUnranked) {
       setError('Please select a ranking class.');
       return false;
     }
@@ -1250,21 +1247,23 @@ export function UniversalEditModal({
         setError('No ranked tiers yet. Pick a template on the list page, or keep your current rank.');
         return false;
       }
-      if (!selectedClassKey || !rankedPickable.some((c) => c.key === selectedClassKey)) {
-        setError('Please select a class or cancel the class override.');
+      if (!selectedClassKey || !rankedClasses.some((c) => c.key === selectedClassKey)) {
+        setError('Please select a class (including Unranked) or cancel the class override.');
         return false;
       }
     }
 
-    const effectiveClassKey = hasNeverBeenRanked
-      ? (rankedPickable.length === 0 ? 'UNRANKED' : selectedClassKey)
-      : (showClassOverride ? selectedClassKey : undefined);
+    const effectiveClassKey = shouldForceUnranked
+      ? 'UNRANKED'
+      : hasNeverBeenRanked
+        ? (rankedPickable.length === 0 ? 'UNRANKED' : selectedClassKey)
+        : (showClassOverride ? selectedClassKey : undefined);
 
     await onSave(
       {
         watches: mergeMatrixDayOrdersFromStore(finalEntries),
         classKey: effectiveClassKey,
-        position: effectiveClassKey ? selectedPosition : undefined,
+        position: effectiveClassKey && effectiveClassKey !== 'UNRANKED' ? selectedPosition : undefined,
         listMemberships: availableTags.map((tag) => ({ listId: tag.listId, selected: Boolean(tagSelections[tag.listId]) })),
       },
       goToMedia,
@@ -1312,7 +1311,7 @@ export function UniversalEditModal({
           ) : null}
         </div>
       ) : (
-        rankedPickable.map((c) => (
+        (isRankedItem && showClassOverride ? rankedClasses : rankedPickable).map((c) => (
         <div
           key={c.key}
           className={`uem-class-row${selectedClassKey === c.key ? ' uem-class-row--on' : ''}`}
@@ -1328,7 +1327,7 @@ export function UniversalEditModal({
             <span className="uem-class-name">{c.label}</span>
             {c.tagline && <span className="uem-class-tagline">{c.tagline}</span>}
           </div>
-          <PlacementButtons classKey={c.key} />
+          {c.key !== 'UNRANKED' ? <PlacementButtons classKey={c.key} /> : null}
         </div>
         ))
       )}
@@ -1508,7 +1507,7 @@ export function UniversalEditModal({
                   dayOptsFor={dayOptsFor}
                   onUpdate={updates => updateEntry(entry.id, updates)}
                   onRemove={() => removeEntry(entry.id)}
-                  canRemove={entries.length > 1}
+                  canRemove={entries.length > 0}
                   runtimeMinutes={target.runtimeMinutes}
                   totalEpisodes={target.totalEpisodes}
                   totalSeasons={target.totalSeasons}
@@ -1533,7 +1532,30 @@ export function UniversalEditModal({
           {/* Tagging Section */}
           <div className="uem-tag-section">
             <div className="uem-section-header">
-              <h3 className="uem-section-title">Lists & Collections</h3>
+              <div className="uem-section-title-with-info">
+                <h3 className="uem-section-title">Lists & Collections</h3>
+                <span
+                  className="uem-section-info-wrap"
+                  onMouseEnter={() => setShowTagHelpTooltip(true)}
+                  onMouseLeave={() => setShowTagHelpTooltip(false)}
+                >
+                  <button
+                    type="button"
+                    className="uem-section-info-btn"
+                    aria-label="Info: click tags to add to list"
+                    onFocus={() => setShowTagHelpTooltip(true)}
+                    onBlur={() => setShowTagHelpTooltip(false)}
+                    onClick={() => setShowTagHelpTooltip((prev) => !prev)}
+                  >
+                    <Info size={12} />
+                  </button>
+                  {showTagHelpTooltip ? (
+                    <span className="uem-section-tooltip" role="tooltip">
+                      click tags to add to list
+                    </span>
+                  ) : null}
+                </span>
+              </div>
             </div>
             <div className="uem-tag-cloud">
               {availableTags.length === 0 && (
@@ -1656,46 +1678,52 @@ export function UniversalEditModal({
               {/* For new items: Save buttons disabled until class selected and watch added */}
               {hasNeverBeenRanked ? (
                 <>
+                  {needsRankPick && !selectedClassKey && (
+                    <button
+                      type="button"
+                      className="uem-btn uem-btn--ghost"
+                      onClick={async () => {
+                        await validateAndSave(false, true);
+                      }}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving…' : 'Save, exit, keep in unranked'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className={`uem-btn uem-btn--secondary${needsRankPick && !selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
-                      await validateAndSave(false, entries.length === 0);
+                      await validateAndSave(false);
                     }}
                     disabled={isSaving || (needsRankPick && !selectedClassKey)}
                     title={needsRankPick && !selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : needsRankPick && !selectedClassKey ? 'Save and Exit (Select class)' : entries.length === 0 ? 'Save and Exit (Long Ago watch)' : 'Save and Exit'}
+                    {isSaving
+                      ? 'Saving…'
+                      : needsRankPick && !selectedClassKey
+                        ? 'Save and Exit (Select class)'
+                        : entries.length === 0 && selectedClassKey && selectedClassKey !== 'UNRANKED'
+                          ? 'Save and Exit (default Long Ago watch)'
+                          : 'Save and Exit'}
                   </button>
                   <button
                     type="button"
                     className={`uem-btn uem-btn--primary${needsRankPick && !selectedClassKey ? ' uem-btn--disabled' : ''}`}
                     onClick={async () => {
-                      await validateAndSave(true, entries.length === 0);
+                      await validateAndSave(true);
                     }}
                     disabled={isSaving || (needsRankPick && !selectedClassKey)}
                     title={needsRankPick && !selectedClassKey ? 'Select a ranking class first' : ''}
                   >
-                    {isSaving ? 'Saving…' : needsRankPick && !selectedClassKey ? 'Save and Go To (Select class)' : entries.length === 0 ? 'Save and Go To (Long Ago watch)' : 'Save and Go To'}
+                    {isSaving
+                      ? 'Saving…'
+                      : needsRankPick && !selectedClassKey
+                        ? 'Save and Go To (Select class)'
+                        : entries.length === 0 && selectedClassKey && selectedClassKey !== 'UNRANKED'
+                          ? 'Save and Go To (default Long Ago watch)'
+                          : 'Save and Go To'}
                   </button>
-                  {isBrandNewEntry && (
-                    <button
-                      type="button"
-                      className="uem-btn uem-btn--ghost"
-                      onClick={async () => {
-                        const finalEntries = entries.length > 0 ? entries : [{
-                          id: crypto.randomUUID(),
-                          watchType: 'LONG_AGO' as const,
-                          watchPercent: 100,
-                          watchStatus: 'NONE' as const,
-                        }];
-                        await onSave({ watches: finalEntries, classKey: 'UNRANKED' }, false);
-                      }}
-                      disabled={isSaving}
-                    >
-                      Add as Unranked & Exit
-                    </button>
-                  )}
                 </>
               ) : (
                 <>
@@ -1891,33 +1919,37 @@ export function UniversalEditModal({
               </button>
             </div>
             <div className="uem-image-picker-body">
-              <p className="uem-image-picker-current">
-                Current image
-              </p>
-              <div className="uem-image-picker-current-preview">
-                {target.posterPath ? (
-                  <img src={tmdbImagePath(target.posterPath, 'w185') ?? ''} alt={`${target.title} current poster`} />
-                ) : (
-                  <span className="uem-image-picker-empty">No current image</span>
-                )}
-              </div>
-              {imagePickerError ? <div className="uem-error">{imagePickerError}</div> : null}
-              {imagePickerLoading ? (
-                <p className="uem-cast-sidebar-status">Loading images...</p>
-              ) : (
-                <div className="uem-image-picker-grid">
-                  {imagePickerPaths.map((path) => (
-                    <button
-                      key={path}
-                      type="button"
-                      className={`uem-image-picker-option${selectedImagePath === path ? ' uem-image-picker-option--selected' : ''}`}
-                      onClick={() => setSelectedImagePath(path)}
-                    >
-                      <img src={tmdbImagePath(path, 'w185') ?? ''} alt={`${target.title} option`} loading="lazy" />
-                    </button>
-                  ))}
+              <aside className="uem-image-picker-sidebar" aria-label="Current image">
+                <p className="uem-image-picker-current">
+                  Current image
+                </p>
+                <div className="uem-image-picker-current-preview">
+                  {target.posterPath ? (
+                    <img src={tmdbImagePath(target.posterPath, 'w185') ?? ''} alt={`${target.title} current poster`} />
+                  ) : (
+                    <span className="uem-image-picker-empty">No current image</span>
+                  )}
                 </div>
-              )}
+              </aside>
+              <section className="uem-image-picker-main" aria-label="Alternate images">
+                {imagePickerError ? <div className="uem-error">{imagePickerError}</div> : null}
+                {imagePickerLoading ? (
+                  <p className="uem-cast-sidebar-status">Loading images...</p>
+                ) : (
+                  <div className="uem-image-picker-grid">
+                    {imagePickerPaths.map((path) => (
+                      <button
+                        key={path}
+                        type="button"
+                        className={`uem-image-picker-option${selectedImagePath === path ? ' uem-image-picker-option--selected' : ''}`}
+                        onClick={() => setSelectedImagePath(path)}
+                      >
+                        <img src={tmdbImagePath(path, 'w185') ?? ''} alt={`${target.title} option`} loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
             <div className="uem-review-footer">
               <button

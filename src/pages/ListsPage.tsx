@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -11,7 +11,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { tmdbImagePath } from '../lib/tmdb';
+import { tmdbImagePath, tmdbSearchMovies, tmdbSearchTv, type TmdbMultiResult } from '../lib/tmdb';
 import { deleteGlobalCollection, saveGlobalCollectionsOrder as saveCollectionsOrder, upsertGlobalCollection } from '../lib/firestoreCollections';
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
@@ -166,6 +166,8 @@ function RenameEntityModal({
   initialSummary,
   allowColorEdit = false,
   allowSummaryEdit = false,
+  deleteLabel,
+  onRequestDelete,
   onClose,
   onSave,
 }: {
@@ -175,6 +177,8 @@ function RenameEntityModal({
   initialSummary?: string;
   allowColorEdit?: boolean;
   allowSummaryEdit?: boolean;
+  deleteLabel?: string;
+  onRequestDelete?: () => void;
   onClose: () => void;
   onSave: (payload: { name: string; color?: string; summary?: string }) => void | Promise<void>;
 }) {
@@ -208,6 +212,17 @@ function RenameEntityModal({
           />
         ) : null}
         <div className="lists-modal-actions">
+          {onRequestDelete ? (
+            <button
+              className="lists-button lists-delete-btn"
+              onClick={() => {
+                onClose();
+                onRequestDelete();
+              }}
+            >
+              {deleteLabel ?? 'Delete'}
+            </button>
+          ) : null}
           <button className="lists-button" onClick={onClose}>Cancel</button>
           <button
             className="lists-button"
@@ -230,10 +245,23 @@ function RenameEntityModal({
   );
 }
 
-function CreateEntityModal({ onClose, onCreate, title, defaultColor }: { onClose: () => void; title: string; defaultColor?: string; onCreate: (name: string, type: 'movie' | 'tv' | 'both', color?: string) => void }) {
+function CreateEntityModal({
+  onClose,
+  onCreate,
+  title,
+  defaultColor,
+  includeDescription = false
+}: {
+  onClose: () => void;
+  title: string;
+  defaultColor?: string;
+  includeDescription?: boolean;
+  onCreate: (name: string, type: 'movie' | 'tv' | 'both', color?: string, description?: string) => void;
+}) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'movie' | 'tv' | 'both'>('both');
   const [color, setColor] = useState(defaultColor ?? '#deb55e');
+  const [description, setDescription] = useState('');
   return (
     <div className="lists-modal-backdrop" onClick={onClose}>
       <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
@@ -252,9 +280,18 @@ function CreateEntityModal({ onClose, onCreate, title, defaultColor }: { onClose
             className="lists-color-input"
           />
         </div>
+        {includeDescription ? (
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Collection description"
+            className="lists-input"
+            rows={2}
+          />
+        ) : null}
         <div className="lists-modal-actions">
           <button className="lists-button" onClick={onClose}>Cancel</button>
-          <button className="lists-button" onClick={() => { const trimmed = name.trim(); if (!trimmed) return; onCreate(trimmed, type, color); onClose(); }}>Create</button>
+          <button className="lists-button" onClick={() => { const trimmed = name.trim(); if (!trimmed) return; onCreate(trimmed, type, color, includeDescription ? description.trim() || undefined : undefined); onClose(); }}>Create</button>
         </div>
       </div>
     </div>
@@ -302,6 +339,184 @@ function AddSavedEntryModal({ title, items, onClose, onAdd }: { title: string; i
   );
 }
 
+function AddCollectionEntryModal({
+  title,
+  items,
+  allowedMediaType,
+  collectionSeenBorderMode,
+  isEntrySeen,
+  onClose,
+  onAddSaved,
+  onAddRemote
+}: {
+  title: string;
+  items: MovieShowItem[];
+  allowedMediaType: 'movie' | 'tv' | 'both';
+  collectionSeenBorderMode: boolean;
+  isEntrySeen: (entryId: string, mediaType: 'movie' | 'tv') => boolean;
+  onClose: () => void;
+  onAddSaved: (item: MovieShowItem) => void;
+  onAddRemote: (result: TmdbMultiResult) => void;
+}) {
+  const [savedQuery, setSavedQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+
+  const fuzzyScore = (titleText: string, q: string) => {
+    const t = titleText.toLowerCase();
+    const needle = q.toLowerCase().trim();
+    if (!needle) return 1;
+    if (t === needle) return 1000;
+    if (t.startsWith(needle)) return 700;
+    if (t.includes(needle)) return 500;
+    let score = 0;
+    let i = 0;
+    for (const ch of t) {
+      if (ch === needle[i]) {
+        score += 10;
+        i += 1;
+        if (i === needle.length) break;
+      }
+    }
+    return i === needle.length ? score : -1;
+  };
+
+  const parsePercentile = (value?: string): number => {
+    if (!value) return -1;
+    const n = Number.parseFloat(String(value).replace('%', '').trim());
+    return Number.isFinite(n) ? n : -1;
+  };
+
+  const filteredSaved = useMemo(() => {
+    const scored = items
+      .map((item) => ({ item, score: fuzzyScore(item.title, savedQuery), percentile: parsePercentile(item.percentileRank) }))
+      .filter((row) => row.score >= 0);
+    scored.sort((a, b) => b.percentile - a.percentile || b.score - a.score || a.item.title.localeCompare(b.item.title));
+    return scored.map((row) => row.item);
+  }, [items, savedQuery]);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    setRemoteError(null);
+    if (!trimmed) {
+      setRemoteResults([]);
+      setRemoteLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        setRemoteLoading(true);
+        const wantsMovie = allowedMediaType === 'movie' || allowedMediaType === 'both';
+        const wantsTv = allowedMediaType === 'tv' || allowedMediaType === 'both';
+        const promises: Promise<TmdbMultiResult[]>[] = [];
+        if (wantsMovie) {
+          promises.push(
+            Promise.all([
+              tmdbSearchMovies(trimmed, controller.signal, undefined, 1),
+              tmdbSearchMovies(trimmed, controller.signal, undefined, 2)
+            ]).then(([p1, p2]) => [...p1, ...p2])
+          );
+        }
+        if (wantsTv) {
+          promises.push(
+            Promise.all([
+              tmdbSearchTv(trimmed, controller.signal, undefined, 1),
+              tmdbSearchTv(trimmed, controller.signal, undefined, 2)
+            ]).then(([p1, p2]) => [...p1, ...p2])
+          );
+        }
+        const batches = await Promise.all(promises);
+        const deduped = batches
+          .flat()
+          .filter((result, idx, arr) => idx === arr.findIndex((candidate) => candidate.media_type === result.media_type && candidate.id === result.id))
+          .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+          .slice(0, 25);
+        setRemoteResults(deduped);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setRemoteResults([]);
+        setRemoteError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!controller.signal.aborted) setRemoteLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery, allowedMediaType]);
+
+  return (
+    <div className="lists-modal-backdrop" onClick={onClose}>
+      <div className="lists-modal lists-modal--add-entry-split" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <div className="lists-add-split">
+          <section className="lists-add-pane" aria-label="Saved entries">
+            <div className="lists-add-pane-header">
+              <h4>Saved</h4>
+              <span>{filteredSaved.length}</span>
+            </div>
+            <input value={savedQuery} onChange={(e) => setSavedQuery(e.target.value)} className="lists-input" placeholder="Search saved..." autoFocus />
+            <div className="lists-saved-grid lists-saved-grid--compact">
+              {filteredSaved.map((item) => (
+                <button
+                  key={item.id}
+                  className={`lists-saved-card lists-saved-card--compact ${
+                    isEntrySeen(item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')
+                      ? (collectionSeenBorderMode ? 'lists-saved-card--seen-border-mode' : '')
+                      : (!collectionSeenBorderMode ? 'lists-saved-card--unseen' : '')
+                  }`}
+                  onClick={() => onAddSaved(item)}
+                >
+                  <div className="lists-saved-poster">{item.posterPath ? <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt={item.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}</div>
+                  <span className="lists-saved-title">{item.title}</span>
+                </button>
+              ))}
+              {filteredSaved.length === 0 ? <div className="lists-subtitle">No saved matches.</div> : null}
+            </div>
+          </section>
+          <section className="lists-add-pane" aria-label="Search TMDB">
+            <div className="lists-add-pane-header">
+              <h4>Search</h4>
+              <span>Top 25</span>
+            </div>
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="lists-input" placeholder="Search TMDB..." />
+            {remoteError ? <div className="lists-subtitle">{remoteError}</div> : null}
+            <div className="lists-saved-grid lists-saved-grid--compact">
+              {remoteLoading ? <div className="lists-subtitle">Searching...</div> : null}
+              {!remoteLoading && remoteResults.map((result) => {
+                const mediaType = result.media_type === 'tv' ? 'tv' : 'movie';
+                const entryId = `tmdb-${mediaType}-${result.id}`;
+                const seen = isEntrySeen(entryId, mediaType);
+                return (
+                  <button
+                    key={`${result.media_type}-${result.id}`}
+                    className={`lists-saved-card lists-saved-card--compact ${
+                      seen
+                        ? (collectionSeenBorderMode ? 'lists-saved-card--seen-border-mode' : '')
+                        : (!collectionSeenBorderMode ? 'lists-saved-card--unseen' : '')
+                    }`}
+                    onClick={() => onAddRemote(result)}
+                  >
+                    <div className="lists-saved-poster">{result.poster_path ? <img src={tmdbImagePath(result.poster_path, 'w185') ?? ''} alt={result.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}</div>
+                    <span className="lists-saved-title">{result.title}</span>
+                  </button>
+                );
+              })}
+              {!remoteLoading && searchQuery.trim() && remoteResults.length === 0 ? <div className="lists-subtitle">No matches.</div> : null}
+            </div>
+          </section>
+        </div>
+        <div className="lists-modal-actions"><button className="lists-button" onClick={onClose}>Close</button></div>
+      </div>
+    </div>
+  );
+}
+
 function DeleteConfirmModal({ title, onCancel, onConfirm }: { title: string; onCancel: () => void; onConfirm: () => void }) {
   const [value, setValue] = useState('');
   return (
@@ -322,6 +537,9 @@ function DeleteConfirmModal({ title, onCancel, onConfirm }: { title: string; onC
 function AddDeleteActions({
   showAdd,
   onAdd,
+  showRemoveModeToggle,
+  removeModeActive,
+  onToggleRemoveMode,
   showDelete,
   onDelete,
   showCopyList,
@@ -329,6 +547,9 @@ function AddDeleteActions({
 }: {
   showAdd: boolean;
   onAdd: () => void;
+  showRemoveModeToggle?: boolean;
+  removeModeActive?: boolean;
+  onToggleRemoveMode?: () => void;
   showDelete: boolean;
   onDelete: () => void;
   showCopyList?: boolean;
@@ -337,6 +558,15 @@ function AddDeleteActions({
   return (
     <div className="lists-inline-actions">
       {showAdd ? <button className="lists-button lists-plus-btn" onClick={onAdd} title="Add saved entry"><Plus size={18} /></button> : null}
+      {showRemoveModeToggle ? (
+        <button
+          className={`lists-button lists-plus-btn ${removeModeActive ? 'lists-plus-btn--active-remove' : ''}`}
+          onClick={onToggleRemoveMode}
+          title={removeModeActive ? 'Exit removal mode' : 'Enter removal mode'}
+        >
+          <span>−</span>
+        </button>
+      ) : null}
       {showCopyList ? <button className="lists-button" onClick={onCopyList} title="Copy list as ordered text">Copy list</button> : null}
       {showDelete ? <button className="lists-delete-icon-btn" onClick={onDelete} title="Delete"><span>×</span></button> : null}
     </div>
@@ -397,6 +627,7 @@ export function ListsPage() {
   const { byClass: tvByClass } = useTvStore();
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
+  const [showCreateGlobalCollectionModal, setShowCreateGlobalCollectionModal] = useState(false);
   const [showListsInfoModal, setShowListsInfoModal] = useState(false);
   const [showCollectionsInfoModal, setShowCollectionsInfoModal] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -406,6 +637,7 @@ export function ListsPage() {
   const listCards = useMemo<Array<ListCard & { posterBackgrounds: string[] }>>(() => listOrder
     .map((id) => listById.get(id))
     .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    .filter((list) => list.mode === 'list')
     .map((list) => {
       const entryPosters = (entriesByListId[list.id] ?? [])
         .map((entry) => entryById.get(entry.entryId)?.posterPath)
@@ -446,6 +678,38 @@ export function ListsPage() {
       posterBackgrounds: pickPosterCollageFixedCount(posters, `collection:${collection.id}`, 12),
     };
   }), [globalCollections, allEntries, watchlist, entryById]);
+  const customCollectionCards = useMemo<Array<CollectionCard & { posterBackgrounds: string[] }>>(() => (
+    lists
+      .filter((list) => list.mode === 'collection' && !list.hidden)
+      .sort((a, b) => {
+        const aIdx = listOrder.indexOf(a.id);
+        const bIdx = listOrder.indexOf(b.id);
+        return (aIdx === -1 ? Number.MAX_SAFE_INTEGER : aIdx) - (bIdx === -1 ? Number.MAX_SAFE_INTEGER : bIdx);
+      })
+      .map((list) => {
+        const refs = entriesByListId[list.id] ?? [];
+        const statuses = refs.map((entry) => {
+          const isSeen = Boolean(entryById.get(entry.entryId)?.watchRecords?.length);
+          const isWatchlistUnseen = !isSeen && watchlist.isInWatchlist(entry.entryId);
+          return { isSeen, isWatchlistUnseen };
+        });
+        const seen = statuses.filter((s) => s.isSeen).length;
+        const watchlistUnseen = statuses.filter((s) => s.isWatchlistUnseen).length;
+        const posters = refs
+          .map((entry) => entryById.get(entry.entryId)?.posterPath)
+          .filter((poster): poster is string => Boolean(poster));
+        return {
+          id: list.id,
+          title: list.name,
+          seen,
+          watchlistUnseen,
+          total: refs.length,
+          href: `/lists/${list.id}`,
+          color: list.color,
+          posterBackgrounds: pickPosterCollageFixedCount(posters, `custom-collection:${list.id}`, 12),
+        };
+      })
+  ), [lists, listOrder, entriesByListId, entryById, watchlist]);
   const onListDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -465,19 +729,94 @@ export function ListsPage() {
     reorderGlobalCollections(next);
     await saveCollectionsOrder(db, next);
   };
+  const onCustomCollectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = customCollectionCards.findIndex((item) => item.id === active.id);
+    const newIndex = customCollectionCards.findIndex((item) => item.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextCustomIds = arrayMove(customCollectionCards.map((item) => item.id), oldIndex, newIndex);
+    const nextOrder: string[] = [];
+    let customCursor = 0;
+    for (const id of listOrder) {
+      const list = listById.get(id);
+      if (list?.mode === 'collection' && !list.hidden) {
+        nextOrder.push(nextCustomIds[customCursor] ?? id);
+        customCursor += 1;
+      } else {
+        nextOrder.push(id);
+      }
+    }
+    reorderLists(nextOrder);
+  };
   return (
     <section className="lists-page">
       <header className="page-heading"><div><h1 className="page-title">Lists</h1></div><div /></header>
       <section className="class-section">
-        <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Lists</h3><button className="lists-info-btn" onClick={() => setShowListsInfoModal(true)} title="About lists" aria-label="About lists"><Info size={13} /></button></div><p className="class-section-count">{listCards.length} entries</p></div><button className="lists-button lists-plus-btn" onClick={() => setShowCreateListModal(true)} title="Create list"><Plus size={18} /></button></header>
+        <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Lists</h3><button className="lists-info-btn" onClick={() => setShowListsInfoModal(true)} title="About lists" aria-label="About lists"><Info size={13} /></button></div><p className="class-section-count">{listCards.length} entries</p></div><button className="lists-button" onClick={() => setShowCreateListModal(true)} title="New list"><Plus size={16} />New</button></header>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onListDragEnd}><SortableContext items={listCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{listCards.map((card) => <div key={card.id} className="lists-card-slot"><HoverCard title={card.title} subtitle={card.subtitle} href={card.href} sortableId={card.id} color={card.color} posterBackgrounds={card.posterBackgrounds} /></div>)}</div></SortableContext></DndContext>
       </section>
       <section className="class-section">
-        <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Collections</h3><button className="lists-info-btn" onClick={() => setShowCollectionsInfoModal(true)} title="About collections" aria-label="About collections"><Info size={13} /></button></div><p className="class-section-count">{collectionCards.length} entries</p></div>{canEditCollections ? <button className="lists-button lists-plus-btn" onClick={() => setShowCreateCollectionModal(true)} title="Create collection"><Plus size={18} /></button> : null}</header>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onCollectionDragEnd}><SortableContext items={collectionCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{collectionCards.map((card) => <SortableCollectionCard key={card.id} card={card} disabled={!canEditCollections} />)}</div></SortableContext></DndContext>
+        <header className="class-section-header">
+          <div>
+            <div className="lists-section-title-row">
+              <h3 className="class-section-title">Collections</h3>
+              <button className="lists-info-btn" onClick={() => setShowCollectionsInfoModal(true)} title="About collections" aria-label="About collections"><Info size={13} /></button>
+            </div>
+            <p className="class-section-count">{collectionCards.length + customCollectionCards.length} entries</p>
+          </div>
+          <div className="lists-header-actions-inline">
+            <button className="lists-button" onClick={() => setShowCreateCollectionModal(true)} title="New collection">
+              <Plus size={16} />
+              New
+            </button>
+            {canEditCollections ? (
+              <button className="lists-button" onClick={() => setShowCreateGlobalCollectionModal(true)} title="Make new global collection">
+                <Plus size={16} />
+                Make New Global Collection
+              </button>
+            ) : null}
+          </div>
+        </header>
+        <div className="lists-collections-stack">
+          <div className="lists-collections-group">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onCollectionDragEnd}>
+              <SortableContext items={collectionCards.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                <div className="lists-card-grid">
+                  {collectionCards.map((card) => <SortableCollectionCard key={card.id} card={card} disabled={!canEditCollections} />)}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+          {customCollectionCards.length > 0 ? (
+            <div className="lists-collections-group">
+              <div className="lists-collections-group-bar">
+                <span>My Collections</span>
+              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onCustomCollectionDragEnd}>
+                <SortableContext items={customCollectionCards.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                  <div className="lists-card-grid">
+                    {customCollectionCards.map((card) => <SortableCollectionCard key={card.id} card={card} disabled={false} />)}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          ) : null}
+        </div>
       </section>
       {showCreateListModal ? <CreateEntityModal title="Create List" onClose={() => setShowCreateListModal(false)} onCreate={(name, type, color) => createList(name, type, 'list', color)} /> : null}
-      {showCreateCollectionModal && canEditCollections ? <CreateEntityModal title="Create Collection" defaultColor="#48b66e" onClose={() => setShowCreateCollectionModal(false)} onCreate={async (name, type, color) => { if (!db) return; const id = `collection-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()}`; const next = { id, name, mediaType: type, color, hidden: false, updatedAt: new Date().toISOString(), entries: [] }; await upsertGlobalCollection(db, next); upsertGlobalCollectionLocal(next); }} /> : null}
+      {showCreateCollectionModal ? (
+        <CreateEntityModal
+          title="Make Collection"
+          defaultColor="#48b66e"
+          includeDescription
+          onClose={() => setShowCreateCollectionModal(false)}
+          onCreate={(name, type, color, description) => {
+            createList(name, type, 'collection', color, description);
+          }}
+        />
+      ) : null}
+      {showCreateGlobalCollectionModal && canEditCollections ? <CreateEntityModal title="Make New Global Collection" defaultColor="#48b66e" includeDescription onClose={() => setShowCreateGlobalCollectionModal(false)} onCreate={async (name, type, color, description) => { if (!db) return; const id = `collection-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()}`; const next = { id, name, summary: description, mediaType: type, color, hidden: false, updatedAt: new Date().toISOString(), entries: [] }; await upsertGlobalCollection(db, next); upsertGlobalCollectionLocal(next); }} /> : null}
       {showCollectionsInfoModal ? (
         <InfoTextModal
           title="About Collections"
@@ -531,11 +870,13 @@ export function ListDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [personalCollectionRemoveMode, setPersonalCollectionRemoveMode] = useState(false);
   const [collectionViewerFilter, setCollectionViewerFilter] = useState<CollectionViewerFilter>('ALL');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; entryId?: string; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
   const activeCollection = globalCollections.find((item) => item.id === collectionId);
   const activeList = lists.find((item) => item.id === listId);
+  const isPersonalCollection = Boolean(activeList && activeList.mode === 'collection');
   const entryMap = useMemo(() => {
     const map = new Map<string, MovieShowItem>();
     [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()].forEach((item) => map.set(item.id, item));
@@ -612,6 +953,9 @@ export function ListDetailPage() {
     () => filteredDetailItems.map((row) => ({ id: row.id, title: row.title })),
     [filteredDetailItems]
   );
+  useEffect(() => {
+    setPersonalCollectionRemoveMode(false);
+  }, [listId, collectionId]);
   const handleCollectionSearchSelect = useCallback((id: string) => {
     const el = document.getElementById(`lists-collection-tile-${id}`);
     if (!el) return;
@@ -641,6 +985,19 @@ export function ListDetailPage() {
       await upsertGlobalCollection(db, nextCollection);
     }
   };
+  const removePersonalCollectionEntry = (entryId: string, mediaType: 'movie' | 'tv') => {
+    if (!activeList || activeList.mode !== 'collection') return;
+    setEntryListMembership(entryId, mediaType, [{ listId: activeList.id, selected: false }]);
+  };
+  const isCollectionEntrySeen = useCallback((entryId: string, mediaType: 'movie' | 'tv') => {
+    const item = mediaType === 'movie' ? getMovieById(entryId) : getShowById(entryId);
+    if (!item) return false;
+    const appearsInOtherClass = mediaType === 'movie'
+      ? movieIdsInNonUnrankedClasses.has(entryId)
+      : tvIdsInNonUnrankedClasses.has(entryId);
+    const isUnrankedOnly = item.classKey === 'UNRANKED' && !appearsInOtherClass;
+    return !isUnrankedOnly;
+  }, [getMovieById, getShowById, movieIdsInNonUnrankedClasses, tvIdsInNonUnrankedClasses]);
   if (!title) return <section className="lists-page"><header className="page-heading"><h1 className="page-title">List not found</h1><div className="page-actions-row"><button className="lists-button" onClick={() => navigate('/lists')}>Back</button></div></header></section>;
   return (
     <section className="lists-page">
@@ -706,7 +1063,13 @@ export function ListDetailPage() {
           } catch {
             console.warn('Failed to copy list to clipboard.');
           }
-        }} />}
+        }}
+          showRemoveModeToggle={isPersonalCollection}
+          removeModeActive={personalCollectionRemoveMode}
+          onToggleRemoveMode={() => setPersonalCollectionRemoveMode((prev) => !prev)}
+          showDelete={false}
+          onDelete={() => setShowDeleteConfirm(true)}
+        />}
         onReorderWithinClass={canDrag ? async (_classKey, ids) => {
           if (isCollection && activeCollection) {
             const byId = new Map<CollectionEntryId, (typeof activeCollection.entries)[number]>(
@@ -732,21 +1095,23 @@ export function ListDetailPage() {
         } : undefined}
         renderRow={(row) => row.item ? (() => {
           const item = row.item;
-          const isSavedUnranked = isCollection && row.source === 'saved' && item.classKey === 'UNRANKED';
+          const isCollectionLike = isCollection || isPersonalCollection;
+          const isSavedUnranked = isCollectionLike && row.source === 'saved' && item.classKey === 'UNRANKED';
           const appearsInOtherClass = row.mediaType === 'movie'
             ? movieIdsInNonUnrankedClasses.has(item.id)
             : tvIdsInNonUnrankedClasses.has(item.id);
           const isUnrankedOnly = isSavedUnranked && !appearsInOtherClass;
-          const isCollectionUnseen = isCollection && (row.source === 'unseen' || isUnrankedOnly);
+          const isCollectionUnseen = isCollectionLike && (row.source === 'unseen' || isUnrankedOnly);
           const shouldMuteCollectionUnseen = isCollectionUnseen && !settings.collectionSeenBorderMode;
-          const shouldShowSeenBorder = isCollection && settings.collectionSeenBorderMode && !isCollectionUnseen;
+          const shouldShowSeenBorder = isCollectionLike && settings.collectionSeenBorderMode && !isCollectionUnseen;
+          const shouldShowTileOverlayControls = isCollectionLike && !(isPersonalCollection && personalCollectionRemoveMode);
           return (
           <div
             id={isCollection ? `lists-collection-tile-${row.id}` : undefined}
             className={`lists-entry-tile-wrap ${
               isUnrankedOnly ? 'lists-entry-tile-wrap--unranked' : ''
             } ${
-              isCollection && watchlist.isInWatchlist(item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
+              isCollectionLike && watchlist.isInWatchlist(item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
             } ${
               isCollectionUnseen ? 'lists-entry-tile-wrap--collection-unseen' : ''
             } ${
@@ -757,12 +1122,34 @@ export function ListDetailPage() {
               <button
                 type="button"
                 className="lists-entry-remove-btn"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   void removeCollectionEntry(row.id);
                 }}
                 title="Remove from collection"
                 aria-label={`Remove ${row.title} from collection`}
+              >
+                ×
+              </button>
+            ) : null}
+            {isPersonalCollection && personalCollectionRemoveMode ? (
+              <button
+                type="button"
+                className="lists-entry-remove-btn"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removePersonalCollectionEntry(row.id, row.mediaType);
+                }}
+                title="Remove from personal collection"
+                aria-label={`Remove ${row.title} from personal collection`}
               >
                 ×
               </button>
@@ -774,7 +1161,7 @@ export function ListDetailPage() {
               tileMinimalActions
               tileUnseenMuted={shouldMuteCollectionUnseen}
               tileOverlayControls={
-                isCollection ? (
+                shouldShowTileOverlayControls ? (
                   <div className="lists-entry-toggle-stack">
                     {(row.source === 'unseen' || isUnrankedOnly) ? (
                       row.mediaType === 'movie' ? (
@@ -881,7 +1268,7 @@ export function ListDetailPage() {
                 ) : null
               }
               tileOverlayBadges={
-                isCollection ? (
+                isCollectionLike ? (
                   <>
                     {isUnrankedOnly ? (
                       <div className="lists-entry-status-badge lists-entry-status-badge--unranked">Unranked</div>
@@ -900,9 +1287,74 @@ export function ListDetailPage() {
             />
           </div>
           );
-        })() : <UnseenTile title={row.title} />}
+        })() : (
+          <div className={`lists-entry-tile-wrap ${!settings.collectionSeenBorderMode ? 'lists-entry-tile-wrap--collection-unseen' : ''}`}>
+            {isPersonalCollection && personalCollectionRemoveMode ? (
+              <button
+                type="button"
+                className="lists-entry-remove-btn"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removePersonalCollectionEntry(row.id, row.mediaType);
+                }}
+                title="Remove from personal collection"
+                aria-label={`Remove ${row.title} from personal collection`}
+              >
+                ×
+              </button>
+            ) : null}
+            <UnseenTile title={row.title} />
+          </div>
+        )}
       />
-      {showAddEntryModal && activeList ? <AddSavedEntryModal title={`Add to ${activeList.name}`} items={addableSavedItems} onClose={() => setShowAddEntryModal(false)} onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')} /> : null}
+      {showAddEntryModal && activeList ? (
+        activeList.mode === 'collection' ? (
+          <AddCollectionEntryModal
+            title={`Add to ${activeList.name}`}
+            items={addableSavedItems}
+            allowedMediaType={activeList.mediaType}
+            collectionSeenBorderMode={settings.collectionSeenBorderMode}
+            isEntrySeen={isCollectionEntrySeen}
+            onClose={() => setShowAddEntryModal(false)}
+            onAddSaved={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')}
+            onAddRemote={(result) => {
+              const mediaType = result.media_type === 'tv' ? 'tv' : 'movie';
+              const id = `tmdb-${mediaType}-${result.id}`;
+              if (mediaType === 'movie') {
+                if (!getMovieById(id)) {
+                  addMovieFromSearch({
+                    id,
+                    title: result.title,
+                    subtitle: result.release_date ? result.release_date.slice(0, 4) : 'Saved',
+                    classKey: 'UNRANKED',
+                    posterPath: result.poster_path
+                  });
+                }
+              } else if (!getShowById(id)) {
+                addShowFromSearch({
+                  id,
+                  title: result.title,
+                  subtitle: result.release_date ? result.release_date.slice(0, 4) : 'Saved',
+                  classKey: 'UNRANKED',
+                  posterPath: result.poster_path
+                });
+              }
+              addEntryToListTop(activeList.id, id, mediaType);
+            }}
+          />
+        ) : (
+          <AddSavedEntryModal
+            title={`Add to ${activeList.name}`}
+            items={addableSavedItems}
+            onClose={() => setShowAddEntryModal(false)}
+            onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')}
+          />
+        )
+      ) : null}
       {settingsFor ? (
         (() => {
           const isTvSettingsItem = settingsFor.id.startsWith('tmdb-tv-');
@@ -1041,6 +1493,8 @@ export function ListDetailPage() {
           initialSummary={isCollection ? activeCollection?.summary : activeList?.description}
           allowColorEdit={canEditNameAndColor}
           allowSummaryEdit={Boolean(canEditNameAndColor)}
+          deleteLabel={isCollection ? 'Delete collection' : 'Delete list'}
+          onRequestDelete={() => setShowDeleteConfirm(true)}
           onClose={() => setShowRenameModal(false)}
           onSave={async ({ name, color, summary }) => {
             if (isCollection) {

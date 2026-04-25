@@ -47,6 +47,32 @@
   gap: 10px;
 }
 
+.lists-collections-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lists-collections-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lists-collections-group-bar {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: 8px;
+}
+
+.lists-collections-group-bar span {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .lists-card-slot {
   position: relative;
 }
@@ -356,6 +382,12 @@
   padding: 0;
 }
 
+.lists-plus-btn--active-remove {
+  border-color: rgba(220, 90, 90, 0.55);
+  background: rgba(220, 90, 90, 0.14);
+  color: #ffb5b5;
+}
+
 .lists-collection-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -487,6 +519,52 @@
   min-height: 620px;
 }
 
+.lists-modal--add-entry-split {
+  width: min(1200px, calc(100vw - 28px));
+  height: min(760px, calc(100vh - 36px));
+  max-height: calc(100vh - 36px);
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.lists-add-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.lists-add-pane {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.lists-add-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lists-add-pane-header h4 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lists-add-pane-header span {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
 .lists-modal--info {
   width: min(680px, calc(100vw - 28px));
 }
@@ -500,6 +578,15 @@
   overflow: auto;
 }
 
+.lists-saved-grid--compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: auto;
+}
+
 .lists-saved-card {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -509,6 +596,39 @@
   display: grid;
   gap: 6px;
   text-align: left;
+}
+
+.lists-saved-card:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+.lists-saved-card--unseen {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(130, 130, 130, 0.35);
+}
+
+.lists-saved-card--unseen .lists-saved-title {
+  color: #7a7a7a;
+}
+
+.lists-saved-card--unseen .lists-saved-poster img {
+  filter: grayscale(0.65) brightness(0.48);
+}
+
+.lists-saved-card--unseen .lists-saved-poster-fallback {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), rgba(40, 40, 40, 0.35));
+}
+
+.lists-saved-card--seen-border-mode .lists-saved-poster {
+  border: 3px solid #2fbf71;
+  box-shadow: 0 0 0 1px rgba(47, 191, 113, 0.5), 0 0 14px rgba(47, 191, 113, 0.28);
+}
+
+.lists-saved-card--compact {
+  padding: 4px;
+  gap: 4px;
 }
 
 .lists-saved-poster {
@@ -535,6 +655,11 @@
 .lists-saved-title {
   font-size: 0.75rem;
   line-height: 1.3;
+}
+
+.lists-saved-card--compact .lists-saved-title {
+  font-size: 0.66rem;
+  line-height: 1.2;
 }
 
 .lists-detail-actions {
@@ -687,11 +812,11 @@
 
 .lists-entry-remove-btn {
   position: absolute;
-  top: 36px;
-  right: 8px;
-  z-index: 4;
-  width: 24px;
-  height: 24px;
+  top: 46px;
+  right: 10px;
+  z-index: 12;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   border: 1px solid rgba(220, 90, 90, 0.55);
   background: rgba(220, 90, 90, 0.22);
@@ -700,7 +825,11 @@
   place-items: center;
   padding: 0;
   line-height: 1;
-  font-size: 1rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .lists-entry-remove-btn:hover {
@@ -722,6 +851,13 @@
 }
 
 @media (max-width: 768px) {
+  .lists-add-split {
+    grid-template-columns: 1fr;
+  }
+
+  .lists-saved-grid--compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
   .lists-page .ranked-list.mode-tile .class-section-rows {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     justify-content: flex-start;

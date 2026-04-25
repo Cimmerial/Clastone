@@ -16,7 +16,7 @@ type ListsStore = {
   globalCollections: GlobalCollection[];
   tagsByEntryId: Map<string, string[]>;
   collectionIdsByEntryId: Map<string, string[]>;
-  createList: (name: string, mediaType: ListMediaType, mode?: 'list' | 'collection', color?: string) => string;
+  createList: (name: string, mediaType: ListMediaType, mode?: 'list' | 'collection', color?: string, description?: string) => string;
   updateList: (listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color'>>) => void;
   deleteList: (listId: string) => void;
   reorderLists: (orderedIds: string[]) => void;
@@ -84,10 +84,20 @@ export function ListsProvider({
     }, 1000);
   }, [lists, listOrder, entriesByListId, onPersist]);
 
-  const createList = useCallback((name: string, mediaType: ListMediaType, mode: 'list' | 'collection' = 'list', color?: string) => {
+  const createList = useCallback((name: string, mediaType: ListMediaType, mode: 'list' | 'collection' = 'list', color?: string, description?: string) => {
     const id = `list_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    const next: UserListDoc = { id, name: name.trim() || 'Untitled List', mediaType, mode, color, createdAt: now, updatedAt: now, hidden: false };
+    const next: UserListDoc = {
+      id,
+      name: name.trim() || 'Untitled List',
+      description: description?.trim() || undefined,
+      mediaType,
+      mode,
+      color,
+      createdAt: now,
+      updatedAt: now,
+      hidden: false
+    };
     setLists((prev) => [...prev, next]);
     setListOrder((prev) => [...prev, id]);
     setEntriesByListId((prev) => ({ ...prev, [id]: [] }));
@@ -140,7 +150,7 @@ export function ListsProvider({
       const next = { ...prev };
       for (const change of changes) {
         const list = lists.find((item) => item.id === change.listId);
-        if (!list || !supportsMediaType(list.mediaType, mediaType) || list.mode !== 'list') continue;
+        if (!list || list.hidden || !supportsMediaType(list.mediaType, mediaType)) continue;
         const current = next[change.listId] ?? [];
         const hasEntry = current.some((entry) => entry.entryId === entryId);
         if (change.selected && !hasEntry) {
@@ -157,7 +167,7 @@ export function ListsProvider({
 
   const getEditableListsForMediaType = useCallback((mediaType: EntryMediaType) => {
     return lists
-      .filter((list) => list.mode === 'list' && !list.hidden && supportsMediaType(list.mediaType, mediaType))
+      .filter((list) => !list.hidden && supportsMediaType(list.mediaType, mediaType))
       .sort((a, b) => {
         const aIdx = listOrder.indexOf(a.id);
         const bIdx = listOrder.indexOf(b.id);
