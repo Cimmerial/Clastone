@@ -1429,8 +1429,6 @@ export function ListDetailPage() {
           showRemoveModeToggle={isPersonalCollection}
           removeModeActive={personalCollectionRemoveMode}
           onToggleRemoveMode={() => setPersonalCollectionRemoveMode((prev) => !prev)}
-          showDelete={false}
-          onDelete={() => setShowDeleteConfirm(true)}
         />}
         onReorderWithinClass={canDrag ? async (_classKey, ids) => {
           if (isCollection && activeCollection) {

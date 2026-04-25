@@ -919,9 +919,9 @@ export function SearchPage() {
       }
       if (params.listMemberships?.length) {
         setEntryListMembership(targetId, 'movie', params.listMemberships, {
-          title: recordTarget.title,
-          posterPath: recordTarget.poster_path,
-          releaseDate: recordTarget.release_date
+          title: recordTarget?.title ?? '',
+          posterPath: recordTarget?.poster_path,
+          releaseDate: recordTarget?.release_date
         });
       }
       if (!keepModalOpen) {
@@ -961,9 +961,9 @@ export function SearchPage() {
       }
       if (params.listMemberships?.length) {
         setEntryListMembership(targetId, 'tv', params.listMemberships, {
-          title: recordTarget.title,
-          posterPath: recordTarget.poster_path,
-          releaseDate: recordTarget.release_date
+          title: recordTarget?.title ?? '',
+          posterPath: recordTarget?.poster_path,
+          releaseDate: recordTarget?.release_date
         });
       }
       if (!keepModalOpen) {
