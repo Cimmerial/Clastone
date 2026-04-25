@@ -597,13 +597,14 @@ export function FriendProfilePage() {
         return {
           id: collection.id,
           name: PROFILE_COLLECTION_LABEL_OVERRIDES[collection.name] ?? collection.name,
+          href: `/friends/${resolvedProfileUid ?? friendProfile?.uid ?? friendId}/lists/collection/${collection.id}`,
           seen,
           watchlistUnseen,
           total,
         };
       })
       .filter((item) => item.total > 0);
-  }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds]);
+  }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds, resolvedProfileUid, friendProfile?.uid, friendId]);
 
   const friendCustomCollectionProgress = useMemo(() => {
     if (!friendListsData) return [];
@@ -630,13 +631,14 @@ export function FriendProfilePage() {
         return {
           id: collection.id,
           name: collection.name,
+          href: `/friends/${resolvedProfileUid ?? friendProfile?.uid ?? friendId}/lists/${collection.id}`,
           seen,
           watchlistUnseen,
           total,
         };
       })
       .filter((item) => item.total > 0);
-  }, [friendListsData, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds]);
+  }, [friendListsData, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds, resolvedProfileUid, friendProfile?.uid, friendId]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
@@ -2146,9 +2148,10 @@ export function FriendProfilePage() {
             {friendGlobalCollectionProgress.length > 0 && (
               <div className="profile-stats-global-collections">
                 {friendGlobalCollectionProgress.map((collection) => (
-                  <div
+                  <Link
                     key={collection.id}
-                    className="profile-stat profile-stat--collection-link profile-stat--collection-static"
+                    to={collection.href}
+                    className="profile-stat profile-stat--collection-link"
                   >
                     <CollectionRadialProgress
                       seen={collection.seen}
@@ -2157,16 +2160,17 @@ export function FriendProfilePage() {
                       includeWatchlistSegment
                     />
                     <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
             {friendCustomCollectionProgress.length > 0 && (
               <div className="profile-stats-global-collections">
                 {friendCustomCollectionProgress.map((collection) => (
-                  <div
+                  <Link
                     key={`custom-${collection.id}`}
-                    className="profile-stat profile-stat--collection-link profile-stat--collection-static"
+                    to={collection.href}
+                    className="profile-stat profile-stat--collection-link"
                   >
                     <CollectionRadialProgress
                       seen={collection.seen}
@@ -2175,7 +2179,7 @@ export function FriendProfilePage() {
                       includeWatchlistSegment
                     />
                     <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

@@ -29,8 +29,22 @@
 .friend-movie-collection-toolbar .friend-movie-collection-filters {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
+}
+
+.friend-movie-collection-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  flex-wrap: wrap;
+}
+
+.friend-movie-collection-toggle-divider {
+  width: 1px;
+  height: 1.05rem;
+  background: rgba(244, 162, 97, 0.34);
+  margin: 0 0.08rem;
 }
 
 .friend-collection-page-search {
@@ -107,10 +121,10 @@
 
 .friend-movie-collection-meta {
   display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0rem;
+  margin-top: 0.3rem;
 }
 
 .friend-movie-collection-count {
@@ -123,18 +137,45 @@
 
 .friend-movie-collection-filter-btn {
   min-width: 0;
-  padding: 5px 10px;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  border-radius: 10px;
+  padding: 3px 7px;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  border-radius: 7px;
   justify-content: center;
+  border: 1px solid rgba(244, 162, 97, 0.24);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-muted);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.friend-movie-collection-filter-btn:hover {
+  border-color: rgba(244, 162, 97, 0.42);
+  color: var(--text-primary);
 }
 
 .friend-movie-collection-filter-btn--active {
-  border-color: var(--accent-soft);
-  color: var(--text-primary);
-  background: rgba(232, 93, 4, 0.18);
+  border-color: rgba(255, 188, 122, 0.92);
+  color: #fff7ed;
+  background: linear-gradient(180deg, rgba(255, 138, 46, 0.46), rgba(232, 93, 4, 0.36));
+  box-shadow: 0 0 0 1px rgba(255, 168, 88, 0.62), 0 2px 10px rgba(232, 93, 4, 0.36);
+  transform: translateY(-1px);
   opacity: 1;
+}
+
+.friend-collection-summary {
+  margin: -0.12rem 0 0;
+  max-width: 60ch;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 640px) {
+  .friend-movie-collection-toggle-divider {
+    display: none;
+  }
 }
 
 .friend-movie-collection-grid {

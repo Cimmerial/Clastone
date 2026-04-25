@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
+import { FriendCollectionDetailPage } from './pages/FriendCollectionDetailPage';
 import { UsernameSetup } from './components/UsernameSetup';
 import { DevTools } from './components/DevTools';
 import { SyncStatusProvider } from './context/SyncStatusContext';
@@ -90,6 +91,8 @@ function PublicAppShell() {
                             <Route path="login" element={<LoginPage />} />
                             <Route path="home" element={<HomePage />} />
                             <Route path="friends/:friendId" element={<FriendProfilePage />} />
+                            <Route path="friends/:friendId/lists/collection/:collectionId" element={<FriendCollectionDetailPage />} />
+                            <Route path="friends/:friendId/lists/:listId" element={<FriendCollectionDetailPage />} />
                             <Route path="friends" element={<FriendsPage />} />
                           </Route>
                           <Route path="*" element={<Navigate to="/login" replace />} />
