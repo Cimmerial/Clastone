@@ -198,6 +198,18 @@
   box-shadow: 0 4px 16px rgba(232, 93, 4, 0.3);
 }
 
+.profile-stats-share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-share-feedback {
+  font-size: 0.78rem;
+  color: var(--accent-soft);
+  opacity: 0.9;
+}
+
 /* Friends of Friend Modal */
 .friends-of-friend-modal-overlay {
   position: fixed;
@@ -1318,6 +1330,52 @@
 
 .profile-list-mode-dropdown.themed-dropdown {
   width: auto;
+}
+
+.profile-list-mode-dropdown .themed-dropdown-trigger,
+.profile-recent-range-dropdown .themed-dropdown-trigger {
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(244, 162, 97, 0.35);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.2), rgba(232, 93, 4, 0.08));
+  box-shadow: 0 2px 10px rgba(232, 93, 4, 0.18);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+}
+
+.profile-list-mode-dropdown .themed-dropdown-trigger:hover,
+.profile-recent-range-dropdown .themed-dropdown-trigger:hover {
+  border-color: rgba(244, 162, 97, 0.6);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.3), rgba(232, 93, 4, 0.14));
+  box-shadow: 0 4px 14px rgba(232, 93, 4, 0.26);
+}
+
+.profile-list-mode-dropdown .themed-dropdown-chevron,
+.profile-recent-range-dropdown .themed-dropdown-chevron {
+  color: var(--accent-soft);
+}
+
+.themed-dropdown-list--portal {
+  border: 1px solid rgba(244, 162, 97, 0.35);
+  background: rgba(12, 8, 14, 0.97);
+  backdrop-filter: blur(6px);
+}
+
+.themed-dropdown-list--portal .themed-dropdown-option {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.themed-dropdown-list--portal .themed-dropdown-option:hover {
+  background: rgba(244, 162, 97, 0.16);
+}
+
+.themed-dropdown-list--portal .themed-dropdown-option--selected {
+  background: rgba(244, 162, 97, 0.24);
+  color: var(--accent-soft);
 }
 
 .profile-list-watch-toggle {

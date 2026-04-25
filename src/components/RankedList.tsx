@@ -152,8 +152,9 @@ function RankedListInner<T extends RankedItemBase>(
   const isTile = viewMode === 'tile' || viewMode === 'compact';
   const isCompact = viewMode === 'compact';
   const { isMobile } = useMobileViewMode();
-  const canReorderWithinClass = isMobile ? undefined : onReorderWithinClass;
-  const canMoveBetweenClasses = isMobile ? undefined : onMoveBetweenClasses;
+  const disableDragForView = viewMode === 'detailed';
+  const canReorderWithinClass = isMobile || disableDragForView ? undefined : onReorderWithinClass;
+  const canMoveBetweenClasses = isMobile || disableDragForView ? undefined : onMoveBetweenClasses;
   const dragEnabled = Boolean(canReorderWithinClass || canMoveBetweenClasses);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<T | null>(null);

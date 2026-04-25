@@ -164,6 +164,8 @@ function RenameEntityModal({
   initialName,
   initialColor,
   initialSummary,
+  initialType,
+  entryTypeCounts,
   allowColorEdit = false,
   allowSummaryEdit = false,
   deleteLabel,
@@ -175,16 +177,45 @@ function RenameEntityModal({
   initialName: string;
   initialColor?: string;
   initialSummary?: string;
+  initialType?: 'movie' | 'tv' | 'both';
+  entryTypeCounts?: { movie: number; tv: number };
   allowColorEdit?: boolean;
   allowSummaryEdit?: boolean;
   deleteLabel?: string;
   onRequestDelete?: () => void;
   onClose: () => void;
-  onSave: (payload: { name: string; color?: string; summary?: string }) => void | Promise<void>;
+  onSave: (payload: { name: string; color?: string; summary?: string; mediaType?: 'movie' | 'tv' | 'both' }) => void | Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor ?? '#deb55e');
   const [summary, setSummary] = useState(initialSummary ?? '');
+  const [movieSelected, setMovieSelected] = useState(initialType === 'movie' || initialType === 'both');
+  const [showSelected, setShowSelected] = useState(initialType === 'tv' || initialType === 'both');
+  const [typeError, setTypeError] = useState<string | null>(null);
+  const supportsTypeEdit = Boolean(initialType && entryTypeCounts);
+
+  const deriveMediaType = (): 'movie' | 'tv' | 'both' => {
+    if (movieSelected && showSelected) return 'both';
+    if (movieSelected) return 'movie';
+    return 'tv';
+  };
+
+  const toggleType = (target: 'movie' | 'tv') => {
+    setTypeError(null);
+    const targetSelected = target === 'movie' ? movieSelected : showSelected;
+    const counterpartSelected = target === 'movie' ? showSelected : movieSelected;
+    if (targetSelected) {
+      const count = target === 'movie' ? (entryTypeCounts?.movie ?? 0) : (entryTypeCounts?.tv ?? 0);
+      if (count > 0) {
+        setTypeError(`Can't remove ${target === 'movie' ? 'Movie' : 'Show'} while it still has entries.`);
+        return;
+      }
+      if (!counterpartSelected) return;
+    }
+    if (target === 'movie') setMovieSelected((prev) => !prev);
+    else setShowSelected((prev) => !prev);
+  };
+
   return (
     <div className="lists-modal-backdrop" onClick={onClose}>
       <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
@@ -211,6 +242,28 @@ function RenameEntityModal({
             rows={2}
           />
         ) : null}
+        {supportsTypeEdit ? (
+          <div className="lists-type-toggle-group">
+            <span className="lists-type-toggle-label">Allowed types</span>
+            <div className="lists-role-tags">
+              <button
+                type="button"
+                className={`lists-role-tag ${movieSelected ? 'lists-role-tag--on' : ''}`}
+                onClick={() => toggleType('movie')}
+              >
+                Movie ({entryTypeCounts?.movie ?? 0})
+              </button>
+              <button
+                type="button"
+                className={`lists-role-tag ${showSelected ? 'lists-role-tag--on' : ''}`}
+                onClick={() => toggleType('tv')}
+              >
+                Show ({entryTypeCounts?.tv ?? 0})
+              </button>
+            </div>
+            {typeError ? <p className="lists-subtitle">{typeError}</p> : null}
+          </div>
+        ) : null}
         <div className="lists-modal-actions">
           {onRequestDelete ? (
             <button
@@ -232,7 +285,8 @@ function RenameEntityModal({
               await onSave({
                 name: trimmed,
                 color: allowColorEdit ? color : undefined,
-                summary: allowSummaryEdit ? (summary.trim() || undefined) : undefined
+                summary: allowSummaryEdit ? (summary.trim() || undefined) : undefined,
+                mediaType: supportsTypeEdit ? deriveMediaType() : undefined
               });
               onClose();
             }}
@@ -1283,6 +1337,18 @@ export function ListDetailPage() {
     return ids;
   }, [tvByClass]);
   const title = isCollection ? activeCollection?.name : activeList?.name;
+  const activeListTypeCounts = useMemo(() => {
+    if (!activeList) return { movie: 0, tv: 0 };
+    const entries = entriesByListId[activeList.id] ?? [];
+    return entries.reduce(
+      (acc, entry) => {
+        if (entry.mediaType === 'movie') acc.movie += 1;
+        if (entry.mediaType === 'tv') acc.tv += 1;
+        return acc;
+      },
+      { movie: 0, tv: 0 }
+    );
+  }, [activeList, entriesByListId]);
   const canDrag = (Boolean(activeList) && !isCollection) || (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
   const filteredDetailItems = useMemo(() => {
@@ -1855,12 +1921,14 @@ export function ListDetailPage() {
           initialName={title}
           initialColor={isCollection ? activeCollection?.color : activeList?.color}
           initialSummary={isCollection ? activeCollection?.summary : activeList?.description}
+          initialType={activeList?.mediaType}
+          entryTypeCounts={activeListTypeCounts}
           allowColorEdit={canEditNameAndColor}
           allowSummaryEdit={Boolean(canEditNameAndColor)}
           deleteLabel={isCollection ? 'Delete collection' : 'Delete list'}
           onRequestDelete={() => setShowDeleteConfirm(true)}
           onClose={() => setShowRenameModal(false)}
-          onSave={async ({ name, color, summary }) => {
+          onSave={async ({ name, color, summary, mediaType }) => {
             if (isCollection) {
               if (!activeCollection || !canEditCollections) return;
               const next = {
@@ -1877,6 +1945,7 @@ export function ListDetailPage() {
             if (!activeList) return;
             updateList(activeList.id, {
               name,
+              mediaType: mediaType ?? activeList.mediaType,
               ...(canEditNameAndColor ? { color, description: summary } : {})
             });
           }}

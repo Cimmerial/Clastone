@@ -502,6 +502,16 @@
   color: var(--text-muted);
 }
 
+.lists-type-toggle-group {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.lists-type-toggle-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
 .lists-color-input {
   width: 42px;
   height: 30px;

@@ -27,7 +27,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
-import { Award } from 'lucide-react';
+import { Award, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useListsStore } from '../state/listsStore';
 import { ThemedDropdown } from '../components/ThemedDropdown';
@@ -78,6 +78,39 @@ const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
   return ((count / total) * 100).toFixed(1);
+}
+
+async function copyTextCrossPlatform(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall back to legacy copy path
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    ta.style.fontSize = '16px';
+    document.body.appendChild(ta);
+
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function CollectionRadialProgress({
@@ -408,6 +441,7 @@ export function ProfilePage() {
   const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
   const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
   const [scatterYAxisMode, setScatterYAxisMode] = useState<'rank' | 'release_year'>('rank');
@@ -1577,6 +1611,16 @@ export function ProfilePage() {
     }
   }, []);
 
+  const handleCopyProfileLink = useCallback(async () => {
+    const uid = user?.uid?.trim();
+    if (!uid || typeof window === 'undefined') return;
+    const profileUrl = `${window.location.origin}/friends/${encodeURIComponent(uid)}`;
+    const ok = await copyTextCrossPlatform(profileUrl);
+    if (!ok) return;
+    setProfileLinkCopied(true);
+    window.setTimeout(() => setProfileLinkCopied(false), 1600);
+  }, [user?.uid]);
+
   return (
     <section>
       <div className="profile-stats profile-card card-surface">
@@ -1588,13 +1632,25 @@ export function ProfilePage() {
               <RandomQuote />
             </div>
           </div>
-          <button
-            type="button"
-            className="profile-stats-expand-btn"
-            onClick={() => setShowExpandedStats(!showExpandedStats)}
-          >
-            {showExpandedStats ? '▼' : '▶'} Detailed stats
-          </button>
+          <div className="profile-stats-header-actions">
+            {profileLinkCopied ? <span className="profile-share-feedback">Profile link copied</span> : null}
+            <button
+              type="button"
+              className="profile-stats-expand-btn profile-stats-share-btn"
+              onClick={() => void handleCopyProfileLink()}
+              aria-label="Copy profile link"
+              title="Copy profile link"
+            >
+              <Share2 size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="profile-stats-expand-btn"
+              onClick={() => setShowExpandedStats(!showExpandedStats)}
+            >
+              {showExpandedStats ? '▼' : '▶'} Detailed stats
+            </button>
+          </div>
         </div>
         
         <div className="profile-stats-top-row">

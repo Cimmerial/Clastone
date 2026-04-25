@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, type ReactNode } from 'react';
 import { RankedItemBase } from './RankedList';
 import { Info, Film, Settings, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
 import {
@@ -213,6 +213,8 @@ export function EntryRowMovieShow({
 
   const rowRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const moveMenuCloseTimerRef = useRef<number | null>(null);
+  const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false);
   const { updateMovieCache } = useMoviesStore();
   const { updateShowCache } = useTvStore();
 
@@ -220,6 +222,7 @@ export function EntryRowMovieShow({
   const isTile = finalViewMode === 'tile' || finalViewMode === 'compact';
   const isCompact = finalViewMode === 'compact';
   const isMinimized = finalViewMode === 'minimized';
+  const isDetailed = finalViewMode === 'detailed';
   const isMovie = listType !== 'shows';
   const needsRefresh = useMemo(
     () => (isMovie ? needsMovieRefresh(item) : needsTvRefresh(item)),
@@ -295,6 +298,46 @@ export function EntryRowMovieShow({
       cancelled = true;
     };
   }, [isVisible, item.tmdbId, item.id, listType, isMovie, needsRefresh, updateMovieCache, updateShowCache]);
+
+  const clearMoveMenuCloseTimer = useCallback(() => {
+    if (moveMenuCloseTimerRef.current != null) {
+      window.clearTimeout(moveMenuCloseTimerRef.current);
+      moveMenuCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const openMoveMenu = useCallback(() => {
+    clearMoveMenuCloseTimer();
+    setIsMoveMenuOpen(true);
+  }, [clearMoveMenuCloseTimer]);
+
+  const closeMoveMenuImmediate = useCallback(() => {
+    clearMoveMenuCloseTimer();
+    setIsMoveMenuOpen(false);
+  }, [clearMoveMenuCloseTimer]);
+
+  const scheduleMoveMenuClose = useCallback(() => {
+    clearMoveMenuCloseTimer();
+    moveMenuCloseTimerRef.current = window.setTimeout(() => {
+      setIsMoveMenuOpen(false);
+      moveMenuCloseTimerRef.current = null;
+    }, 1000);
+  }, [clearMoveMenuCloseTimer]);
+
+  const runMoveAction = useCallback(
+    (action?: () => void) => {
+      if (!action) return;
+      action();
+      closeMoveMenuImmediate();
+    },
+    [closeMoveMenuImmediate]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearMoveMenuCloseTimer();
+    };
+  }, [clearMoveMenuCloseTimer]);
 
   if (isTile) {
     return (
@@ -476,10 +519,52 @@ export function EntryRowMovieShow({
               </>
             ) : (
               <div className="entry-controls-column">
-                <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class"><ChevronUp size={14} /></button>
-                <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class"><ChevronDown size={14} /></button>
-                <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up"><ArrowUp size={14} /></button>
-                <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down"><ArrowDown size={14} /></button>
+                {isDetailed ? (
+                  <div
+                    className={`entry-move-menu ${isMoveMenuOpen ? 'entry-move-menu--open' : ''}`}
+                    onMouseEnter={openMoveMenu}
+                    onMouseLeave={scheduleMoveMenuClose}
+                    onFocusCapture={openMoveMenu}
+                    onBlurCapture={(e) => {
+                      const next = e.relatedTarget as Node | null;
+                      if (!e.currentTarget.contains(next)) scheduleMoveMenuClose();
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="entry-move-btn"
+                      aria-haspopup="menu"
+                      aria-expanded={isMoveMenuOpen}
+                      onClick={() => {
+                        if (isMoveMenuOpen) closeMoveMenuImmediate();
+                        else openMoveMenu();
+                      }}
+                    >
+                      Move
+                    </button>
+                    <div className="entry-move-menu-dropdown" role="menu" aria-label="Move entry">
+                      <button type="button" role="menuitem" onClick={() => runMoveAction(onMoveUp)} disabled={!onMoveUp}>
+                        One spot up
+                      </button>
+                      <button type="button" role="menuitem" onClick={() => runMoveAction(onMoveDown)} disabled={!onMoveDown}>
+                        One spot down
+                      </button>
+                      <button type="button" role="menuitem" onClick={() => runMoveAction(onClassUp)} disabled={!onClassUp}>
+                        Bottom of above class
+                      </button>
+                      <button type="button" role="menuitem" onClick={() => runMoveAction(onClassDown)} disabled={!onClassDown}>
+                        Top of below class
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button type="button" className="entry-config-btn" onClick={onClassUp} disabled={!onClassUp} data-tooltip="Move to previous class"><ChevronUp size={14} /></button>
+                    <button type="button" className="entry-config-btn" onClick={onClassDown} disabled={!onClassDown} data-tooltip="Move to next class"><ChevronDown size={14} /></button>
+                    <button type="button" className="entry-config-btn" onClick={onMoveUp} disabled={!onMoveUp} data-tooltip="Move up"><ArrowUp size={14} /></button>
+                    <button type="button" className="entry-config-btn" onClick={onMoveDown} disabled={!onMoveDown} data-tooltip="Move down"><ArrowDown size={14} /></button>
+                  </>
+                )}
                 {!isUnranked && (
                   <button
                     type="button"

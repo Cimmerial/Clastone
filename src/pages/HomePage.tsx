@@ -140,7 +140,7 @@ export function HomePage() {
     <div className="homepage-root homepage-root">
       <div className="homepage-container">
         <header className="homepage-header">
-          <h1 className="homepage-title">Welcome to Clastone</h1>
+          <h1 className="homepage-wordmark">CLASTONE</h1>
         </header>
 
         <main className="homepage-main">
@@ -288,7 +288,7 @@ export function HomePage() {
                 <h2 className="guides-title">Workflow Guides</h2>
               </div>
               <p className="guides-description">
-                Three guides I am confident nobody will read. They are certifiably not helpful. Cheers!
+                Three guides I am confident nobody will read. They are certifiably not helpful. Much excite. Cheers!
               </p>
             </header>
             

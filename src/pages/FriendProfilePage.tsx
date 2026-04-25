@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFriends, type UserProfile } from '../context/FriendsContext';
 import { doc, getDoc, collection, query, where, getDocs, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus, Award, Eye, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, Film, Tv, Users, Star, Trophy, User, Video, BarChart3, UserX, Users2, UserPlus, Award, Eye, Check, Share2 } from 'lucide-react';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
@@ -88,6 +88,39 @@ const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
   return ((count / total) * 100).toFixed(1);
+}
+
+async function copyTextCrossPlatform(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall back to legacy copy path
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    ta.style.fontSize = '16px';
+    document.body.appendChild(ta);
+
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function getRecentWatches(
@@ -387,6 +420,7 @@ export function FriendProfilePage() {
   const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
   const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
   const [showExpandedStats, setShowExpandedStats] = useState(false);
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [movieViewMode, setMovieViewMode] = useState<ProfileMediaListMode>('top10');
   const [movieWatchYearFilter, setMovieWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
@@ -429,6 +463,16 @@ export function FriendProfilePage() {
       .filter((c: any) => c.isRanked)
       .reduce((count: number, classDef: any) => count + (friendDirectorsData.byClass[classDef.key]?.length || 0), 0);
   }, [friendDirectorsData]);
+
+  const handleCopyProfileLink = useCallback(async () => {
+    const uid = friendProfile?.uid?.trim();
+    if (!uid || typeof window === 'undefined') return;
+    const profileUrl = `${window.location.origin}/friends/${encodeURIComponent(uid)}`;
+    const ok = await copyTextCrossPlatform(profileUrl);
+    if (!ok) return;
+    setProfileLinkCopied(true);
+    window.setTimeout(() => setProfileLinkCopied(false), 1600);
+  }, [friendProfile?.uid]);
 
   const friendWatchedMovieIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1962,6 +2006,16 @@ export function FriendProfilePage() {
                   Add Friend
                 </button>
               ))}
+            {profileLinkCopied ? <span className="profile-share-feedback">Profile link copied</span> : null}
+            <button
+              type="button"
+              className="profile-stats-expand-btn profile-stats-share-btn"
+              onClick={() => void handleCopyProfileLink()}
+              aria-label="Copy profile link"
+              title="Copy profile link"
+            >
+              <Share2 size={16} aria-hidden />
+            </button>
             <button
               type="button"
               className="profile-stats-expand-btn"
