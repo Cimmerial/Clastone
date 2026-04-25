@@ -10,6 +10,7 @@ export type GlobalSettings = {
     excludeSimpsons: boolean;
     excludeSelfRoles: boolean;
     useSpotlightBackground: boolean;
+    collectionSeenBorderMode: boolean;
     watchRegion: string;
     myWatchProviderIds: number[];
 };
@@ -33,6 +34,7 @@ function getInitialSettings(): GlobalSettings {
         const es = localStorage.getItem('clastone-excludeSimpsons');
         const esr = localStorage.getItem('clastone-excludeSelfRoles');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
+        const csbm = localStorage.getItem('clastone-collectionSeenBorderMode');
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
@@ -75,6 +77,7 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: es === 'true',
             excludeSelfRoles: esr === 'true',
             useSpotlightBackground: usb === 'true',
+            collectionSeenBorderMode: csbm === 'true',
             watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
             myWatchProviderIds
         };
@@ -89,6 +92,7 @@ function getInitialSettings(): GlobalSettings {
             excludeSimpsons: false,
             excludeSelfRoles: false,
             useSpotlightBackground: false,
+            collectionSeenBorderMode: false,
             watchRegion: 'US',
             myWatchProviderIds: []
         };
@@ -105,7 +109,10 @@ export function SettingsProvider({
     initialSettings?: GlobalSettings;
     onPersist?: (settings: GlobalSettings, pendingCount: number) => void;
 }) {
-    const [settings, setSettings] = useState<GlobalSettings>(initialSettings ?? getInitialSettings());
+    const [settings, setSettings] = useState<GlobalSettings>(() => {
+        const defaults = getInitialSettings();
+        return initialSettings ? { ...defaults, ...initialSettings } : defaults;
+    });
     const [pendingChanges, setPendingChanges] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastStateRef = useRef(settings);
@@ -159,6 +166,7 @@ export function SettingsProvider({
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
                 if (updates.excludeSelfRoles !== undefined) localStorage.setItem('clastone-excludeSelfRoles', String(next.excludeSelfRoles));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
+                if (updates.collectionSeenBorderMode !== undefined) localStorage.setItem('clastone-collectionSeenBorderMode', String(next.collectionSeenBorderMode));
                 if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
                 if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -8,6 +8,7 @@ import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { tmdbImagePath } from '../lib/tmdb';
@@ -15,6 +16,7 @@ import { deleteGlobalCollection, saveGlobalCollectionsOrder as saveCollectionsOr
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
 import { InfoModal } from '../components/InfoModal';
+import { PageSearch } from '../components/PageSearch';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
@@ -24,6 +26,7 @@ type ListCard = { id: string; title: string; subtitle: string; href: string; col
 type CollectionCard = { id: string; title: string; seen: number; watchlistUnseen: number; total: number; href: string; color?: string };
 type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv'; item?: MovieShowItem; title: string };
 type CollectionEntryId = `tmdb-tv-${number}` | `tmdb-movie-${number}`;
+type CollectionViewerFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
 
 function isCollectionEntryId(value: string): value is CollectionEntryId {
   return /^tmdb-(tv|movie)-\d+$/.test(value);
@@ -199,7 +202,7 @@ function RenameEntityModal({
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="Collection summary"
+            placeholder={title.toLowerCase().includes('list') ? 'List description' : 'Collection summary'}
             className="lists-input"
             rows={2}
           />
@@ -499,6 +502,7 @@ export function ListDetailPage() {
   const isCollection = Boolean(collectionId);
   const { isAdmin } = useAuth();
   const watchlist = useWatchlistStore();
+  const { settings } = useSettingsStore();
   const canEditCollections = isAdmin && import.meta.env.DEV;
   const canEditNameAndColor = isAdmin && import.meta.env.DEV;
   const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
@@ -527,6 +531,7 @@ export function ListDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [collectionViewerFilter, setCollectionViewerFilter] = useState<CollectionViewerFilter>('ALL');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; entryId?: string; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
   const activeCollection = globalCollections.find((item) => item.id === collectionId);
@@ -577,6 +582,43 @@ export function ListDetailPage() {
   const title = isCollection ? activeCollection?.name : activeList?.name;
   const canDrag = (Boolean(activeList) && !isCollection) || (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
+  const filteredDetailItems = useMemo(() => {
+    if (!isCollection) return detailItems;
+    if (collectionViewerFilter === 'ALL') return detailItems;
+    return detailItems.filter((row) => {
+      const item = row.item;
+      if (!item) return collectionViewerFilter !== 'SEEN';
+      const isSavedUnranked = row.source === 'saved' && item.classKey === 'UNRANKED';
+      const appearsInOtherClass = row.mediaType === 'movie'
+        ? movieIdsInNonUnrankedClasses.has(item.id)
+        : tvIdsInNonUnrankedClasses.has(item.id);
+      const isUnrankedOnly = isSavedUnranked && !appearsInOtherClass;
+      const isUnseen = row.source === 'unseen' || isUnrankedOnly;
+      const isSeen = !isUnseen;
+      const isWatchlisted = isUnseen && watchlist.isInWatchlist(item.id);
+      if (collectionViewerFilter === 'SEEN') return isSeen;
+      if (collectionViewerFilter === 'UNSEEN') return isUnseen;
+      return isWatchlisted;
+    });
+  }, [
+    isCollection,
+    detailItems,
+    collectionViewerFilter,
+    movieIdsInNonUnrankedClasses,
+    tvIdsInNonUnrankedClasses,
+    watchlist
+  ]);
+  const collectionSearchItems = useMemo(
+    () => filteredDetailItems.map((row) => ({ id: row.id, title: row.title })),
+    [filteredDetailItems]
+  );
+  const handleCollectionSearchSelect = useCallback((id: string) => {
+    const el = document.getElementById(`lists-collection-tile-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('highlighted-entry');
+    window.setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
+  }, []);
   const addableSavedItems = useMemo(() => {
     if (!activeList) return [];
     const existing = new Set((entriesByListId[activeList.id] ?? []).map((entry) => entry.entryId));
@@ -619,15 +661,41 @@ export function ListDetailPage() {
               </button>
             ) : null}
           </div>
-          {isCollection && activeCollection?.summary ? (
-            <p className="lists-collection-summary">{activeCollection.summary}</p>
+          {(isCollection ? activeCollection?.summary : activeList?.description) ? (
+            <p className="lists-collection-summary">{isCollection ? activeCollection?.summary : activeList?.description}</p>
           ) : null}
         </div>
       </header>
+      {isCollection ? (
+        <div className="lists-collection-toolbar">
+          <div className="lists-collection-filter-row">
+            {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`filter-toggle-btn lists-collection-filter-btn ${collectionViewerFilter === option ? 'lists-collection-filter-btn--active' : ''}`}
+                onClick={() => setCollectionViewerFilter(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <PageSearch
+            items={collectionSearchItems}
+            onSelect={handleCollectionSearchSelect}
+            placeholder="Search this collection..."
+            className="lists-collection-page-search"
+            pageKey={`lists-collection-${collectionId ?? 'unknown'}`}
+          />
+        </div>
+      ) : null}
       <RankedList<ListDetailItem>
         classOrder={['LIST']}
         viewMode="tile"
-        itemsByClass={{ LIST: detailItems }}
+        itemsByClass={{ LIST: filteredDetailItems }}
+        getClassCountLabel={(_classKey, items) =>
+          isCollection ? `${items.length}/${detailItems.length} entries` : `${items.length} entries`
+        }
         getClassLabel={() => `${title} | ${isCollection ? 'Collection' : 'List'}`}
         getClassTagline={() => undefined}
         renderClassActions={() => <AddDeleteActions showAdd={!isCollection && Boolean(activeList)} onAdd={() => setShowAddEntryModal(true)} showDelete={!isCollection || canEditCollections} onDelete={() => setShowDeleteConfirm(true)} showCopyList={Boolean(isCollection && canEditCollections)} onCopyList={async () => {
@@ -669,12 +737,20 @@ export function ListDetailPage() {
             ? movieIdsInNonUnrankedClasses.has(item.id)
             : tvIdsInNonUnrankedClasses.has(item.id);
           const isUnrankedOnly = isSavedUnranked && !appearsInOtherClass;
+          const isCollectionUnseen = isCollection && (row.source === 'unseen' || isUnrankedOnly);
+          const shouldMuteCollectionUnseen = isCollectionUnseen && !settings.collectionSeenBorderMode;
+          const shouldShowSeenBorder = isCollection && settings.collectionSeenBorderMode && !isCollectionUnseen;
           return (
           <div
+            id={isCollection ? `lists-collection-tile-${row.id}` : undefined}
             className={`lists-entry-tile-wrap ${
               isUnrankedOnly ? 'lists-entry-tile-wrap--unranked' : ''
             } ${
               isCollection && watchlist.isInWatchlist(item.id) ? 'lists-entry-tile-wrap--watchlisted' : ''
+            } ${
+              isCollectionUnseen ? 'lists-entry-tile-wrap--collection-unseen' : ''
+            } ${
+              shouldShowSeenBorder ? 'lists-entry-tile-wrap--seen-border-mode' : ''
             }`}
           >
             {isCollection && canEditCollections ? (
@@ -696,7 +772,7 @@ export function ListDetailPage() {
               listType={row.mediaType === 'movie' ? 'movies' : 'shows'}
               viewMode="tile"
               tileMinimalActions
-              tileUnseenMuted={isCollection && (row.source === 'unseen' || isUnrankedOnly)}
+              tileUnseenMuted={shouldMuteCollectionUnseen}
               tileOverlayControls={
                 isCollection ? (
                   <div className="lists-entry-toggle-stack">
@@ -962,9 +1038,9 @@ export function ListDetailPage() {
           title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : (canEditNameAndColor ? 'Edit List' : 'Rename List')}
           initialName={title}
           initialColor={isCollection ? activeCollection?.color : activeList?.color}
-          initialSummary={isCollection ? activeCollection?.summary : undefined}
+          initialSummary={isCollection ? activeCollection?.summary : activeList?.description}
           allowColorEdit={canEditNameAndColor}
-          allowSummaryEdit={Boolean(isCollection && canEditNameAndColor)}
+          allowSummaryEdit={Boolean(canEditNameAndColor)}
           onClose={() => setShowRenameModal(false)}
           onSave={async ({ name, color, summary }) => {
             if (isCollection) {
@@ -981,7 +1057,10 @@ export function ListDetailPage() {
               return;
             }
             if (!activeList) return;
-            updateList(activeList.id, { name, ...(canEditNameAndColor ? { color } : {}) });
+            updateList(activeList.id, {
+              name,
+              ...(canEditNameAndColor ? { color, description: summary } : {})
+            });
           }}
         />
       ) : null}

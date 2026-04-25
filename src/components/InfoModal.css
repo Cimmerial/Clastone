@@ -263,10 +263,66 @@
   position: relative;
 }
 
+.info-modal-watch-actions-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.info-modal-watchlist-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 50%;
+  min-width: 0;
+  height: 34px;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-modal-watchlist-btn--add {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #b8f7cf;
+}
+
+.info-modal-watchlist-btn--add:hover {
+  background: rgba(34, 197, 94, 0.24);
+  border-color: rgba(34, 197, 94, 0.72);
+  color: #d3ffe2;
+  transform: translateY(-1px);
+}
+
+.info-modal-watchlist-btn--remove {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ffc9c9;
+}
+
+.info-modal-watchlist-btn--remove:hover {
+  background: rgba(239, 68, 68, 0.24);
+  border-color: rgba(239, 68, 68, 0.72);
+  color: #ffe1e1;
+  transform: translateY(-1px);
+}
+
 .info-modal-watch-options-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 1 1 50%;
+  min-width: 0;
+  height: 34px;
   gap: 0.4rem;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
@@ -278,6 +334,8 @@
   font-weight: 600;
   font-size: 0.8rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .info-modal-watch-options-btn:hover {
@@ -915,6 +973,10 @@
     min-width: 0;
     max-width: 100%;
     align-items: center;
+  }
+
+  .info-modal-watchlist-btn {
+    flex: 1 1 50%;
   }
 
   .info-modal-watch-options-tooltip {

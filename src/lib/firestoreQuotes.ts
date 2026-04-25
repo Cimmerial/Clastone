@@ -20,8 +20,7 @@ export type QuoteCategory =
   | 'watchlist'
   | 'search'
   | 'profile'
-  | 'settings'
-  | 'general';
+  | 'settings';
 
 export type FirebaseQuote = {
   id: string;
@@ -45,6 +44,8 @@ const QUOTES_ROOT = 'globalQuotes';
 
 function toQuoteCategory(value: string): QuoteCategory {
   const safe = value.trim().toLowerCase();
+  // "general" has been retired; map it to profile.
+  if (safe === 'general') return 'profile';
   if (
     safe === 'movies' ||
     safe === 'tv' ||
@@ -53,12 +54,11 @@ function toQuoteCategory(value: string): QuoteCategory {
     safe === 'watchlist' ||
     safe === 'search' ||
     safe === 'profile' ||
-    safe === 'settings' ||
-    safe === 'general'
+    safe === 'settings'
   ) {
     return safe;
   }
-  return 'general';
+  return 'profile';
 }
 
 export async function loadGlobalQuotes(db: Firestore): Promise<FirebaseQuote[]> {
@@ -69,7 +69,7 @@ export async function loadGlobalQuotes(db: Firestore): Promise<FirebaseQuote[]> 
       const data = d.data();
       return {
         id: d.id,
-        category: toQuoteCategory(String(data.category ?? 'general')),
+        category: toQuoteCategory(String(data.category ?? 'profile')),
         text: String(data.text ?? ''),
         character: String(data.character ?? ''),
         source: String(data.source ?? ''),
@@ -137,6 +137,22 @@ export async function migrateLegacyQuotesIfNeeded(db: Firestore): Promise<boolea
     });
   });
 
+  await batch.commit();
+  return true;
+}
+
+export async function migrateGeneralQuotesToProfile(db: Firestore): Promise<boolean> {
+  const snap = await getDocs(collection(db, QUOTES_ROOT));
+  if (snap.empty) return false;
+
+  const generalDocs = snap.docs.filter((d) => String(d.data().category ?? '').trim().toLowerCase() === 'general');
+  if (generalDocs.length === 0) return false;
+
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  generalDocs.forEach((d) => {
+    batch.update(d.ref, { category: 'profile', updatedAt: now });
+  });
   await batch.commit();
   return true;
 }

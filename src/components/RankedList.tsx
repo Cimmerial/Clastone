@@ -36,6 +36,8 @@ type RankedListProps<T extends RankedItemBase> = {
   renderRow: (item: T) => JSX.Element;
   /** Optional: e.g. " | 12h 30m total" appended after "X entries" */
   getClassSubtitle?: (classKey: ClassKey, items: T[]) => string;
+  /** Optional custom count label (defaults to "X entries"). */
+  getClassCountLabel?: (classKey: ClassKey, items: T[]) => string;
   /** Optional: map a class key to a human-friendly label. Defaults to classKey. */
   getClassLabel?: (classKey: ClassKey) => string;
   /** Optional: tagline for section title only (shown after label, muted). */
@@ -132,6 +134,7 @@ function RankedListInner<T extends RankedItemBase>(
     itemsByClass,
     renderRow,
     getClassSubtitle,
+    getClassCountLabel,
     getClassLabel,
     getClassTagline,
     onReorderWithinClass,
@@ -666,7 +669,8 @@ function RankedListInner<T extends RankedItemBase>(
                     {tagline ? <span className="class-section-tagline"> | {tagline}</span> : null}
                   </h3>
                   <p className="class-section-count">
-                    {items.length} entries{subtitle ? ` | ${subtitle}` : ''}
+                    {getClassCountLabel ? getClassCountLabel(classKey, items) : `${items.length} entries`}
+                    {subtitle ? ` | ${subtitle}` : ''}
                   </p>
                 </div>
                 <div className="class-section-header-actions">

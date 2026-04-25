@@ -18,6 +18,7 @@ import {
   addGlobalQuote,
   deleteGlobalQuote,
   loadGlobalQuotes,
+  migrateGeneralQuotesToProfile,
   migrateLegacyQuotesIfNeeded,
   updateGlobalQuote,
   type FirebaseQuote,
@@ -32,7 +33,7 @@ import {
 } from '../lib/persistDebounce';
 import './SettingsPage.css';
 
-const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings', 'general'];
+const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings'];
 
 type ClassSectionKey = 'classManagement' | 'display' | 'dev' | 'babydev';
 type ClassManagerKind = 'movies' | 'tv' | 'actors' | 'directors';
@@ -118,7 +119,7 @@ export function SettingsPage() {
   );
   const [quotes, setQuotes] = useState<FirebaseQuote[]>([]);
   const [quoteForm, setQuoteForm] = useState({
-    category: 'settings' as QuoteCategory,
+    category: 'movies' as QuoteCategory,
     text: '',
     character: '',
     source: '',
@@ -256,6 +257,10 @@ export function SettingsPage() {
         const migrated = await migrateLegacyQuotesIfNeeded(db);
         if (!cancelled && migrated) {
           setQuotesNotice('Legacy quotes migrated to Firebase.');
+        }
+        const migratedGeneral = await migrateGeneralQuotesToProfile(db);
+        if (!cancelled && migratedGeneral) {
+          setQuotesNotice('General quotes migrated to Profile quotes.');
         }
         const loaded = await loadGlobalQuotes(db);
         if (!cancelled) setQuotes(loaded);
@@ -547,7 +552,7 @@ export function SettingsPage() {
   }, [selectedClassManager]);
 
   const resetQuoteForm = () => {
-    setQuoteForm({ category: 'settings', text: '', character: '', source: '' });
+    setQuoteForm({ category: 'movies', text: '', character: '', source: '' });
     setEditingQuoteId(null);
   };
 
@@ -1163,6 +1168,23 @@ export function SettingsPage() {
                 type="checkbox"
                 checked={settings.useSpotlightBackground}
                 onChange={(e) => updateSettings({ useSpotlightBackground: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Collection seen/unseen style</span>
+              <span className="settings-toggle-description">
+                Off (default): unseen entries are grayed out. On: unseen entries look normal, and seen entries get a thick green border. Applies to your collections and friends' collection views.
+              </span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.collectionSeenBorderMode}
+                onChange={(e) => updateSettings({ collectionSeenBorderMode: e.target.checked })}
               />
               <span className="settings-switch-slider"></span>
             </label>

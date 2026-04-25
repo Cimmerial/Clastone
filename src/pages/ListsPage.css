@@ -337,12 +337,97 @@
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.4), rgba(255, 255, 255, 0.05));
 }
 
+.lists-entry-tile-wrap--collection-unseen .entry-tile-title {
+  color: #8a8a8a;
+}
+
+.lists-entry-tile-wrap--seen-border-mode .entry-tile-poster {
+  border-width: 5px !important;
+  border-color: #2fbf71 !important;
+  box-shadow: 0 0 0 1px rgba(47, 191, 113, 0.5), 0 0 20px rgba(47, 191, 113, 0.32);
+}
+
+
 .lists-plus-btn {
   width: 40px;
   height: 40px;
   border-radius: 999px;
   justify-content: center;
   padding: 0;
+}
+
+.lists-collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  justify-content: space-between;
+  margin: 0 0 0.8rem;
+}
+
+.lists-collection-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.lists-collection-filter-btn {
+  min-width: 0;
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  border-radius: 10px;
+  justify-content: center;
+}
+
+.lists-collection-filter-btn--active {
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+  background: rgba(232, 93, 4, 0.18);
+  opacity: 1;
+}
+
+.lists-collection-page-search {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 22rem;
+  min-width: 10rem;
+  flex: 1 1 14rem;
+  margin: 0 !important;
+  z-index: 10 !important;
+}
+
+.lists-collection-page-search .page-search-input-wrapper {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.lists-collection-page-search .page-search-results {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.lists-entry-tile-wrap.highlighted-entry {
+  animation: friendCollectionHighlight 2s ease-in-out;
+}
+
+@keyframes friendCollectionHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(232, 93, 4, 0.55);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(232, 93, 4, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(232, 93, 4, 0);
+  }
 }
 
 .lists-modal-backdrop {

@@ -6,6 +6,7 @@ import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
+import { useWatchlistStore } from '../state/watchlistStore';
 import { PersonInfoModal } from './PersonInfoModal';
 import { PersonRankingModal, type PersonRankingTarget } from './PersonRankingModal';
 import './InfoModal.css';
@@ -58,9 +59,12 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [showAgeAtRelease, setShowAgeAtRelease] = useState(false);
   const [personBirthdayCache, setPersonBirthdayCache] = useState<Record<number, string | null>>({});
   const [isSavingPerson, setIsSavingPerson] = useState(false);
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { collectionIdsByEntryId, globalCollections } = useListsStore();
   const { getPersonById, addPersonFromSearch, moveItemToClass: movePersonToClass, removePersonEntry, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
+  const entryId = `tmdb-${mediaType}-${tmdbId}`;
+  const inWatchlist = isInWatchlist(entryId);
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -505,17 +509,42 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
 
                     {watchProviderGroups && (
                       <div className="info-modal-watch-right">
-                        <button
-                          ref={watchOptionsButtonRef}
-                          type="button"
-                          className="info-modal-watch-options-btn"
-                          onClick={() => setWatchOptionsOpen(o => !o)}
-                          aria-haspopup="dialog"
-                          aria-expanded={watchOptionsOpen}
-                        >
-                          View watch options
-                          {watchOptionsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
+                        <div className="info-modal-watch-actions-row">
+                          <button
+                            type="button"
+                            className={`info-modal-watchlist-btn ${
+                              inWatchlist ? 'info-modal-watchlist-btn--remove' : 'info-modal-watchlist-btn--add'
+                            }`}
+                            onClick={() => {
+                              if (inWatchlist) {
+                                removeFromWatchlist(entryId);
+                                return;
+                              }
+                              addToWatchlist(
+                                {
+                                  id: entryId,
+                                  title: details.title,
+                                  posterPath: resolvedPosterPath,
+                                  releaseDate: details.releaseDate || releaseDate,
+                                },
+                                mediaType === 'movie' ? 'movies' : 'tv'
+                              );
+                            }}
+                          >
+                            {inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                          </button>
+                          <button
+                            ref={watchOptionsButtonRef}
+                            type="button"
+                            className="info-modal-watch-options-btn"
+                            onClick={() => setWatchOptionsOpen(o => !o)}
+                            aria-haspopup="dialog"
+                            aria-expanded={watchOptionsOpen}
+                          >
+                            Watch options
+                            {watchOptionsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                        </div>
 
                         {watchOptionsOpen && (
                           <div

@@ -9,7 +9,7 @@ export function watchMatrixEntryToWatchRecord(entry: WatchMatrixEntry): WatchRec
     type = entry.watchStatus === 'DNF' ? 'DNF_LONG_AGO' : 'LONG_AGO';
   }
 
-  if (entry.watchStatus === 'WATCHING' && entry.watchType !== 'LONG_AGO') type = 'CURRENT';
+  if (entry.watchStatus === 'WATCHING') type = 'CURRENT';
   else if (entry.watchStatus === 'DNF' && entry.watchType !== 'LONG_AGO') type = 'DNF';
 
   const r: WatchRecord = {
@@ -27,7 +27,8 @@ export function watchMatrixEntryToWatchRecord(entry: WatchMatrixEntry): WatchRec
   };
 
   if (type === 'LONG_AGO' || type === 'DNF_LONG_AGO') return r;
-  if ((type === 'DNF' || type === 'CURRENT') && !entry.year) return null;
+  if (type === 'CURRENT') return r;
+  if (type === 'DNF' && !entry.year) return null;
   if (!entry.year) return null;
   return r;
 }

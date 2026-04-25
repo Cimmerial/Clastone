@@ -17,7 +17,7 @@ type ListsStore = {
   tagsByEntryId: Map<string, string[]>;
   collectionIdsByEntryId: Map<string, string[]>;
   createList: (name: string, mediaType: ListMediaType, mode?: 'list' | 'collection', color?: string) => string;
-  updateList: (listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'mediaType' | 'hidden' | 'color'>>) => void;
+  updateList: (listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color'>>) => void;
   deleteList: (listId: string) => void;
   reorderLists: (orderedIds: string[]) => void;
   reorderEntriesInList: (listId: string, orderedEntryIds: string[]) => void;
@@ -94,7 +94,7 @@ export function ListsProvider({
     return id;
   }, []);
 
-  const updateList = useCallback((listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'mediaType' | 'hidden' | 'color'>>) => {
+  const updateList = useCallback((listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color'>>) => {
     setLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...updates, updatedAt: new Date().toISOString() } : list)));
   }, []);
 

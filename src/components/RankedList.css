@@ -805,6 +805,11 @@
   color: #8a8a8a;
 }
 
+.entry-tile--seen-border .entry-tile-poster {
+  border: 5px solid #2fbf71;
+  box-shadow: 0 0 0 1px rgba(47, 191, 113, 0.42), 0 0 18px rgba(47, 191, 113, 0.26);
+}
+
 .entry-tile-person .entry-tile-poster {
   aspect-ratio: 2 / 3;
 }

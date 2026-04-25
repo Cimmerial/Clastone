@@ -598,6 +598,7 @@ export function UniversalEditModal({
       let watchType: WatchMatrixType = 'SINGLE_DATE';
       if (r.type === 'RANGE') watchType = 'DATE_RANGE';
       else if (r.type === 'LONG_AGO' || r.type === 'DNF_LONG_AGO') watchType = 'LONG_AGO';
+      else if (r.type === 'CURRENT' && !r.year) watchType = 'LONG_AGO';
 
       let watchStatus: WatchDetailStatus = 'NONE';
       if (r.type === 'CURRENT') watchStatus = 'WATCHING';
@@ -1095,7 +1096,25 @@ export function UniversalEditModal({
   };
 
   const updateEntry = (id: string, updates: Partial<WatchMatrixEntry>) => {
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (e.id !== id) return e;
+        const next = { ...e, ...updates };
+        if (updates.watchPercent !== undefined) {
+          const wasComplete = e.watchPercent >= 100;
+          const nowComplete = updates.watchPercent >= 100;
+          // Moving below 100 from complete should default to DNF.
+          if (wasComplete && !nowComplete) {
+            next.watchStatus = 'DNF';
+          }
+          // Returning to 100 resets both DNF / Watching back to none.
+          if (nowComplete) {
+            next.watchStatus = 'NONE';
+          }
+        }
+        return next;
+      })
+    );
   };
 
   const applyPresetToEntry = (id: string, preset: DatePreset | 'reset', isDateRange: boolean) => {
@@ -1116,6 +1135,16 @@ export function UniversalEditModal({
     const monthNum = parseInt(month, 10) || undefined;
     const dayNum = parseInt(day, 10) || undefined;
     
+    // Preset on LONG_AGO should convert row to SINGLE_DATE with the preset date.
+    if (entry.watchType === 'LONG_AGO') {
+      updateEntry(id, {
+        watchType: 'SINGLE_DATE',
+        year: yearNum, month: monthNum, day: dayNum,
+        endYear: undefined, endMonth: undefined, endDay: undefined
+      });
+      return;
+    }
+
     if (isDateRange) {
       // For date range, set both start and end dates to the preset date
       updateEntry(id, {

@@ -1124,6 +1124,8 @@ export function FriendProfilePage() {
     let tvTotalWatches = 0;
     let tvDNFCount = 0;
     let tvRewatchCount = 0;
+    let tvWatchPercentTotal = 0;
+    let tvWatchPercentCount = 0;
     if (friendTvData.classes) {
       for (const classDef of friendTvData.classes) {
         const classKey = classDef.key;
@@ -1131,12 +1133,23 @@ export function FriendProfilePage() {
           const watches = item.watchRecords ?? [];
           tvTotalWatches += watches.length;
           tvDNFCount += watches.filter((r: any) => (r.type ?? 'DATE') === 'DNF').length;
+          for (const watch of watches) {
+            const watchType = watch.type ?? 'DATE';
+            const percent = (watchType === 'DNF' || watchType === 'DNF_LONG_AGO' || watchType === 'CURRENT')
+              ? Math.max(0, Math.min(100, watch.dnfPercent ?? 0))
+              : 100;
+            tvWatchPercentTotal += percent;
+            tvWatchPercentCount += 1;
+          }
           if (watches.length > 1) {
             tvRewatchCount += watches.length - 1;
           }
         }
       }
     }
+    const tvAverageWatchPercent = tvWatchPercentCount > 0
+      ? Math.round((tvWatchPercentTotal / tvWatchPercentCount) * 10) / 10
+      : 0;
 
     // Calculate average watchtime per movie and show (including rewatches)
     let totalMovieWatches = 0;
@@ -1256,6 +1269,7 @@ export function FriendProfilePage() {
       tvTotalWatches,
       tvDNFCount,
       tvRewatchCount,
+      tvAverageWatchPercent,
       avgWatchtimePerMovie,
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
@@ -1849,13 +1863,18 @@ export function FriendProfilePage() {
               Back to People
             </Link>
           </div>
-          <RandomQuote />
         </div>
       </header>
 
       <div className="profile-stats profile-card card-surface">
         <div className="profile-stats-header">
-          <h2 className="profile-card-title">Quick stats</h2>
+          <div className="profile-stats-header-title">
+            <h2 className="profile-card-title">Quick stats</h2>
+            <span className="profile-stats-header-divider">|</span>
+            <div className="profile-stats-header-quote">
+              <RandomQuote />
+            </div>
+          </div>
           <div className="profile-stats-header-actions">
             {viewerLoggedIn && (
               <button
@@ -2022,6 +2041,10 @@ export function FriendProfilePage() {
               <div className="profile-stat">
                 <span className="profile-stat-value">{formatWatchRatePercent(stats.tvDNFCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
                 <span className="profile-stat-label">Show DNF rate</span>
+              </div>
+              <div className="profile-stat">
+                <span className="profile-stat-value">{(stats.tvAverageWatchPercent ?? 0).toFixed(1)}%</span>
+                <span className="profile-stat-label">Avg show watch %</span>
               </div>
               <div className="profile-stat">
                 <span className="profile-stat-value">{formatWatchRatePercent(stats.tvRewatchCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
@@ -2465,8 +2488,8 @@ export function FriendProfilePage() {
                               <span className="profile-top-poster-placeholder">🎬</span>
                             )}
                             <div className="profile-top-overlay">
-                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.classKey ? 'EDIT' : 'SAVE'}
                               </span>
                             </div>
                           </div>
@@ -2548,8 +2571,8 @@ export function FriendProfilePage() {
                       )}
                       <span className="profile-top-rank">#{i + 1}</span>
                       <div className="profile-top-overlay">
-                        <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                          {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                        <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.classKey ? 'EDIT' : 'SAVE'}
                         </span>
                       </div>
                     </div>
@@ -2651,8 +2674,8 @@ export function FriendProfilePage() {
                               <span className="profile-top-poster-placeholder">📺</span>
                             )}
                             <div className="profile-top-overlay">
-                              <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                                {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                              <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.classKey ? 'EDIT' : 'SAVE'}
                               </span>
                             </div>
                           </div>
@@ -2734,8 +2757,8 @@ export function FriendProfilePage() {
                       )}
                       <span className="profile-top-rank">#{i + 1}</span>
                       <div className="profile-top-overlay">
-                        <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
-                          {userStatus.isRanked ? 'SEEN' : 'SAVE'}
+                        <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.classKey ? 'EDIT' : 'SAVE'}
                         </span>
                       </div>
                     </div>

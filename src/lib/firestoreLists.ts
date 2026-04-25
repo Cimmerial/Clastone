@@ -13,6 +13,7 @@ export type ListEntryRef = {
 export type UserListDoc = {
   id: string;
   name: string;
+  description?: string;
   color?: string;
   mediaType: ListMediaType;
   mode: ListMode;
@@ -57,6 +58,7 @@ export async function loadUserLists(db: Firestore, userId: string): Promise<User
     lists.push({
       id: d.id,
       name: String(data.name ?? 'Untitled List'),
+      description: typeof data.description === 'string' ? data.description : undefined,
       color: typeof data.color === 'string' ? data.color : undefined,
       mediaType: (data.mediaType as ListMediaType) ?? 'both',
       mode: (data.mode as ListMode) ?? 'list',
@@ -88,6 +90,7 @@ export async function saveUserLists(db: Firestore, userId: string, state: UserLi
     }));
     batch.set(listRef, {
       name: list.name,
+      description: list.description ?? null,
       color: list.color ?? null,
       mediaType: list.mediaType,
       mode: list.mode,

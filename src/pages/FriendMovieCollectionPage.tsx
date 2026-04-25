@@ -8,6 +8,7 @@ import { tmdbImagePath } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
+import { useSettingsStore } from '../state/settingsStore';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
@@ -35,6 +36,7 @@ type MovieFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
 
 function FriendCollectionTile({
   entry,
+  collectionSeenBorderMode,
   showUnrankedToggle,
   isUnrankedInViewerLibrary,
   isWatchlisted,
@@ -44,6 +46,7 @@ function FriendCollectionTile({
   onToggleWatchlist
 }: {
   entry: FriendCollectionEntry;
+  collectionSeenBorderMode: boolean;
   showUnrankedToggle: boolean;
   isUnrankedInViewerLibrary: boolean;
   isWatchlisted: boolean;
@@ -55,9 +58,17 @@ function FriendCollectionTile({
   return (
     <article
       id={`friend-collection-tile-${entry.id}`}
-      className={`entry-tile friend-collection-tile ${entry.viewerSeen ? '' : 'entry-tile--unseen-muted'}`}
+      className={`entry-tile friend-collection-tile ${
+        !collectionSeenBorderMode && !entry.viewerSeen ? 'entry-tile--unseen-muted' : ''
+      } ${
+        !entry.viewerSeen ? 'entry-tile--collection-unseen' : ''
+      } ${
+        collectionSeenBorderMode && entry.viewerSeen ? 'entry-tile--seen-border' : ''
+      }`}
     >
-      <div className={`entry-tile-poster ${entry.viewerSeen ? '' : 'entry-tile-poster--unseen-muted'}`}>
+      <div className={`entry-tile-poster ${
+        !collectionSeenBorderMode && !entry.viewerSeen ? 'entry-tile-poster--unseen-muted' : ''
+      }`}>
         <button type="button" className="friend-collection-icon-btn friend-collection-icon-btn--info" onClick={() => onOpenInfo(entry)} aria-label={`Info for ${entry.item.title}`}>
           <Info size={12} />
         </button>
@@ -119,6 +130,7 @@ export function FriendMovieCollectionPage() {
   } = useMoviesStore();
   const { byClass: myTvByClass, classOrder: myTvClassOrder } = useTvStore();
   const watchlist = useWatchlistStore();
+  const { settings } = useSettingsStore();
 
   /** Friend list item shares canonical id with viewer's entry; modal edits *your* library row. */
   const myMovieForModal = settingsFor ? getMovieById(settingsFor.id) : null;
@@ -286,6 +298,7 @@ export function FriendMovieCollectionPage() {
             <FriendCollectionTile
               key={entry.id}
               entry={entry}
+              collectionSeenBorderMode={settings.collectionSeenBorderMode}
               showUnrankedToggle={!entry.viewerSeen || getMovieById(entry.id)?.classKey === 'UNRANKED'}
               isUnrankedInViewerLibrary={getMovieById(entry.id)?.classKey === 'UNRANKED'}
               isWatchlisted={watchlist.isInWatchlist(entry.id)}

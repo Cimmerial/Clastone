@@ -67,7 +67,36 @@
   padding: 0;
 }
 
+/* Reduce header-to-quick-stats gap on friend profile view */
+.friend-profile-page .page-heading {
+  margin-bottom: 0;
+}
+
 /* Profile Stats Header Actions */
+.profile-stats-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.profile-stats-header-divider {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.profile-stats-header-quote {
+  min-width: 0;
+}
+
+.profile-stats-header-quote .random-quote-text {
+  margin: 0;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-stats-header-actions {
   display: flex;
   gap: 0.75rem;
@@ -707,6 +736,15 @@
 .profile-stat-label--collection-small {
   font-size: 0.62rem;
   letter-spacing: 0.06em;
+}
+
+/* Keep expanded quick stats compact in friend profile viewer too */
+.profile-stats-grid {
+  gap: 0.45rem 0.7rem;
+}
+
+.profile-stats-grid .profile-stat {
+  gap: 0.04rem;
 }
 
 .profile-collection-radial-wrap {

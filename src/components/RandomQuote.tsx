@@ -30,9 +30,9 @@ export function RandomQuote() {
     }, [firebaseQuotes]);
 
     const activeCategoryQuotes = useMemo(() => {
-        const path = location.pathname.split('/')[1] || 'general';
+        const path = location.pathname.split('/')[1] || 'profile';
         const quoteSource = groupedFirebaseQuotes ?? typedQuotesData;
-        const category = quoteSource[path] ? path : 'general';
+        const category = quoteSource[path] ? path : 'profile';
         return quoteSource[category] ?? [];
     }, [location.pathname, groupedFirebaseQuotes]);
 
