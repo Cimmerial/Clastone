@@ -8,6 +8,9 @@ export type ListEntryRef = {
   entryId: string;
   mediaType: 'movie' | 'tv';
   position: number;
+  title?: string;
+  posterPath?: string;
+  releaseDate?: string;
 };
 
 export type UserListDoc = {

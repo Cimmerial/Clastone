@@ -10,6 +10,7 @@ import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadPeople } from '../lib/firestorePeople';
 import { loadDirectors } from '../lib/firestoreDirectors';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
+import { loadUserLists } from '../lib/firestoreLists';
 import type { MovieShowItem, WatchRecord } from '../components/EntryRowMovieShow';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbTvDetailsFull, getMovieImageSrc } from '../lib/tmdb';
 import { 
@@ -381,6 +382,7 @@ export function FriendProfilePage() {
   const [friendPeopleData, setFriendPeopleData] = useState<any>(null);
   const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
   const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[], tv: any[] } | null>(null);
+  const [friendListsData, setFriendListsData] = useState<{ lists: any[]; order: string[]; entriesByListId: Record<string, any[]> } | null>(null);
 
   const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
   const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
@@ -559,6 +561,39 @@ export function FriendProfilePage() {
       .filter((item) => item.total > 0);
   }, [globalCollections, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds]);
 
+  const friendCustomCollectionProgress = useMemo(() => {
+    if (!friendListsData) return [];
+    const byId = new Map(friendListsData.lists.map((list: any) => [list.id, list]));
+    return friendListsData.order
+      .map((id: string) => byId.get(id))
+      .filter((list: any) => list && list.mode === 'collection' && !list.hidden)
+      .map((collection: any) => {
+        const uniqueEntryIds = Array.from(
+          new Set((friendListsData.entriesByListId[collection.id] ?? []).map((entry: any) => entry.entryId))
+        ).filter((id) => String(id).startsWith('tmdb-movie-') || String(id).startsWith('tmdb-tv-'));
+        const total = uniqueEntryIds.length;
+        let seen = 0;
+        let watchlistUnseen = 0;
+        for (const rawId of uniqueEntryIds) {
+          const entryId = String(rawId);
+          const isMovieEntry = entryId.startsWith('tmdb-movie-');
+          const isSeen = isMovieEntry ? friendWatchedMovieIds.has(entryId) : friendWatchedShowIds.has(entryId);
+          if (isSeen) seen += 1;
+          else if (isMovieEntry ? friendWatchlistMovieIds.has(entryId) : friendWatchlistShowIds.has(entryId)) {
+            watchlistUnseen += 1;
+          }
+        }
+        return {
+          id: collection.id,
+          name: collection.name,
+          seen,
+          watchlistUnseen,
+          total,
+        };
+      })
+      .filter((item) => item.total > 0);
+  }, [friendListsData, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds]);
+
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
 
@@ -654,6 +689,7 @@ export function FriendProfilePage() {
         // Use watchlistData only (read: true in rules). recommendedBy is persisted there when they sync;
         // avoids listing incomingWatchRecommendations (stricter rules / deploy drift).
         const watchlistLoaded = await loadWatchlist(db!, actualFriendUid);
+        const listsLoaded = await loadUserLists(db!, actualFriendUid);
         console.log('✅ Watchlist loaded:', {
           movies: watchlistLoaded.movies.length,
           tv: watchlistLoaded.tv.length
@@ -664,6 +700,7 @@ export function FriendProfilePage() {
         setFriendPeopleData(peopleData);
         setFriendDirectorsData(directorsData);
         setFriendWatchlistData({ movies: watchlistLoaded.movies, tv: watchlistLoaded.tv });
+        setFriendListsData(listsLoaded);
 
         console.log('🎉 All friend data loaded successfully!');
 
@@ -2057,6 +2094,24 @@ export function FriendProfilePage() {
                 {friendGlobalCollectionProgress.map((collection) => (
                   <div
                     key={collection.id}
+                    className="profile-stat profile-stat--collection-link profile-stat--collection-static"
+                  >
+                    <CollectionRadialProgress
+                      seen={collection.seen}
+                      watchlistUnseen={collection.watchlistUnseen}
+                      total={collection.total}
+                      includeWatchlistSegment
+                    />
+                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {friendCustomCollectionProgress.length > 0 && (
+              <div className="profile-stats-global-collections">
+                {friendCustomCollectionProgress.map((collection) => (
+                  <div
+                    key={`custom-${collection.id}`}
                     className="profile-stat profile-stat--collection-link profile-stat--collection-static"
                   >
                     <CollectionRadialProgress

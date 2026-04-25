@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -11,7 +11,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { tmdbImagePath, tmdbSearchMovies, tmdbSearchTv, type TmdbMultiResult } from '../lib/tmdb';
+import { tmdbImagePath, tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbSearchMovies, tmdbSearchPeople, tmdbSearchTv, tmdbTvDetailsFull, type TmdbMultiResult } from '../lib/tmdb';
 import { deleteGlobalCollection, saveGlobalCollectionsOrder as saveCollectionsOrder, upsertGlobalCollection } from '../lib/firestoreCollections';
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
@@ -122,7 +122,7 @@ function RadialProgress({ seen, watchlistUnseen, total }: { seen: number; watchl
     )`,
   };
   return (
-    <div className="lists-radial-wrap">
+    <div className={`lists-radial-wrap ${pct === 100 ? 'lists-radial-wrap--full' : ''}`}>
       <div className="lists-radial-ring" style={ringStyle} />
       <div className="lists-radial-center"><div className="lists-radial-frac">{seen}/{total}</div><div className="lists-radial-pct">{pct}%</div></div>
     </div>
@@ -358,11 +358,46 @@ function AddCollectionEntryModal({
   onAddSaved: (item: MovieShowItem) => void;
   onAddRemote: (result: TmdbMultiResult) => void;
 }) {
+  type PersonRoleKey = 'actor' | 'director' | 'producer' | 'creator' | 'writer' | 'other';
+  type PersonProject = {
+    id: string;
+    result: TmdbMultiResult;
+    roles: Set<PersonRoleKey>;
+    isSelfCredit: boolean;
+    isDocumentary?: boolean;
+    releaseTs: number;
+    runtimeMinutes?: number;
+  };
+
   const [savedQuery, setSavedQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteResults, setRemoteResults] = useState<TmdbMultiResult[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [personTarget, setPersonTarget] = useState<TmdbMultiResult | null>(null);
+  const [personProjectsLoading, setPersonProjectsLoading] = useState(false);
+  const [personProjectsRuntimeHydrating, setPersonProjectsRuntimeHydrating] = useState(false);
+  const [personProjectsError, setPersonProjectsError] = useState<string | null>(null);
+  const [personProjects, setPersonProjects] = useState<PersonProject[]>([]);
+  const [personRolesEnabled, setPersonRolesEnabled] = useState<Record<PersonRoleKey, boolean>>({
+    actor: true,
+    director: false,
+    producer: false,
+    creator: false,
+    writer: false,
+    other: false
+  });
+  const personProjectsRequestRef = useRef(0);
+  const [personProjectConstraints, setPersonProjectConstraints] = useState({
+    mustBeOver10Min: true,
+    mustBeOver40Min: false,
+    mustHaveReleaseDate: true,
+    mustHaveRuntime: true,
+    includeDocumentaries: false,
+    includeMovies: true,
+    includeShows: true,
+    excludeSelfRoles: true
+  });
 
   const fuzzyScore = (titleText: string, q: string) => {
     const t = titleText.toLowerCase();
@@ -397,6 +432,42 @@ function AddCollectionEntryModal({
     return scored.map((row) => row.item);
   }, [items, savedQuery]);
 
+  const roleKeysForRole = (role: { job?: string; character?: string }): Set<PersonRoleKey> => {
+    const out = new Set<PersonRoleKey>();
+    const jobParts = (role.job ?? '')
+      .split('/')
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean);
+
+    if ((role.character ?? '').trim().length > 0) {
+      out.add('actor');
+    }
+
+    for (const job of jobParts) {
+      if (job.includes('director')) out.add('director');
+      else if (job.includes('producer')) out.add('producer');
+      else if (job.includes('creator')) out.add('creator');
+      else if (job.includes('writer') || job.includes('screenplay') || job.includes('story')) out.add('writer');
+      else out.add('other');
+    }
+
+    if (out.size === 0) out.add('other');
+    return out;
+  };
+
+  const getDefaultRoleStateForPerson = (person: TmdbMultiResult): Record<PersonRoleKey, boolean> => {
+    const subtitle = (person.subtitle ?? '').toLowerCase();
+    const directorDefault = subtitle.includes('director');
+    return {
+      actor: !directorDefault,
+      director: directorDefault,
+      producer: false,
+      creator: false,
+      writer: false,
+      other: false
+    };
+  };
+
   useEffect(() => {
     const trimmed = searchQuery.trim();
     setRemoteError(null);
@@ -428,6 +499,12 @@ function AddCollectionEntryModal({
             ]).then(([p1, p2]) => [...p1, ...p2])
           );
         }
+        promises.push(
+          Promise.all([
+            tmdbSearchPeople(trimmed, controller.signal, 1),
+            tmdbSearchPeople(trimmed, controller.signal, 2)
+          ]).then(([p1, p2]) => [...p1, ...p2])
+        );
         const batches = await Promise.all(promises);
         const deduped = batches
           .flat()
@@ -449,6 +526,150 @@ function AddCollectionEntryModal({
       controller.abort();
     };
   }, [searchQuery, allowedMediaType]);
+
+  const openPersonProjects = async (person: TmdbMultiResult) => {
+    personProjectsRequestRef.current += 1;
+    const requestId = personProjectsRequestRef.current;
+    setPersonTarget(person);
+    setPersonProjectsLoading(true);
+    setPersonProjectsError(null);
+    setPersonProjects([]);
+    setPersonRolesEnabled(getDefaultRoleStateForPerson(person));
+    setPersonProjectConstraints({
+      mustBeOver10Min: true,
+      mustBeOver40Min: false,
+      mustHaveReleaseDate: true,
+      mustHaveRuntime: true,
+      includeDocumentaries: false,
+      includeMovies: true,
+      includeShows: true,
+      excludeSelfRoles: true
+    });
+    try {
+      const details = await tmdbPersonDetailsFull(person.id);
+      if (!details) {
+        setPersonProjectsError('Unable to load projects for this person.');
+        return;
+      }
+      const primaryDept = (details.knownForDepartment ?? '').toLowerCase();
+      if (primaryDept.includes('direct')) {
+        setPersonRolesEnabled({
+          actor: false,
+          director: true,
+          producer: false,
+          creator: false,
+          writer: false,
+          other: false
+        });
+      } else {
+        setPersonRolesEnabled({
+          actor: true,
+          director: false,
+          producer: false,
+          creator: false,
+          writer: false,
+          other: false
+        });
+      }
+      const allowMovie = allowedMediaType === 'movie' || allowedMediaType === 'both';
+      const allowTv = allowedMediaType === 'tv' || allowedMediaType === 'both';
+      const byId = new Map<string, PersonProject>();
+      for (const role of details.roles ?? []) {
+        if (role.mediaType !== 'movie' && role.mediaType !== 'tv') continue;
+        if (role.mediaType === 'movie' && !allowMovie) continue;
+        if (role.mediaType === 'tv' && !allowTv) continue;
+        const key = `${role.mediaType}-${role.id}`;
+        const releaseTs = role.releaseDate ? new Date(role.releaseDate).getTime() : 0;
+        const roleKeys = roleKeysForRole(role);
+        const isSelfCredit = (role.character ?? '').toLowerCase().includes('self');
+        if (!byId.has(key)) {
+          byId.set(key, {
+            id: key,
+            result: {
+              media_type: role.mediaType,
+              id: role.id,
+              title: role.title,
+              subtitle: role.releaseDate ? role.releaseDate.slice(0, 4) : '',
+              poster_path: role.posterPath,
+              popularity: role.popularity ?? 0,
+              release_date: role.releaseDate
+            },
+            roles: new Set(roleKeys),
+            isSelfCredit,
+            releaseTs
+          });
+        } else {
+          const existing = byId.get(key)!;
+          for (const roleKey of roleKeys) {
+            existing.roles.add(roleKey);
+          }
+          existing.isSelfCredit = existing.isSelfCredit || isSelfCredit;
+          if (releaseTs > existing.releaseTs) existing.releaseTs = releaseTs;
+        }
+      }
+      const projects = Array.from(byId.values()).sort((a, b) => b.releaseTs - a.releaseTs || a.result.title.localeCompare(b.result.title));
+      // Show projects immediately, then hydrate runtimes in background.
+      setPersonProjects(projects);
+      setPersonProjectsRuntimeHydrating(true);
+      void (async () => {
+        for (const project of projects) {
+          let runtimeMinutes: number | undefined;
+          let isDocumentary: boolean | undefined;
+          try {
+            if (project.result.media_type === 'movie') {
+              const details = await tmdbMovieDetailsFull(project.result.id);
+              runtimeMinutes = details?.runtimeMinutes;
+              isDocumentary = (details?.genres ?? []).some((genre) => genre.toLowerCase() === 'documentary');
+            } else if (project.result.media_type === 'tv') {
+              const details = await tmdbTvDetailsFull(project.result.id);
+              runtimeMinutes = details?.runtimeMinutes;
+              isDocumentary = (details?.genres ?? []).some((genre) => genre.toLowerCase() === 'documentary');
+            }
+          } catch {
+            runtimeMinutes = undefined;
+            isDocumentary = undefined;
+          }
+          if (personProjectsRequestRef.current !== requestId) return;
+          setPersonProjects((prev) =>
+            prev.map((p) => (p.id === project.id ? { ...p, runtimeMinutes, isDocumentary } : p))
+          );
+        }
+        if (personProjectsRequestRef.current !== requestId) return;
+        setPersonProjectsRuntimeHydrating(false);
+      })();
+    } catch {
+      setPersonProjectsError('Unable to load projects for this person.');
+    } finally {
+      setPersonProjectsLoading(false);
+    }
+  };
+
+  const filteredPersonProjects = useMemo(() => {
+    const enabled = (Object.keys(personRolesEnabled) as PersonRoleKey[]).filter((key) => personRolesEnabled[key]);
+    if (enabled.length === 0) return [];
+    const minRuntime = personProjectConstraints.mustBeOver40Min ? 40 : personProjectConstraints.mustBeOver10Min ? 10 : 0;
+    return personProjects.filter((project) => {
+      const isMovie = project.result.media_type === 'movie';
+      const isTv = project.result.media_type === 'tv';
+      if (!enabled.some((key) => project.roles.has(key))) return false;
+      if (!personProjectConstraints.includeMovies && isMovie) return false;
+      if (!personProjectConstraints.includeShows && isTv) return false;
+      if (!personProjectConstraints.includeDocumentaries && project.isDocumentary === true) return false;
+      if (personProjectConstraints.excludeSelfRoles && project.isSelfCredit) return false;
+      if (personProjectConstraints.mustHaveReleaseDate && !project.result.release_date) return false;
+      if (personProjectConstraints.mustHaveRuntime && !(project.runtimeMinutes && project.runtimeMinutes > 0)) return false;
+      if (minRuntime > 0 && !(project.runtimeMinutes && project.runtimeMinutes > minRuntime)) return false;
+      return true;
+    });
+  }, [personProjects, personRolesEnabled, personProjectConstraints]);
+
+  const addFilteredPersonProjects = () => {
+    // Add oldest -> newest so newest ends up at top-left (position 0) in the collection.
+    for (let i = filteredPersonProjects.length - 1; i >= 0; i -= 1) {
+      onAddRemote(filteredPersonProjects[i].result);
+    }
+    setPersonTarget(null);
+  };
 
   return (
     <div className="lists-modal-backdrop" onClick={onClose}>
@@ -489,6 +710,21 @@ function AddCollectionEntryModal({
             <div className="lists-saved-grid lists-saved-grid--compact">
               {remoteLoading ? <div className="lists-subtitle">Searching...</div> : null}
               {!remoteLoading && remoteResults.map((result) => {
+                if (result.media_type === 'person') {
+                  return (
+                    <button
+                      key={`${result.media_type}-${result.id}`}
+                      className="lists-saved-card lists-saved-card--compact lists-saved-card--person"
+                      onClick={() => void openPersonProjects(result)}
+                    >
+                      <div className="lists-saved-poster">
+                        {result.profile_path ? <img src={tmdbImagePath(result.profile_path, 'w185') ?? ''} alt={result.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}
+                        <span className="lists-person-hover-cta">Add projects</span>
+                      </div>
+                      <span className="lists-saved-title">{result.title}</span>
+                    </button>
+                  );
+                }
                 const mediaType = result.media_type === 'tv' ? 'tv' : 'movie';
                 const entryId = `tmdb-${mediaType}-${result.id}`;
                 const seen = isEntrySeen(entryId, mediaType);
@@ -513,6 +749,112 @@ function AddCollectionEntryModal({
         </div>
         <div className="lists-modal-actions"><button className="lists-button" onClick={onClose}>Close</button></div>
       </div>
+      {personTarget ? (
+        <div className="lists-modal-backdrop" onClick={() => setPersonTarget(null)}>
+          <div className="lists-modal lists-modal--person-projects" onClick={(e) => e.stopPropagation()}>
+            <h3>Add {personTarget.title}'s projects</h3>
+            <div className="lists-role-row">
+              <div className="lists-role-tags">
+                {(['actor', 'director', 'producer', 'creator', 'writer', 'other'] as PersonRoleKey[]).map((roleKey) => (
+                  <button
+                    key={roleKey}
+                    type="button"
+                    className={`lists-role-tag ${personRolesEnabled[roleKey] ? 'lists-role-tag--on' : ''}`}
+                    onClick={() => setPersonRolesEnabled((prev) => ({ ...prev, [roleKey]: !prev[roleKey] }))}
+                  >
+                    {roleKey}
+                  </button>
+                ))}
+              </div>
+              <div className="lists-role-tags lists-role-tags--constraints">
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.mustBeOver10Min ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, mustBeOver10Min: !prev.mustBeOver10Min }))}
+                >
+                  Must be &gt;10min
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.mustBeOver40Min ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, mustBeOver40Min: !prev.mustBeOver40Min }))}
+                >
+                  Must be &gt;40min
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.mustHaveReleaseDate ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, mustHaveReleaseDate: !prev.mustHaveReleaseDate }))}
+                >
+                  Must have Release Date
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.mustHaveRuntime ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, mustHaveRuntime: !prev.mustHaveRuntime }))}
+                >
+                  Must have Runtime
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.includeDocumentaries ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, includeDocumentaries: !prev.includeDocumentaries }))}
+                >
+                  Include Documentaries
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.includeShows ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, includeShows: !prev.includeShows }))}
+                >
+                  Show
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.includeMovies ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, includeMovies: !prev.includeMovies }))}
+                >
+                  Movie
+                </button>
+                <button
+                  type="button"
+                  className={`lists-role-tag ${personProjectConstraints.excludeSelfRoles ? 'lists-role-tag--on' : ''}`}
+                  onClick={() => setPersonProjectConstraints((prev) => ({ ...prev, excludeSelfRoles: !prev.excludeSelfRoles }))}
+                >
+                  Exclude roles where they play "Self"
+                </button>
+              </div>
+            </div>
+            {personProjectsError ? <div className="lists-subtitle">{personProjectsError}</div> : null}
+            <div className="lists-saved-grid lists-saved-grid--compact lists-person-projects-grid">
+              {personProjectsLoading ? <div className="lists-subtitle">Loading projects...</div> : null}
+              {!personProjectsLoading && personProjectsRuntimeHydrating ? (
+                <div className="lists-person-projects-hydrating">
+                  <div className="lists-subtitle">Hydrating runtimes...</div>
+                  <span className="lists-loading-throbber" aria-label="Loading runtimes" />
+                </div>
+              ) : null}
+              {!personProjectsLoading && filteredPersonProjects.map((project) => (
+                <button
+                  key={project.id}
+                  className="lists-saved-card lists-saved-card--compact"
+                  onClick={() => onAddRemote(project.result)}
+                >
+                  <div className="lists-saved-poster">{project.result.poster_path ? <img src={tmdbImagePath(project.result.poster_path, 'w185') ?? ''} alt={project.result.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}</div>
+                  <span className="lists-saved-title">{project.result.title}</span>
+                </button>
+              ))}
+              {!personProjectsLoading && filteredPersonProjects.length === 0 ? <div className="lists-subtitle">No projects match selected roles.</div> : null}
+            </div>
+            <div className="lists-modal-actions">
+              <button className="lists-button" onClick={() => setPersonTarget(null)}>Close</button>
+              <button className="lists-button" onClick={addFilteredPersonProjects} disabled={personProjectsLoading || filteredPersonProjects.length === 0}>
+                Add {filteredPersonProjects.length} project{filteredPersonProjects.length === 1 ? '' : 's'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -696,7 +1038,7 @@ export function ListsPage() {
         const seen = statuses.filter((s) => s.isSeen).length;
         const watchlistUnseen = statuses.filter((s) => s.isWatchlistUnseen).length;
         const posters = refs
-          .map((entry) => entryById.get(entry.entryId)?.posterPath)
+          .map((entry) => entryById.get(entry.entryId)?.posterPath ?? entry.posterPath)
           .filter((poster): poster is string => Boolean(poster));
         return {
           id: list.id,
@@ -900,7 +1242,27 @@ export function ListDetailPage() {
       });
     }
     if (activeList) {
-      return (entriesByListId[activeList.id] ?? []).slice().sort((a, b) => a.position - b.position).map((entry) => ({ id: entry.entryId, classKey: 'LIST', source: entryMap.has(entry.entryId) ? 'saved' : 'unseen', mediaType: entry.mediaType, item: entryMap.get(entry.entryId), title: entryMap.get(entry.entryId)?.title ?? entry.entryId }));
+      return (entriesByListId[activeList.id] ?? []).slice().sort((a, b) => a.position - b.position).map((entry) => {
+        const existing = entryMap.get(entry.entryId);
+        const parsedTmdbId = Number.parseInt(entry.entryId.replace(/\D/g, ''), 10) || 0;
+        const fallbackTitle = entry.title ?? existing?.title ?? entry.entryId;
+        const fallbackItem = buildCollectionFallbackItem(
+          entry.entryId,
+          fallbackTitle,
+          parsedTmdbId,
+          'UNRANKED',
+          entry.posterPath,
+          entry.releaseDate
+        );
+        return {
+          id: entry.entryId,
+          classKey: 'LIST',
+          source: existing ? 'saved' : 'unseen',
+          mediaType: entry.mediaType,
+          item: existing ?? fallbackItem,
+          title: existing?.title ?? fallbackTitle
+        };
+      });
     }
     return [];
   }, [isCollection, activeCollection, activeList, entriesByListId, entryMap]);
@@ -1320,30 +1682,21 @@ export function ListDetailPage() {
             collectionSeenBorderMode={settings.collectionSeenBorderMode}
             isEntrySeen={isCollectionEntrySeen}
             onClose={() => setShowAddEntryModal(false)}
-            onAddSaved={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')}
+            onAddSaved={(item) => addEntryToListTop(
+              activeList.id,
+              item.id,
+              item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
+              { title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate }
+            )}
             onAddRemote={(result) => {
               const mediaType = result.media_type === 'tv' ? 'tv' : 'movie';
               const id = `tmdb-${mediaType}-${result.id}`;
-              if (mediaType === 'movie') {
-                if (!getMovieById(id)) {
-                  addMovieFromSearch({
-                    id,
-                    title: result.title,
-                    subtitle: result.release_date ? result.release_date.slice(0, 4) : 'Saved',
-                    classKey: 'UNRANKED',
-                    posterPath: result.poster_path
-                  });
-                }
-              } else if (!getShowById(id)) {
-                addShowFromSearch({
-                  id,
-                  title: result.title,
-                  subtitle: result.release_date ? result.release_date.slice(0, 4) : 'Saved',
-                  classKey: 'UNRANKED',
-                  posterPath: result.poster_path
-                });
-              }
-              addEntryToListTop(activeList.id, id, mediaType);
+              // Do not auto-add unseen entries to Unranked when adding to personal collections.
+              addEntryToListTop(activeList.id, id, mediaType, {
+                title: result.title,
+                posterPath: result.poster_path,
+                releaseDate: result.release_date
+              });
             }}
           />
         ) : (
@@ -1351,7 +1704,12 @@ export function ListDetailPage() {
             title={`Add to ${activeList.name}`}
             items={addableSavedItems}
             onClose={() => setShowAddEntryModal(false)}
-            onAdd={(item) => addEntryToListTop(activeList.id, item.id, item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie')}
+            onAdd={(item) => addEntryToListTop(
+              activeList.id,
+              item.id,
+              item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
+              { title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate }
+            )}
           />
         )
       ) : null}
@@ -1467,7 +1825,11 @@ export function ListDetailPage() {
               else moveMovieToClass(settingsFor.id, params.classKey, moveOptions);
             }
             if (params.listMemberships?.length) {
-              setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships);
+              setEntryListMembership(settingsFor.id, isTv ? 'tv' : 'movie', params.listMemberships, {
+                title: settingsFor.title,
+                posterPath: settingsFor.posterPath,
+                releaseDate: settingsFor.releaseDate
+              });
             }
             if (!keepModalOpen) {
               setSettingsFor(null);
@@ -1478,7 +1840,11 @@ export function ListDetailPage() {
           }}
           onTagToggle={(listId, selected) => {
             if (!settingsFor) return;
-            setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }]);
+            setEntryListMembership(settingsFor.id, settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie', [{ listId, selected }], {
+              title: settingsFor.title,
+              posterPath: settingsFor.posterPath,
+              releaseDate: settingsFor.releaseDate
+            });
           }}
         />
           );

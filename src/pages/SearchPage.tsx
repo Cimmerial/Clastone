@@ -918,7 +918,11 @@ export function SearchPage() {
         setIsSaving(false);
       }
       if (params.listMemberships?.length) {
-        setEntryListMembership(targetId, 'movie', params.listMemberships);
+        setEntryListMembership(targetId, 'movie', params.listMemberships, {
+          title: recordTarget.title,
+          posterPath: recordTarget.poster_path,
+          releaseDate: recordTarget.release_date
+        });
       }
       if (!keepModalOpen) {
         setRecordTarget(null);
@@ -956,7 +960,11 @@ export function SearchPage() {
         for (let i = 1; i < watchRecords.length; i++) addWatchToShow(targetId, watchRecords[i]);
       }
       if (params.listMemberships?.length) {
-        setEntryListMembership(targetId, 'tv', params.listMemberships);
+        setEntryListMembership(targetId, 'tv', params.listMemberships, {
+          title: recordTarget.title,
+          posterPath: recordTarget.poster_path,
+          releaseDate: recordTarget.release_date
+        });
       }
       if (!keepModalOpen) {
         setRecordTarget(null);
@@ -2442,7 +2450,11 @@ export function SearchPage() {
             href: `/lists/collection/${id}`,
           }))}
           onTagToggle={(listId, selected) => {
-            setEntryListMembership(resultId(recordTarget), recordTarget.media_type === 'movie' ? 'movie' : 'tv', [{ listId, selected }]);
+            setEntryListMembership(resultId(recordTarget), recordTarget.media_type === 'movie' ? 'movie' : 'tv', [{ listId, selected }], {
+              title: recordTarget.title,
+              posterPath: recordTarget.poster_path,
+              releaseDate: recordTarget.release_date
+            });
           }}
           isSaving={isSaving}
           onClose={handleCloseRecord}

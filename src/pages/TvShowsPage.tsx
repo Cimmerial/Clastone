@@ -419,7 +419,11 @@ export function TvShowsPage() {
               });
             }
             if (params.listMemberships?.length) {
-              setEntryListMembership(targetItem.id, 'tv', params.listMemberships);
+              setEntryListMembership(targetItem.id, 'tv', params.listMemberships, {
+                title: targetItem.title,
+                posterPath: targetItem.posterPath,
+                releaseDate: targetItem.releaseDate
+              });
             }
 
             if (!keepModalOpen) {
@@ -437,7 +441,11 @@ export function TvShowsPage() {
           onTagToggle={(listId, selected) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
-            setEntryListMembership(targetItem.id, 'tv', [{ listId, selected }]);
+            setEntryListMembership(targetItem.id, 'tv', [{ listId, selected }], {
+              title: targetItem.title,
+              posterPath: targetItem.posterPath,
+              releaseDate: targetItem.releaseDate
+            });
           }}
           onGoPickTemplate={() => {
             setSettingsFor(null);

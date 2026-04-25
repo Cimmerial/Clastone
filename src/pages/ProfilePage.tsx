@@ -400,6 +400,9 @@ export function ProfilePage() {
     getSelectedListIdsForEntry,
     collectionIdsByEntryId,
     globalCollections,
+    lists,
+    listOrder,
+    entriesByListId,
   } = useListsStore();
 
   const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
@@ -949,6 +952,36 @@ export function ProfilePage() {
       })
       .filter((item) => item.total > 0);
   }, [globalCollections, seenMovieIds, seenShowIds, isInWatchlist]);
+
+  const customCollectionProgress = useMemo(() => {
+    return listOrder
+      .map((id) => lists.find((list) => list.id === id))
+      .filter((list): list is NonNullable<typeof list> => Boolean(list))
+      .filter((list) => list.mode === 'collection' && !list.hidden)
+      .map((collection) => {
+        const uniqueEntryIds = Array.from(
+          new Set((entriesByListId[collection.id] ?? []).map((entry) => entry.entryId))
+        ).filter((id) => id.startsWith('tmdb-movie-') || id.startsWith('tmdb-tv-'));
+        const total = uniqueEntryIds.length;
+        let seen = 0;
+        let watchlistUnseen = 0;
+        for (const entryId of uniqueEntryIds) {
+          const isMovieEntry = entryId.startsWith('tmdb-movie-');
+          const isSeen = isMovieEntry ? seenMovieIds.has(entryId) : seenShowIds.has(entryId);
+          if (isSeen) seen += 1;
+          else if (isInWatchlist(entryId)) watchlistUnseen += 1;
+        }
+        return {
+          id: collection.id,
+          name: collection.name,
+          seen,
+          watchlistUnseen,
+          total,
+          href: `/lists/${collection.id}`,
+        };
+      })
+      .filter((item) => item.total > 0);
+  }, [listOrder, lists, entriesByListId, seenMovieIds, seenShowIds, isInWatchlist]);
 
   const getQuantile = (sortedValues: number[], percentile: number) => {
     if (sortedValues.length === 0) return null;
@@ -1666,6 +1699,25 @@ export function ProfilePage() {
                 {globalCollectionProgress.map((collection) => (
                   <Link
                     key={collection.id}
+                    to={collection.href}
+                    className="profile-stat profile-stat--collection-link"
+                  >
+                    <CollectionRadialProgress
+                      seen={collection.seen}
+                      watchlistUnseen={collection.watchlistUnseen}
+                      total={collection.total}
+                      includeWatchlistSegment
+                    />
+                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {customCollectionProgress.length > 0 && (
+              <div className="profile-stats-global-collections">
+                {customCollectionProgress.map((collection) => (
+                  <Link
+                    key={`custom-${collection.id}`}
                     to={collection.href}
                     className="profile-stat profile-stat--collection-link"
                   >

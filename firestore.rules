@@ -63,7 +63,8 @@ service cloud.firestore {
     }
 
     match /users/{userId}/listsData/{docId} {
-      allow read, write: if request.auth != null && userId == request.auth.uid;
+      allow read: if true;
+      allow write: if request.auth != null && userId == request.auth.uid;
     }
 
     // Friend watch recommendations: stored on the recipient's user doc. Senders may

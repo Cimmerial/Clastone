@@ -1181,7 +1181,11 @@ export function WatchlistPage() {
       setRecordWatchlistId(null);
     }
     if (params.listMemberships?.length) {
-      setEntryListMembership(recordTarget.id, recordTarget.mediaType, params.listMemberships);
+      setEntryListMembership(recordTarget.id, recordTarget.mediaType, params.listMemberships, {
+        title: recordTarget.title,
+        posterPath: recordTarget.posterPath,
+        releaseDate: recordTarget.releaseDate
+      });
     }
     if (!keepModalOpen) {
       setRecordTarget(null);
@@ -1765,7 +1769,11 @@ export function WatchlistPage() {
             href: `/lists/collection/${id}`
           }))}
           onTagToggle={(listId, selected) => {
-            setEntryListMembership(recordTarget.id, recordTarget.mediaType, [{ listId, selected }]);
+            setEntryListMembership(recordTarget.id, recordTarget.mediaType, [{ listId, selected }], {
+              title: recordTarget.title,
+              posterPath: recordTarget.posterPath,
+              releaseDate: recordTarget.releaseDate
+            });
           }}
           onGoPickTemplate={() => {
             const mt = recordTarget.mediaType;

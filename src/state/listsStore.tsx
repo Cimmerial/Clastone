@@ -1,18 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { GlobalCollection } from '../lib/firestoreCollections';
-import type { ListMediaType, UserListDoc } from '../lib/firestoreLists';
+import type { ListEntryRef, ListMediaType, UserListDoc } from '../lib/firestoreLists';
 
 type EntryMediaType = 'movie' | 'tv';
+const COLLECTION_ENTRY_CAP = 1000;
 
 export type ListMembershipChange = {
   listId: string;
   selected: boolean;
 };
 
+export type ListEntryMeta = {
+  title?: string;
+  posterPath?: string;
+  releaseDate?: string;
+};
+
 type ListsStore = {
   lists: UserListDoc[];
   listOrder: string[];
-  entriesByListId: Record<string, { entryId: string; mediaType: EntryMediaType; position: number }[]>;
+  entriesByListId: Record<string, ListEntryRef[]>;
   globalCollections: GlobalCollection[];
   tagsByEntryId: Map<string, string[]>;
   collectionIdsByEntryId: Map<string, string[]>;
@@ -21,8 +28,8 @@ type ListsStore = {
   deleteList: (listId: string) => void;
   reorderLists: (orderedIds: string[]) => void;
   reorderEntriesInList: (listId: string, orderedEntryIds: string[]) => void;
-  addEntryToListTop: (listId: string, entryId: string, mediaType: EntryMediaType) => void;
-  setEntryListMembership: (entryId: string, mediaType: EntryMediaType, changes: ListMembershipChange[]) => void;
+  addEntryToListTop: (listId: string, entryId: string, mediaType: EntryMediaType, meta?: { title?: string; posterPath?: string; releaseDate?: string }) => void;
+  setEntryListMembership: (entryId: string, mediaType: EntryMediaType, changes: ListMembershipChange[], meta?: ListEntryMeta) => void;
   getEditableListsForMediaType: (mediaType: EntryMediaType) => UserListDoc[];
   getSelectedListIdsForEntry: (entryId: string) => string[];
   upsertGlobalCollection: (collectionData: GlobalCollection) => void;
@@ -36,12 +43,12 @@ type ListsProviderProps = {
   children: React.ReactNode;
   initialLists?: UserListDoc[];
   initialOrder?: string[];
-  initialEntriesByListId?: Record<string, { entryId: string; mediaType: EntryMediaType; position: number }[]>;
+  initialEntriesByListId?: Record<string, ListEntryRef[]>;
   initialGlobalCollections?: GlobalCollection[];
   onPersist?: (payload: {
     lists: UserListDoc[];
     order: string[];
-    entriesByListId: Record<string, { entryId: string; mediaType: EntryMediaType; position: number }[]>;
+    entriesByListId: Record<string, ListEntryRef[]>;
     pendingCount?: number;
   }) => Promise<void>;
 };
@@ -131,21 +138,23 @@ export function ListsProvider({
           const existing = byId.get(entryId);
           return existing ? { ...existing, position } : null;
         })
-        .filter((entry): entry is { entryId: string; mediaType: EntryMediaType; position: number } => entry !== null);
+        .filter((entry): entry is ListEntryRef => entry !== null);
       return { ...prev, [listId]: next };
     });
   }, []);
 
-  const addEntryToListTop = useCallback((listId: string, entryId: string, mediaType: EntryMediaType) => {
+  const addEntryToListTop = useCallback((listId: string, entryId: string, mediaType: EntryMediaType, meta?: { title?: string; posterPath?: string; releaseDate?: string }) => {
     setEntriesByListId((prev) => {
+      const list = lists.find((item) => item.id === listId);
       const current = prev[listId] ?? [];
       if (current.some((entry) => entry.entryId === entryId)) return prev;
-      const next = [{ entryId, mediaType, position: 0 }, ...current].map((entry, position) => ({ ...entry, position }));
+      if (list?.mode === 'collection' && current.length >= COLLECTION_ENTRY_CAP) return prev;
+      const next = [{ entryId, mediaType, position: 0, ...meta }, ...current].map((entry, position) => ({ ...entry, position }));
       return { ...prev, [listId]: next };
     });
-  }, []);
+  }, [lists]);
 
-  const setEntryListMembership = useCallback((entryId: string, mediaType: EntryMediaType, changes: ListMembershipChange[]) => {
+  const setEntryListMembership = useCallback((entryId: string, mediaType: EntryMediaType, changes: ListMembershipChange[], meta?: ListEntryMeta) => {
     setEntriesByListId((prev) => {
       const next = { ...prev };
       for (const change of changes) {
@@ -154,7 +163,8 @@ export function ListsProvider({
         const current = next[change.listId] ?? [];
         const hasEntry = current.some((entry) => entry.entryId === entryId);
         if (change.selected && !hasEntry) {
-          next[change.listId] = [...current, { entryId, mediaType, position: current.length }];
+          if (list.mode === 'collection' && current.length >= COLLECTION_ENTRY_CAP) continue;
+          next[change.listId] = [...current, { entryId, mediaType, position: current.length, ...meta }];
         }
         if (!change.selected && hasEntry) {
           const filtered = current.filter((entry) => entry.entryId !== entryId).map((entry, position) => ({ ...entry, position }));

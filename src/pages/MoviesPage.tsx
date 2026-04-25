@@ -423,7 +423,11 @@ export function MoviesPage() {
               });
             }
             if (params.listMemberships?.length) {
-              setEntryListMembership(targetItem.id, 'movie', params.listMemberships);
+              setEntryListMembership(targetItem.id, 'movie', params.listMemberships, {
+                title: targetItem.title,
+                posterPath: targetItem.posterPath,
+                releaseDate: targetItem.releaseDate
+              });
             }
 
             if (!keepModalOpen) {
@@ -442,7 +446,11 @@ export function MoviesPage() {
           onTagToggle={(listId, selected) => {
             const targetItem = settingsFor || recordWatchFor;
             if (!targetItem) return;
-            setEntryListMembership(targetItem.id, 'movie', [{ listId, selected }]);
+            setEntryListMembership(targetItem.id, 'movie', [{ listId, selected }], {
+              title: targetItem.title,
+              posterPath: targetItem.posterPath,
+              releaseDate: targetItem.releaseDate
+            });
           }}
           onGoPickTemplate={() => {
             setSettingsFor(null);
