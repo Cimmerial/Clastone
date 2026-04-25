@@ -101,7 +101,13 @@ export function FriendsPage() {
   }, [loggedIn, cacheKeyBase]);
 
   const sortedFriends = useMemo(() => {
-    return [...friends].sort((a, b) => {
+    const uniqueFriends = Array.from(
+      friends.reduce((map, friend) => {
+        if (!map.has(friend.uid)) map.set(friend.uid, friend);
+        return map;
+      }, new Map<string, (typeof friends)[number]>()).values()
+    );
+    return uniqueFriends.sort((a, b) => {
       const countsA = friendCountsByUid[a.uid] ?? { movies: 0, shows: 0 };
       const countsB = friendCountsByUid[b.uid] ?? { movies: 0, shows: 0 };
       const totalA = countsA.movies + countsA.shows;

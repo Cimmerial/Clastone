@@ -23,6 +23,14 @@ const CLASSIC_UNRANKED_MOVIE: MovieClassDef[] = [
   { key: 'UNRANKED', label: 'UNRANKED', isRanked: false }
 ];
 
+const MICHAEL_UNRANKED_MOVIE: MovieClassDef[] = [
+  { key: 'DELICIOUS_GARBAGE', label: 'DELICIOUS GARBAGE', tagline: "So Bad... It's Good", isRanked: false },
+  { key: 'BABY', label: 'BABY', tagline: 'FOR BABIES', isRanked: false },
+  { key: 'DONT_REMEMBER', label: "DON'T REMEMBER", isRanked: false },
+  { key: 'PENDING', label: 'PENDING', tagline: 'need to think about it', isRanked: false },
+  { key: 'UNRANKED', label: 'UNRANKED', isRanked: false }
+];
+
 export const movieShowTemplates: Record<
   MovieShowTemplateId,
   { title: string; description: string; classes: MovieClassDef[] }
@@ -63,13 +71,13 @@ export const movieShowTemplates: Record<
     title: 'The Michael',
     description: 'Pantheon through Bad, with the same unranked buckets as Classic.',
     classes: [
-      { key: 'THE_PANTHEON', label: 'THE PANTHEON', isRanked: true },
+      { key: 'THE_PANTHEON', label: 'THE PANTHEON', tagline: 'mooovie', isRanked: true },
       { key: 'BANGERS', label: 'BANGERS', isRanked: true },
       { key: 'YES', label: 'YES', isRanked: true },
-      { key: 'NORMAL_PLUS', label: 'NORMAL+', isRanked: true },
-      { key: 'NORMAL', label: 'NORMAL', isRanked: true },
-      { key: 'BAD', label: 'BAD', isRanked: true },
-      ...CLASSIC_UNRANKED_MOVIE
+      { key: 'NORMAL_PLUS', label: 'NORMAL+', tagline: 'its a moovie!!!!', isRanked: true },
+      { key: 'NORMAL', label: 'NORMAL', tagline: 'confirmed movie', isRanked: true },
+      { key: 'BAD', label: 'BAD', tagline: 'AHHHHH', isRanked: true },
+      ...MICHAEL_UNRANKED_MOVIE
     ]
   }
 };

@@ -2401,7 +2401,12 @@ export function ProfilePage() {
                 .filter((k) => movieProfileClassKeys.includes(k) && moviesByClass[k]?.length > 0)
                 .map((classKey) => (
                 <div key={classKey} className="profile-class-section">
-                  <h3 className="profile-class-title">{getMovieClassLabel(classKey)}</h3>
+                  <h3 className="profile-class-title">
+                    {getMovieClassLabel(classKey)}
+                    {getMovieClassTagline(classKey) ? (
+                      <span className="profile-class-tagline"> | {getMovieClassTagline(classKey)}</span>
+                    ) : null}
+                  </h3>
                   <div className="profile-class-grid">
                     {moviesByClass[classKey].map((m, i) => {
                       const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
@@ -2582,7 +2587,12 @@ export function ProfilePage() {
                 .filter((k) => tvProfileClassKeys.includes(k) && tvByClass[k]?.length > 0)
                 .map((classKey) => (
                 <div key={classKey} className="profile-class-section">
-                  <h3 className="profile-class-title">{getTvClassLabel(classKey)}</h3>
+                  <h3 className="profile-class-title">
+                    {getTvClassLabel(classKey)}
+                    {getTvClassTagline(classKey) ? (
+                      <span className="profile-class-tagline"> | {getTvClassTagline(classKey)}</span>
+                    ) : null}
+                  </h3>
                   <div className="profile-class-grid">
                     {tvByClass[classKey].map((s, i) => {
                       const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
@@ -2732,7 +2742,15 @@ export function ProfilePage() {
                 <div className="profile-classes-view">
                   {peopleClassOrder.filter(k => peopleByClass[k]?.length > 0).map((classKey) => (
                     <div key={classKey} className="profile-class-section">
-                      <h3 className="profile-class-title">{classKey}</h3>
+                      <h3 className="profile-class-title">
+                        {classKey}
+                        {peopleClasses.find((c) => c.key === classKey)?.tagline ? (
+                          <span className="profile-class-tagline">
+                            {' '}
+                            | {peopleClasses.find((c) => c.key === classKey)?.tagline}
+                          </span>
+                        ) : null}
+                      </h3>
                       <div className="profile-class-grid">
                         {peopleByClass[classKey].map((a, i) => {
                           const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
@@ -2827,7 +2845,15 @@ export function ProfilePage() {
                 <div className="profile-classes-view">
                   {directorsClassOrder.filter(k => directorsByClass[k]?.length > 0).map((classKey) => (
                     <div key={classKey} className="profile-class-section">
-                      <h3 className="profile-class-title">{classKey}</h3>
+                      <h3 className="profile-class-title">
+                        {classKey}
+                        {directorsClasses.find((c) => c.key === classKey)?.tagline ? (
+                          <span className="profile-class-tagline">
+                            {' '}
+                            | {directorsClasses.find((c) => c.key === classKey)?.tagline}
+                          </span>
+                        ) : null}
+                      </h3>
                       <div className="profile-class-grid">
                         {directorsByClass[classKey].map((d, i) => {
                           const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;

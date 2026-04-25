@@ -46,6 +46,39 @@ interface FriendsContextType {
 
 const FriendsContext = createContext<FriendsContextType | null>(null);
 
+function upsertUniqueFriend(list: Friend[], next: Friend): Friend[] {
+  const idx = list.findIndex((f) => f.uid === next.uid);
+  if (idx === -1) return [...list, next];
+  const copy = [...list];
+  copy[idx] = {
+    ...copy[idx],
+    ...next,
+    // Keep older timestamp if next is missing; otherwise update.
+    addedAt: next.addedAt || copy[idx].addedAt,
+  };
+  return copy;
+}
+
+function dedupeFriendsByUid(list: Friend[]): Friend[] {
+  const byUid = new Map<string, Friend>();
+  for (const entry of list) {
+    const existing = byUid.get(entry.uid);
+    if (!existing) {
+      byUid.set(entry.uid, entry);
+      continue;
+    }
+    // Prefer the latest addedAt if both exist.
+    const existingTs = Date.parse(existing.addedAt || '') || 0;
+    const entryTs = Date.parse(entry.addedAt || '') || 0;
+    byUid.set(entry.uid, entryTs >= existingTs ? { ...existing, ...entry } : existing);
+  }
+  return Array.from(byUid.values());
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const { user, username } = useAuth();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -65,14 +98,16 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
         where('userId', '==', user.uid)
       );
       const friendsSnapshot = await getDocs(friendsQuery);
-      const friendsData = friendsSnapshot.docs.map(doc => ({
-        uid: doc.data().friendUid,
-        username: doc.data().friendUsername,
-        email: doc.data().friendEmail,
-        addedAt: doc.data().addedAt,
-        pfpPosterPath: doc.data().friendPfpPosterPath,
-        pfpPhotoUrl: doc.data().friendPfpPhotoUrl
-      }));
+      const friendsData = dedupeFriendsByUid(
+        friendsSnapshot.docs.map(doc => ({
+          uid: doc.data().friendUid,
+          username: doc.data().friendUsername,
+          email: doc.data().friendEmail,
+          addedAt: doc.data().addedAt,
+          pfpPosterPath: doc.data().friendPfpPosterPath,
+          pfpPhotoUrl: doc.data().friendPfpPhotoUrl
+        }))
+      );
       const enrichedFriends = await Promise.all(
         friendsData.map(async (friend) => {
           try {
@@ -86,7 +121,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           }
         })
       );
-      setFriends(enrichedFriends);
+      setFriends(dedupeFriendsByUid(enrichedFriends));
 
       // Load sent requests
       const sentRequestsQuery = query(
@@ -94,8 +129,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
         where('from', '==', user.uid)
       );
       const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
-      const sentToUids = sentRequestsSnapshot.docs.map(doc => doc.data().to);
-      setSentRequests(sentToUids);
+      const sentToUids = dedupeStrings(sentRequestsSnapshot.docs.map(doc => doc.data().to));
+      const friendUidSet = new Set(friendsData.map((f) => f.uid));
+      setSentRequests(sentToUids.filter((uid) => !friendUidSet.has(uid)));
 
       // Load received requests
       const receivedRequestsQuery = query(
@@ -110,7 +146,15 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
         fromUsername: doc.data().fromUsername,
         createdAt: doc.data().createdAt
       }));
-      setReceivedRequests(requestsData);
+      const latestBySender = new Map<string, FriendRequest>();
+      for (const req of requestsData) {
+        if (friendUidSet.has(req.from)) continue;
+        const existing = latestBySender.get(req.from);
+        const existingTs = Date.parse(existing?.createdAt || '') || 0;
+        const reqTs = Date.parse(req.createdAt || '') || 0;
+        if (!existing || reqTs >= existingTs) latestBySender.set(req.from, req);
+      }
+      setReceivedRequests(Array.from(latestBySender.values()));
       
       setIsDataLoaded(true);
     } catch (error) {
@@ -142,15 +186,86 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     
     setLoading(true);
     try {
-      await setDoc(doc(collection(db!, 'friendRequests')), {
-        from: user.uid,
-        to: targetUser.uid,
-        fromUsername: username,
-        createdAt: new Date().toISOString()
-      });
+      const myFriendDocId = `${user.uid}_${targetUser.uid}`;
+      const theirFriendDocId = `${targetUser.uid}_${user.uid}`;
+      const nowIso = new Date().toISOString();
+
+      // If already friends, do nothing and clean stale local pending state.
+      const [myFriendDoc, theirFriendDoc] = await Promise.all([
+        getDoc(doc(db!, 'friends', myFriendDocId)),
+        getDoc(doc(db!, 'friends', theirFriendDocId)),
+      ]);
+      if (myFriendDoc.exists() || theirFriendDoc.exists()) {
+        setSentRequests(prev => prev.filter((uid) => uid !== targetUser.uid));
+        return;
+      }
+
+      // If they already sent me a request, auto-friend both sides.
+      const reverseRequestQuery = query(
+        collection(db!, 'friendRequests'),
+        where('from', '==', targetUser.uid),
+        where('to', '==', user.uid)
+      );
+      const reverseRequestSnapshot = await getDocs(reverseRequestQuery);
+      if (!reverseRequestSnapshot.empty) {
+        const myUserSnap = await getDoc(doc(db!, 'users', user.uid));
+        const myUserData = myUserSnap.data();
+        const myPoster = typeof myUserData?.pfpPosterPath === 'string' ? myUserData.pfpPosterPath : null;
+        const myPhoto = typeof myUserData?.pfpPhotoUrl === 'string' ? myUserData.pfpPhotoUrl : null;
+
+        await Promise.all([
+          setDoc(doc(db!, 'friends', myFriendDocId), {
+            userId: user.uid,
+            friendUid: targetUser.uid,
+            friendUsername: targetUser.username,
+            friendEmail: targetUser.email,
+            friendPfpPosterPath: targetUser.pfpPosterPath ?? null,
+            friendPfpPhotoUrl: targetUser.pfpPhotoUrl ?? null,
+            addedAt: nowIso
+          }),
+          setDoc(doc(db!, 'friends', theirFriendDocId), {
+            userId: targetUser.uid,
+            friendUid: user.uid,
+            friendUsername: username,
+            friendEmail: user.email,
+            friendPfpPosterPath: myPoster,
+            friendPfpPhotoUrl: myPhoto,
+            addedAt: nowIso
+          }),
+          ...reverseRequestSnapshot.docs.map((d) => deleteDoc(doc(db!, 'friendRequests', d.id))),
+        ]);
+
+        setFriends(prev => dedupeFriendsByUid(upsertUniqueFriend(prev, {
+          uid: targetUser.uid,
+          username: targetUser.username,
+          email: targetUser.email,
+          pfpPosterPath: targetUser.pfpPosterPath,
+          pfpPhotoUrl: targetUser.pfpPhotoUrl,
+          addedAt: nowIso
+        })));
+        setReceivedRequests(prev => prev.filter((r) => r.from !== targetUser.uid));
+        setSentRequests(prev => prev.filter((uid) => uid !== targetUser.uid));
+        return;
+      }
+
+      // Avoid duplicate outgoing requests.
+      const existingRequestQuery = query(
+        collection(db!, 'friendRequests'),
+        where('from', '==', user.uid),
+        where('to', '==', targetUser.uid)
+      );
+      const existingRequestSnapshot = await getDocs(existingRequestQuery);
+      if (existingRequestSnapshot.empty) {
+        await setDoc(doc(collection(db!, 'friendRequests')), {
+          from: user.uid,
+          to: targetUser.uid,
+          fromUsername: username,
+          createdAt: nowIso
+        });
+      }
       
       // Update local state
-      setSentRequests(prev => [...prev, targetUser.uid]);
+      setSentRequests(prev => dedupeStrings([...prev, targetUser.uid]));
     } catch (error) {
       console.error('Error sending friend request:', error);
     } finally {
@@ -163,22 +278,23 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     
     setLoading(true);
     try {
-      // Get the requester's user data
-      const requesterDoc = await getDocs(
-        query(collection(db!, 'users'), where('username', '==', request.fromUsername))
-      );
-      const requesterData = requesterDoc.docs[0]?.data();
+      // Get the requester's user data by UID (safer than username).
+      const requesterSnap = await getDoc(doc(db!, 'users', request.from));
+      const requesterData = requesterSnap.data();
+      const nowIso = new Date().toISOString();
+      const myUserSnap = await getDoc(doc(db!, 'users', user.uid));
+      const myUserData = myUserSnap.data();
       
       if (requesterData) {
         // Add to both users' friends lists
         await setDoc(doc(db!, 'friends', `${user.uid}_${request.from}`), {
           userId: user.uid,
           friendUid: request.from,
-          friendUsername: request.fromUsername,
+          friendUsername: requesterData.username ?? request.fromUsername,
           friendEmail: requesterData.email,
           friendPfpPosterPath: requesterData.pfpPosterPath ?? null,
           friendPfpPhotoUrl: requesterData.pfpPhotoUrl ?? null,
-          addedAt: new Date().toISOString()
+          addedAt: nowIso
         });
         
         await setDoc(doc(db!, 'friends', `${request.from}_${user.uid}`), {
@@ -186,27 +302,46 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           friendUid: user.uid,
           friendUsername: username,
           friendEmail: user.email,
-          friendPfpPosterPath: null,
-          friendPfpPhotoUrl: null,
-          addedAt: new Date().toISOString()
+          friendPfpPosterPath: myUserData?.pfpPosterPath ?? null,
+          friendPfpPhotoUrl: myUserData?.pfpPhotoUrl ?? null,
+          addedAt: nowIso
         });
         
         // Update local state
-        setFriends(prev => [...prev, {
+        setFriends(prev => dedupeFriendsByUid(upsertUniqueFriend(prev, {
           uid: request.from,
-          username: request.fromUsername,
+          username: requesterData.username ?? request.fromUsername,
           email: requesterData.email,
           pfpPosterPath: requesterData.pfpPosterPath ?? undefined,
           pfpPhotoUrl: requesterData.pfpPhotoUrl ?? undefined,
-          addedAt: new Date().toISOString()
-        }]);
+          addedAt: nowIso
+        })));
       }
       
-      // Delete the request
+      // Delete this request and any duplicate reciprocal/outgoing request docs.
       await deleteDoc(doc(db!, 'friendRequests', request.id));
+      const duplicateIncomingQuery = query(
+        collection(db!, 'friendRequests'),
+        where('from', '==', request.from),
+        where('to', '==', user.uid)
+      );
+      const outgoingMirrorQuery = query(
+        collection(db!, 'friendRequests'),
+        where('from', '==', user.uid),
+        where('to', '==', request.from)
+      );
+      const [dupIncomingSnap, outgoingMirrorSnap] = await Promise.all([
+        getDocs(duplicateIncomingQuery),
+        getDocs(outgoingMirrorQuery),
+      ]);
+      await Promise.all([
+        ...dupIncomingSnap.docs.map((d) => deleteDoc(doc(db!, 'friendRequests', d.id))),
+        ...outgoingMirrorSnap.docs.map((d) => deleteDoc(doc(db!, 'friendRequests', d.id))),
+      ]);
       
       // Update local state
-      setReceivedRequests(prev => prev.filter(r => r.id !== request.id));
+      setReceivedRequests(prev => prev.filter(r => r.id !== request.id && r.from !== request.from));
+      setSentRequests(prev => prev.filter((uid) => uid !== request.from));
     } catch (error) {
       console.error('Error accepting friend request:', error);
     } finally {

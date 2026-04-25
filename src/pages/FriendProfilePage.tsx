@@ -2441,7 +2441,12 @@ export function FriendProfilePage() {
             <div className="profile-classes-view">
               {friendMoviesData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendMoviesData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
-                  <h3 className="profile-class-title">{classDef.label}</h3>
+                  <h3 className="profile-class-title">
+                    {classDef.label}
+                    {classDef.tagline ? (
+                      <span className="profile-class-tagline"> | {classDef.tagline}</span>
+                    ) : null}
+                  </h3>
                   <div className="profile-class-grid">
                     {friendMoviesData.byClass[classDef.key].map((m: any, i: number) => {
                       const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
@@ -2622,7 +2627,12 @@ export function FriendProfilePage() {
             <div className="profile-classes-view">
               {friendTvData?.classes?.filter((c: any) => c.key !== 'UNRANKED' && friendTvData.byClass[c.key]?.length > 0).map((classDef: any) => (
                 <div key={classDef.key} className="profile-class-section">
-                  <h3 className="profile-class-title">{classDef.label}</h3>
+                  <h3 className="profile-class-title">
+                    {classDef.label}
+                    {classDef.tagline ? (
+                      <span className="profile-class-tagline"> | {classDef.tagline}</span>
+                    ) : null}
+                  </h3>
                   <div className="profile-class-grid">
                     {friendTvData.byClass[classDef.key].map((s: any, i: number) => {
                       const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
@@ -2769,7 +2779,12 @@ export function FriendProfilePage() {
                 <div className="profile-classes-view">
                   {friendPeopleData?.classes?.filter((c: any) => c.isRanked && friendPeopleData.byClass[c.key]?.length > 0).map((classDef: any) => (
                     <div key={classDef.key} className="profile-class-section">
-                      <h3 className="profile-class-title">{classDef.label}</h3>
+                      <h3 className="profile-class-title">
+                        {classDef.label}
+                        {classDef.tagline ? (
+                          <span className="profile-class-tagline"> | {classDef.tagline}</span>
+                        ) : null}
+                      </h3>
                       <div className="profile-class-grid">
                         {friendPeopleData.byClass[classDef.key].map((a: any, i: number) => {
                           const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
@@ -2865,7 +2880,12 @@ export function FriendProfilePage() {
                 <div className="profile-classes-view">
                   {friendDirectorsData?.classes?.filter((c: any) => c.isRanked && friendDirectorsData.byClass[c.key]?.length > 0).map((classDef: any) => (
                     <div key={classDef.key} className="profile-class-section">
-                      <h3 className="profile-class-title">{classDef.label}</h3>
+                      <h3 className="profile-class-title">
+                        {classDef.label}
+                        {classDef.tagline ? (
+                          <span className="profile-class-tagline"> | {classDef.tagline}</span>
+                        ) : null}
+                      </h3>
                       <div className="profile-class-grid">
                         {friendDirectorsData.byClass[classDef.key].map((d: any, i: number) => {
                           const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
