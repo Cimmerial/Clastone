@@ -665,7 +665,7 @@ export function SearchPage() {
       window.clearTimeout(t);
       controller.abort();
     };
-  }, [trimmed]);
+  }, [trimmed, showMovies, showTv, showPeople]);
 
   useEffect(() => {
     setSearchVisibleCount(SEARCH_INITIAL_RESULT_LIMIT);

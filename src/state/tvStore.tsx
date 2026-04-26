@@ -738,29 +738,33 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
         if (idx === -1) continue;
         const item = list[idx];
         const rebalanced = rebalanceTvProgressForEpisodeChange(item, cache.totalEpisodes);
-        next[classKey] = list.map((m, i) =>
-          i === idx
-            ? {
-              ...m,
-              ...(cache.title != null && { title: cache.title }),
-              ...(cache.posterPath != null && { posterPath: cache.posterPath }),
-              ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
-              ...(cache.overview != null && { overview: cache.overview }),
-              ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
-              ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
-              ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-              ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
-              ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
-              ...(cache.genres != null && { genres: cache.genres }),
-              ...(rebalanced != null && {
-                watchRecords: rebalanced.updatedRecords,
-                viewingDates: rebalanced.viewingDates,
-                percentCompleted: rebalanced.percentCompleted,
-                watchTime: rebalanced.watchTime || undefined
-              })
-            }
-            : m
-        );
+        next[classKey] = list.map((m, i) => {
+          if (i !== idx) return m;
+          const nextRuntime = cache.runtimeMinutes ?? m.runtimeMinutes;
+          const records = rebalanced?.updatedRecords ?? m.watchRecords ?? [];
+          const derived = records.length > 0
+            ? formatViewingFromRecords(records, nextRuntime)
+            : null;
+          return {
+            ...m,
+            ...(cache.title != null && { title: cache.title }),
+            ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+            ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+            ...(cache.overview != null && { overview: cache.overview }),
+            ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+            ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+            ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+            ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
+            ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
+            ...(cache.genres != null && { genres: cache.genres }),
+            ...(rebalanced != null && { watchRecords: rebalanced.updatedRecords }),
+            ...(derived != null && {
+              viewingDates: derived.viewingDates,
+              percentCompleted: derived.percentCompleted,
+              watchTime: derived.watchTime || undefined
+            })
+          };
+        });
         return next;
       }
       return prev;
@@ -780,6 +784,11 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
           const rebalanced = rebalanceTvProgressForEpisodeChange(m, cache.totalEpisodes);
           changedClass = true;
           changedGlobal = true;
+          const nextRuntime = cache.runtimeMinutes ?? m.runtimeMinutes;
+          const records = rebalanced?.updatedRecords ?? m.watchRecords ?? [];
+          const derived = records.length > 0
+            ? formatViewingFromRecords(records, nextRuntime)
+            : null;
           return {
             ...m,
             ...(cache.title != null && { title: cache.title }),
@@ -797,11 +806,11 @@ export function TvProvider({ children, initialByClass, initialClasses, onPersist
             ...(cache.totalSeasons != null && { totalSeasons: cache.totalSeasons }),
             ...(cache.totalEpisodes != null && { totalEpisodes: cache.totalEpisodes }),
             ...(cache.genres != null && { genres: cache.genres }),
-            ...(rebalanced != null && {
-              watchRecords: rebalanced.updatedRecords,
-              viewingDates: rebalanced.viewingDates,
-              percentCompleted: rebalanced.percentCompleted,
-              watchTime: rebalanced.watchTime || undefined
+            ...(rebalanced != null && { watchRecords: rebalanced.updatedRecords }),
+            ...(derived != null && {
+              viewingDates: derived.viewingDates,
+              percentCompleted: derived.percentCompleted,
+              watchTime: derived.watchTime || undefined
             })
           };
         });

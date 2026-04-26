@@ -108,6 +108,8 @@ type Props = {
   tileUnseenMuted?: boolean;
   tileOverlayControls?: ReactNode;
   tileOverlayBadges?: ReactNode;
+  tileClassName?: string;
+  tilePosterClassName?: string;
 };
 
 function parsePercentile(s: string): number | null {
@@ -147,7 +149,9 @@ export function EntryRowMovieShow({
   tileMinimalActions = false,
   tileUnseenMuted = false,
   tileOverlayControls,
-  tileOverlayBadges
+  tileOverlayBadges,
+  tileClassName = '',
+  tilePosterClassName = ''
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
   const pct = parsePercentile(item.percentileRank);
@@ -341,8 +345,8 @@ export function EntryRowMovieShow({
 
   if (isTile) {
     return (
-      <article className={`entry-tile ${tileUnseenMuted ? 'entry-tile--unseen-muted' : ''}`} ref={rowRef}>
-        <div className={`entry-tile-poster ${tileUnseenMuted ? 'entry-tile-poster--unseen-muted' : ''}`}>
+      <article className={`entry-tile ${tileUnseenMuted ? 'entry-tile--unseen-muted' : ''} ${tileClassName}`.trim()} ref={rowRef}>
+        <div className={`entry-tile-poster ${tileUnseenMuted ? 'entry-tile-poster--unseen-muted' : ''} ${tilePosterClassName}`.trim()}>
           {item.posterPath ? (
             <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt="" loading="lazy" />
           ) : (

@@ -39,9 +39,10 @@ import { ProfileWatchlist } from '../components/ProfileWatchlist';
 import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ThemedDropdown } from '../components/ThemedDropdown';
+import { ThemedDropdown, type ThemedDropdownOption } from '../components/ThemedDropdown';
 import {
   buildTopTenByWatchYear,
+  buildBottomTenByWatchYear,
   PROFILE_MEDIA_LIST_MODE_OPTIONS,
   type ProfileMediaListMode,
   type ProfileWatchYearFilter,
@@ -71,6 +72,8 @@ interface Friend {
   addedAt: string;
 }
 
+type ProfileMediaListModeWithExpanded = ProfileMediaListMode | 'all_expanded_view';
+
 const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
   'Best Picture Winners': 'Best Pic Win',
   'IMDB Top 250 Movies': 'IMDB 250',
@@ -88,6 +91,14 @@ const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
   return ((count / total) * 100).toFixed(1);
+}
+
+function stableHash(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash;
 }
 
 async function copyTextCrossPlatform(text: string): Promise<boolean> {
@@ -226,10 +237,10 @@ function CollectionRadialProgress({
   total: number;
   includeWatchlistSegment: boolean;
 }) {
-  const pct = total > 0 ? Math.round((seen / total) * 100) : 0;
   const seenPct = total > 0 ? Math.min(100, (seen / total) * 100) : 0;
   const watchlistPct = includeWatchlistSegment && total > 0 ? Math.min(100 - seenPct, (watchlistUnseen / total) * 100) : 0;
   const combinedPct = Math.min(100, seenPct + watchlistPct);
+  const pct = total > 0 ? Math.round((seen / total) * 100) : 0;
   const seenColor = pct < 33 ? '#d95858' : pct < 67 ? '#d7b24f' : pct < 100 ? '#48b66e' : '#f0cf72';
   const ringStyle = {
     background: `conic-gradient(
@@ -238,14 +249,11 @@ function CollectionRadialProgress({
       rgba(255, 255, 255, 0.12) ${combinedPct}% 100%
     )`,
   };
+  const ringClassName = `profile-collection-radial-ring${pct === 100 ? ' profile-collection-radial-ring--complete' : ''}`;
 
   return (
     <div className="profile-collection-radial-wrap">
-      <div className="profile-collection-radial-ring" style={ringStyle} />
-      <div className="profile-collection-radial-center">
-        <div className="profile-collection-radial-frac">{seen}/{total}</div>
-        <div className="profile-collection-radial-pct">{pct}%</div>
-      </div>
+      <div className={ringClassName} style={ringStyle} />
     </div>
   );
 }
@@ -322,6 +330,23 @@ function buildUniqueWatchMilestoneData(
 function buildTopFiveByYear(items: MovieShowItem[]) {
   const byYear = new Map<number, MovieShowItem[]>();
   for (const item of items) {
+    const year = getItemReleaseYear(item);
+    if (year == null) continue;
+    const current = byYear.get(year) ?? [];
+    if (current.length < 5) {
+      current.push(item);
+      byYear.set(year, current);
+    }
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, yearItems]) => ({ year, items: yearItems }));
+}
+
+function buildBottomFiveByYear(items: MovieShowItem[]) {
+  const byYear = new Map<number, MovieShowItem[]>();
+  for (let idx = items.length - 1; idx >= 0; idx -= 1) {
+    const item = items[idx];
     const year = getItemReleaseYear(item);
     if (year == null) continue;
     const current = byYear.get(year) ?? [];
@@ -426,8 +451,23 @@ export function FriendProfilePage() {
   const [movieWatchYearFilter, setMovieWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showViewMode, setShowViewMode] = useState<ProfileMediaListMode>('top10');
   const [showWatchYearFilter, setShowWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
+  const [showFriendAvgRuntimeCharts, setShowFriendAvgRuntimeCharts] = useState(false);
+  const [showFriendCopyTools, setShowFriendCopyTools] = useState(false);
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
+  const profileMediaListModeOptionsWithExpanded = useMemo<ThemedDropdownOption<ProfileMediaListModeWithExpanded>[]>(
+    () => {
+      const base = PROFILE_MEDIA_LIST_MODE_OPTIONS.map((option) => ({ value: option.value, label: option.label }));
+      const showAllIdx = base.findIndex((option) => option.value === 'all_with_classes');
+      if (showAllIdx === -1) return [...base, { value: 'all_expanded_view', label: 'Show All in Expanded View' }];
+      return [
+        ...base.slice(0, showAllIdx + 1),
+        { value: 'all_expanded_view', label: 'Show All in Expanded View' },
+        ...base.slice(showAllIdx + 1)
+      ];
+    },
+    []
+  );
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
@@ -639,6 +679,60 @@ export function FriendProfilePage() {
       })
       .filter((item) => item.total > 0);
   }, [friendListsData, friendWatchedMovieIds, friendWatchedShowIds, friendWatchlistMovieIds, friendWatchlistShowIds, resolvedProfileUid, friendProfile?.uid, friendId]);
+
+  const friendPosterByEntryId = useMemo(() => {
+    const map = new Map<string, string>();
+    if (friendMoviesData?.classes && friendMoviesData?.byClass) {
+      for (const classDef of friendMoviesData.classes) {
+        for (const item of friendMoviesData.byClass[classDef.key] ?? []) {
+          if (!item.posterPath) continue;
+          map.set(String(item.id), item.posterPath);
+        }
+      }
+    }
+    if (friendTvData?.classes && friendTvData?.byClass) {
+      for (const classDef of friendTvData.classes) {
+        for (const item of friendTvData.byClass[classDef.key] ?? []) {
+          if (!item.posterPath) continue;
+          map.set(String(item.id), item.posterPath);
+        }
+      }
+    }
+    return map;
+  }, [friendMoviesData, friendTvData]);
+
+  const friendListProgress = useMemo(() => {
+    if (!friendListsData) return [];
+    const byId = new Map(friendListsData.lists.map((list: any) => [list.id, list]));
+    return friendListsData.order
+      .map((id: string) => byId.get(id))
+      .filter((list: any) => list && list.mode === 'list' && !list.hidden)
+      .map((list: any) => {
+        const entries = (friendListsData.entriesByListId[list.id] ?? []).filter((entry: any) => {
+          const entryId = String(entry.entryId ?? '');
+          return entryId.startsWith('tmdb-movie-') || entryId.startsWith('tmdb-tv-');
+        });
+        const posterPaths = entries
+          .slice()
+          .sort((a: any, b: any) => {
+            const aKey = stableHash(`${list.id}:${String(a.entryId ?? '')}`);
+            const bKey = stableHash(`${list.id}:${String(b.entryId ?? '')}`);
+            return aKey - bKey;
+          })
+          .map((entry: any) => friendPosterByEntryId.get(String(entry.entryId ?? '')))
+          .filter((posterPath: string | undefined): posterPath is string => Boolean(posterPath))
+          .slice(0, 6);
+        return {
+          id: list.id,
+          name: list.name,
+          href: `/friends/${resolvedProfileUid ?? friendProfile?.uid ?? friendId}/lists/${list.id}`,
+          count: entries.length,
+          mediaType: list.mediaType,
+          posterPaths,
+        };
+      })
+      .filter((item) => item.count > 0);
+  }, [friendListsData, friendPosterByEntryId, resolvedProfileUid, friendProfile?.uid, friendId]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
@@ -913,14 +1007,64 @@ export function FriendProfilePage() {
 
   const topMoviesByYear = useMemo(() => buildTopFiveByYear(allMoviesExceptUnranked), [allMoviesExceptUnranked]);
   const topShowsByYear = useMemo(() => buildTopFiveByYear(allShowsExceptUnranked), [allShowsExceptUnranked]);
+  const bottomMoviesByYear = useMemo(() => buildBottomFiveByYear(rankedMovies), [rankedMovies]);
+  const bottomShowsByYear = useMemo(() => buildBottomFiveByYear(rankedShows), [rankedShows]);
   const topMoviesByWatchYear = useMemo(
     () => buildTopTenByWatchYear(allMoviesExceptUnranked, movieWatchYearFilter),
     [allMoviesExceptUnranked, movieWatchYearFilter]
+  );
+  const bottomMoviesByWatchYear = useMemo(
+    () => buildBottomTenByWatchYear(rankedMovies, movieWatchYearFilter),
+    [rankedMovies, movieWatchYearFilter]
   );
   const topShowsByWatchYear = useMemo(
     () => buildTopTenByWatchYear(allShowsExceptUnranked, showWatchYearFilter),
     [allShowsExceptUnranked, showWatchYearFilter]
   );
+  const bottomShowsByWatchYear = useMemo(
+    () => buildBottomTenByWatchYear(rankedShows, showWatchYearFilter),
+    [rankedShows, showWatchYearFilter]
+  );
+  const top30MostSeenMovies = useMemo(
+    () =>
+      allMoviesExceptUnranked
+        .map((item) => ({ item, watchCount: item.watchRecords?.length ?? 0 }))
+        .filter((entry) => entry.watchCount > 0)
+        .sort((a, b) => b.watchCount - a.watchCount)
+        .slice(0, 30),
+    [allMoviesExceptUnranked]
+  );
+  const top30MostSeenShows = useMemo(
+    () =>
+      allShowsExceptUnranked
+        .map((item) => ({ item, watchCount: item.watchRecords?.length ?? 0 }))
+        .filter((entry) => entry.watchCount > 0)
+        .sort((a, b) => b.watchCount - a.watchCount)
+        .slice(0, 30),
+    [allShowsExceptUnranked]
+  );
+  const top30MostSeenMoviesByTier = useMemo(() => {
+    const tiers = new Map<number, Array<{ item: MovieShowItem; watchCount: number }>>();
+    for (const entry of top30MostSeenMovies) {
+      const list = tiers.get(entry.watchCount) ?? [];
+      list.push(entry);
+      tiers.set(entry.watchCount, list);
+    }
+    return Array.from(tiers.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([watchCount, items]) => ({ watchCount, items }));
+  }, [top30MostSeenMovies]);
+  const top30MostSeenShowsByTier = useMemo(() => {
+    const tiers = new Map<number, Array<{ item: MovieShowItem; watchCount: number }>>();
+    for (const entry of top30MostSeenShows) {
+      const list = tiers.get(entry.watchCount) ?? [];
+      list.push(entry);
+      tiers.set(entry.watchCount, list);
+    }
+    return Array.from(tiers.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([watchCount, items]) => ({ watchCount, items }));
+  }, [top30MostSeenShows]);
 
   const getMoviePosterSrc = useCallback(
     (item: MovieShowItem) =>
@@ -982,9 +1126,11 @@ export function FriendProfilePage() {
         recentWatches: [],
         movieWatchYearData: [],
         tvWatchYearData: [],
+        movieTotalTitles: 0,
         movieTotalWatches: 0,
         movieDNFCount: 0,
         movieRewatchCount: 0,
+        tvTotalTitles: 0,
         tvTotalWatches: 0,
         tvDNFCount: 0,
         tvRewatchCount: 0,
@@ -1187,6 +1333,7 @@ export function FriendProfilePage() {
     tvWatchYearData.sort((a, b) => a.year - b.year);
 
     // Calculate DNF and rewatch stats
+    let movieTotalTitles = 0;
     let movieTotalWatches = 0;
     let movieDNFCount = 0;
     let movieRewatchCount = 0;
@@ -1194,16 +1341,20 @@ export function FriendProfilePage() {
       for (const classDef of friendMoviesData.classes) {
         const classKey = classDef.key;
         for (const item of friendMoviesData.byClass[classKey] ?? []) {
+          movieTotalTitles += 1;
           const watches = item.watchRecords ?? [];
           movieTotalWatches += watches.length;
-          movieDNFCount += watches.filter((r: any) => (r.type ?? 'DATE') === 'DNF').length;
-          if (watches.length > 1) {
-            movieRewatchCount += watches.length - 1;
-          }
+          const hasDnf = watches.some((r: any) => {
+            const watchType = r.type ?? 'DATE';
+            return watchType === 'DNF' || watchType === 'DNF_LONG_AGO';
+          });
+          if (hasDnf) movieDNFCount += 1;
+          if (watches.length > 1) movieRewatchCount += 1;
         }
       }
     }
 
+    let tvTotalTitles = 0;
     let tvTotalWatches = 0;
     let tvDNFCount = 0;
     let tvRewatchCount = 0;
@@ -1213,9 +1364,14 @@ export function FriendProfilePage() {
       for (const classDef of friendTvData.classes) {
         const classKey = classDef.key;
         for (const item of friendTvData.byClass[classKey] ?? []) {
+          tvTotalTitles += 1;
           const watches = item.watchRecords ?? [];
           tvTotalWatches += watches.length;
-          tvDNFCount += watches.filter((r: any) => (r.type ?? 'DATE') === 'DNF').length;
+          const hasDnf = watches.some((r: any) => {
+            const watchType = r.type ?? 'DATE';
+            return watchType === 'DNF' || watchType === 'DNF_LONG_AGO';
+          });
+          if (hasDnf) tvDNFCount += 1;
           for (const watch of watches) {
             const watchType = watch.type ?? 'DATE';
             const percent = (watchType === 'DNF' || watchType === 'DNF_LONG_AGO' || watchType === 'CURRENT')
@@ -1224,9 +1380,7 @@ export function FriendProfilePage() {
             tvWatchPercentTotal += percent;
             tvWatchPercentCount += 1;
           }
-          if (watches.length > 1) {
-            tvRewatchCount += watches.length - 1;
-          }
+          if (watches.length > 1) tvRewatchCount += 1;
         }
       }
     }
@@ -1346,9 +1500,11 @@ export function FriendProfilePage() {
       tvReleaseYearData,
       movieWatchYearData,
       tvWatchYearData,
+      movieTotalTitles,
       movieTotalWatches,
       movieDNFCount,
       movieRewatchCount,
+      tvTotalTitles,
       tvTotalWatches,
       tvDNFCount,
       tvRewatchCount,
@@ -2079,7 +2235,18 @@ export function FriendProfilePage() {
                 total={friendMovieCollectionProgress.total}
                 includeWatchlistSegment
               />
-              <span className="profile-stat-label">all movies</span>
+              <div className="profile-collection-progress-meta">
+                <span className="profile-stat-label profile-stat-label--collection-small">all movies</span>
+                <span className="profile-collection-radial-frac">
+                  {friendMovieCollectionProgress.seen}/{friendMovieCollectionProgress.total}
+                </span>
+                <span className="profile-collection-radial-pct">
+                  {friendMovieCollectionProgress.total > 0
+                    ? Math.round((friendMovieCollectionProgress.seen / friendMovieCollectionProgress.total) * 100)
+                    : 0}
+                  % complete
+                </span>
+              </div>
             </Link>
             <Link to={friendShowsCollectionHref} className="profile-stat profile-stat--collection-link">
               <CollectionRadialProgress
@@ -2088,7 +2255,18 @@ export function FriendProfilePage() {
                 total={friendShowCollectionProgress.total}
                 includeWatchlistSegment
               />
-              <span className="profile-stat-label">all shows</span>
+              <div className="profile-collection-progress-meta">
+                <span className="profile-stat-label profile-stat-label--collection-small">all shows</span>
+                <span className="profile-collection-radial-frac">
+                  {friendShowCollectionProgress.seen}/{friendShowCollectionProgress.total}
+                </span>
+                <span className="profile-collection-radial-pct">
+                  {friendShowCollectionProgress.total > 0
+                    ? Math.round((friendShowCollectionProgress.seen / friendShowCollectionProgress.total) * 100)
+                    : 0}
+                  % complete
+                </span>
+              </div>
             </Link>
           </div>
         </div>
@@ -2124,15 +2302,15 @@ export function FriendProfilePage() {
                 <span className="profile-stat-label">Total movie watches</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieDNFCount ?? 0, stats.movieTotalWatches ?? 0)}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieDNFCount ?? 0, stats.movieTotalTitles ?? 0)}%</span>
                 <span className="profile-stat-label">Movie DNF rate</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieRewatchCount ?? 0, stats.movieTotalWatches ?? 0)}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.movieRewatchCount ?? 0, stats.movieTotalTitles ?? 0)}%</span>
                 <span className="profile-stat-label">Movie rewatch rate</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvDNFCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvDNFCount ?? 0, stats.tvTotalTitles ?? 0)}%</span>
                 <span className="profile-stat-label">Show DNF rate</span>
               </div>
               <div className="profile-stat">
@@ -2140,13 +2318,15 @@ export function FriendProfilePage() {
                 <span className="profile-stat-label">Avg show watch %</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvRewatchCount ?? 0, stats.tvTotalWatches ?? 0)}%</span>
+                <span className="profile-stat-value">{formatWatchRatePercent(stats.tvRewatchCount ?? 0, stats.tvTotalTitles ?? 0)}%</span>
                 <span className="profile-stat-label">Show rewatch rate</span>
               </div>
             </div>
 
             {friendGlobalCollectionProgress.length > 0 && (
-              <div className="profile-stats-global-collections">
+              <section className="profile-collection-section">
+                <h3 className="profile-collection-section-title">Clastonian Collections</h3>
+                <div className="profile-stats-global-collections">
                 {friendGlobalCollectionProgress.map((collection) => (
                   <Link
                     key={collection.id}
@@ -2159,13 +2339,22 @@ export function FriendProfilePage() {
                       total={collection.total}
                       includeWatchlistSegment
                     />
-                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                    <div className="profile-collection-progress-meta">
+                      <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                      <span className="profile-collection-radial-frac">{collection.seen}/{collection.total}</span>
+                      <span className="profile-collection-radial-pct">
+                        {collection.total > 0 ? Math.round((collection.seen / collection.total) * 100) : 0}% complete
+                      </span>
+                    </div>
                   </Link>
                 ))}
-              </div>
+                </div>
+              </section>
             )}
             {friendCustomCollectionProgress.length > 0 && (
-              <div className="profile-stats-global-collections">
+              <section className="profile-collection-section">
+                <h3 className="profile-collection-section-title">{friendProfile.username}'s Collections</h3>
+                <div className="profile-stats-global-collections">
                 {friendCustomCollectionProgress.map((collection) => (
                   <Link
                     key={`custom-${collection.id}`}
@@ -2178,10 +2367,45 @@ export function FriendProfilePage() {
                       total={collection.total}
                       includeWatchlistSegment
                     />
-                    <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                    <div className="profile-collection-progress-meta">
+                      <span className="profile-stat-label profile-stat-label--collection-small">{collection.name}</span>
+                      <span className="profile-collection-radial-frac">{collection.seen}/{collection.total}</span>
+                      <span className="profile-collection-radial-pct">
+                        {collection.total > 0 ? Math.round((collection.seen / collection.total) * 100) : 0}% complete
+                      </span>
+                    </div>
                   </Link>
                 ))}
-              </div>
+                </div>
+              </section>
+            )}
+            {friendListProgress.length > 0 && (
+              <section className="profile-collection-section">
+                <h3 className="profile-collection-section-title">{friendProfile.username}'s Lists</h3>
+                <div className="profile-stats-global-collections profile-stats-global-collections--lists">
+                {friendListProgress.map((list) => (
+                  <Link
+                    key={`list-${list.id}`}
+                    to={list.href}
+                    className="profile-stat profile-stat--collection-link profile-stat--friend-list-link"
+                  >
+                    <div className="profile-friend-list-collage profile-friend-list-collage--bg">
+                      {list.posterPaths.length > 0 ? (
+                        list.posterPaths.map((posterPath: string, idx: number) => (
+                          <img key={`${list.id}-${idx}`} src={tmdbImagePath(posterPath) ?? ''} alt="" loading="lazy" />
+                        ))
+                      ) : (
+                        <span className="profile-friend-list-collage-empty">No posters</span>
+                      )}
+                    </div>
+                    <div className="profile-friend-list-content">
+                      <span className="profile-stat-label profile-stat-label--collection-small">{list.name}</span>
+                      <span className="profile-friend-list-meta">{list.count} items · {String(list.mediaType ?? 'mixed')}</span>
+                    </div>
+                  </Link>
+                ))}
+                </div>
+              </section>
             )}
 
             <div className="profile-stats-charts">
@@ -2399,114 +2623,146 @@ export function FriendProfilePage() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Total Runtime per Movie Category</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.movieAvgRuntimeByCategory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="profile-chart-tooltip">
-                            <p className="profile-chart-tooltip-category">{data.key}</p>
-                            <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                            <p className="profile-chart-tooltip-count">{data.count} movies</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }} />
-                    <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {showFriendAvgRuntimeCharts ? (
+                <>
+                  <div className="profile-chart-section">
+                    <h3 className="profile-chart-title">Runtime by Movie Category</h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={stats.movieAvgRuntimeByCategory}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" />
+                        <Tooltip content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="profile-chart-tooltip">
+                                <p className="profile-chart-tooltip-category">{data.key}</p>
+                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                                <p className="profile-chart-tooltip-count">{data.count} movies</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }} />
+                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
 
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Avg Total Runtime per Show Category</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.showAvgRuntimeByCategory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="profile-chart-tooltip">
-                            <p className="profile-chart-tooltip-category">{data.key}</p>
-                            <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                            <p className="profile-chart-tooltip-count">{data.count} shows</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }} />
-                    <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                  <div className="profile-chart-section">
+                    <h3 className="profile-chart-title">Runtime by Show Category</h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={stats.showAvgRuntimeByCategory}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" />
+                        <Tooltip content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="profile-chart-tooltip">
+                                <p className="profile-chart-tooltip-category">{data.key}</p>
+                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                                <p className="profile-chart-tooltip-count">{data.count} shows</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }} />
+                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              ) : (
+                <div className="profile-chart-section profile-chart-section--full-width">
+                  <div className="profile-chart-header">
+                    <h3 className="profile-chart-title">Runtime by Category</h3>
+                    <button
+                      type="button"
+                      className="profile-show-all-toggle profile-tiny-expand-btn"
+                      onClick={() => setShowFriendAvgRuntimeCharts(true)}
+                    >
+                      Load
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
 
-            <ProfileCopyTopRankedSection
-              movieClassOrder={profileCopyFriendMovieClassOrder}
-              tvClassOrder={profileCopyFriendTvClassOrder}
-              peopleClassOrder={profileCopyFriendPeopleClassOrder}
-              directorsClassOrder={profileCopyFriendDirectorsClassOrder}
-              moviesByClass={friendMoviesData?.byClass ?? {}}
-              tvByClass={friendTvData?.byClass ?? {}}
-              peopleByClass={friendPeopleData?.byClass ?? {}}
-              directorsByClass={friendDirectorsData?.byClass ?? {}}
-              getMovieClassLabel={(k) =>
-                friendMoviesData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
-              }
-              getMovieClassTagline={(k) =>
-                friendMoviesData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
-              }
-              getTvClassLabel={(k) =>
-                friendTvData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
-              }
-              getTvClassTagline={(k) =>
-                friendTvData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
-              }
-              getPeopleClassLabel={(k) =>
-                friendPeopleData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
-              }
-              getPeopleClassTagline={(k) =>
-                friendPeopleData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
-              }
-              getDirectorClassLabel={(k) =>
-                friendDirectorsData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
-              }
-              getDirectorClassTagline={(k) =>
-                friendDirectorsData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
-              }
-              isMovieClassRanked={(k) =>
-                Boolean(
-                  friendMoviesData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
-                )
-              }
-              isTvClassRanked={(k) =>
-                Boolean(friendTvData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked)
-              }
-              isPeopleClassRanked={(k) =>
-                Boolean(
-                  friendPeopleData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
-                )
-              }
-              isDirectorClassRanked={(k) =>
-                Boolean(
-                  friendDirectorsData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
-                )
-              }
-              watchlistMovies={friendWatchlistData?.movies ?? []}
-              watchlistTv={friendWatchlistData?.tv ?? []}
-              watchlistEntryHasBeenWatched={watchlistEntryHasBeenWatched}
-              profileShareUid={friendProfile.uid}
-            />
+            {showFriendCopyTools ? (
+              <ProfileCopyTopRankedSection
+                movieClassOrder={profileCopyFriendMovieClassOrder}
+                tvClassOrder={profileCopyFriendTvClassOrder}
+                peopleClassOrder={profileCopyFriendPeopleClassOrder}
+                directorsClassOrder={profileCopyFriendDirectorsClassOrder}
+                moviesByClass={friendMoviesData?.byClass ?? {}}
+                tvByClass={friendTvData?.byClass ?? {}}
+                peopleByClass={friendPeopleData?.byClass ?? {}}
+                directorsByClass={friendDirectorsData?.byClass ?? {}}
+                getMovieClassLabel={(k) =>
+                  friendMoviesData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+                }
+                getMovieClassTagline={(k) =>
+                  friendMoviesData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+                }
+                getTvClassLabel={(k) =>
+                  friendTvData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+                }
+                getTvClassTagline={(k) =>
+                  friendTvData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+                }
+                getPeopleClassLabel={(k) =>
+                  friendPeopleData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+                }
+                getPeopleClassTagline={(k) =>
+                  friendPeopleData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+                }
+                getDirectorClassLabel={(k) =>
+                  friendDirectorsData?.classes?.find((c: { key: string; label: string }) => c.key === k)?.label ?? k
+                }
+                getDirectorClassTagline={(k) =>
+                  friendDirectorsData?.classes?.find((c: { key: string; tagline?: string }) => c.key === k)?.tagline
+                }
+                isMovieClassRanked={(k) =>
+                  Boolean(
+                    friendMoviesData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                  )
+                }
+                isTvClassRanked={(k) =>
+                  Boolean(friendTvData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked)
+                }
+                isPeopleClassRanked={(k) =>
+                  Boolean(
+                    friendPeopleData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                  )
+                }
+                isDirectorClassRanked={(k) =>
+                  Boolean(
+                    friendDirectorsData?.classes?.find((c: { key: string; isRanked?: boolean }) => c.key === k)?.isRanked
+                  )
+                }
+                watchlistMovies={friendWatchlistData?.movies ?? []}
+                watchlistTv={friendWatchlistData?.tv ?? []}
+                watchlistEntryHasBeenWatched={watchlistEntryHasBeenWatched}
+                profileShareUid={friendProfile.uid}
+              />
+            ) : (
+              <div className="profile-chart-section profile-chart-section--full-width">
+                <div className="profile-chart-header">
+                  <h3 className="profile-chart-title">Copy ranked lists / watchlist</h3>
+                  <button
+                    type="button"
+                    className="profile-show-all-toggle profile-tiny-expand-btn"
+                    onClick={() => setShowFriendCopyTools(true)}
+                  >
+                    Load
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2522,17 +2778,31 @@ export function FriendProfilePage() {
                   ? 'Top 5 Movies by Release Year'
                   : movieViewMode === 'top10_by_watch_year'
                     ? 'Top 10 Movies by Watch Year'
+                    : movieViewMode === 'bottom5_each_year'
+                      ? 'Bottom 5 Movies by Release Year'
+                      : movieViewMode === 'bottom10_by_watch_year'
+                        ? 'Bottom 10 Movies by Watch Year'
+                        : movieViewMode === 'bottom10'
+                          ? 'Bottom 10 Movies'
+                    : movieViewMode === 'top30_most_seen'
+                      ? 'Top 30 most seen movies'
                     : 'Top 10 Movies'}
             </h2>
             <div className="profile-card-actions profile-card-actions--with-dropdown">
               <ThemedDropdown
                 className="profile-list-mode-dropdown"
                 value={movieViewMode}
-                options={PROFILE_MEDIA_LIST_MODE_OPTIONS}
-                onChange={setMovieViewMode}
+                options={profileMediaListModeOptionsWithExpanded}
+                onChange={(value) => {
+                  if (value === 'all_expanded_view') {
+                    navigate(friendMoviesCollectionHref);
+                    return;
+                  }
+                  setMovieViewMode(value);
+                }}
                 aria-label="Movies list view"
               />
-              {movieViewMode === 'top10_by_watch_year' && (
+              {(movieViewMode === 'top10_by_watch_year' || movieViewMode === 'bottom10_by_watch_year') && (
                 <div className="profile-chart-toggle profile-list-watch-toggle" role="group" aria-label="Watch year filter">
                   <button
                     type="button"
@@ -2559,19 +2829,24 @@ export function FriendProfilePage() {
               )}
             </div>
           </div>
-          {(movieViewMode === 'top10' || movieViewMode === 'top10_by_watch_year') && (
+          {(movieViewMode === 'top10' || movieViewMode === 'top10_by_watch_year' || movieViewMode === 'top30_most_seen' || movieViewMode === 'bottom10' || movieViewMode === 'bottom10_by_watch_year') && (
             <Link to={friendMoviesCollectionHref} className="profile-preview-link">
               View all movies →
             </Link>
           )}
           {movieViewMode === 'all_with_classes' && (
-            <PageSearch 
-              items={searchableMovies} 
-              onSelect={handleScrollToId} 
-              placeholder="Search all movies..." 
-              className="profile-section-search"
-              pageKey="friend-profile-movies"
-            />
+            <>
+              <Link to={friendMoviesCollectionHref} className="profile-preview-link">
+                Show all in expanded view →
+              </Link>
+              <PageSearch 
+                items={searchableMovies} 
+                onSelect={handleScrollToId} 
+                placeholder="Search all movies..." 
+                className="profile-section-search"
+                pageKey="friend-profile-movies"
+              />
+            </>
           )}
           {movieViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
@@ -2616,9 +2891,17 @@ export function FriendProfilePage() {
                 </div>
               ))}
             </div>
-          ) : movieViewMode === 'top5_each_year' || movieViewMode === 'top10_by_watch_year' ? (
+          ) : movieViewMode === 'top5_each_year' || movieViewMode === 'top10_by_watch_year' || movieViewMode === 'bottom5_each_year' || movieViewMode === 'bottom10_by_watch_year' ? (
             <div className="profile-classes-view">
-              {(movieViewMode === 'top5_each_year' ? topMoviesByYear : topMoviesByWatchYear).map(({ year, items }) => (
+              {(
+                movieViewMode === 'top5_each_year'
+                  ? topMoviesByYear
+                  : movieViewMode === 'bottom5_each_year'
+                    ? bottomMoviesByYear
+                    : movieViewMode === 'bottom10_by_watch_year'
+                      ? bottomMoviesByWatchYear
+                      : topMoviesByWatchYear
+              ).map(({ year, items }) => (
                 <div key={year} className="profile-class-section">
                   <h3 className="profile-class-title">{year}</h3>
                   <div
@@ -2665,6 +2948,75 @@ export function FriendProfilePage() {
                 </div>
               ))}
             </div>
+          ) : movieViewMode === 'top30_most_seen' ? (
+            <div className="profile-classes-view">
+              {top30MostSeenMoviesByTier.map(({ watchCount, items }) => (
+                <div key={`friend-movies-most-seen-${watchCount}`} className="profile-class-section">
+                  <h3 className="profile-class-title">{watchCount} Watches</h3>
+                  <div className="profile-top-grid">
+                    {items.map(({ item: m }, i) => {
+                      const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserMovieStatus(tmdbId);
+                      return (
+                        <div
+                          key={m.id}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleMovieClick(m)}
+                        >
+                          <div className="profile-top-poster">
+                            {getMoviePosterSrc(m) ? (
+                              <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">🎬</span>
+                            )}
+                            <span className="profile-top-rank">#{i + 1}</span>
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.classKey ? 'EDIT' : 'SAVE'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{m.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : movieViewMode === 'bottom10' ? (
+            <div className="profile-top-grid">
+              {rankedMovies.slice(-10).reverse().map((m, i) => {
+                const tmdbId = (m.tmdbId ?? parseInt(m.id.replace(/\D/g, ''), 10)) || 0;
+                const userStatus = getUserMovieStatus(tmdbId);
+                return (
+                  <div
+                    key={m.id}
+                    className="profile-top-item profile-top-item--clickable"
+                    onClick={() => handleMovieClick(m)}
+                  >
+                    <div className="profile-top-poster">
+                      {getMoviePosterSrc(m) ? (
+                        <img src={getMoviePosterSrc(m) ?? ''} alt={m.title} loading="lazy" />
+                      ) : (
+                        <span className="profile-top-poster-placeholder">🎬</span>
+                      )}
+                      <span className="profile-top-rank">#{rankedMovies.length - i}</span>
+                      <div className="profile-top-overlay">
+                        <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.classKey ? 'EDIT' : 'SAVE'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="profile-top-info">
+                      <span className="profile-top-title">{m.title}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="profile-top-grid">
               {allMoviesExceptUnranked.slice(0, 10).map((m, i) => {
@@ -2708,17 +3060,31 @@ export function FriendProfilePage() {
                   ? 'Top 5 Shows by Release Year'
                   : showViewMode === 'top10_by_watch_year'
                     ? 'Top 10 Shows by Watch Year'
+                    : showViewMode === 'bottom5_each_year'
+                      ? 'Bottom 5 Shows by Release Year'
+                      : showViewMode === 'bottom10_by_watch_year'
+                        ? 'Bottom 10 Shows by Watch Year'
+                        : showViewMode === 'bottom10'
+                          ? 'Bottom 10 Shows'
+                    : showViewMode === 'top30_most_seen'
+                      ? 'Top 30 most seen shows'
                     : 'Top 10 Shows'}
             </h2>
             <div className="profile-card-actions profile-card-actions--with-dropdown">
               <ThemedDropdown
                 className="profile-list-mode-dropdown"
                 value={showViewMode}
-                options={PROFILE_MEDIA_LIST_MODE_OPTIONS}
-                onChange={setShowViewMode}
+                options={profileMediaListModeOptionsWithExpanded}
+                onChange={(value) => {
+                  if (value === 'all_expanded_view') {
+                    navigate(friendShowsCollectionHref);
+                    return;
+                  }
+                  setShowViewMode(value);
+                }}
                 aria-label="Shows list view"
               />
-              {showViewMode === 'top10_by_watch_year' && (
+              {(showViewMode === 'top10_by_watch_year' || showViewMode === 'bottom10_by_watch_year') && (
                 <div className="profile-chart-toggle profile-list-watch-toggle" role="group" aria-label="Watch year filter">
                   <button
                     type="button"
@@ -2745,19 +3111,24 @@ export function FriendProfilePage() {
               )}
             </div>
           </div>
-          {(showViewMode === 'top10' || showViewMode === 'top10_by_watch_year') && (
+          {(showViewMode === 'top10' || showViewMode === 'top10_by_watch_year' || showViewMode === 'top30_most_seen' || showViewMode === 'bottom10' || showViewMode === 'bottom10_by_watch_year') && (
             <Link to={friendShowsCollectionHref} className="profile-preview-link">
               View all shows →
             </Link>
           )}
           {showViewMode === 'all_with_classes' && (
-            <PageSearch 
-              items={searchableShows} 
-              onSelect={handleScrollToId} 
-              placeholder="Search all shows..." 
-              className="profile-section-search"
-              pageKey="friend-profile-shows"
-            />
+            <>
+              <Link to={friendShowsCollectionHref} className="profile-preview-link">
+                Show all in expanded view →
+              </Link>
+              <PageSearch 
+                items={searchableShows} 
+                onSelect={handleScrollToId} 
+                placeholder="Search all shows..." 
+                className="profile-section-search"
+                pageKey="friend-profile-shows"
+              />
+            </>
           )}
           {showViewMode === 'all_with_classes' ? (
             <div className="profile-classes-view">
@@ -2802,9 +3173,17 @@ export function FriendProfilePage() {
                 </div>
               ))}
             </div>
-          ) : showViewMode === 'top5_each_year' || showViewMode === 'top10_by_watch_year' ? (
+          ) : showViewMode === 'top5_each_year' || showViewMode === 'top10_by_watch_year' || showViewMode === 'bottom5_each_year' || showViewMode === 'bottom10_by_watch_year' ? (
             <div className="profile-classes-view">
-              {(showViewMode === 'top5_each_year' ? topShowsByYear : topShowsByWatchYear).map(({ year, items }) => (
+              {(
+                showViewMode === 'top5_each_year'
+                  ? topShowsByYear
+                  : showViewMode === 'bottom5_each_year'
+                    ? bottomShowsByYear
+                    : showViewMode === 'bottom10_by_watch_year'
+                      ? bottomShowsByWatchYear
+                      : topShowsByWatchYear
+              ).map(({ year, items }) => (
                 <div key={year} className="profile-class-section">
                   <h3 className="profile-class-title">{year}</h3>
                   <div
@@ -2850,6 +3229,75 @@ export function FriendProfilePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : showViewMode === 'top30_most_seen' ? (
+            <div className="profile-classes-view">
+              {top30MostSeenShowsByTier.map(({ watchCount, items }) => (
+                <div key={`friend-shows-most-seen-${watchCount}`} className="profile-class-section">
+                  <h3 className="profile-class-title">{watchCount} Watches</h3>
+                  <div className="profile-top-grid">
+                    {items.map(({ item: s }, i) => {
+                      const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                      const userStatus = getUserShowStatus(tmdbId);
+                      return (
+                        <div
+                          key={s.id}
+                          className="profile-top-item profile-top-item--clickable"
+                          onClick={() => handleShowClick(s)}
+                        >
+                          <div className="profile-top-poster">
+                            {s.posterPath ? (
+                              <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                            ) : (
+                              <span className="profile-top-poster-placeholder">📺</span>
+                            )}
+                            <span className="profile-top-rank">#{i + 1}</span>
+                            <div className="profile-top-overlay">
+                              <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                {userStatus.classKey ? 'EDIT' : 'SAVE'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="profile-top-info">
+                            <span className="profile-top-title">{s.title}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : showViewMode === 'bottom10' ? (
+            <div className="profile-top-grid">
+              {rankedShows.slice(-10).reverse().map((s, i) => {
+                const tmdbId = (s.tmdbId ?? parseInt(s.id.replace(/\D/g, ''), 10)) || 0;
+                const userStatus = getUserShowStatus(tmdbId);
+                return (
+                  <div
+                    key={s.id}
+                    className="profile-top-item profile-top-item--clickable"
+                    onClick={() => handleShowClick(s)}
+                  >
+                    <div className="profile-top-poster">
+                      {s.posterPath ? (
+                        <img src={tmdbImagePath(s.posterPath) ?? ''} alt={s.title} loading="lazy" />
+                      ) : (
+                        <span className="profile-top-poster-placeholder">📺</span>
+                      )}
+                      <span className="profile-top-rank">#{rankedShows.length - i}</span>
+                      <div className="profile-top-overlay">
+                        <span className={userStatus.classKey ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                          {userStatus.classKey ? 'EDIT' : 'SAVE'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="profile-top-info">
+                      <span className="profile-top-title">{s.title}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="profile-top-grid">

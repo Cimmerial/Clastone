@@ -1,33 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { ArrowLeft, Film, Tv } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
 import { loadUserLists } from '../lib/firestoreLists';
-import { tmdbImagePath } from '../lib/tmdb';
+import { RankedList, type RankedItemBase } from '../components/RankedList';
+import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
+import { InfoModal } from '../components/InfoModal';
+import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
+import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
+import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { PageSearch } from '../components/PageSearch';
-import type { MovieShowItem } from '../components/EntryRowMovieShow';
 import '../components/RankedList.css';
+import './ListsPage.css';
 import './FriendMovieCollectionPage.css';
 
 type FriendProfile = { uid: string; username: string };
 type ViewerMode = 'THEIRS' | 'MINE';
 type CollectionFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
-type CollectionRow = {
+type CollectionRow = RankedItemBase & {
   id: string;
+  classKey: 'LIST';
   title: string;
-  posterPath?: string;
-  releaseDate?: string;
+  source: 'saved' | 'unseen';
+  item: MovieShowItem;
   mediaType: 'movie' | 'tv';
-  tmdbId: number;
   seen: boolean;
   watchlisted: boolean;
 };
@@ -41,11 +46,58 @@ function toCollectionEntryId(mediaType: 'movie' | 'tv', tmdbId: number): string 
   return `tmdb-${mediaType}-${tmdbId}`;
 }
 
+function buildCollectionFallbackItem(
+  id: string,
+  title: string,
+  tmdbId: number,
+  classKey: string,
+  posterPath?: string,
+  releaseDate?: string
+): MovieShowItem {
+  return {
+    id,
+    classKey,
+    title,
+    percentileRank: '',
+    absoluteRank: '',
+    rankInClass: '',
+    viewingDates: '',
+    topCastNames: [],
+    stickerTags: [],
+    percentCompleted: '0%',
+    tmdbId,
+    posterPath,
+    releaseDate,
+    watchRecords: [],
+  };
+}
+
 export function FriendCollectionDetailPage() {
+  const navigate = useNavigate();
   const { friendId, collectionId, listId } = useParams<{ friendId: string; collectionId?: string; listId?: string }>();
   const { globalCollections } = useListsStore();
-  const { byClass: myMoviesByClass } = useMoviesStore();
-  const { byClass: myTvByClass } = useTvStore();
+  const {
+    byClass: myMoviesByClass,
+    classOrder: myMovieClassOrder,
+    getMovieById,
+    addMovieFromSearch,
+    updateMovieWatchRecords,
+    moveItemToClass: moveMovieToClass,
+    removeMovieEntry,
+    classes: movieClasses,
+    getClassLabel: getMovieClassLabel
+  } = useMoviesStore();
+  const {
+    byClass: myTvByClass,
+    classOrder: myTvClassOrder,
+    getShowById,
+    addShowFromSearch,
+    updateShowWatchRecords,
+    moveItemToClass: moveShowToClass,
+    removeShowEntry,
+    classes: tvClasses,
+    getClassLabel: getTvClassLabel
+  } = useTvStore();
   const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
   const [loading, setLoading] = useState(true);
@@ -57,6 +109,15 @@ export function FriendCollectionDetailPage() {
   const [friendListsData, setFriendListsData] = useState<{ lists: any[]; order: string[]; entriesByListId: Record<string, any[]> } | null>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('THEIRS');
   const [filter, setFilter] = useState<CollectionFilter>('ALL');
+  const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
+  const [infoModalTarget, setInfoModalTarget] = useState<{
+    tmdbId: number;
+    entryId?: string;
+    title: string;
+    posterPath?: string;
+    releaseDate?: string;
+    mediaType: 'movie' | 'tv';
+  } | null>(null);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -105,15 +166,27 @@ export function FriendCollectionDetailPage() {
 
   const mySeenIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const items of Object.values(myMoviesByClass)) for (const item of items ?? []) if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
-    for (const items of Object.values(myTvByClass)) for (const item of items ?? []) if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
+    for (const [classKey, items] of Object.entries(myMoviesByClass)) {
+      if (classKey === 'UNRANKED') continue;
+      for (const item of items ?? []) ids.add(item.id);
+    }
+    for (const [classKey, items] of Object.entries(myTvByClass)) {
+      if (classKey === 'UNRANKED') continue;
+      for (const item of items ?? []) ids.add(item.id);
+    }
     return ids;
   }, [myMoviesByClass, myTvByClass]);
 
   const friendSeenIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const classDef of friendMoviesData?.classes ?? []) for (const item of friendMoviesData?.byClass?.[classDef.key] ?? []) if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
-    for (const classDef of friendTvData?.classes ?? []) for (const item of friendTvData?.byClass?.[classDef.key] ?? []) if ((item.watchRecords?.length ?? 0) > 0) ids.add(item.id);
+    for (const classDef of friendMoviesData?.classes ?? []) {
+      if (classDef.key === 'UNRANKED') continue;
+      for (const item of friendMoviesData?.byClass?.[classDef.key] ?? []) ids.add(item.id);
+    }
+    for (const classDef of friendTvData?.classes ?? []) {
+      if (classDef.key === 'UNRANKED') continue;
+      for (const item of friendTvData?.byClass?.[classDef.key] ?? []) ids.add(item.id);
+    }
     return ids;
   }, [friendMoviesData, friendTvData]);
 
@@ -147,57 +220,81 @@ export function FriendCollectionDetailPage() {
     if (!listId || !friendListsData) return null;
     return friendListsData.lists.find((item: any) => item.id === listId && item.mode === 'collection') ?? null;
   }, [listId, friendListsData]);
+  const activeCustomList = useMemo(() => {
+    if (!listId || !friendListsData) return null;
+    return friendListsData.lists.find((item: any) => item.id === listId && item.mode === 'list') ?? null;
+  }, [listId, friendListsData]);
 
-  const title = activeGlobalCollection?.name ?? activeCustomCollection?.name ?? null;
-  const collectionSummary = activeGlobalCollection?.summary ?? activeCustomCollection?.description;
+  const activeCustomListLike = activeCustomCollection ?? activeCustomList;
+  const title = activeGlobalCollection?.name ?? activeCustomListLike?.name ?? null;
+  const collectionSummary = activeGlobalCollection?.summary ?? activeCustomListLike?.description;
 
   const rows = useMemo<CollectionRow[]>(() => {
-    const baseRows: Array<{
+    const baseRows: Array<CollectionRow> = [];
+    const toRow = ({
+      id,
+      title,
+      posterPath,
+      releaseDate,
+      mediaType,
+      tmdbId
+    }: {
       id: string;
       title: string;
       posterPath?: string;
       releaseDate?: string;
       mediaType: 'movie' | 'tv';
       tmdbId: number;
-    }> = [];
+    }): CollectionRow => {
+      const existing = itemById.get(id);
+      const item = existing ?? buildCollectionFallbackItem(id, title, tmdbId, 'UNRANKED', posterPath, releaseDate);
+      const seen = viewerMode === 'THEIRS' ? friendSeenIds.has(id) : mySeenIds.has(id);
+      const watchlisted = viewerMode === 'THEIRS' ? friendWatchlistIds.has(id) : watchlist.isInWatchlist(id);
+      return {
+        id,
+        classKey: 'LIST',
+        title: item.title,
+        source: existing ? 'saved' : 'unseen',
+        item,
+        mediaType,
+        seen,
+        watchlisted
+      };
+    };
     if (activeGlobalCollection) {
       for (const entry of activeGlobalCollection.entries.slice().sort((a, b) => a.position - b.position)) {
         const mediaType = normalizeCollectionMediaType(entry.mediaType);
         const id = toCollectionEntryId(mediaType, entry.tmdbId);
         const existing = itemById.get(id);
-        baseRows.push({
+        baseRows.push(toRow({
           id,
           mediaType,
           tmdbId: entry.tmdbId,
           title: existing?.title ?? entry.title ?? `${mediaType.toUpperCase()} #${entry.tmdbId}`,
           posterPath: existing?.posterPath ?? entry.posterPath,
           releaseDate: existing?.releaseDate ?? entry.releaseDate,
-        });
+        }));
       }
-    } else if (activeCustomCollection && friendListsData) {
-      const entries = (friendListsData.entriesByListId[activeCustomCollection.id] ?? []).slice().sort((a: any, b: any) => a.position - b.position);
+    } else if (activeCustomListLike && friendListsData) {
+      const entries = (friendListsData.entriesByListId[activeCustomListLike.id] ?? []).slice().sort((a: any, b: any) => a.position - b.position);
       for (const entry of entries) {
         const entryId = String(entry.entryId ?? '');
         if (!/^tmdb-(movie|tv)-\d+$/.test(entryId)) continue;
         const mediaType = entryId.startsWith('tmdb-tv-') ? 'tv' : 'movie';
         const tmdbId = parseInt(entryId.replace(/\D/g, ''), 10) || 0;
         const existing = itemById.get(entryId);
-        baseRows.push({
+        baseRows.push(toRow({
           id: entryId,
           mediaType,
           tmdbId,
           title: existing?.title ?? entry.title ?? `${mediaType.toUpperCase()} #${tmdbId}`,
           posterPath: existing?.posterPath ?? entry.posterPath,
           releaseDate: existing?.releaseDate ?? entry.releaseDate,
-        });
+        }));
       }
     }
-    return baseRows.map((row) => {
-      const seen = viewerMode === 'THEIRS' ? friendSeenIds.has(row.id) : mySeenIds.has(row.id);
-      const watchlisted = !seen && (viewerMode === 'THEIRS' ? friendWatchlistIds.has(row.id) : watchlist.isInWatchlist(row.id));
-      return { ...row, seen, watchlisted };
-    });
-  }, [activeGlobalCollection, activeCustomCollection, friendListsData, itemById, viewerMode, friendSeenIds, mySeenIds, friendWatchlistIds, watchlist]);
+    return baseRows;
+  }, [activeGlobalCollection, activeCustomListLike, friendListsData, itemById, viewerMode, friendSeenIds, mySeenIds, friendWatchlistIds, watchlist]);
 
   const visibleRows = useMemo(() => {
     if (filter === 'SEEN') return rows.filter((row) => row.seen);
@@ -215,55 +312,316 @@ export function FriendCollectionDetailPage() {
     window.setTimeout(() => el.classList.remove('highlighted-entry'), 2000);
   }, []);
 
-  if (loading) return <section className="friend-movie-collection-page"><div className="friend-profile-loading"><div className="loading-spinner">Loading collection...</div></div></section>;
-  if (error || !friendProfile || !title) return <section className="friend-movie-collection-page"><Link to={friendProfile ? `/friends/${friendProfile.uid}` : '/friends'} className="back-button"><ArrowLeft size={20} />Back</Link><div className="error">{error ?? 'Collection not found'}</div></section>;
+  if (loading) return <section className="lists-page"><div className="friend-profile-loading"><div className="loading-spinner">Loading collection...</div></div></section>;
+  if (error || !friendProfile || !title) return <section className="lists-page"><Link to={friendProfile ? `/friends/${friendProfile.uid}` : '/friends'} className="back-button"><ArrowLeft size={20} />Back</Link><div className="error">{error ?? 'Collection not found'}</div></section>;
 
   return (
-    <section className="friend-movie-collection-page">
+    <section className="lists-page">
       <header className="page-heading">
-        <div>
-          <div className="friend-collection-title-row">
+        <div className="lists-detail-title-wrap">
+          <div className="lists-back-title-row">
+            <button className="lists-back-icon-btn" onClick={() => navigate(`/friends/${friendProfile.uid}`)} aria-label="Back to profile"><ArrowLeft size={18} /></button>
             <h1 className="page-title">{title}</h1>
-            <span className="friend-movie-collection-count">{visibleRows.length} of {rows.length} entries</span>
           </div>
-          <div className="friend-movie-collection-meta">
-            <Link to={`/friends/${friendProfile.uid}`} className="back-button"><ArrowLeft size={20} />Back to Profile</Link>
-            {collectionSummary ? <p className="friend-collection-summary">{collectionSummary}</p> : null}
-          </div>
+          {collectionSummary ? <p className="lists-collection-summary">{collectionSummary}</p> : null}
         </div>
       </header>
 
-      <div className="friend-movie-collection-toolbar">
-        <div className="friend-movie-collection-filters">
+      <div className="lists-collection-toolbar">
+        <div className="lists-collection-filter-row">
           <div className="friend-movie-collection-toggle-group">
-            <button type="button" className={`filter-toggle-btn friend-movie-collection-filter-btn ${viewerMode === 'THEIRS' ? 'friend-movie-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('THEIRS')}>Their View</button>
-            <button type="button" className={`filter-toggle-btn friend-movie-collection-filter-btn ${viewerMode === 'MINE' ? 'friend-movie-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('MINE')}>Your View</button>
+            <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'THEIRS' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('THEIRS')}>Their View</button>
+            <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'MINE' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('MINE')}>Your View</button>
           </div>
           <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
-          <div className="friend-movie-collection-toggle-group">
+          <div className="lists-collection-filter-row">
             {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
-              <button key={option} type="button" className={`filter-toggle-btn friend-movie-collection-filter-btn ${filter === option ? 'friend-movie-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>
+              <button key={option} type="button" className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>
             ))}
           </div>
         </div>
-        <PageSearch items={searchItems} onSelect={handleSearchSelect} placeholder="Search this collection..." className="friend-collection-page-search" pageKey={`friend-collection-${friendProfile.uid}-${collectionId ?? listId ?? 'unknown'}`} />
+        <PageSearch items={searchItems} onSelect={handleSearchSelect} placeholder="Search this collection..." className="lists-collection-page-search" pageKey={`friend-collection-${friendProfile.uid}-${collectionId ?? listId ?? 'unknown'}`} />
       </div>
 
       {visibleRows.length === 0 ? (
         <div className="friend-movie-collection-empty card-surface">No entries match "{filter}".</div>
       ) : (
-        <div className="friend-movie-collection-grid">
-          {visibleRows.map((row) => (
-            <article key={row.id} id={`friend-collection-tile-${row.id}`} className={`entry-tile friend-collection-tile ${!settings.collectionSeenBorderMode && !row.seen ? 'entry-tile--unseen-muted' : ''} ${!row.seen ? 'entry-tile--collection-unseen' : ''} ${settings.collectionSeenBorderMode && row.seen ? 'entry-tile--seen-border' : ''}`}>
-              <div className={`entry-tile-poster ${!settings.collectionSeenBorderMode && !row.seen ? 'entry-tile-poster--unseen-muted' : ''}`}>
-                {row.posterPath ? <img src={tmdbImagePath(row.posterPath, 'w185') ?? ''} alt={row.title} loading="lazy" /> : <div className="friend-collection-poster-fallback">{row.mediaType === 'movie' ? <Film size={20} /> : <Tv size={20} />}</div>}
-                {row.watchlisted && !row.seen ? <div className="friend-collection-watchlist-pill">Watchlisted</div> : null}
+        <RankedList<CollectionRow>
+          classOrder={['LIST']}
+          viewMode="tile"
+          itemsByClass={{ LIST: visibleRows }}
+          getClassCountLabel={(_classKey, items) => `${items.length}/${rows.length} entries`}
+          getClassLabel={() => `${title} | ${activeGlobalCollection || activeCustomCollection ? 'Collection' : 'List'}`}
+          getClassTagline={() => undefined}
+          renderRow={(row) => {
+            const item = row.item;
+            const isCollectionUnseen = !row.seen;
+            const shouldMuteCollectionUnseen = isCollectionUnseen && !settings.collectionSeenBorderMode;
+            const shouldShowSeenBorder = settings.collectionSeenBorderMode && !isCollectionUnseen;
+            const isUnrankedInMyLibrary = (
+              row.mediaType === 'movie'
+                ? getMovieById(item.id)?.classKey === 'UNRANKED'
+                : getShowById(item.id)?.classKey === 'UNRANKED'
+            );
+            return (
+              <div
+                id={`friend-collection-tile-${row.id}`}
+                className={`lists-entry-tile-wrap ${
+                  row.watchlisted ? 'lists-entry-tile-wrap--watchlisted' : ''
+                } ${
+                  isCollectionUnseen ? 'lists-entry-tile-wrap--collection-unseen' : ''
+                } ${
+                  shouldShowSeenBorder ? 'lists-entry-tile-wrap--seen-border-mode' : ''
+                }`}
+              >
+                <EntryRowMovieShow
+                  item={item}
+                  listType={row.mediaType === 'movie' ? 'movies' : 'shows'}
+                  viewMode="tile"
+                  tileMinimalActions
+                  tileUnseenMuted={shouldMuteCollectionUnseen}
+                  tileOverlayControls={
+                    <div className="lists-entry-toggle-stack">
+                      {row.mediaType === 'movie' ? (
+                        isUnrankedInMyLibrary ? (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeMovieEntry(item.id);
+                            }}
+                          >
+                            Unranked-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const existing = getMovieById(item.id);
+                              if (existing) moveMovieToClass(item.id, 'UNRANKED');
+                              else {
+                                addMovieFromSearch({
+                                  id: item.id,
+                                  title: item.title,
+                                  subtitle: item.releaseDate ? item.releaseDate.slice(0, 4) : 'Saved',
+                                  classKey: 'UNRANKED',
+                                  posterPath: item.posterPath,
+                                });
+                              }
+                            }}
+                          >
+                            Unranked+
+                          </button>
+                        )
+                      ) : (
+                        isUnrankedInMyLibrary ? (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeShowEntry(item.id);
+                            }}
+                          >
+                            Unranked-
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const existing = getShowById(item.id);
+                              if (existing) moveShowToClass(item.id, 'UNRANKED');
+                              else {
+                                addShowFromSearch({
+                                  id: item.id,
+                                  title: item.title,
+                                  subtitle: item.releaseDate ? item.releaseDate.slice(0, 4) : 'Saved',
+                                  classKey: 'UNRANKED',
+                                });
+                              }
+                            }}
+                          >
+                            Unranked+
+                          </button>
+                        )
+                      )}
+                      {watchlist.isInWatchlist(item.id) ? (
+                        <button
+                          type="button"
+                          className="lists-entry-toggle-btn lists-entry-toggle-btn--minus"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            watchlist.removeFromWatchlist(item.id);
+                          }}
+                        >
+                          Watchlist-
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="lists-entry-toggle-btn lists-entry-toggle-btn--plus"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            watchlist.addToWatchlist(
+                              {
+                                id: item.id,
+                                title: item.title,
+                                posterPath: item.posterPath,
+                                releaseDate: item.releaseDate
+                              },
+                              row.mediaType === 'movie' ? 'movies' : 'tv'
+                            );
+                          }}
+                        >
+                          Watchlist+
+                        </button>
+                      )}
+                    </div>
+                  }
+                  tileOverlayBadges={
+                    row.watchlisted ? (
+                      <div className="lists-entry-status-badge lists-entry-status-badge--watchlisted">Watchlisted</div>
+                    ) : null
+                  }
+                  onInfo={(entry) => {
+                    const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0);
+                    setInfoModalTarget({
+                      tmdbId,
+                      entryId: entry.id,
+                      title: entry.title,
+                      posterPath: entry.posterPath,
+                      releaseDate: entry.releaseDate,
+                      mediaType: row.mediaType
+                    });
+                  }}
+                  onOpenSettings={(entry) => setSettingsFor(entry)}
+                />
               </div>
-              <div className={`entry-tile-title ${row.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{row.title}</div>
-            </article>
-          ))}
-        </div>
+            );
+          }}
+        />
       )}
+      {settingsFor ? (
+        <UniversalEditModal
+          target={{
+            id: settingsFor.id,
+            tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0),
+            title: settingsFor.title,
+            posterPath: settingsFor.posterPath,
+            mediaType: settingsFor.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
+            subtitle: settingsFor.releaseDate ? String(settingsFor.releaseDate.slice(0, 4)) : undefined,
+            releaseDate: settingsFor.releaseDate,
+            runtimeMinutes: settingsFor.runtimeMinutes,
+            totalEpisodes: settingsFor.totalEpisodes,
+            existingClassKey: settingsFor.id.startsWith('tmdb-tv-') ? getShowById(settingsFor.id)?.classKey : getMovieById(settingsFor.id)?.classKey
+          } as UniversalEditTarget}
+          initialWatches={settingsFor.watchRecords}
+          currentClassKey={settingsFor.id.startsWith('tmdb-tv-') ? getShowById(settingsFor.id)?.classKey : getMovieById(settingsFor.id)?.classKey}
+          currentClassLabel={settingsFor.id.startsWith('tmdb-tv-')
+            ? getTvClassLabel(getShowById(settingsFor.id)?.classKey ?? '')
+            : getMovieClassLabel(getMovieById(settingsFor.id)?.classKey ?? '')}
+          rankedClasses={settingsFor.id.startsWith('tmdb-tv-') ? tvClasses : movieClasses}
+          isWatchlistItem={watchlist.isInWatchlist(settingsFor.id)}
+          onAddToWatchlist={() => {
+            const isTv = settingsFor.id.startsWith('tmdb-tv-');
+            watchlist.addToWatchlist(
+              {
+                id: settingsFor.id,
+                title: settingsFor.title,
+                posterPath: settingsFor.posterPath,
+                releaseDate: settingsFor.releaseDate
+              },
+              isTv ? 'tv' : 'movies'
+            );
+          }}
+          onRemoveFromWatchlist={() => watchlist.removeFromWatchlist(settingsFor.id)}
+          onGoToWatchlist={() => navigate('/watchlist', { state: { scrollToId: settingsFor.id } })}
+          availableTags={[]}
+          collectionTags={[]}
+          onGoPickTemplate={() => {
+            const isTv = settingsFor.id.startsWith('tmdb-tv-');
+            setSettingsFor(null);
+            navigate(isTv ? '/tv#tv-class-templates' : '/movies#movie-class-templates', { replace: true });
+          }}
+          isSaving={false}
+          onClose={() => setSettingsFor(null)}
+          onSave={async (params, goToMedia) => {
+            const keepModalOpen = Boolean(params.keepModalOpen);
+            const watches = prepareWatchRecordsForSave(
+              watchMatrixEntriesToWatchRecords(params.watches),
+              settingsFor.id,
+              myMoviesByClass,
+              myTvByClass,
+              myMovieClassOrder,
+              myTvClassOrder
+            );
+            const isTv = settingsFor.id.startsWith('tmdb-tv-');
+            if (isTv && !getShowById(settingsFor.id)) {
+              addShowFromSearch({
+                id: settingsFor.id,
+                title: settingsFor.title,
+                subtitle: 'Saved',
+                classKey: 'UNRANKED',
+                cache: {
+                  tmdbId: settingsFor.tmdbId ?? (parseInt(settingsFor.id.replace(/\D/g, ''), 10) || 0),
+                  title: settingsFor.title,
+                  posterPath: settingsFor.posterPath,
+                  releaseDate: settingsFor.releaseDate,
+                  genres: [],
+                  cast: [],
+                  creators: [],
+                  seasons: []
+                }
+              });
+            }
+            if (!isTv && !getMovieById(settingsFor.id)) {
+              addMovieFromSearch({
+                id: settingsFor.id,
+                title: settingsFor.title,
+                subtitle: 'Saved',
+                classKey: 'UNRANKED',
+                posterPath: settingsFor.posterPath
+              });
+            }
+            if (isTv) updateShowWatchRecords(settingsFor.id, watches);
+            else updateMovieWatchRecords(settingsFor.id, watches);
+            if (params.classKey) {
+              const moveOptions = { toTop: params.position === 'top', toMiddle: params.position === 'middle' };
+              if (isTv) moveShowToClass(settingsFor.id, params.classKey, moveOptions);
+              else moveMovieToClass(settingsFor.id, params.classKey, moveOptions);
+            }
+            if (!keepModalOpen) {
+              setSettingsFor(null);
+            }
+            if (goToMedia && !keepModalOpen) {
+              navigate(isTv ? '/tv' : '/movies', { replace: true, state: { scrollToId: settingsFor.id } });
+            }
+          }}
+        />
+      ) : null}
+      {infoModalTarget ? (
+        <InfoModal
+          isOpen
+          onClose={() => setInfoModalTarget(null)}
+          tmdbId={infoModalTarget.tmdbId}
+          mediaType={infoModalTarget.mediaType}
+          title={infoModalTarget.title}
+          posterPath={infoModalTarget.posterPath}
+          releaseDate={infoModalTarget.releaseDate}
+          onEditWatches={() => {
+            const target = rows.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item;
+            if (target) {
+              setInfoModalTarget(null);
+              setSettingsFor(target);
+            }
+          }}
+        />
+      ) : null}
     </section>
   );
 }

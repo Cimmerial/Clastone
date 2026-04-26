@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { ArrowLeft, Film, Info, Settings } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { loadMovies } from '../lib/firestoreMovies';
-import { tmdbImagePath } from '../lib/tmdb';
-import { useMoviesStore } from '../state/moviesStore';
+import { useMoviesStore, getTotalMinutesFromRecords, formatDuration } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
-import type { MovieShowItem } from '../components/EntryRowMovieShow';
+import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { InfoModal } from '../components/InfoModal';
 import { PageSearch } from '../components/PageSearch';
+import { RankedList } from '../components/RankedList';
 import '../components/RankedList.css';
+import './ListsPage.css';
 import './FriendMovieCollectionPage.css';
 
 type FriendProfile = {
@@ -27,85 +28,14 @@ type FriendProfile = {
 
 type FriendCollectionEntry = {
   id: string;
+  classKey: string;
   item: MovieShowItem;
   viewerSeen: boolean;
   viewerWatchlisted: boolean;
 };
 
 type MovieFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
-
-function FriendCollectionTile({
-  entry,
-  collectionSeenBorderMode,
-  showUnrankedToggle,
-  isUnrankedInViewerLibrary,
-  isWatchlisted,
-  onOpenInfo,
-  onOpenSettings,
-  onToggleUnranked,
-  onToggleWatchlist
-}: {
-  entry: FriendCollectionEntry;
-  collectionSeenBorderMode: boolean;
-  showUnrankedToggle: boolean;
-  isUnrankedInViewerLibrary: boolean;
-  isWatchlisted: boolean;
-  onOpenInfo: (entry: FriendCollectionEntry) => void;
-  onOpenSettings: (entry: FriendCollectionEntry) => void;
-  onToggleUnranked: (entry: FriendCollectionEntry) => void;
-  onToggleWatchlist: (entry: FriendCollectionEntry) => void;
-}) {
-  return (
-    <article
-      id={`friend-collection-tile-${entry.id}`}
-      className={`entry-tile friend-collection-tile ${
-        !collectionSeenBorderMode && !entry.viewerSeen ? 'entry-tile--unseen-muted' : ''
-      } ${
-        !entry.viewerSeen ? 'entry-tile--collection-unseen' : ''
-      } ${
-        collectionSeenBorderMode && entry.viewerSeen ? 'entry-tile--seen-border' : ''
-      }`}
-    >
-      <div className={`entry-tile-poster ${
-        !collectionSeenBorderMode && !entry.viewerSeen ? 'entry-tile-poster--unseen-muted' : ''
-      }`}>
-        <button type="button" className="friend-collection-icon-btn friend-collection-icon-btn--info" onClick={() => onOpenInfo(entry)} aria-label={`Info for ${entry.item.title}`}>
-          <Info size={12} />
-        </button>
-        <button type="button" className="friend-collection-icon-btn friend-collection-icon-btn--settings" onClick={() => onOpenSettings(entry)} aria-label={`Settings for ${entry.item.title}`}>
-          <Settings size={12} />
-        </button>
-        <div className="friend-collection-hover-actions">
-          {showUnrankedToggle ? (
-            <button
-              type="button"
-              className={`friend-collection-hover-btn ${isUnrankedInViewerLibrary ? 'friend-collection-hover-btn--minus' : 'friend-collection-hover-btn--plus'}`}
-              onClick={() => onToggleUnranked(entry)}
-            >
-              {isUnrankedInViewerLibrary ? 'Unranked-' : 'Unranked+'}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={`friend-collection-hover-btn ${isWatchlisted ? 'friend-collection-hover-btn--minus' : 'friend-collection-hover-btn--plus'}`}
-            onClick={() => onToggleWatchlist(entry)}
-          >
-            {isWatchlisted ? 'Watchlist-' : 'Watchlist+'}
-          </button>
-        </div>
-        {entry.item.posterPath ? (
-          <img src={tmdbImagePath(entry.item.posterPath, 'w185') ?? ''} alt={entry.item.title} loading="lazy" />
-        ) : (
-          <div className="friend-collection-poster-fallback">
-            <Film size={20} />
-          </div>
-        )}
-        {entry.viewerWatchlisted && !entry.viewerSeen ? <div className="friend-collection-watchlist-pill">Watchlisted</div> : null}
-      </div>
-      <div className={`entry-tile-title ${entry.item.title.length > 30 ? 'entry-tile-title--small' : ''}`}>{entry.item.title}</div>
-    </article>
-  );
-}
+type ClassDisplayMode = 'SHOW_CLASSES' | 'NO_CLASSES';
 
 export function FriendMovieCollectionPage() {
   const navigate = useNavigate();
@@ -115,6 +45,7 @@ export function FriendMovieCollectionPage() {
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [friendMoviesData, setFriendMoviesData] = useState<any>(null);
   const [filter, setFilter] = useState<MovieFilter>('ALL');
+  const [classDisplayMode, setClassDisplayMode] = useState<ClassDisplayMode>('SHOW_CLASSES');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoFor, setInfoFor] = useState<FriendCollectionEntry | null>(null);
   const {
@@ -194,9 +125,10 @@ export function FriendMovieCollectionPage() {
         const viewerSeen = mySeenMovieIds.has(item.id);
         ordered.push({
           id: item.id,
+          classKey: classDef.key,
           item,
           viewerSeen,
-          viewerWatchlisted: !viewerSeen && watchlist.isInWatchlist(item.id),
+          viewerWatchlisted: watchlist.isInWatchlist(item.id),
         });
       }
     }
@@ -214,6 +146,24 @@ export function FriendMovieCollectionPage() {
     () => visibleEntries.map((e) => ({ id: e.id, title: e.item.title })),
     [visibleEntries]
   );
+  const friendClassDefs = useMemo(
+    () => (friendMoviesData?.classes ?? []) as Array<{ key: string; label?: string; tagline?: string }>,
+    [friendMoviesData]
+  );
+  const friendClassOrder = useMemo(() => friendClassDefs.map((classDef) => classDef.key), [friendClassDefs]);
+  const friendClassMetaByKey = useMemo(
+    () => new Map(friendClassDefs.map((classDef) => [classDef.key, classDef])),
+    [friendClassDefs]
+  );
+  const visibleEntriesByClass = useMemo(() => {
+    const grouped: Record<string, FriendCollectionEntry[]> = {};
+    for (const classDef of friendClassDefs) grouped[classDef.key] = [];
+    for (const entry of visibleEntries) {
+      if (!grouped[entry.classKey]) grouped[entry.classKey] = [];
+      grouped[entry.classKey].push(entry);
+    }
+    return grouped;
+  }, [friendClassDefs, visibleEntries]);
 
   const handleCollectionSearchSelect = useCallback((id: string) => {
     const el = document.getElementById(`friend-collection-tile-${id}`);
@@ -246,7 +196,7 @@ export function FriendMovieCollectionPage() {
   }
 
   return (
-    <section className="friend-movie-collection-page">
+    <section className={`friend-movie-collection-page friend-all-collection-page ${classDisplayMode === 'SHOW_CLASSES' ? 'friend-all-collection-page--show-classes' : ''}`}>
       <header className="page-heading">
         <div>
           <div className="friend-collection-title-row">
@@ -264,13 +214,30 @@ export function FriendMovieCollectionPage() {
         </div>
       </header>
 
-      <div className="friend-movie-collection-toolbar">
-        <div className="friend-movie-collection-filters">
+      <div className="lists-collection-toolbar">
+        <div className="lists-collection-filter-row">
+          <div className="friend-movie-collection-toggle-group">
+            <button
+              type="button"
+              className={`filter-toggle-btn lists-collection-filter-btn ${classDisplayMode === 'SHOW_CLASSES' ? 'lists-collection-filter-btn--active' : ''}`}
+              onClick={() => setClassDisplayMode('SHOW_CLASSES')}
+            >
+              Show Classes
+            </button>
+            <button
+              type="button"
+              className={`filter-toggle-btn lists-collection-filter-btn ${classDisplayMode === 'NO_CLASSES' ? 'lists-collection-filter-btn--active' : ''}`}
+              onClick={() => setClassDisplayMode('NO_CLASSES')}
+            >
+              No Classes
+            </button>
+          </div>
+          <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
           {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
             <button
               key={option}
               type="button"
-              className={`filter-toggle-btn friend-movie-collection-filter-btn ${filter === option ? 'friend-movie-collection-filter-btn--active' : ''}`}
+              className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`}
               onClick={() => setFilter(option)}
             >
               {option}
@@ -281,7 +248,7 @@ export function FriendMovieCollectionPage() {
           items={collectionSearchItems}
           onSelect={handleCollectionSearchSelect}
           placeholder="Search this collection…"
-          className="friend-collection-page-search"
+          className="lists-collection-page-search"
           pageKey={`friend-movie-collection-${friendProfile.uid}`}
         />
       </div>
@@ -293,53 +260,130 @@ export function FriendMovieCollectionPage() {
             : `No movies match "${filter}".`}
         </div>
       ) : (
-        <div className="friend-movie-collection-grid">
-          {visibleEntries.map((entry) => (
-            <FriendCollectionTile
-              key={entry.id}
-              entry={entry}
-              collectionSeenBorderMode={settings.collectionSeenBorderMode}
-              showUnrankedToggle={!entry.viewerSeen || getMovieById(entry.id)?.classKey === 'UNRANKED'}
-              isUnrankedInViewerLibrary={getMovieById(entry.id)?.classKey === 'UNRANKED'}
-              isWatchlisted={watchlist.isInWatchlist(entry.id)}
-              onOpenInfo={setInfoFor}
-              onOpenSettings={(selectedEntry) => setSettingsFor(selectedEntry.item)}
-              onToggleUnranked={(selectedEntry) => {
-                const existing = getMovieById(selectedEntry.id);
-                if (existing?.classKey === 'UNRANKED') {
-                  removeMovieEntry(selectedEntry.id);
-                  return;
+        <RankedList<FriendCollectionEntry>
+          classOrder={classDisplayMode === 'SHOW_CLASSES' ? friendClassOrder : ['LIST']}
+          viewMode="tile"
+          itemsByClass={classDisplayMode === 'SHOW_CLASSES' ? visibleEntriesByClass : { LIST: visibleEntries }}
+          getClassCountLabel={(_classKey, items) => `${items.length}/${orderedFriendMovieEntries.length} entries`}
+          getClassLabel={(classKey) => {
+            if (classDisplayMode === 'SHOW_CLASSES') {
+              return friendClassMetaByKey.get(classKey)?.label ?? classKey.replace(/_/g, ' ');
+            }
+            return `${friendProfile.username}'s Collection | Movies`;
+          }}
+          getClassTagline={(classKey) => {
+            if (classDisplayMode === 'SHOW_CLASSES') {
+              return friendClassMetaByKey.get(classKey)?.tagline ?? undefined;
+            }
+            return undefined;
+          }}
+          renderRow={(entry) => (
+            <div
+              id={`friend-collection-tile-${entry.id}`}
+              className={`lists-entry-tile-wrap ${
+                entry.viewerWatchlisted ? 'lists-entry-tile-wrap--watchlisted' : ''
+              } ${
+                !entry.viewerSeen ? 'lists-entry-tile-wrap--collection-unseen' : ''
+              } ${
+                settings.collectionSeenBorderMode && entry.viewerSeen ? 'lists-entry-tile-wrap--seen-border-mode' : ''
+              }`}
+            >
+              <EntryRowMovieShow
+                item={{
+                  ...entry.item,
+                  classKey: entry.item.classKey ?? 'UNRANKED',
+                  percentileRank: entry.item.percentileRank ?? '—',
+                  absoluteRank: entry.item.absoluteRank ?? '—',
+                  rankInClass: entry.item.rankInClass ?? 'Friend collection',
+                  viewingDates:
+                    entry.item.viewingDates ??
+                    ((entry.item.watchRecords?.length ?? 0) > 0
+                      ? `Watched ${entry.item.watchRecords?.length ?? 0}x`
+                      : 'Unseen by you'),
+                  watchTime:
+                    entry.item.watchTime ??
+                    (() => {
+                      const total = getTotalMinutesFromRecords(entry.item.watchRecords ?? [], entry.item.runtimeMinutes);
+                      return total > 0 ? formatDuration(total) : undefined;
+                    })(),
+                  topCastNames: entry.item.topCastNames ?? [],
+                  stickerTags: entry.item.stickerTags ?? [],
+                  percentCompleted: entry.item.percentCompleted ?? '',
+                }}
+                listType="movies"
+                viewMode="tile"
+                tileMinimalActions
+                tileUnseenMuted={!settings.collectionSeenBorderMode && !entry.viewerSeen}
+                tileOverlayControls={
+                  <div className="lists-entry-toggle-stack">
+                    {(!entry.viewerSeen || getMovieById(entry.id)?.classKey === 'UNRANKED') ? (
+                      <button
+                        type="button"
+                        className={`lists-entry-toggle-btn ${
+                          getMovieById(entry.id)?.classKey === 'UNRANKED'
+                            ? 'lists-entry-toggle-btn--minus'
+                            : 'lists-entry-toggle-btn--plus'
+                        }`}
+                        onClick={() => {
+                          const existing = getMovieById(entry.id);
+                          if (existing?.classKey === 'UNRANKED') {
+                            removeMovieEntry(entry.id);
+                            return;
+                          }
+                          if (existing) {
+                            moveItemToClass(entry.id, 'UNRANKED');
+                            return;
+                          }
+                          addMovieFromSearch({
+                            id: entry.id,
+                            title: entry.item.title,
+                            subtitle: entry.item.releaseDate ? entry.item.releaseDate.slice(0, 4) : 'Saved',
+                            classKey: 'UNRANKED',
+                            posterPath: entry.item.posterPath
+                          });
+                        }}
+                      >
+                        {getMovieById(entry.id)?.classKey === 'UNRANKED' ? 'Unranked-' : 'Unranked+'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`lists-entry-toggle-btn ${
+                        watchlist.isInWatchlist(entry.id)
+                          ? 'lists-entry-toggle-btn--minus'
+                          : 'lists-entry-toggle-btn--plus'
+                      }`}
+                      onClick={() => {
+                        if (watchlist.isInWatchlist(entry.id)) {
+                          watchlist.removeFromWatchlist(entry.id);
+                          return;
+                        }
+                        watchlist.addToWatchlist(
+                          {
+                            id: entry.id,
+                            title: entry.item.title,
+                            posterPath: entry.item.posterPath,
+                            releaseDate: entry.item.releaseDate
+                          },
+                          'movies'
+                        );
+                      }}
+                    >
+                      {watchlist.isInWatchlist(entry.id) ? 'Watchlist-' : 'Watchlist+'}
+                    </button>
+                  </div>
                 }
-                if (existing) {
-                  moveItemToClass(selectedEntry.id, 'UNRANKED');
-                  return;
+                tileOverlayBadges={
+                  entry.viewerWatchlisted ? (
+                    <div className="lists-entry-status-badge lists-entry-status-badge--watchlisted">Watchlisted</div>
+                  ) : null
                 }
-                addMovieFromSearch({
-                  id: selectedEntry.id,
-                  title: selectedEntry.item.title,
-                  subtitle: selectedEntry.item.releaseDate ? selectedEntry.item.releaseDate.slice(0, 4) : 'Saved',
-                  classKey: 'UNRANKED',
-                  posterPath: selectedEntry.item.posterPath
-                });
-              }}
-              onToggleWatchlist={(selectedEntry) => {
-                if (watchlist.isInWatchlist(selectedEntry.id)) {
-                  watchlist.removeFromWatchlist(selectedEntry.id);
-                  return;
-                }
-                watchlist.addToWatchlist(
-                  {
-                    id: selectedEntry.id,
-                    title: selectedEntry.item.title,
-                    posterPath: selectedEntry.item.posterPath,
-                    releaseDate: selectedEntry.item.releaseDate
-                  },
-                  'movies'
-                );
-              }}
-            />
-          ))}
-        </div>
+                onInfo={() => setInfoFor(entry)}
+                onOpenSettings={() => setSettingsFor(entry.item)}
+              />
+            </div>
+          )}
+        />
       )}
       {infoFor ? (
         <InfoModal

@@ -723,22 +723,31 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
         const list = next[classKey] ?? [];
         const idx = list.findIndex((m) => m.id === itemId);
         if (idx === -1) continue;
-        next[classKey] = list.map((m, i) =>
-          i === idx
-            ? {
-              ...m,
-              ...(cache.title != null && { title: cache.title }),
-              ...(cache.posterPath != null && { posterPath: cache.posterPath }),
-              ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
-              ...(cache.overview != null && { overview: cache.overview }),
-              ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
-              ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
-              ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
-              ...(cache.directors != null && { directors: cache.directors }),
-              ...(cache.genres != null && { genres: cache.genres })
-            }
-            : m
-        );
+        next[classKey] = list.map((m, i) => {
+          if (i !== idx) return m;
+          const nextRuntime = cache.runtimeMinutes ?? m.runtimeMinutes;
+          const records = m.watchRecords ?? [];
+          const derived = records.length > 0
+            ? formatViewingFromRecords(records, nextRuntime)
+            : null;
+          return {
+            ...m,
+            ...(cache.title != null && { title: cache.title }),
+            ...(cache.posterPath != null && { posterPath: cache.posterPath }),
+            ...(cache.backdropPath != null && { backdropPath: cache.backdropPath }),
+            ...(cache.overview != null && { overview: cache.overview }),
+            ...(cache.releaseDate != null && { releaseDate: cache.releaseDate }),
+            ...(cache.runtimeMinutes != null && { runtimeMinutes: cache.runtimeMinutes }),
+            ...(cache.tmdbId != null && { tmdbId: cache.tmdbId }),
+            ...(cache.directors != null && { directors: cache.directors }),
+            ...(cache.genres != null && { genres: cache.genres }),
+            ...(derived != null && {
+              viewingDates: derived.viewingDates,
+              percentCompleted: derived.percentCompleted,
+              watchTime: derived.watchTime || undefined
+            })
+          };
+        });
         return next;
       }
       return prev;
@@ -757,6 +766,11 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
           if (!cache) return m;
           changedClass = true;
           changedGlobal = true;
+          const nextRuntime = cache.runtimeMinutes ?? m.runtimeMinutes;
+          const records = m.watchRecords ?? [];
+          const derived = records.length > 0
+            ? formatViewingFromRecords(records, nextRuntime)
+            : null;
           return {
             ...m,
             ...(cache.title != null && { title: cache.title }),
@@ -771,7 +785,12 @@ export function MoviesProvider({ children, initialByClass, initialClasses, onPer
               topCastNames: cache.cast.map((c) => c.name)
             }),
             ...(cache.directors != null && { directors: cache.directors }),
-            ...(cache.genres != null && { genres: cache.genres })
+            ...(cache.genres != null && { genres: cache.genres }),
+            ...(derived != null && {
+              viewingDates: derived.viewingDates,
+              percentCompleted: derived.percentCompleted,
+              watchTime: derived.watchTime || undefined
+            })
           };
         });
         if (changedClass) {

@@ -815,6 +815,21 @@
   height: 24px;
 }
 
+.mode-compact .entry-tile-info-btn button {
+  width: 24px;
+  height: 24px;
+}
+
+.mode-compact .entry-tile-info-btn {
+  top: 0.3rem;
+  left: 0.3rem;
+}
+
+.mode-compact .entry-tile-info-btn button,
+.mode-compact .entry-tile-quick-actions button {
+  padding: 0;
+}
+
 @media (max-width: 768px) {
   .entry-tile {
     width: 100%;

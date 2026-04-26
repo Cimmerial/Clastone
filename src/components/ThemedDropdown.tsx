@@ -98,11 +98,16 @@ export function ThemedDropdown<T extends string>({
       }}
     >
       {options.map((opt) => (
+        (() => {
+          const valueText = String(opt.value);
+          const isSecondary = valueText.includes('top30') || valueText.includes('bottom');
+          const isSecondaryStart = valueText.includes('top30');
+          return (
         <li
           key={opt.value}
           role="option"
           aria-selected={opt.value === value}
-          className={`themed-dropdown-option ${opt.value === value ? 'themed-dropdown-option--selected' : ''}`}
+          className={`themed-dropdown-option ${opt.value === value ? 'themed-dropdown-option--selected' : ''} ${isSecondary ? 'themed-dropdown-option--secondary' : ''} ${isSecondaryStart ? 'themed-dropdown-option--secondary-start' : ''}`}
           onMouseDown={(e) => {
             e.preventDefault();
             handleSelect(opt.value as T);
@@ -110,6 +115,8 @@ export function ThemedDropdown<T extends string>({
         >
           {opt.label}
         </li>
+          );
+        })()
       ))}
     </ul>
   );
