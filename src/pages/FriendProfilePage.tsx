@@ -52,6 +52,12 @@ import {
   percentileFillWidthFromBadge,
   type ProfileRecentRange,
 } from '../lib/profileRecentWatchedOptions';
+import {
+  computeTasteSimilarity,
+  loadTasteSimilarityConfigScoped,
+  saveTasteSimilarityConfigScoped,
+  type TasteSimilarityConfig,
+} from '../lib/tasteSimilarity';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
@@ -371,6 +377,128 @@ function buildBottomFiveByYear(items: MovieShowItem[]) {
     .map(([year, yearItems]) => ({ year, items: yearItems }));
 }
 
+function tasteScoreTranslation(score: number): string {
+  if (score >= 90) return 'Match made in heaven';
+  if (score >= 80) return 'Strong taste match';
+  if (score >= 70) return 'Moderate-strong taste match';
+  if (score >= 55) return 'Moderate taste match';
+  if (score >= 35) return 'Weak-moderate taste match';
+  if (score >= 0) return 'Weak taste match';
+  if (score > -35) return 'Weak opposite taste match';
+  if (score > -55) return 'Weak-moderate opposite taste match';
+  if (score > -70) return 'Moderate opposite taste match';
+  if (score > -80) return 'Moderate-strong opposite taste match';
+  if (score > -90) return 'Strong opposite taste match';
+  return 'Opposite made in heaven';
+}
+
+function percentileForRankInList(rank: number, listLength: number): number {
+  if (listLength <= 1) return 1;
+  return 1 - (rank - 1) / (listLength - 1);
+}
+
+type TasteOverlapChartDatum = {
+  key: string;
+  label: string;
+  title: string;
+  myRelative: number;
+  theirRelative: number;
+  myRank: number;
+  theirRank: number;
+  myPercentile: number;
+  theirPercentile: number;
+};
+
+type TasteComparisonRow = {
+  id: string;
+  title: string;
+  myRank: number;
+  theirRank: number;
+  myPercentile: number;
+  theirPercentile: number;
+  percentileGap: number;
+};
+
+function buildTasteOverlapChartData(
+  mine: MovieShowItem[],
+  theirs: MovieShowItem[],
+  limit = 60
+): TasteOverlapChartDatum[] {
+  const myRanks = new Map<string, number>();
+  const theirRanks = new Map<string, number>();
+  for (let i = 0; i < mine.length; i += 1) myRanks.set(mine[i].id, i + 1);
+  for (let i = 0; i < theirs.length; i += 1) theirRanks.set(theirs[i].id, i + 1);
+
+  const overlap: TasteOverlapChartDatum[] = [];
+  for (const item of mine) {
+    const myRank = myRanks.get(item.id);
+    const theirRank = theirRanks.get(item.id);
+    if (!myRank || !theirRank) continue;
+
+    const myPercentile = percentileForRankInList(myRank, mine.length);
+    const theirPercentile = percentileForRankInList(theirRank, theirs.length);
+    overlap.push({
+      key: item.id,
+      label: '',
+      title: item.title,
+      myRelative: (myPercentile * 2 - 1) * 100,
+      theirRelative: (theirPercentile * 2 - 1) * 100,
+      myRank,
+      theirRank,
+      myPercentile,
+      theirPercentile,
+    });
+  }
+
+  overlap.sort(
+    (a, b) => (b.myPercentile + b.theirPercentile) / 2 - (a.myPercentile + a.theirPercentile) / 2
+  );
+  if (overlap.length === 0) return [];
+
+  const sampled =
+    overlap.length <= limit
+      ? overlap
+      : Array.from({ length: limit }, (_, idx) => {
+          const ratio = limit === 1 ? 0 : idx / (limit - 1);
+          const sourceIdx = Math.round(ratio * (overlap.length - 1));
+          return overlap[sourceIdx];
+        });
+
+  return sampled.map((entry, idx) => ({
+    ...entry,
+    label: String(idx + 1),
+  }));
+}
+
+function buildTasteComparisonRows(
+  mine: MovieShowItem[],
+  theirs: MovieShowItem[]
+): TasteComparisonRow[] {
+  const myRanks = new Map<string, number>();
+  const theirRanks = new Map<string, number>();
+  for (let i = 0; i < mine.length; i += 1) myRanks.set(mine[i].id, i + 1);
+  for (let i = 0; i < theirs.length; i += 1) theirRanks.set(theirs[i].id, i + 1);
+
+  const rows: TasteComparisonRow[] = [];
+  for (const item of mine) {
+    const myRank = myRanks.get(item.id);
+    const theirRank = theirRanks.get(item.id);
+    if (!myRank || !theirRank) continue;
+    const myPercentile = percentileForRankInList(myRank, mine.length);
+    const theirPercentile = percentileForRankInList(theirRank, theirs.length);
+    rows.push({
+      id: item.id,
+      title: item.title,
+      myRank,
+      theirRank,
+      myPercentile,
+      theirPercentile,
+      percentileGap: Math.abs(myPercentile - theirPercentile),
+    });
+  }
+  return rows;
+}
+
 export function FriendProfilePage() {
   const { friendId } = useParams<{ friendId: string }>();
   const navigate = useNavigate();
@@ -466,6 +594,9 @@ export function FriendProfilePage() {
   const [showFriendCopyTools, setShowFriendCopyTools] = useState(false);
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
+  const [showTasteDetails, setShowTasteDetails] = useState(false);
+  const [movieTasteConfig, setMovieTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('movies'));
+  const [showTasteConfig, setShowTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('shows'));
   const profileMediaListModeOptionsWithExpanded = useMemo<ThemedDropdownOption<ProfileMediaListModeWithExpanded>[]>(
     () => {
       const base = PROFILE_MEDIA_LIST_MODE_OPTIONS.map((option) => ({ value: option.value, label: option.label }));
@@ -479,6 +610,13 @@ export function FriendProfilePage() {
     },
     []
   );
+
+  useEffect(() => {
+    saveTasteSimilarityConfigScoped('movies', movieTasteConfig);
+  }, [movieTasteConfig]);
+  useEffect(() => {
+    saveTasteSimilarityConfigScoped('shows', showTasteConfig);
+  }, [showTasteConfig]);
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
@@ -943,6 +1081,16 @@ export function FriendProfilePage() {
     return list;
   }, [friendMoviesData]);
 
+  const myRankedMovies = useMemo(() => {
+    const classIsRanked = new Map<string, boolean>((movieClasses ?? []).map((c: any) => [c.key, !!c.isRanked]));
+    const list: MovieShowItem[] = [];
+    for (const classKey of myMovieClassOrder) {
+      if (!classIsRanked.get(classKey)) continue;
+      for (const item of myMoviesByClass[classKey] ?? []) list.push(item);
+    }
+    return list;
+  }, [movieClasses, myMovieClassOrder, myMoviesByClass]);
+
   const allMoviesExceptUnranked = useMemo(() => {
     if (!friendMoviesData || !friendMoviesData.byClass || !friendMoviesData.classes) return [];
     const list: MovieShowItem[] = [];
@@ -964,6 +1112,16 @@ export function FriendProfilePage() {
     }
     return list;
   }, [friendTvData]);
+
+  const myRankedShows = useMemo(() => {
+    const classIsRanked = new Map<string, boolean>((tvClasses ?? []).map((c: any) => [c.key, !!c.isRanked]));
+    const list: MovieShowItem[] = [];
+    for (const classKey of myTvClassOrder) {
+      if (!classIsRanked.get(classKey)) continue;
+      for (const item of myTvByClass[classKey] ?? []) list.push(item);
+    }
+    return list;
+  }, [tvClasses, myTvClassOrder, myTvByClass]);
 
   const allShowsExceptUnranked = useMemo(() => {
     if (!friendTvData || !friendTvData.byClass || !friendTvData.classes) return [];
@@ -1780,6 +1938,32 @@ export function FriendProfilePage() {
     [friendMoviesGlobalRanks, friendTvGlobalRanks]
   );
 
+  const movieTasteSimilarity = useMemo(
+    () => computeTasteSimilarity(myRankedMovies, rankedMovies, movieTasteConfig),
+    [myRankedMovies, rankedMovies, movieTasteConfig]
+  );
+  const showTasteSimilarity = useMemo(
+    () => computeTasteSimilarity(myRankedShows, rankedShows, showTasteConfig),
+    [myRankedShows, rankedShows, showTasteConfig]
+  );
+
+  const movieTasteChartData = useMemo(
+    () => buildTasteOverlapChartData(myRankedMovies, rankedMovies),
+    [myRankedMovies, rankedMovies]
+  );
+  const showTasteChartData = useMemo(
+    () => buildTasteOverlapChartData(myRankedShows, rankedShows),
+    [myRankedShows, rankedShows]
+  );
+  const movieTasteComparisons = useMemo(
+    () => buildTasteComparisonRows(myRankedMovies, rankedMovies),
+    [myRankedMovies, rankedMovies]
+  );
+  const showTasteComparisons = useMemo(
+    () => buildTasteComparisonRows(myRankedShows, rankedShows),
+    [myRankedShows, rankedShows]
+  );
+
 
   // Handle clicking a top 10 movie
   const handleMovieClick = (movie: MovieShowItem) => {
@@ -2419,68 +2603,285 @@ export function FriendProfilePage() {
               </section>
             )}
 
-            <div className="profile-stats-charts">
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies Watched by Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
+            <section className="profile-collection-section">
+              <h3 className="profile-collection-section-title">Taste Similarity</h3>
+              <div className="profile-taste-grid">
+                {[
+                  {
+                    key: 'movies',
+                    title: 'Movie Taste Similarity',
+                    similarity: movieTasteSimilarity,
+                    chartData: movieTasteChartData,
+                    comparisons: movieTasteComparisons,
+                  },
+                  {
+                    key: 'shows',
+                    title: 'Show Taste Similarity',
+                    similarity: showTasteSimilarity,
+                    chartData: showTasteChartData,
+                    comparisons: showTasteComparisons,
+                  },
+                ].map((section) => (
+                  <div key={section.key} className="profile-taste-card">
+                    <div className="profile-taste-card-header">
+                      <h4>{section.title}</h4>
+                      <div className="profile-taste-card-actions">
+                        <button
+                          type="button"
+                          className="profile-taste-info-btn"
+                          aria-label={`${section.similarity.overlapCount} shared ranked titles`}
+                        >
+                          i
+                          <span className="profile-taste-info-tooltip">
+                            {section.similarity.overlapCount} shared ranked titles.
+                            <br />
+                            Confidence: {(section.similarity.confidence * 100).toFixed(1)}% (more overlap increases score confidence)
+                            <br />
+                            Score range is -100 to +100.
+                          </span>
+                        </button>
+                        <button type="button" className="profile-taste-toggle-btn" onClick={() => setShowTasteDetails((prev) => !prev)}>
+                          {showTasteDetails ? 'Hide Details' : 'Show Details'}
+                        </button>
+                      </div>
+                    </div>
+                    {section.similarity.score == null ? (
+                      <div className="profile-taste-empty">{section.similarity.message ?? 'Not enough overlap yet.'}</div>
+                    ) : (
+                      <>
+                        <div className="profile-taste-score-row">
+                          <div className="profile-taste-score-pill-wrap">
+                            <div className="profile-taste-score-pill">{section.similarity.score.toFixed(1)}</div>
+                            <div className="profile-taste-score-translation">{tasteScoreTranslation(section.similarity.score)}</div>
+                          </div>
+                          <div className="profile-taste-score-meter-wrap">
+                            <div className="profile-taste-meter-track" aria-hidden>
+                              <div
+                                className="profile-taste-meter-fill"
+                                style={{ width: `${Math.max(0, Math.min(100, ((section.similarity.score + 100) / 200) * 100))}%` }}
+                              />
+                            </div>
+                            <div className="profile-taste-meter-labels">
+                              <span>-100</span>
+                              <span>0</span>
+                              <span>+100</span>
+                            </div>
+                          </div>
+                        </div>
+                        {showTasteDetails && (
+                          <div className="profile-taste-chart-wrap">
+                            <ResponsiveContainer width="100%" height={250}>
+                              <BarChart data={section.chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.14)" />
+                                <XAxis dataKey="label" stroke="transparent" tick={false} axisLine={false} />
+                                <YAxis domain={[-100, 100]} width={0} stroke="transparent" tick={false} axisLine={false} />
+                                <Tooltip
+                                  cursor={{ fill: 'rgba(255,255,255,0.08)' }}
+                                  formatter={(_value: any, _name: any, payload: any) => {
+                                    const p = payload?.payload as TasteOverlapChartDatum | undefined;
+                                    if (!p) return ['-', ''];
+                                    if (payload?.dataKey === 'myRelative') {
+                                      return [`${Math.round(p.myPercentile * 100)}%`, 'You'];
+                                    }
+                                    return [`${Math.round(p.theirPercentile * 100)}%`, 'Them'];
+                                  }}
+                                  labelFormatter={(_label: any, payload: any) => {
+                                    if (!payload?.length) return '';
+                                    const p = payload[0].payload as TasteOverlapChartDatum;
+                                    return `${p.title} — You #${p.myRank}, Them #${p.theirRank}`;
+                                  }}
+                                  contentStyle={{
+                                    background: 'rgba(12, 8, 14, 0.94)',
+                                    border: '1px solid rgba(244, 162, 97, 0.35)',
+                                    borderRadius: 8,
+                                  }}
+                                />
+                                <Bar dataKey="myRelative" name="You" fill="#f4a261" radius={0} barSize={6} />
+                                <Bar dataKey="theirRelative" name="Them" fill="#4da3ff" radius={0} barSize={6} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                            <div className="profile-taste-chart-legend">
+                              <span><i style={{ background: '#f4a261' }} />You</span>
+                              <span><i style={{ background: '#4da3ff' }} />Them</span>
+                              <span>Above 0 = top 50% · below 0 = bottom 50%</span>
+                            </div>
+                            <div className="profile-taste-breakdown-grid">
+                              <div className="profile-taste-breakdown">
+                                <h5>Top 10 Best Matches</h5>
+                                <ol>
+                                  {section.comparisons
+                                    .slice()
+                                    .sort((a, b) => a.percentileGap - b.percentileGap)
+                                    .slice(0, 10)
+                                    .map((entry) => (
+                                      <li key={`${section.key}-match-${entry.id}`}>
+                                        <span className="profile-taste-breakdown-title">{entry.title}</span>
+                                        <span className="profile-taste-breakdown-meta">
+                                          You {Math.round(entry.myPercentile * 100)}% · Them {Math.round(entry.theirPercentile * 100)}%
+                                        </span>
+                                      </li>
+                                    ))}
+                                </ol>
+                              </div>
+                              <div className="profile-taste-breakdown">
+                                <h5>Top 10 Biggest Discrepancies</h5>
+                                <ol>
+                                  {section.comparisons
+                                    .slice()
+                                    .sort((a, b) => b.percentileGap - a.percentileGap)
+                                    .slice(0, 10)
+                                    .map((entry) => (
+                                      <li key={`${section.key}-diff-${entry.id}`}>
+                                        <span className="profile-taste-breakdown-title">{entry.title}</span>
+                                        <span className="profile-taste-breakdown-meta">
+                                          <span
+                                            className={
+                                              entry.myPercentile >= entry.theirPercentile
+                                                ? 'profile-taste-breakdown-meta--high'
+                                                : 'profile-taste-breakdown-meta--low'
+                                            }
+                                          >
+                                            You {Math.round(entry.myPercentile * 100)}%
+                                          </span>
+                                          {' · '}
+                                          <span
+                                            className={
+                                              entry.theirPercentile >= entry.myPercentile
+                                                ? 'profile-taste-breakdown-meta--high'
+                                                : 'profile-taste-breakdown-meta--low'
+                                            }
+                                          >
+                                            Them {Math.round(entry.theirPercentile * 100)}%
+                                          </span>
+                                        </span>
+                                      </li>
+                                    ))}
+                                </ol>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.movieWatchYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
+                ))}
               </div>
+              {import.meta.env.DEV && (
+                <div className="profile-taste-dev-panels">
+                  {[
+                    { key: 'movies', title: 'Taste Similarity Tuning (Movies)', config: movieTasteConfig, setConfig: setMovieTasteConfig },
+                    { key: 'shows', title: 'Taste Similarity Tuning (TV)', config: showTasteConfig, setConfig: setShowTasteConfig },
+                  ].map((panel) => (
+                    <div key={panel.key} className="profile-taste-dev-config">
+                      <h4>{panel.title}</h4>
+                      <div className="profile-taste-dev-grid">
+                        {[
+                          { key: 'alpha', label: 'Alpha', min: 0.1, max: 6.0, step: 0.01, help: 'How much top-ranked overlap matters.' },
+                          { key: 'beta', label: 'Beta', min: 0.0, max: 3.0, step: 0.01, help: 'How much bottom-ranked overlap matters.' },
+                          { key: 'sigmaTop', label: 'Sigma Top', min: 0.01, max: 0.8, step: 0.01, help: 'How wide the top-priority zone is.' },
+                          { key: 'sigmaBot', label: 'Sigma Bottom', min: 0.01, max: 0.8, step: 0.01, help: 'How wide the bottom-priority zone is.' },
+                          { key: 'top10BoostWeight', label: 'Top X Boost', min: 0.0, max: 10.0, step: 0.01, help: 'Maximum one-way bonus from your Top X titles.' },
+                          { key: 'topBoostCount', label: 'Top X Count', min: 1, max: 50, step: 1, help: 'How many of your top-ranked titles qualify for boost.' },
+                          { key: 'lowScoreCurveStrength', label: 'Low-Score Curve', min: 0.0, max: 1.0, step: 0.01, help: 'Power-of-3 exponential decay lift (strongest on low scores, fades quickly at high scores).' },
+                          { key: 'lowScoreCurveZeroMultiplier', label: 'Curve Mult @ 0', min: 1.0, max: 12.0, step: 0.1, help: 'Target multiplier at score 0 when Low-Score Curve is 1.0.' },
+                          { key: 'confidenceK', label: 'Confidence K', min: 5, max: 200, step: 1, help: 'How quickly low-overlap scores gain trust.' },
+                        ].map((control) => {
+                          const value = panel.config[control.key as keyof TasteSimilarityConfig];
+                          return (
+                            <label key={control.key} className="profile-taste-dev-control">
+                              <span>
+                                {control.label}: {typeof value === 'number' ? value.toFixed(control.step < 1 ? 2 : 0) : value}
+                              </span>
+                              <small>{control.help}</small>
+                              <input
+                                type="range"
+                                min={control.min}
+                                max={control.max}
+                                step={control.step}
+                                value={value as number}
+                                onChange={(e) =>
+                                  panel.setConfig((prev) => ({
+                                    ...prev,
+                                    [control.key]: Number(e.target.value),
+                                  }))
+                                }
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows Watched by Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
+            <div className="profile-stats-charts">
+              {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
+                <div className="profile-chart-section">
+                  <div className="profile-chart-header">
+                    <h3 className="profile-chart-title">Movies Watched by Year</h3>
+                    <div className="profile-chart-toggle">
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                        onClick={() => setChartMode('count')}
+                      >
+                        Count
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                        onClick={() => setChartMode('time')}
+                      >
+                        Time
+                      </button>
+                    </div>
                   </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.movieWatchYearData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" />
+                      <Tooltip content={<WatchYearTooltip />} />
+                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.tvWatchYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              )}
+
+              {stats.tvWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
+                <div className="profile-chart-section">
+                  <div className="profile-chart-header">
+                    <h3 className="profile-chart-title">Shows Watched by Year</h3>
+                    <div className="profile-chart-toggle">
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                        onClick={() => setChartMode('count')}
+                      >
+                        Count
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                        onClick={() => setChartMode('time')}
+                      >
+                        Time
+                      </button>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.tvWatchYearData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" />
+                      <Tooltip content={<WatchYearTooltip />} />
+                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
               <div className="profile-chart-section">
                 <div className="profile-chart-header">

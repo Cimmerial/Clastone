@@ -2010,67 +2010,71 @@ export function ProfilePage() {
             )}
 
             <div className="profile-stats-charts">
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies Watched by Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
+              {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
+                <div className="profile-chart-section">
+                  <div className="profile-chart-header">
+                    <h3 className="profile-chart-title">Movies Watched by Year</h3>
+                    <div className="profile-chart-toggle">
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                        onClick={() => setChartMode('count')}
+                      >
+                        Count
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                        onClick={() => setChartMode('time')}
+                      >
+                        Time
+                      </button>
+                    </div>
                   </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.movieWatchYearData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" />
+                      <Tooltip content={<WatchYearTooltip />} />
+                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.movieWatchYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              )}
 
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows Watched by Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
+              {stats.tvWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
+                <div className="profile-chart-section">
+                  <div className="profile-chart-header">
+                    <h3 className="profile-chart-title">Shows Watched by Year</h3>
+                    <div className="profile-chart-toggle">
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                        onClick={() => setChartMode('count')}
+                      >
+                        Count
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                        onClick={() => setChartMode('time')}
+                      >
+                        Time
+                      </button>
+                    </div>
                   </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.tvWatchYearData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                      <YAxis stroke="rgba(255,255,255,0.5)" />
+                      <Tooltip content={<WatchYearTooltip />} />
+                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.tvWatchYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<WatchYearTooltip />} />
-                    <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              )}
 
               <div className="profile-chart-section">
                 <div className="profile-chart-header">

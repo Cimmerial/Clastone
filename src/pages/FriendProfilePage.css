@@ -950,9 +950,356 @@
   background: linear-gradient(90deg, rgba(244, 162, 97, 0.42), rgba(244, 162, 97, 0.12), rgba(244, 162, 97, 0.42));
 }
 
+.profile-taste-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.profile-taste-card {
+  border: 1px solid rgba(244, 162, 97, 0.25);
+  border-radius: var(--radius-md);
+  background: rgba(12, 8, 14, 0.45);
+  padding: 0.85rem;
+}
+
+.profile-taste-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.profile-taste-card-header h4 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8d4af;
+}
+
+.profile-taste-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.profile-taste-toggle-btn {
+  border: 1px solid rgba(244, 162, 97, 0.35);
+  background: rgba(244, 162, 97, 0.12);
+  color: var(--text-primary);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.28rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.profile-taste-toggle-btn:hover {
+  border-color: rgba(244, 162, 97, 0.55);
+  background: rgba(244, 162, 97, 0.2);
+}
+
+.profile-taste-info-btn {
+  position: relative;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 162, 97, 0.45);
+  background: rgba(244, 162, 97, 0.12);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  font-weight: 600;
+}
+
+.profile-taste-info-tooltip {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 210px;
+  max-width: 260px;
+  background: rgba(12, 8, 14, 0.96);
+  border: 1px solid rgba(244, 162, 97, 0.45);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  padding: 0.4rem 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 15;
+}
+
+.profile-taste-info-btn:hover .profile-taste-info-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.profile-taste-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.profile-taste-score-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  justify-content: space-between;
+}
+
+.profile-taste-score-pill-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.22rem;
+  min-width: 9.25rem;
+}
+
+.profile-taste-score-pill {
+  min-width: 4.5rem;
+  text-align: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--accent-soft);
+  border: 1px solid rgba(244, 162, 97, 0.45);
+  border-radius: var(--radius-sm);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.28), rgba(232, 93, 4, 0.12));
+  box-shadow: 0 4px 14px rgba(232, 93, 4, 0.22);
+  padding: 0.42rem 0.7rem;
+}
+
+.profile-taste-score-translation {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-taste-score-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+.profile-taste-score-meter-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.profile-taste-meter-track {
+  height: 9px;
+  background: linear-gradient(90deg, rgba(220, 90, 90, 0.65), rgba(255, 255, 255, 0.15), rgba(72, 182, 110, 0.72));
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.profile-taste-meter-fill {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.profile-taste-meter-labels {
+  margin-top: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.profile-taste-chart-wrap {
+  margin-top: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.2rem 0.2rem 0.3rem;
+  width: 100%;
+}
+
+.profile-taste-chart-wrap .recharts-responsive-container {
+  width: 100% !important;
+}
+
+.profile-taste-chart-wrap .recharts-cartesian-axis line,
+.profile-taste-chart-wrap .recharts-cartesian-axis path {
+  stroke: transparent !important;
+}
+
+.profile-taste-chart-legend {
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.profile-taste-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.profile-taste-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.profile-taste-breakdown-grid {
+  margin-top: 0.65rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.profile-taste-breakdown {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.4rem 0.45rem;
+}
+
+.profile-taste-breakdown h5 {
+  margin: 0 0 0.28rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.profile-taste-breakdown ol {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.13rem;
+}
+
+.profile-taste-breakdown li {
+  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.1rem 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.profile-taste-breakdown-title {
+  display: block;
+  font-size: 0.64rem;
+  color: var(--text);
+  line-height: 1.18;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-taste-breakdown-meta {
+  display: block;
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.profile-taste-breakdown-meta--high {
+  color: #51d88a;
+  font-weight: 600;
+}
+
+.profile-taste-breakdown-meta--low {
+  color: #ef6b6b;
+  font-weight: 600;
+}
+
+.profile-taste-dev-config {
+  margin-top: 0.8rem;
+  border: 1px dashed rgba(244, 162, 97, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem;
+  background: rgba(244, 162, 97, 0.06);
+}
+
+.profile-taste-dev-panels {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.profile-taste-dev-panels .profile-taste-dev-config {
+  margin-top: 0;
+}
+
+.profile-taste-dev-config h4 {
+  margin: 0 0 0.55rem;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profile-taste-dev-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.8rem;
+}
+
+.profile-taste-dev-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.profile-taste-dev-control small {
+  color: var(--text-muted);
+  opacity: 0.88;
+  line-height: 1.25;
+}
+
+.profile-taste-dev-control input[type='range'] {
+  width: 100%;
+}
+
 @media (max-width: 900px) {
   .profile-stats-global-collections {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profile-taste-grid,
+  .profile-taste-dev-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-taste-dev-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-taste-breakdown-grid {
+    grid-template-columns: 1fr;
   }
 }
 

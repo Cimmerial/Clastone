@@ -1,0 +1,55 @@
+Taste Similarity Tuning (Movies)
+Alpha: 6.00
+How much top-ranked overlap matters.
+
+Beta: 0.76
+How much bottom-ranked overlap matters.
+
+Sigma Top: 0.10
+How wide the top-priority zone is.
+
+Sigma Bottom: 0.10
+How wide the bottom-priority zone is.
+
+Top X Boost: 7.29
+Maximum one-way bonus from your Top X titles.
+
+Top X Count: 15
+How many of your top-ranked titles qualify for boost.
+
+Low-Score Curve: 1.00
+Power-of-3 exponential decay lift (strongest on low scores, fades quickly at high scores).
+
+Curve Mult @ 0: 12.00
+Target multiplier at score 0 when Low-Score Curve is 1.0.
+
+Confidence K: 170
+How quickly low-overlap scores gain trust.
+
+Taste Similarity Tuning (TV)
+Alpha: 6.00
+How much top-ranked overlap matters.
+
+Beta: 1.01
+How much bottom-ranked overlap matters.
+
+Sigma Top: 0.10
+How wide the top-priority zone is.
+
+Sigma Bottom: 0.10
+How wide the bottom-priority zone is.
+
+Top X Boost: 0.40
+Maximum one-way bonus from your Top X titles.
+
+Top X Count: 10
+How many of your top-ranked titles qualify for boost.
+
+Low-Score Curve: 0.30
+Power-of-3 exponential decay lift (strongest on low scores, fades quickly at high scores).
+
+Curve Mult @ 0: 4.00
+Target multiplier at score 0 when Low-Score Curve is 1.0.
+
+Confidence K: 33
+How quickly low-overlap scores gain trust.
