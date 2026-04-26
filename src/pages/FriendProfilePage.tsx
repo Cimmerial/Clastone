@@ -32,7 +32,6 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
-import { useSettingsStore } from '../state/settingsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
@@ -512,7 +511,6 @@ export function FriendProfilePage() {
     friends,
     loading: friendsActionLoading,
   } = useFriends();
-  const { settings, updateSettings } = useSettingsStore();
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -616,18 +614,10 @@ export function FriendProfilePage() {
 
   useEffect(() => {
     saveTasteSimilarityConfigScoped('movies', movieTasteConfig);
-    updateSettings({ movieTasteConfig });
   }, [movieTasteConfig]);
   useEffect(() => {
     saveTasteSimilarityConfigScoped('shows', showTasteConfig);
-    updateSettings({ showTasteConfig });
   }, [showTasteConfig]);
-  useEffect(() => {
-    if (settings.movieTasteConfig) setMovieTasteConfig(settings.movieTasteConfig);
-  }, [settings.movieTasteConfig]);
-  useEffect(() => {
-    if (settings.showTasteConfig) setShowTasteConfig(settings.showTasteConfig);
-  }, [settings.showTasteConfig]);
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());

@@ -14,8 +14,6 @@ import { usePeopleStore, defaultPeopleClasses } from '../state/peopleStore';
 import { useDirectorsStore, defaultDirectorsClasses } from '../state/directorsStore';
 import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
 import { db } from '../lib/firebase';
-import { loadSettings, saveSettings } from '../lib/firestoreSettings';
-import { loadTasteSimilarityConfigScoped } from '../lib/tasteSimilarity';
 import {
   addGlobalQuote,
   deleteGlobalQuote,
@@ -151,7 +149,6 @@ export function SettingsPage() {
   const [babyUsersLoading, setBabyUsersLoading] = useState(false);
   const [babyUsersError, setBabyUsersError] = useState<string | null>(null);
   const [babyUsers, setBabyUsers] = useState<BabyRoleUser[]>([]);
-  const [tasteSyncBusy, setTasteSyncBusy] = useState(false);
 
   const signedIn = hasFirebaseConfig && user;
 
@@ -411,46 +408,6 @@ export function SettingsPage() {
       setBabyUsers((prev) => prev.map((u) => (u.uid === targetUid ? { ...u, devRole: enable ? 'babydev' : undefined } : u)));
     } catch (error) {
       setBabyUsersError(error instanceof Error ? error.message : 'Failed to update babydev role.');
-    }
-  };
-
-  const pushTasteValues = async () => {
-    if (!db || !user) return;
-    setTasteSyncBusy(true);
-    setQuotesError(null);
-    try {
-      const movieTasteConfig = settings.movieTasteConfig ?? loadTasteSimilarityConfigScoped('movies');
-      const showTasteConfig = settings.showTasteConfig ?? loadTasteSimilarityConfigScoped('shows');
-      const nextSettings = { ...settings, movieTasteConfig, showTasteConfig };
-      updateSettings({ movieTasteConfig, showTasteConfig });
-      await saveSettings(db, user.uid, nextSettings);
-      setQuotesNotice('Pushed taste values to global settings.');
-    } catch (error) {
-      setQuotesError(error instanceof Error ? error.message : 'Failed to push taste values.');
-    } finally {
-      setTasteSyncBusy(false);
-    }
-  };
-
-  const pullTasteValues = async () => {
-    if (!db || !user) return;
-    setTasteSyncBusy(true);
-    setQuotesError(null);
-    try {
-      const remote = await loadSettings(db, user.uid);
-      if (!remote) {
-        setQuotesNotice('No remote settings found to pull.');
-        return;
-      }
-      updateSettings({
-        movieTasteConfig: remote.movieTasteConfig,
-        showTasteConfig: remote.showTasteConfig,
-      });
-      setQuotesNotice('Pulled taste values from global settings.');
-    } catch (error) {
-      setQuotesError(error instanceof Error ? error.message : 'Failed to pull taste values.');
-    } finally {
-      setTasteSyncBusy(false);
     }
   };
 
@@ -1291,22 +1248,6 @@ export function SettingsPage() {
                 </div>
                 {signedIn && canManageQuotes ? renderQuoteTools('Movie/Show Quote Management (Dev)') : null}
                 <div className="settings-list-actions">
-                  <button
-                    type="button"
-                    className="settings-btn"
-                    disabled={!db || !user || tasteSyncBusy}
-                    onClick={() => void pushTasteValues()}
-                  >
-                    Push taste values
-                  </button>
-                  <button
-                    type="button"
-                    className="settings-btn settings-btn-subtle"
-                    disabled={!db || !user || tasteSyncBusy}
-                    onClick={() => void pullTasteValues()}
-                  >
-                    Pull taste values
-                  </button>
                   <button
                     type="button"
                     className="settings-btn"
