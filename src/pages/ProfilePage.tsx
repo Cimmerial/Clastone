@@ -154,27 +154,32 @@ function CollectionRadialProgress({
   );
 }
 
-/** Flatten all watches with a date (excl. LONG_AGO/UNKNOWN). One row per watch; use movie vs TV class orders separately to avoid duplicates. */
+/** Flatten all watches with a date (excl. LONG_AGO/UNKNOWN). One row per watch. */
 function getRecentWatches(
   moviesByClass: Record<string, MovieShowItem[]>,
   tvByClass: Record<string, MovieShowItem[]>,
   movieClassOrder: string[],
   tvClassOrder: string[]
 ): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const collectClassKeys = (byClass: Record<string, MovieShowItem[]>, classOrder: string[]) => {
+    const keys = new Set<string>(classOrder);
+    for (const key of Object.keys(byClass)) keys.add(key);
+    return Array.from(keys);
+  };
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
     if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
-  for (const classKey of movieClassOrder) {
+  for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {
     for (const item of moviesByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, true);
       }
     }
   }
-  for (const classKey of tvClassOrder) {
+  for (const classKey of collectClassKeys(tvByClass, tvClassOrder)) {
     for (const item of tvByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, false);
@@ -184,26 +189,32 @@ function getRecentWatches(
   return out.sort(compareRecentWatchEvents);
 }
 
-/** Flatten *all* watches (includes LONG_AGO/UNKNOWN -> sortKey "0000-00-00"). */
+/** Flatten all watches that have an explicit watch date. */
 function getAllWatches(
   moviesByClass: Record<string, MovieShowItem[]>,
   tvByClass: Record<string, MovieShowItem[]>,
   movieClassOrder: string[],
   tvClassOrder: string[]
 ): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const collectClassKeys = (byClass: Record<string, MovieShowItem[]>, classOrder: string[]) => {
+    const keys = new Set<string>(classOrder);
+    for (const key of Object.keys(byClass)) keys.add(key);
+    return Array.from(keys);
+  };
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
+    if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
-  for (const classKey of movieClassOrder) {
+  for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {
     for (const item of moviesByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, true);
       }
     }
   }
-  for (const classKey of tvClassOrder) {
+  for (const classKey of collectClassKeys(tvByClass, tvClassOrder)) {
     for (const item of tvByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, false);

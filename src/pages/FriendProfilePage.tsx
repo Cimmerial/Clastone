@@ -140,20 +140,25 @@ function getRecentWatches(
   movieClassOrder: string[],
   tvClassOrder: string[]
 ): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const collectClassKeys = (byClass: Record<string, MovieShowItem[]>, classOrder: string[]) => {
+    const keys = new Set<string>(classOrder);
+    for (const key of Object.keys(byClass)) keys.add(key);
+    return Array.from(keys);
+  };
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
     if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
-  for (const classKey of movieClassOrder) {
+  for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {
     for (const item of moviesByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, true);
       }
     }
   }
-  for (const classKey of tvClassOrder) {
+  for (const classKey of collectClassKeys(tvByClass, tvClassOrder)) {
     for (const item of tvByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) {
         push(item, r, false);
@@ -169,17 +174,23 @@ function getAllWatches(
   movieClassOrder: string[],
   tvClassOrder: string[]
 ): { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] {
+  const collectClassKeys = (byClass: Record<string, MovieShowItem[]>, classOrder: string[]) => {
+    const keys = new Set<string>(classOrder);
+    for (const key of Object.keys(byClass)) keys.add(key);
+    return Array.from(keys);
+  };
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
+    if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
-  for (const classKey of movieClassOrder) {
+  for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {
     for (const item of moviesByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) push(item, r, true);
     }
   }
-  for (const classKey of tvClassOrder) {
+  for (const classKey of collectClassKeys(tvByClass, tvClassOrder)) {
     for (const item of tvByClass[classKey] ?? []) {
       for (const r of item.watchRecords ?? []) push(item, r, false);
     }
