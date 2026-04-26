@@ -35,6 +35,28 @@ const DEFAULT_CONFIG: TasteSimilarityConfig = {
   lowScoreCurveZeroMultiplier: 4,
   confidenceK: 40,
 };
+const DEFAULT_CONFIG_MOVIES: TasteSimilarityConfig = {
+  alpha: 6.0,
+  beta: 0.76,
+  sigmaTop: 0.1,
+  sigmaBot: 0.1,
+  top10BoostWeight: 7.29,
+  topBoostCount: 15,
+  lowScoreCurveStrength: 1.0,
+  lowScoreCurveZeroMultiplier: 12.0,
+  confidenceK: 170,
+};
+const DEFAULT_CONFIG_SHOWS: TasteSimilarityConfig = {
+  alpha: 6.0,
+  beta: 1.01,
+  sigmaTop: 0.1,
+  sigmaBot: 0.1,
+  top10BoostWeight: 0.4,
+  topBoostCount: 10,
+  lowScoreCurveStrength: 0.3,
+  lowScoreCurveZeroMultiplier: 4.0,
+  confidenceK: 33,
+};
 const TASTE_SIMILARITY_CONFIG_STORAGE_KEY = 'clastone-taste-similarity-config-v1';
 const TASTE_SIMILARITY_CONFIG_STORAGE_KEY_MOVIES = 'clastone-taste-similarity-config-movies-v1';
 const TASTE_SIMILARITY_CONFIG_STORAGE_KEY_SHOWS = 'clastone-taste-similarity-config-shows-v1';
@@ -88,36 +110,40 @@ function getScopedKey(scope: 'movies' | 'shows'): string {
     : TASTE_SIMILARITY_CONFIG_STORAGE_KEY_SHOWS;
 }
 
+function getScopedDefault(scope: 'movies' | 'shows'): TasteSimilarityConfig {
+  return scope === 'movies' ? { ...DEFAULT_CONFIG_MOVIES } : { ...DEFAULT_CONFIG_SHOWS };
+}
+
 export function loadTasteSimilarityConfigScoped(scope: 'movies' | 'shows'): TasteSimilarityConfig {
-  if (typeof window === 'undefined') return getDefaultTasteSimilarityConfig();
+  const scopedDefault = getScopedDefault(scope);
+  if (typeof window === 'undefined') return scopedDefault;
   try {
     const scoped = window.localStorage.getItem(getScopedKey(scope));
     if (scoped) {
       const parsed = JSON.parse(scoped) as Partial<TasteSimilarityConfig>;
       return {
-        alpha: Number.isFinite(parsed.alpha) ? Number(parsed.alpha) : DEFAULT_CONFIG.alpha,
-        beta: Number.isFinite(parsed.beta) ? Number(parsed.beta) : DEFAULT_CONFIG.beta,
-        sigmaTop: Number.isFinite(parsed.sigmaTop) ? Number(parsed.sigmaTop) : DEFAULT_CONFIG.sigmaTop,
-        sigmaBot: Number.isFinite(parsed.sigmaBot) ? Number(parsed.sigmaBot) : DEFAULT_CONFIG.sigmaBot,
+        alpha: Number.isFinite(parsed.alpha) ? Number(parsed.alpha) : scopedDefault.alpha,
+        beta: Number.isFinite(parsed.beta) ? Number(parsed.beta) : scopedDefault.beta,
+        sigmaTop: Number.isFinite(parsed.sigmaTop) ? Number(parsed.sigmaTop) : scopedDefault.sigmaTop,
+        sigmaBot: Number.isFinite(parsed.sigmaBot) ? Number(parsed.sigmaBot) : scopedDefault.sigmaBot,
         top10BoostWeight: Number.isFinite(parsed.top10BoostWeight)
           ? Number(parsed.top10BoostWeight)
-          : DEFAULT_CONFIG.top10BoostWeight,
-      topBoostCount: Number.isFinite(parsed.topBoostCount)
-        ? Math.max(1, Math.round(Number(parsed.topBoostCount)))
-        : DEFAULT_CONFIG.topBoostCount,
-      lowScoreCurveStrength: Number.isFinite(parsed.lowScoreCurveStrength)
-        ? Math.max(0, Math.min(1, Number(parsed.lowScoreCurveStrength)))
-        : DEFAULT_CONFIG.lowScoreCurveStrength,
-      lowScoreCurveZeroMultiplier: Number.isFinite(parsed.lowScoreCurveZeroMultiplier)
-        ? Math.max(1, Number(parsed.lowScoreCurveZeroMultiplier))
-        : DEFAULT_CONFIG.lowScoreCurveZeroMultiplier,
-        confidenceK: Number.isFinite(parsed.confidenceK) ? Number(parsed.confidenceK) : DEFAULT_CONFIG.confidenceK,
+          : scopedDefault.top10BoostWeight,
+        topBoostCount: Number.isFinite(parsed.topBoostCount)
+          ? Math.max(1, Math.round(Number(parsed.topBoostCount)))
+          : scopedDefault.topBoostCount,
+        lowScoreCurveStrength: Number.isFinite(parsed.lowScoreCurveStrength)
+          ? Math.max(0, Math.min(1, Number(parsed.lowScoreCurveStrength)))
+          : scopedDefault.lowScoreCurveStrength,
+        lowScoreCurveZeroMultiplier: Number.isFinite(parsed.lowScoreCurveZeroMultiplier)
+          ? Math.max(1, Number(parsed.lowScoreCurveZeroMultiplier))
+          : scopedDefault.lowScoreCurveZeroMultiplier,
+        confidenceK: Number.isFinite(parsed.confidenceK) ? Number(parsed.confidenceK) : scopedDefault.confidenceK,
       };
     }
-    // Backward compatibility with the older single shared key.
-    return loadTasteSimilarityConfig();
+    return scopedDefault;
   } catch {
-    return getDefaultTasteSimilarityConfig();
+    return scopedDefault;
   }
 }
 
