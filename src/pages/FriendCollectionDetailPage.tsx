@@ -75,7 +75,7 @@ function buildCollectionFallbackItem(
 export function FriendCollectionDetailPage() {
   const navigate = useNavigate();
   const { friendId, collectionId, listId } = useParams<{ friendId: string; collectionId?: string; listId?: string }>();
-  const { globalCollections } = useListsStore();
+  const { globalCollections, lists, entriesByListId, createList, addEntryToListTop } = useListsStore();
   const {
     byClass: myMoviesByClass,
     classOrder: myMovieClassOrder,
@@ -118,6 +118,9 @@ export function FriendCollectionDetailPage() {
     releaseDate?: string;
     mediaType: 'movie' | 'tv';
   } | null>(null);
+  const [showCopyConfirmModal, setShowCopyConfirmModal] = useState(false);
+  const [copySaveError, setCopySaveError] = useState<string | null>(null);
+  const [copySavePending, setCopySavePending] = useState(false);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -228,6 +231,24 @@ export function FriendCollectionDetailPage() {
   const activeCustomListLike = activeCustomCollection ?? activeCustomList;
   const title = activeGlobalCollection?.name ?? activeCustomListLike?.name ?? null;
   const collectionSummary = activeGlobalCollection?.summary ?? activeCustomListLike?.description;
+  const activeFriendCustomEntries = useMemo(
+    () => (activeCustomListLike ? (friendListsData?.entriesByListId?.[activeCustomListLike.id] ?? []) : []),
+    [activeCustomListLike, friendListsData]
+  );
+  const activeFriendCustomEntryIdSet = useMemo(
+    () => new Set(activeFriendCustomEntries.map((entry: any) => String(entry.entryId ?? '')).filter(Boolean)),
+    [activeFriendCustomEntries]
+  );
+  const hasMatchingPersonalCollection = useMemo(() => {
+    if (!activeCustomCollection) return false;
+    const myCollections = lists.filter((list) => list.mode === 'collection' && !list.hidden);
+    return myCollections.some((list) => {
+      const myEntries = entriesByListId[list.id] ?? [];
+      if (myEntries.length !== activeFriendCustomEntries.length) return false;
+      return myEntries.every((entry) => activeFriendCustomEntryIdSet.has(entry.entryId));
+    });
+  }, [activeCustomCollection, activeFriendCustomEntryIdSet, lists, entriesByListId, activeFriendCustomEntries.length]);
+  const showCopyCollectionButton = Boolean(activeCustomCollection && !hasMatchingPersonalCollection);
 
   const rows = useMemo<CollectionRow[]>(() => {
     const baseRows: Array<CollectionRow> = [];
@@ -315,6 +336,46 @@ export function FriendCollectionDetailPage() {
   if (loading) return <section className="lists-page"><div className="friend-profile-loading"><div className="loading-spinner">Loading collection...</div></div></section>;
   if (error || !friendProfile || !title) return <section className="lists-page"><Link to={friendProfile ? `/friends/${friendProfile.uid}` : '/friends'} className="back-button"><ArrowLeft size={20} />Back</Link><div className="error">{error ?? 'Collection not found'}</div></section>;
 
+  const handleCopyAndSaveCollection = () => {
+    if (!activeCustomCollection) return;
+    setCopySaveError(null);
+    setShowCopyConfirmModal(true);
+  };
+
+  const confirmCopyAndSaveCollection = async () => {
+    if (!activeCustomCollection || copySavePending) return;
+    setCopySaveError(null);
+    setCopySavePending(true);
+    try {
+      const newListId = createList(
+        activeCustomCollection.name,
+        activeCustomCollection.mediaType ?? 'both',
+        'collection',
+        activeCustomCollection.color,
+        activeCustomCollection.description
+      );
+      const entries = (friendListsData?.entriesByListId?.[activeCustomCollection.id] ?? [])
+        .slice()
+        .sort((a: any, b: any) => a.position - b.position);
+      for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+        const entry = entries[idx];
+        const entryId = String(entry.entryId ?? '');
+        if (!/^tmdb-(movie|tv)-\d+$/.test(entryId)) continue;
+        const mediaType = entryId.startsWith('tmdb-tv-') ? 'tv' : 'movie';
+        addEntryToListTop(newListId, entryId, mediaType, {
+          title: entry.title,
+          posterPath: entry.posterPath,
+          releaseDate: entry.releaseDate
+        });
+      }
+      setShowCopyConfirmModal(false);
+    } catch (err: any) {
+      setCopySaveError(err?.message ?? 'Could not copy this collection right now.');
+    } finally {
+      setCopySavePending(false);
+    }
+  };
+
   return (
     <section className="lists-page">
       <header className="page-heading">
@@ -322,6 +383,15 @@ export function FriendCollectionDetailPage() {
           <div className="lists-back-title-row">
             <button className="lists-back-icon-btn" onClick={() => navigate(`/friends/${friendProfile.uid}`)} aria-label="Back to profile"><ArrowLeft size={18} /></button>
             <h1 className="page-title">{title}</h1>
+            {showCopyCollectionButton ? (
+              <button
+                type="button"
+                className="lists-button friend-copy-collection-btn"
+                onClick={handleCopyAndSaveCollection}
+              >
+                COPY &amp; SAVE COLLECTION
+              </button>
+            ) : null}
           </div>
           {collectionSummary ? <p className="lists-collection-summary">{collectionSummary}</p> : null}
         </div>
@@ -621,6 +691,33 @@ export function FriendCollectionDetailPage() {
             }
           }}
         />
+      ) : null}
+      {showCopyConfirmModal ? (
+        <div className="lists-modal-backdrop" onClick={() => !copySavePending && setShowCopyConfirmModal(false)}>
+          <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>COPY &amp; SAVE COLLECTION</h3>
+            <p className="lists-subtitle">Are you sure you want to do this?</p>
+            {copySaveError ? <p className="error">{copySaveError}</p> : null}
+            <div className="lists-modal-actions">
+              <button
+                type="button"
+                className="lists-button"
+                onClick={() => setShowCopyConfirmModal(false)}
+                disabled={copySavePending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="lists-button"
+                onClick={() => void confirmCopyAndSaveCollection()}
+                disabled={copySavePending}
+              >
+                {copySavePending ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </section>
   );

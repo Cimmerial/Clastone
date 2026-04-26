@@ -455,6 +455,36 @@
   overflow: hidden;
 }
 
+.friend-card-bg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 1fr);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.friend-card-bg-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.friend-card-bg-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.32;
+  filter: saturate(0.95);
+}
+
+.friend-card-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(16, 16, 20, 0.38) 0%, rgba(16, 16, 20, 0.78) 100%);
+}
+
 .friend-card::before {
   content: '';
   position: absolute;
@@ -494,6 +524,13 @@
   overflow: hidden;
 }
 
+.friend-avatar,
+.friend-info,
+.view-icon {
+  position: relative;
+  z-index: 1;
+}
+
 .friend-avatar img {
   width: 100%;
   height: 100%;
@@ -506,6 +543,10 @@
   flex-direction: column;
   gap: 0.25rem;
   flex: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 10, 14, 0.52), rgba(10, 10, 14, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .friend-info strong {
@@ -516,6 +557,11 @@
 .friend-info span {
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+.friend-info-stat-line {
+  display: block;
+  line-height: 1.25;
 }
 
 .view-icon {

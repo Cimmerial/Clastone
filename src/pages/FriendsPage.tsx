@@ -18,6 +18,44 @@ interface UserProfile {
   pfpPhotoUrl?: string;
 }
 
+function hashString(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function pickPosterCollageFixedCount(posters: string[], seedKey: string, count: number): string[] {
+  if (count <= 0 || posters.length === 0) return [];
+  const unique = Array.from(new Set(posters));
+  const sorted = unique
+    .map((poster) => ({ poster, score: hashString(`${seedKey}:${poster}`) }))
+    .sort((a, b) => a.score - b.score)
+    .map((item) => item.poster);
+  const base = sorted.slice(0, Math.min(count, sorted.length));
+  if (base.length >= count) return base;
+  const filled: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    filled.push(base[i % base.length]);
+  }
+  return filled;
+}
+
+function topMoviePosterPathsFromMoviesData(moviesData: any, maxCount = 10): string[] {
+  if (!moviesData?.classes || !moviesData?.byClass) return [];
+  const posters: string[] = [];
+  for (const classDef of moviesData.classes as Array<{ key: string }>) {
+    if (classDef.key === 'UNRANKED') continue;
+    const classItems = (moviesData.byClass[classDef.key] ?? []) as Array<{ posterPath?: string }>;
+    for (const item of classItems) {
+      if (item.posterPath) posters.push(item.posterPath);
+      if (posters.length >= maxCount) return posters;
+    }
+  }
+  return posters;
+}
+
 export function FriendsPage() {
   const { user } = useAuth();
   const {
@@ -37,7 +75,9 @@ export function FriendsPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [friendCountsByUid, setFriendCountsByUid] = useState<Record<string, { movies: number; shows: number }>>({});
+  const [friendTopMoviePostersByUid, setFriendTopMoviePostersByUid] = useState<Record<string, string[]>>({});
   const [cachedOrderByUid, setCachedOrderByUid] = useState<Record<string, number>>({});
+  const pagePosterShuffleSeed = useMemo(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`, []);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -86,6 +126,11 @@ export function FriendsPage() {
         const cachedCounts = JSON.parse(cachedCountsRaw) as Record<string, { movies: number; shows: number }>;
         setFriendCountsByUid(cachedCounts);
       }
+      const cachedMoviePostersRaw = localStorage.getItem(`${cacheKeyBase}:top-movie-posters`);
+      if (cachedMoviePostersRaw) {
+        const cachedMoviePosters = JSON.parse(cachedMoviePostersRaw) as Record<string, string[]>;
+        setFriendTopMoviePostersByUid(cachedMoviePosters);
+      }
       const cachedOrderRaw = localStorage.getItem(`${cacheKeyBase}:order`);
       if (cachedOrderRaw) {
         const cachedOrder = JSON.parse(cachedOrderRaw) as string[];
@@ -123,6 +168,7 @@ export function FriendsPage() {
   useEffect(() => {
     if (!loggedIn || !db || friends.length === 0) {
       setFriendCountsByUid({});
+      setFriendTopMoviePostersByUid({});
       return;
     }
     const firestoreDb = db;
@@ -138,18 +184,22 @@ export function FriendsPage() {
             ]);
             const movies = Object.values(moviesData.byClass).reduce((acc, list) => acc + list.length, 0);
             const shows = Object.values(tvData.byClass).reduce((acc, list) => acc + list.length, 0);
-            return [friend.uid, { movies, shows }] as const;
+            const topMoviePosters = topMoviePosterPathsFromMoviesData(moviesData, 10);
+            return [friend.uid, { movies, shows, topMoviePosters }] as const;
           } catch {
-            return [friend.uid, { movies: 0, shows: 0 }] as const;
+            return [friend.uid, { movies: 0, shows: 0, topMoviePosters: [] as string[] }] as const;
           }
         })
       );
       if (cancelled) return;
-      const nextCounts = Object.fromEntries(results);
+      const nextCounts = Object.fromEntries(results.map(([uid, value]) => [uid, { movies: value.movies, shows: value.shows }]));
+      const nextTopMoviePostersByUid = Object.fromEntries(results.map(([uid, value]) => [uid, value.topMoviePosters]));
       setFriendCountsByUid(nextCounts);
+      setFriendTopMoviePostersByUid(nextTopMoviePostersByUid);
       if (cacheKeyBase) {
         try {
           localStorage.setItem(`${cacheKeyBase}:counts`, JSON.stringify(nextCounts));
+          localStorage.setItem(`${cacheKeyBase}:top-movie-posters`, JSON.stringify(nextTopMoviePostersByUid));
         } catch {
           // Ignore localStorage failures (e.g. quota/private mode).
         }
@@ -328,16 +378,27 @@ export function FriendsPage() {
 
         {loggedIn && friends.length > 0 && (
           <section className="friends-list">
-            <h2>Your friends ({friends.length})</h2>
+            <h2>Your friends</h2>
             <div className="friends-grid">
               {sortedFriends.map((friend) => {
                 const counts = friendCountsByUid[friend.uid] ?? { movies: 0, shows: 0 };
-                const countParts: string[] = [];
-                if (counts.movies > 1) countParts.push(`${counts.movies} Movies`);
-                if (counts.shows > 1) countParts.push(`${counts.shows} Shows`);
-                const subtitle = countParts.length > 0 ? countParts.join(' - ') : 'View profile';
+                const topMoviePosters = friendTopMoviePostersByUid[friend.uid] ?? [];
+                const posterBackgrounds = pickPosterCollageFixedCount(
+                  topMoviePosters,
+                  `friend:${friend.uid}:${pagePosterShuffleSeed}`,
+                  12
+                );
                 return (
                   <Link key={friend.uid} to={`/friends/${friend.uid}`} className="friend-card">
+                    {posterBackgrounds.length > 0 ? (
+                      <div className="friend-card-bg" aria-hidden="true">
+                        {posterBackgrounds.map((posterPath, index) => (
+                          <div key={`${posterPath}-${index}`} className="friend-card-bg-item">
+                            <img src={tmdbImagePath(posterPath, 'w185') ?? ''} alt="" loading="lazy" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="friend-avatar">
                       {friend.pfpPosterPath ? (
                         <img src={tmdbImagePath(friend.pfpPosterPath, 'w92') ?? ''} alt={friend.username} loading="lazy" />
@@ -349,7 +410,8 @@ export function FriendsPage() {
                     </div>
                     <div className="friend-info">
                       <strong>{friend.username}</strong>
-                      <span>{subtitle}</span>
+                      <span className="friend-info-stat-line">{counts.movies} Movies</span>
+                      <span className="friend-info-stat-line">{counts.shows} Shows</span>
                     </div>
                     <Eye size={16} className="view-icon" />
                   </Link>

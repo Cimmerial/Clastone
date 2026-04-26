@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Lock, LockOpen, Maximize2, Minimize2 } from 'lucide-react';
 import { forwardRef, useState, useCallback, useRef, createContext, useContext, useEffect, useLayoutEffect } from 'react';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import './RankedList.css';
@@ -166,6 +166,9 @@ function RankedListInner<T extends RankedItemBase>(
   const minimizationStorageKey = minimizationScopeKey
     ? `clastone-class-minimized:${minimizationScopeKey}`
     : null;
+  const classLockStorageKey = minimizationScopeKey
+    ? `clastone-class-locked:${minimizationScopeKey}`
+    : null;
   const persistMinimizedState = useCallback((value: Record<ClassKey, boolean>) => {
     if (!minimizationStorageKey || typeof window === 'undefined') return;
     try {
@@ -185,7 +188,27 @@ function RankedListInner<T extends RankedItemBase>(
       return {};
     }
   }, [minimizationStorageKey]);
+  const persistClassLockState = useCallback((value: Record<ClassKey, boolean>) => {
+    if (!classLockStorageKey || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(classLockStorageKey, JSON.stringify(value));
+    } catch {
+      // localStorage may be unavailable; fail silently.
+    }
+  }, [classLockStorageKey]);
+  const readClassLockState = useCallback((): Record<ClassKey, boolean> => {
+    if (!classLockStorageKey || typeof window === 'undefined') return {};
+    try {
+      const raw = window.localStorage.getItem(classLockStorageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }, [classLockStorageKey]);
   const [minimizedByClass, setMinimizedByClass] = useState<Record<ClassKey, boolean>>(() => readMinimizedState());
+  const [lockedByClass, setLockedByClass] = useState<Record<ClassKey, boolean>>(() => readClassLockState());
   const lastAppliedVisibilityNonceRef = useRef<number | null>(null);
   const lastHoverState = useRef<{ classKey: ClassKey | null; itemId: string | null; insertAfter: boolean }>({ classKey: null, itemId: null, insertAfter: false });
   const hoverRafRef = useRef<number | null>(null);
@@ -206,43 +229,77 @@ function RankedListInner<T extends RankedItemBase>(
     }
     setMinimizedByClass(readMinimizedState());
   }, [minimizationStorageKey, readMinimizedState]);
+  useLayoutEffect(() => {
+    if (!classLockStorageKey || typeof window === 'undefined') {
+      setLockedByClass({});
+      return;
+    }
+    setLockedByClass(readClassLockState());
+  }, [classLockStorageKey, readClassLockState]);
 
   useLayoutEffect(() => {
     if (!forceExpandClassKey) return;
+    const isLocked = Boolean(lockedByClass[forceExpandClassKey]);
+    if (isLocked) {
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          document.getElementById(`class-section-${forceExpandClassKey}`)?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        });
+      }
+      return;
+    }
     setMinimizedByClass((prev) => {
       if (!prev[forceExpandClassKey]) return prev;
       const next = { ...prev, [forceExpandClassKey]: false };
       persistMinimizedState(next);
       return next;
     });
-  }, [forceExpandClassKey, persistMinimizedState]);
+  }, [forceExpandClassKey, persistMinimizedState, lockedByClass]);
 
   useLayoutEffect(() => {
     if (!classVisibilityAction) return;
     if (lastAppliedVisibilityNonceRef.current === classVisibilityAction.nonce) return;
     lastAppliedVisibilityNonceRef.current = classVisibilityAction.nonce;
-    const next =
-      classVisibilityAction.mode === 'expand-all'
-        ? {}
-        : classOrder.reduce<Record<ClassKey, boolean>>((acc, key) => {
-            acc[key] = true;
-            return acc;
-          }, {});
-    setMinimizedByClass(next);
-    persistMinimizedState(next);
-  }, [classVisibilityAction, classOrder, persistMinimizedState]);
+    setMinimizedByClass((prev) => {
+      const next = { ...prev };
+      if (classVisibilityAction.mode === 'expand-all') {
+        for (const key of classOrder) {
+          if (lockedByClass[key]) continue;
+          next[key] = false;
+        }
+      } else {
+        for (const key of classOrder) {
+          if (lockedByClass[key]) continue;
+          next[key] = true;
+        }
+      }
+      persistMinimizedState(next);
+      return next;
+    });
+  }, [classVisibilityAction, classOrder, persistMinimizedState, lockedByClass]);
 
   const toggleClassMinimized = useCallback((classKey: ClassKey) => {
+    if (lockedByClass[classKey]) return;
     setMinimizedByClass((prev) => {
       const next = { ...prev, [classKey]: !prev[classKey] };
       persistMinimizedState(next);
       return next;
     });
-  }, [persistMinimizedState]);
+  }, [persistMinimizedState, lockedByClass]);
+  const toggleClassLocked = useCallback((classKey: ClassKey) => {
+    setLockedByClass((prev) => {
+      const next = { ...prev, [classKey]: !prev[classKey] };
+      persistClassLockState(next);
+      return next;
+    });
+  }, [persistClassLockState]);
 
   useEffect(() => {
     if (!onClassVisibilitySummaryChange) return;
-    const relevantClassKeys = classOrder.filter((k) => (itemsByClass[k] ?? []).length > 0);
+    const relevantClassKeys = classOrder.filter((k) => (itemsByClass[k] ?? []).length > 0 && !lockedByClass[k]);
     if (relevantClassKeys.length === 0) {
       onClassVisibilitySummaryChange({ allExpanded: true, allCollapsed: false });
       return;
@@ -252,7 +309,7 @@ function RankedListInner<T extends RankedItemBase>(
       allExpanded: minimizedCount === 0,
       allCollapsed: minimizedCount === relevantClassKeys.length
     });
-  }, [classOrder, itemsByClass, minimizedByClass, onClassVisibilitySummaryChange]);
+  }, [classOrder, itemsByClass, minimizedByClass, onClassVisibilitySummaryChange, lockedByClass]);
 
   useEffect(() => {
     return () => {
@@ -645,6 +702,7 @@ function RankedListInner<T extends RankedItemBase>(
           classKey === effectiveDraggedFromClass ||
           classKey === dragOverClass;
         const isMinimized = Boolean(minimizedByClass[classKey]);
+        const isLocked = Boolean(lockedByClass[classKey]);
         return (
           <div key={classKey}>
             {isNonRankedDivider && (
@@ -678,10 +736,22 @@ function RankedListInner<T extends RankedItemBase>(
                   {minimizationStorageKey ? (
                     <button
                       type="button"
+                      className={`class-section-lock-btn ${isLocked ? 'class-section-lock-btn--locked' : ''}`}
+                      onClick={() => toggleClassLocked(classKey)}
+                      aria-label={isLocked ? `Unlock ${label}` : `Lock ${label}`}
+                      title={isLocked ? 'Unlock class visibility state' : 'Lock class visibility state'}
+                    >
+                      {isLocked ? <Lock size={14} /> : <LockOpen size={14} />}
+                    </button>
+                  ) : null}
+                  {minimizationStorageKey ? (
+                    <button
+                      type="button"
                       className="class-section-minimize-btn"
                       onClick={() => toggleClassMinimized(classKey)}
+                      disabled={isLocked}
                       aria-label={isMinimized ? `Expand ${label}` : `Minimize ${label}`}
-                      title={isMinimized ? 'Expand class' : 'Minimize class'}
+                      title={isLocked ? 'Class is locked' : isMinimized ? 'Expand class' : 'Minimize class'}
                     >
                       {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
                     </button>

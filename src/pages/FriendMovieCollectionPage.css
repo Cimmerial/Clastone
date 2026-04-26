@@ -119,6 +119,16 @@
   margin: 0;
 }
 
+.friend-copy-collection-btn {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .friend-movie-collection-meta {
   display: flex;
   align-items: flex-start;
