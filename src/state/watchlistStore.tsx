@@ -109,12 +109,17 @@ export function WatchlistProvider({
         return release > today;
       };
 
+      const isUpcomingRelease = (releaseDate?: string): boolean => {
+        if (!releaseDate) return true;
+        return isUnreleased(releaseDate);
+      };
+
       const sortReleasedFirst = (entries: WatchlistEntry[]): WatchlistEntry[] => {
         const released: WatchlistEntry[] = [];
         const unreleased: WatchlistEntry[] = [];
         
         entries.forEach(entry => {
-          if (isUnreleased(entry.releaseDate)) {
+          if (isUpcomingRelease(entry.releaseDate)) {
             unreleased.push(entry);
           } else {
             released.push(entry);
@@ -123,9 +128,14 @@ export function WatchlistProvider({
         
         // Sort unreleased by release date
         const sortedUnreleased = unreleased.sort((a, b) => {
-          if (!a.releaseDate) return 1;
-          if (!b.releaseDate) return -1;
-          return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
+          const aTime = a.releaseDate ? new Date(a.releaseDate).getTime() : Number.NaN;
+          const bTime = b.releaseDate ? new Date(b.releaseDate).getTime() : Number.NaN;
+          const aKnown = Number.isFinite(aTime);
+          const bKnown = Number.isFinite(bTime);
+          if (!aKnown && !bKnown) return 0;
+          if (!aKnown) return 1;
+          if (!bKnown) return -1;
+          return aTime - bTime;
         });
         
         return [...released, ...sortedUnreleased];

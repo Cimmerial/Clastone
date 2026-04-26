@@ -32,6 +32,7 @@ type AuthState = {
   loading: boolean;
   loginError: string | null;
   username: string | null;
+  clastoneUsageMs: number;
   needsUsername: boolean;
   adminLogin: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(!!auth);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [clastoneUsageMs, setClastoneUsageMs] = useState(0);
   const [needsUsername, setNeedsUsername] = useState(false);
 
   useEffect(() => {
@@ -70,7 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userData = userDoc.data();
         const userUsername = userData?.username;
         const role = typeof userData?.devRole === 'string' ? userData.devRole.toLowerCase() : '';
+        const trackedUsageMsRaw = userData?.usage?.clastoneActiveMs;
+        const trackedUsageMs = typeof trackedUsageMsRaw === 'number' && Number.isFinite(trackedUsageMsRaw)
+          ? Math.max(0, trackedUsageMsRaw)
+          : 0;
         setIsBabyDev(!emailAdmin && role === 'babydev');
+        setClastoneUsageMs(trackedUsageMs);
         
         if (userUsername) {
           setUsername(userUsername);
@@ -87,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPfpPhotoUrl(storedPhoto ?? fallbackPhoto);
       } else {
         setUsername(null);
+        setClastoneUsageMs(0);
         setNeedsUsername(false);
         setIsBabyDev(false);
         setPfpPosterPath(null);
@@ -320,6 +328,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     loginError,
     username,
+    clastoneUsageMs,
     needsUsername,
     adminLogin,
     loginWithEmail,

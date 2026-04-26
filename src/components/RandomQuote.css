@@ -10,3 +10,11 @@
 .random-quote-text:hover {
     opacity: 1;
 }
+
+.random-quote-dirk-diggler {
+    color: #22d3ff;
+    text-shadow:
+        0 0 4px #a855f7,
+        0 0 8px #a855f7,
+        0 0 12px #7e22ce;
+}

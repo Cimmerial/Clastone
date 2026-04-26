@@ -38,6 +38,17 @@ function isUnreleased(releaseDate?: string): boolean {
   return release > today;
 }
 
+function isUpcomingRelease(releaseDate?: string): boolean {
+  if (!releaseDate) return true;
+  return isUnreleased(releaseDate);
+}
+
+function upcomingSortValue(releaseDate?: string): number | null {
+  if (!releaseDate) return null;
+  const value = new Date(releaseDate).getTime();
+  return Number.isFinite(value) ? value : null;
+}
+
 function entryIdToTmdbId(id: string): number {
   return (
     (id.includes('-')
@@ -77,16 +88,23 @@ export function ProfileWatchlist({
   const {
     isOverlapModalOpen,
     setIsOverlapModalOpen,
-    overlapFriendUids,
-    setOverlapFriendUids,
-    overlapFriendUidsDraft,
-    setOverlapFriendUidsDraft,
+    friendModes,
+    setFriendModes,
+    friendModesDraft,
+    setFriendModesDraft,
     isLoadingOverlap,
     friendWatchlists,
     friendWatchlistErrors,
+    refreshingFriendUids,
+    refreshFriendWatchlist,
     overlapMovieIdSet,
     overlapTvIdSet,
-  } = useWatchlistFriendOverlap(!!(isOwnProfile && showFriendOverlapButton), overlapMyMovieIds, overlapMyTvIds);
+  } = useWatchlistFriendOverlap(
+    !!(isOwnProfile && showFriendOverlapButton),
+    friends.map((f) => f.uid),
+    overlapMyMovieIds,
+    overlapMyTvIds
+  );
 
   const moviesAfterFriendOverlap = useMemo(() => {
     if (!isOwnProfile || !showFriendOverlapButton || !overlapMovieIdSet) {
@@ -126,7 +144,7 @@ export function ProfileWatchlist({
   const sourceCountForView = viewType === 'movies' ? moviesSource.length : tvSource.length;
 
   const ownFriendOverlapActive =
-    isOwnProfile && showFriendOverlapButton && overlapFriendUids.length > 0;
+    isOwnProfile && showFriendOverlapButton && Object.values(friendModes).some(Boolean);
 
   const watchlistSearchItems = useMemo(
     () => currentItems.map((e) => ({ id: e.id, title: e.title })),
@@ -180,7 +198,7 @@ export function ProfileWatchlist({
       const userStatus = getUserMovieStatus?.(tmdbId) ?? { isRanked: false };
       const watched = (userStatus.watchRecords?.length ?? 0) > 0;
 
-      const bucket = isUnreleased(entry.releaseDate)
+      const bucket = isUpcomingRelease(entry.releaseDate)
         ? unreleased
         : watched
           ? rewatch
@@ -190,9 +208,12 @@ export function ProfileWatchlist({
     }
 
     unreleased.sort((a, b) => {
-      if (!a.entry.releaseDate) return 1;
-      if (!b.entry.releaseDate) return -1;
-      return new Date(a.entry.releaseDate).getTime() - new Date(b.entry.releaseDate).getTime();
+      const aValue = upcomingSortValue(a.entry.releaseDate);
+      const bValue = upcomingSortValue(b.entry.releaseDate);
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+      return aValue - bValue;
     });
 
     return { defaultWatchlist, rewatch, unreleased };
@@ -208,7 +229,7 @@ export function ProfileWatchlist({
       const userStatus = getUserShowStatus?.(tmdbId) ?? { isRanked: false };
       const watched = (userStatus.watchRecords?.length ?? 0) > 0;
 
-      const bucket = isUnreleased(entry.releaseDate)
+      const bucket = isUpcomingRelease(entry.releaseDate)
         ? unreleased
         : watched
           ? rewatch
@@ -218,9 +239,12 @@ export function ProfileWatchlist({
     }
 
     unreleased.sort((a, b) => {
-      if (!a.entry.releaseDate) return 1;
-      if (!b.entry.releaseDate) return -1;
-      return new Date(a.entry.releaseDate).getTime() - new Date(b.entry.releaseDate).getTime();
+      const aValue = upcomingSortValue(a.entry.releaseDate);
+      const bValue = upcomingSortValue(b.entry.releaseDate);
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+      return aValue - bValue;
     });
 
     return { defaultWatchlist, rewatch, unreleased };
@@ -330,9 +354,9 @@ export function ProfileWatchlist({
           {isOwnProfile && showFriendOverlapButton && (
             <button
               type="button"
-              className={`watchlist-overlap-open-btn ${overlapFriendUids.length > 0 ? 'watchlist-overlap-open-btn--active' : ''}`}
+              className={`watchlist-overlap-open-btn ${Object.values(friendModes).some(Boolean) ? 'watchlist-overlap-open-btn--active' : ''}`}
               onClick={() => {
-                setOverlapFriendUidsDraft(overlapFriendUids);
+                setFriendModesDraft(friendModes);
                 setIsOverlapModalOpen(true);
               }}
               title="Show only items on all selected friends' watchlists"
@@ -408,21 +432,25 @@ export function ProfileWatchlist({
         <WatchlistFriendOverlapModal
           isOpen={isOverlapModalOpen}
           friends={friends}
-          selectedUids={overlapFriendUidsDraft}
+          selectedModes={friendModesDraft}
           isLoading={isLoadingOverlap}
           onClose={() => {
             setIsOverlapModalOpen(false);
-            setOverlapFriendUidsDraft(overlapFriendUids);
+            setFriendModesDraft(friendModes);
           }}
-          onSelectionChange={(uids) => setOverlapFriendUidsDraft(uids)}
-          onCommit={(uids) => {
-            setOverlapFriendUids(uids);
+          onSelectionChange={(modes) => setFriendModesDraft(modes)}
+          onCommit={(modes) => {
+            setFriendModes(modes);
             setIsOverlapModalOpen(false);
           }}
           myMovieIds={overlapMyMovieIds}
           myTvIds={overlapMyTvIds}
           friendWatchlists={friendWatchlists}
           friendWatchlistErrors={friendWatchlistErrors}
+          refreshingFriendUids={refreshingFriendUids}
+          onFriendToggle={(uid) => {
+            void refreshFriendWatchlist(uid);
+          }}
         />
       )}
     </div>

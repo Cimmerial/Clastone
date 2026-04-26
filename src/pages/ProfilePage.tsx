@@ -29,6 +29,7 @@ import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { Award, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { useListsStore } from '../state/listsStore';
 import { ThemedDropdown } from '../components/ThemedDropdown';
 import {
@@ -79,6 +80,23 @@ const PROFILE_COLLECTION_LABEL_OVERRIDES: Record<string, string> = {
 function formatWatchRatePercent(count: number, total: number): string {
   if (total <= 0) return '0.0';
   return ((count / total) * 100).toFixed(1);
+}
+
+function formatMsWithSeconds(totalMs: number): string {
+  const clampedSeconds = Math.max(0, Math.floor(totalMs / 1000));
+  const hours = Math.floor(clampedSeconds / 3600);
+  const minutes = Math.floor((clampedSeconds % 3600) / 60);
+  const seconds = clampedSeconds % 60;
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function formatLastBatchSent(timestampMs: number | null): string {
+  if (!timestampMs) return 'Never';
+  const date = new Date(timestampMs);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
 }
 
 function stableHash(input: string): number {
@@ -412,7 +430,10 @@ function buildUniqueWatchMilestoneData(
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { username, user } = useAuth();
+  const { username, user, isAdmin, isBabyDev } = useAuth();
+  const { totalClastoneUsageMs, pendingClastoneUsageMs, lastBatchSentAtMs } = useClastoneUsage();
+  const showDevUsageStat = import.meta.env.DEV && (isAdmin || isBabyDev);
+
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
   const [isRankingSaving, setIsRankingSaving] = useState(false);
   const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
@@ -1891,6 +1912,30 @@ export function ProfilePage() {
                 <span className="profile-stat-value profile-stat-value--sub">{formatDuration(stats.avgWatchtimePerShow)}</span>
                 <span className="profile-stat-label">Avg per show</span>
               </div>
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">
+                    {formatMsWithSeconds(totalClastoneUsageMs)}
+                  </span>
+                  <span className="profile-stat-label">Total clastone time</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">
+                    {formatMsWithSeconds(pendingClastoneUsageMs)}
+                  </span>
+                  <span className="profile-stat-label">Queued batch time</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">
+                    {formatLastBatchSent(lastBatchSentAtMs)}
+                  </span>
+                  <span className="profile-stat-label">Last batch sent</span>
+                </div>
+              )}
             </div>
             
             <div className="profile-stats-grid">

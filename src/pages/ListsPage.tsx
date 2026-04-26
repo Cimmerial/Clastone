@@ -338,7 +338,7 @@ function CreateEntityModal({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Collection description"
+            placeholder={title.toLowerCase().includes('list') ? 'List description' : 'Collection description'}
             className="lists-input"
             rows={2}
           />
@@ -1200,7 +1200,14 @@ export function ListsPage() {
           ) : null}
         </div>
       </section>
-      {showCreateListModal ? <CreateEntityModal title="Create List" onClose={() => setShowCreateListModal(false)} onCreate={(name, type, color) => createList(name, type, 'list', color)} /> : null}
+      {showCreateListModal ? (
+        <CreateEntityModal
+          title="Create List"
+          includeDescription
+          onClose={() => setShowCreateListModal(false)}
+          onCreate={(name, type, color, description) => createList(name, type, 'list', color, description)}
+        />
+      ) : null}
       {showCreateCollectionModal ? (
         <CreateEntityModal
           title="Make Collection"
@@ -1240,6 +1247,7 @@ export function ListDetailPage() {
   const { settings } = useSettingsStore();
   const canEditCollections = isAdmin && import.meta.env.DEV;
   const canEditNameAndColor = isAdmin && import.meta.env.DEV;
+  const canEditDescription = !isCollection;
   const { lists, entriesByListId, reorderEntriesInList, addEntryToListTop, globalCollections, updateList, removeGlobalCollection, deleteList, getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership, collectionIdsByEntryId, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const {
     byClass: movieByClass,
@@ -1439,8 +1447,8 @@ export function ListDetailPage() {
                 type="button"
                 className="lists-edit-name-btn"
                 onClick={() => setShowRenameModal(true)}
-                title={`${canEditNameAndColor ? 'Edit' : 'Rename'} ${title}`}
-                aria-label={`${canEditNameAndColor ? 'Edit' : 'Rename'} ${title}`}
+                title={`${canEditNameAndColor || canEditDescription ? 'Edit' : 'Rename'} ${title}`}
+                aria-label={`${canEditNameAndColor || canEditDescription ? 'Edit' : 'Rename'} ${title}`}
               >
                 <Pencil size={13} />
               </button>
@@ -1917,14 +1925,14 @@ export function ListDetailPage() {
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} collectionTags={infoModalTarget.mediaType === 'movie' ? (() => { const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`; return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color })); })() : []} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
       {showRenameModal ? (
         <RenameEntityModal
-          title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : (canEditNameAndColor ? 'Edit List' : 'Rename List')}
+          title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : ((canEditNameAndColor || canEditDescription) ? 'Edit List' : 'Rename List')}
           initialName={title}
           initialColor={isCollection ? activeCollection?.color : activeList?.color}
           initialSummary={isCollection ? activeCollection?.summary : activeList?.description}
           initialType={activeList?.mediaType}
           entryTypeCounts={activeListTypeCounts}
           allowColorEdit={canEditNameAndColor}
-          allowSummaryEdit={Boolean(canEditNameAndColor)}
+          allowSummaryEdit={isCollection ? Boolean(canEditNameAndColor) : Boolean(canEditDescription)}
           deleteLabel={isCollection ? 'Delete collection' : 'Delete list'}
           onRequestDelete={() => setShowDeleteConfirm(true)}
           onClose={() => setShowRenameModal(false)}
@@ -1946,7 +1954,8 @@ export function ListDetailPage() {
             updateList(activeList.id, {
               name,
               mediaType: mediaType ?? activeList.mediaType,
-              ...(canEditNameAndColor ? { color, description: summary } : {})
+              ...(canEditNameAndColor ? { color } : {}),
+              ...(canEditDescription ? { description: summary } : {})
             });
           }}
         />

@@ -40,15 +40,15 @@ function getInitialSettings(): GlobalSettings {
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' | 'compact' = 'tile';
-        if (vm === 'detailed' || vm === 'tile' || vm === 'compact') {
+        if (vm === 'tile' || vm === 'compact') {
             viewMode = vm as any;
-        } else if (vm === 'minimized') {
+        } else if (vm === 'detailed' || vm === 'minimized') {
             // Migrate old "Simple" mode to Tile mode.
             viewMode = 'tile';
         } else if (min === 'true') {
             viewMode = 'tile';
         } else if (min === 'false') {
-            viewMode = 'detailed';
+            viewMode = 'tile';
         }
 
         let tileViewSize: 'small' | 'default' | 'big' = 'default';
@@ -117,7 +117,12 @@ export function SettingsProvider({
 }) {
     const [settings, setSettings] = useState<GlobalSettings>(() => {
         const defaults = getInitialSettings();
-        return initialSettings ? { ...defaults, ...initialSettings } : defaults;
+        if (!initialSettings) return defaults;
+        const merged = { ...defaults, ...initialSettings };
+        if (merged.viewMode === 'detailed' || merged.viewMode === 'minimized') {
+            merged.viewMode = 'tile';
+        }
+        return merged;
     });
     const [pendingChanges, setPendingChanges] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -161,6 +166,9 @@ export function SettingsProvider({
     const updateSettings = useCallback((updates: Partial<GlobalSettings>) => {
         setSettings(prev => {
             const next = { ...prev, ...updates };
+            if (next.viewMode === 'detailed' || next.viewMode === 'minimized') {
+                next.viewMode = 'tile';
+            }
             // Save to local storage as backup and for non-auth users.
             try {
                 if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));

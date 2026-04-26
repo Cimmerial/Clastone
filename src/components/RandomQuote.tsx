@@ -9,6 +9,20 @@ type Quote = { text: string; character: string; source: string };
 type QuotesData = Record<string, Quote[]>;
 
 const typedQuotesData = quotesData as QuotesData;
+const DIRK_DIGGLER_TEXT = 'Dirk Diggler';
+
+function renderHighlightedDirk(text: string) {
+    if (!text.includes(DIRK_DIGGLER_TEXT)) return text;
+    return text.split(DIRK_DIGGLER_TEXT).flatMap((part, index, parts) => {
+        if (index === parts.length - 1) return [part];
+        return [
+            part,
+            <span key={`dirk-diggler-${index}`} className="random-quote-dirk-diggler">
+                {DIRK_DIGGLER_TEXT}
+            </span>,
+        ];
+    });
+}
 
 export function RandomQuote() {
     const location = useLocation();
@@ -89,7 +103,7 @@ export function RandomQuote() {
                 }
             }}
         >
-            "{quote.text}" - {quote.character}
+            "{renderHighlightedDirk(quote.text)}" - {quote.character}
         </p>
     );
 }

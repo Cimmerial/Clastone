@@ -75,7 +75,7 @@ function partitionWatchlistFullScan(
   const rewatch: WatchlistEntry[] = [];
   const unreleased: WatchlistEntry[] = [];
   for (const entry of fullList) {
-    if (isUnreleased(entry.releaseDate)) {
+    if (isUpcomingRelease(entry.releaseDate)) {
       unreleased.push(entry);
     } else if (hasWatched(entry.id)) {
       rewatch.push(entry);
@@ -90,7 +90,7 @@ function entryWatchlistBucket(
   entry: WatchlistEntry,
   hasWatched: (id: string) => boolean
 ): 'released' | 'rewatch' | 'unreleased' {
-  if (isUnreleased(entry.releaseDate)) return 'unreleased';
+  if (isUpcomingRelease(entry.releaseDate)) return 'unreleased';
   if (hasWatched(entry.id)) return 'rewatch';
   return 'released';
 }
@@ -316,6 +316,12 @@ function isUnreleased(releaseDate?: string): boolean {
   return release > today;
 }
 
+function isUpcomingRelease(releaseDate?: string): boolean {
+  // Unknown dates should still appear in Upcoming.
+  if (!releaseDate) return true;
+  return isUnreleased(releaseDate);
+}
+
 function formatDate(releaseDate?: string): string {
   if (!releaseDate) return '';
   const date = new Date(releaseDate);
@@ -324,11 +330,15 @@ function formatDate(releaseDate?: string): string {
 
 function sortUnreleasedByDate(entries: WatchlistEntry[]): WatchlistEntry[] {
   return [...entries]
-    .filter(entry => isUnreleased(entry.releaseDate))
     .sort((a, b) => {
-      if (!a.releaseDate) return 1;
-      if (!b.releaseDate) return -1;
-      return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
+      const aTime = a.releaseDate ? new Date(a.releaseDate).getTime() : Number.NaN;
+      const bTime = b.releaseDate ? new Date(b.releaseDate).getTime() : Number.NaN;
+      const aKnown = Number.isFinite(aTime);
+      const bKnown = Number.isFinite(bTime);
+      if (!aKnown && !bKnown) return 0;
+      if (!aKnown) return 1;
+      if (!bKnown) return -1;
+      return aTime - bTime;
     });
 }
 
@@ -338,7 +348,7 @@ function separateReleasedAndUnreleased(entries: WatchlistEntry[], hasWatched: (i
   const unreleased: WatchlistEntry[] = [];
   
   entries.forEach(entry => {
-    if (isUnreleased(entry.releaseDate)) {
+    if (isUpcomingRelease(entry.releaseDate)) {
       unreleased.push(entry);
     } else {
       const hasBeenWatched = hasWatched(entry.id);
@@ -859,16 +869,23 @@ export function WatchlistPage() {
   const {
     isOverlapModalOpen,
     setIsOverlapModalOpen,
-    overlapFriendUids,
-    setOverlapFriendUids,
-    overlapFriendUidsDraft,
-    setOverlapFriendUidsDraft,
+    friendModes,
+    setFriendModes,
+    friendModesDraft,
+    setFriendModesDraft,
     isLoadingOverlap,
     friendWatchlists,
     friendWatchlistErrors,
+    refreshingFriendUids,
+    refreshFriendWatchlist,
     overlapMovieIdSet,
     overlapTvIdSet,
-  } = useWatchlistFriendOverlap(true, watchlistOverlapMovieIds, watchlistOverlapTvIds);
+  } = useWatchlistFriendOverlap(
+    true,
+    friends.map((f) => f.uid),
+    watchlistOverlapMovieIds,
+    watchlistOverlapTvIds
+  );
   const [isMyServicesModalOpen, setIsMyServicesModalOpen] = useState(false);
   const [providerCatalogLoading, setProviderCatalogLoading] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState<TmdbWatchProvider[]>(() => {
@@ -1625,9 +1642,9 @@ export function WatchlistPage() {
           <div className="page-actions-row">
             <button
               type="button"
-              className={`watchlist-overlap-open-btn ${overlapFriendUids.length > 0 ? 'watchlist-overlap-open-btn--active' : ''}`}
+              className={`watchlist-overlap-open-btn ${Object.values(friendModes).some(Boolean) ? 'watchlist-overlap-open-btn--active' : ''}`}
               onClick={() => {
-                setOverlapFriendUidsDraft(overlapFriendUids);
+                setFriendModesDraft(friendModes);
                 setIsOverlapModalOpen(true);
               }}
               title="Show only items on all selected friends' watchlists"
@@ -1820,21 +1837,25 @@ export function WatchlistPage() {
       <WatchlistFriendOverlapModal
         isOpen={isOverlapModalOpen}
         friends={friends}
-        selectedUids={overlapFriendUidsDraft}
+        selectedModes={friendModesDraft}
         isLoading={isLoadingOverlap}
         onClose={() => {
           setIsOverlapModalOpen(false);
-          setOverlapFriendUidsDraft(overlapFriendUids);
+          setFriendModesDraft(friendModes);
         }}
-        onSelectionChange={(uids) => setOverlapFriendUidsDraft(uids)}
-        onCommit={(uids) => {
-          setOverlapFriendUids(uids);
+        onSelectionChange={(modes) => setFriendModesDraft(modes)}
+        onCommit={(modes) => {
+          setFriendModes(modes);
           setIsOverlapModalOpen(false);
         }}
         myMovieIds={movies.map((m) => m.id)}
         myTvIds={tv.map((t) => t.id)}
         friendWatchlists={friendWatchlists}
         friendWatchlistErrors={friendWatchlistErrors}
+        refreshingFriendUids={refreshingFriendUids}
+        onFriendToggle={(uid) => {
+          void refreshFriendWatchlist(uid);
+        }}
       />
 
       <MyServicesModal

@@ -39,35 +39,23 @@ function stripUndefined<T>(value: T): T {
 
 /** Prune large fields that can be re-fetched from TMDB to keep document under 1MB. */
 export function pruneItem(item: DirectorItem): DirectorItem {
-    const roles = item.roles || [];
-    const seenMovieIds = new Set(item.moviesSeen);
-    const seenShowIds = new Set(item.showsSeen);
-
-    // 1. Separate seen and unseen roles
-    const seenRoles = roles.filter(r => {
-        const fullId = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
-        return seenMovieIds.has(fullId) || seenShowIds.has(fullId);
-    });
-
-    const unseenRoles = roles.filter(r => {
-        const fullId = r.mediaType === 'movie' ? `tmdb-movie-${r.id}` : `tmdb-tv-${r.id}`;
-        return !seenMovieIds.has(fullId) && !seenShowIds.has(fullId);
-    });
-
-    // 2. Combine: All seen roles + top remaining up to 30 total
-    const limit = 30;
-    const finalRoles = [...seenRoles];
-    const remainingSpace = Math.max(0, limit - seenRoles.length);
-
-    if (remainingSpace > 0) {
-        finalRoles.push(...unseenRoles.slice(0, remainingSpace));
-    }
+    const roles = (item.roles || []).slice(0, 12).map((r) => ({
+        id: r.id,
+        title: r.title,
+        mediaType: r.mediaType,
+        job: r.job,
+        popularity: r.popularity ?? 0
+    }));
 
     return {
         ...item,
-        roles: finalRoles,
+        roles,
+        moviesSeen: [],
+        showsSeen: [],
+        firstSeenDate: undefined,
+        lastSeenDate: undefined,
         biography: item.biography && item.biography.length > 500
-            ? item.biography.slice(0, 500) + '...'
+            ? item.biography.slice(0, 120) + '...'
             : item.biography,
     };
 }
@@ -92,7 +80,14 @@ export async function loadDirectors(db: Firestore, userId: string): Promise<{
                 classes = raw && raw.length > 0 ? raw : ONLY_UNRANKED_DIRECTOR_CLASS;
             } else if (id.startsWith('class_')) {
                 const classKey = id.replace('class_', '');
-                byClass[classKey] = (d.data().items || []) as DirectorItem[];
+                byClass[classKey] = ((d.data().items || []) as DirectorItem[]).map((item) => ({
+                    ...item,
+                    roles: item.roles ?? [],
+                    moviesSeen: item.moviesSeen ?? [],
+                    showsSeen: item.showsSeen ?? [],
+                    movieMinutes: item.movieMinutes ?? 0,
+                    showMinutes: item.showMinutes ?? 0,
+                }));
             }
         });
 
@@ -165,4 +160,67 @@ export async function saveDirectors(
     });
 
     await batch.commit();
+}
+
+export async function pruneStoredDirectorsDataForUser(
+    db: Firestore,
+    userId: string
+): Promise<{ classDocsScanned: number; classDocsUpdated: number; itemsPruned: number }> {
+    const directorsCol = collection(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION);
+    const directorsSnap = await getDocs(directorsCol);
+    if (directorsSnap.empty) {
+        return { classDocsScanned: 0, classDocsUpdated: 0, itemsPruned: 0 };
+    }
+
+    const batch = throttledWriteBatch(db, { storeName: 'directors-prune', userId });
+    let classDocsScanned = 0;
+    let classDocsUpdated = 0;
+    let itemsPruned = 0;
+
+    directorsSnap.forEach((d) => {
+        const id = d.id;
+        if (!id.startsWith('class_')) return;
+        classDocsScanned += 1;
+
+        const rawItems = (d.data().items || []) as DirectorItem[];
+        const prunedItems = rawItems.map(pruneItem);
+        const changed = JSON.stringify(rawItems) !== JSON.stringify(prunedItems);
+        if (!changed) return;
+
+        const classRef = doc(db, NEW_ROOT, userId, PEOPLE_DATA_COLLECTION, id);
+        batch.set(classRef, stripUndefined({ items: prunedItems }), { merge: true });
+        classDocsUpdated += 1;
+        itemsPruned += prunedItems.length;
+    });
+
+    if (classDocsUpdated > 0) {
+        await batch.commit();
+    }
+
+    return { classDocsScanned, classDocsUpdated, itemsPruned };
+}
+
+export async function pruneStoredDirectorsDataForAllUsers(
+    db: Firestore
+): Promise<{ usersScanned: number; usersUpdated: number; classDocsUpdated: number; itemsPruned: number }> {
+    const usersSnap = await getDocs(collection(db, 'users'));
+    let usersUpdated = 0;
+    let classDocsUpdated = 0;
+    let itemsPruned = 0;
+
+    for (const userDoc of usersSnap.docs) {
+        const result = await pruneStoredDirectorsDataForUser(db, userDoc.id);
+        if (result.classDocsUpdated > 0) {
+            usersUpdated += 1;
+            classDocsUpdated += result.classDocsUpdated;
+            itemsPruned += result.itemsPruned;
+        }
+    }
+
+    return {
+        usersScanned: usersSnap.size,
+        usersUpdated,
+        classDocsUpdated,
+        itemsPruned
+    };
 }

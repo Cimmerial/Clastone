@@ -1,4 +1,4 @@
-import { StretchHorizontal, LayoutGrid, Rows3 } from 'lucide-react';
+import { LayoutGrid, Rows3 } from 'lucide-react';
 import { useSettingsStore } from '../state/settingsStore';
 import './ViewToggle.css';
 
@@ -6,29 +6,27 @@ export function ViewToggle() {
     const { settings, updateSettings } = useSettingsStore();
 
     const cycleMode = () => {
-        const modes: Array<'detailed' | 'tile' | 'compact'> = ['tile', 'compact', 'detailed'];
-        const currentMode = settings.viewMode === 'minimized' ? 'tile' : settings.viewMode;
+        const modes: Array<'tile' | 'compact'> = ['tile', 'compact'];
+        const currentMode = settings.viewMode === 'compact' ? 'compact' : 'tile';
         const currentIdx = modes.indexOf(currentMode);
         const nextMode = modes[(currentIdx + 1) % modes.length];
         updateSettings({ viewMode: nextMode });
     };
 
-    const Icon = settings.viewMode === 'detailed'
-            ? StretchHorizontal
-            : settings.viewMode === 'compact'
+    const Icon = settings.viewMode === 'compact'
                 ? Rows3
                 : LayoutGrid;
 
     const getLabel = (mode: string) => {
         switch (mode) {
-            case 'detailed': return 'Detailed';
             case 'tile': return 'Tile';
             case 'compact': return 'Compact';
             default: return mode.charAt(0).toUpperCase() + mode.slice(1);
         }
     };
 
-    const label = getLabel(settings.viewMode === 'minimized' ? 'tile' : settings.viewMode);
+    const normalizedMode = settings.viewMode === 'compact' ? 'compact' : 'tile';
+    const label = getLabel(normalizedMode);
 
     return (
         <button

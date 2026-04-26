@@ -49,12 +49,18 @@ service cloud.firestore {
     
     match /users/{userId}/peopleData/{docId} {
       allow read: if true;
-      allow write: if request.auth != null && userId == request.auth.uid;
+      allow write: if request.auth != null && (
+        userId == request.auth.uid ||
+        request.auth.token.email == "cimmerial@clastone.local"
+      );
     }
     
     match /users/{userId}/directorsData/{docId} {
       allow read: if true;
-      allow write: if request.auth != null && userId == request.auth.uid;
+      allow write: if request.auth != null && (
+        userId == request.auth.uid ||
+        request.auth.token.email == "cimmerial@clastone.local"
+      );
     }
     
     match /users/{userId}/watchlistData/{docId} {

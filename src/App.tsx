@@ -24,6 +24,7 @@ import { FriendsProvider } from './context/FriendsContext';
 import { useSettingsStore } from './state/settingsStore';
 import { useEffect } from 'react';
 import { AppLoading } from './components/AppLoading';
+import { ClastoneUsageProvider } from './context/ClastoneUsageContext';
 import './components/SpotlightBackground.css';
 
 function TileSizeManager() {
@@ -38,36 +39,46 @@ function TileSizeManager() {
   return null;
 }
 
-function LoggedInAppShell({ children }: { children: React.ReactNode }) {
+function LoggedInAppShell({
+  uid,
+  initialUsageMs,
+  children,
+}: {
+  uid: string;
+  initialUsageMs: number;
+  children: React.ReactNode;
+}) {
   return (
-    <FriendsProvider>
-      <SyncStatusProvider>
-        <FirestoreSettingsGate>
-          <TileSizeManager />
-          <FirestoreMoviesGate>
-            <FirestoreTvGate>
-              <FirestorePeopleGate>
-                <FirestoreDirectorsGate>
-                  <FirestoreWatchlistGate>
-                    <FirestoreListsGate>
-                      <FilterProvider>
-                        <SpotlightBackground />
-                        <NavBar />
-                        <main className="app-main">
-                          {children}
-                        </main>
-                        <MobileBottomNav />
-                        <DevTools />
-                      </FilterProvider>
-                    </FirestoreListsGate>
-                  </FirestoreWatchlistGate>
-                </FirestoreDirectorsGate>
-              </FirestorePeopleGate>
-            </FirestoreTvGate>
-          </FirestoreMoviesGate>
-        </FirestoreSettingsGate>
-      </SyncStatusProvider>
-    </FriendsProvider>
+    <ClastoneUsageProvider uid={uid} initialTotalMs={initialUsageMs}>
+      <FriendsProvider>
+        <SyncStatusProvider>
+          <FirestoreSettingsGate>
+            <TileSizeManager />
+            <FirestoreMoviesGate>
+              <FirestoreTvGate>
+                <FirestorePeopleGate>
+                  <FirestoreDirectorsGate>
+                    <FirestoreWatchlistGate>
+                      <FirestoreListsGate>
+                        <FilterProvider>
+                          <SpotlightBackground />
+                          <NavBar />
+                          <main className="app-main">
+                            {children}
+                          </main>
+                          <MobileBottomNav />
+                          <DevTools />
+                        </FilterProvider>
+                      </FirestoreListsGate>
+                    </FirestoreWatchlistGate>
+                  </FirestoreDirectorsGate>
+                </FirestorePeopleGate>
+              </FirestoreTvGate>
+            </FirestoreMoviesGate>
+          </FirestoreSettingsGate>
+        </SyncStatusProvider>
+      </FriendsProvider>
+    </ClastoneUsageProvider>
   );
 }
 
@@ -111,7 +122,7 @@ function PublicAppShell() {
 }
 
 function App() {
-  const { user, loading, needsUsername } = useAuth();
+  const { user, loading, needsUsername, clastoneUsageMs } = useAuth();
 
   if (loading) {
     return <AppLoading message="Loading..." />;
@@ -130,7 +141,7 @@ function App() {
   }
 
   return (
-    <LoggedInAppShell>
+    <LoggedInAppShell uid={user.uid} initialUsageMs={clastoneUsageMs}>
       <AppRoutes />
     </LoggedInAppShell>
   );

@@ -140,12 +140,12 @@
 }
 
 .watchlist-overlap-modal {
-  width: min(640px, 100%);
-  max-height: min(78vh, 720px);
+  width: min(760px, 100%);
+  max-height: min(82vh, 760px);
   background: rgba(12, 12, 12, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+  border-radius: 16px;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.58);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
@@ -167,16 +167,22 @@
 
 .watchlist-overlap-modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .watchlist-overlap-modal-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-primary);
+}
+
+.watchlist-overlap-modal-subtitle {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .watchlist-overlap-modal-close {
@@ -196,7 +202,7 @@
 }
 
 .watchlist-overlap-modal-body {
-  padding: 12px 14px;
+  padding: 14px 16px;
   overflow: auto;
 }
 
@@ -271,12 +277,12 @@
 .watchlist-overlap-preview {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 10px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(26, 26, 26, 0.16);
-  margin-bottom: 12px;
+  background: rgba(26, 26, 26, 0.22);
+  margin-bottom: 14px;
 }
 
 .watchlist-overlap-preview-row {
@@ -298,7 +304,7 @@
 
 .watchlist-overlap-preview-value {
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -309,26 +315,31 @@
 }
 
 .watchlist-overlap-friends-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .watchlist-overlap-friend-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: center;
-  padding: 10px 10px;
-  border-radius: 12px;
+  padding: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(26, 26, 26, 0.22);
+  background: rgba(26, 26, 26, 0.2);
   cursor: pointer;
 }
 
 .watchlist-overlap-friend-row:hover {
   border-color: rgba(244, 162, 97, 0.28);
-  background: rgba(26, 26, 26, 0.35);
+  background: rgba(26, 26, 26, 0.34);
+}
+
+.watchlist-overlap-friend-row--checked {
+  border-color: rgba(74, 222, 128, 0.44);
+  background: rgba(74, 222, 128, 0.09);
 }
 
 .watchlist-overlap-friend-meta {
@@ -339,8 +350,8 @@
 
 .watchlist-overlap-friend-name {
   color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 650;
   line-height: 1.15;
 }
 
@@ -361,6 +372,27 @@
   width: 42px;
   height: 24px;
   flex-shrink: 0;
+}
+
+.watchlist-overlap-friend-switches {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.watchlist-overlap-switch--labeled {
+  width: auto;
+  height: auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.watchlist-overlap-switch-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .watchlist-overlap-switch input {
@@ -403,7 +435,7 @@
 }
 
 .watchlist-overlap-modal-footer {
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   justify-content: flex-end;
@@ -443,6 +475,12 @@
 .watchlist-overlap-btn--primary:hover {
   background: rgba(244, 162, 97, 0.28);
   border-color: rgba(244, 162, 97, 0.55);
+}
+
+@media (max-width: 760px) {
+  .watchlist-overlap-friends-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Use the same styles as ranked lists for consistency */

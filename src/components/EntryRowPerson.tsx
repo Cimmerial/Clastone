@@ -73,8 +73,28 @@ export function EntryRowPerson({
     }
   }, [isVisible, item.tmdbId, item.id, updatePersonCache, item.roles]);
 
-  const seenMovies = new Set(item.moviesSeen);
-  const seenShows = new Set(item.showsSeen);
+  const watchedMovieIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const classItems of Object.values(moviesByClass)) {
+      for (const media of classItems ?? []) {
+        if ((media.watchRecords?.length ?? 0) > 0) ids.add(media.id);
+      }
+    }
+    return ids;
+  }, [moviesByClass]);
+
+  const watchedShowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const classItems of Object.values(tvByClass)) {
+      for (const media of classItems ?? []) {
+        if ((media.watchRecords?.length ?? 0) > 0) ids.add(media.id);
+      }
+    }
+    return ids;
+  }, [tvByClass]);
+
+  const seenMovies = watchedMovieIds;
+  const seenShows = watchedShowIds;
 
   const { seenRoles, knownFor } = useMemo(() => {
     let all = item.roles ?? [];
@@ -193,6 +213,23 @@ export function EntryRowPerson({
   const isUnranked = item.classKey === 'UNRANKED';
 
   const totalWatchTime = (item.movieMinutes || 0) + (item.showMinutes || 0);
+  const movieSeenCount = useMemo(() => {
+    const ids = new Set<number>();
+    for (const role of item.roles ?? []) {
+      if (role.mediaType !== 'movie') continue;
+      if (watchedMovieIds.has(`tmdb-movie-${role.id}`)) ids.add(role.id);
+    }
+    return ids.size;
+  }, [item.roles, watchedMovieIds]);
+
+  const showSeenCount = useMemo(() => {
+    const ids = new Set<number>();
+    for (const role of item.roles ?? []) {
+      if (role.mediaType !== 'tv') continue;
+      if (watchedShowIds.has(`tmdb-tv-${role.id}`)) ids.add(role.id);
+    }
+    return ids.size;
+  }, [item.roles, watchedShowIds]);
 
   const { mode: mobileViewMode, isMobile } = useMobileViewMode();
   const finalViewMode = propViewMode ?? mobileViewMode;
@@ -258,7 +295,7 @@ export function EntryRowPerson({
               </button>
             </div>
             <div className="entry-tile-stats-overlay">
-              <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
+              <div className="entry-stat-pill">{movieSeenCount + showSeenCount} Projects</div>
               {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
             </div>
             <div className="entry-tile-quick-actions">
@@ -284,7 +321,7 @@ export function EntryRowPerson({
               </button>
             </div>
             {!isCompact && <div className="entry-tile-stats-overlay">
-              <div className="entry-stat-pill">{item.moviesSeen.length + item.showsSeen.length} Projects</div>
+              <div className="entry-stat-pill">{movieSeenCount + showSeenCount} Projects</div>
               {totalWatchTime > 0 && <div className="entry-stat-pill">{formatDuration(totalWatchTime)}</div>}
             </div>}
             <div className="entry-tile-quick-actions">
@@ -341,8 +378,8 @@ export function EntryRowPerson({
 
               <div className="entry-stats-row">
                 {totalWatchTime > 0 && <span className="entry-stat-pill">{formatDuration(totalWatchTime)} total</span>}
-                {item.moviesSeen.length > 0 && <span className="entry-stat-pill">{item.moviesSeen.length} {item.moviesSeen.length === 1 ? 'Movie' : 'Movies'}</span>}
-                {item.showsSeen.length > 0 && <span className="entry-stat-pill">{item.showsSeen.length} {item.showsSeen.length === 1 ? 'Show' : 'Shows'}</span>}
+                {movieSeenCount > 0 && <span className="entry-stat-pill">{movieSeenCount} {movieSeenCount === 1 ? 'Movie' : 'Movies'}</span>}
+                {showSeenCount > 0 && <span className="entry-stat-pill">{showSeenCount} {showSeenCount === 1 ? 'Show' : 'Shows'}</span>}
               </div>
             </>
           )}
