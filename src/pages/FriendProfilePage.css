@@ -1163,6 +1163,19 @@
   display: inline-block;
 }
 
+.profile-taste-chart-toggle-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.63rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.profile-taste-chart-toggle-all input {
+  margin: 0;
+}
+
 .profile-taste-breakdown-grid {
   margin-top: 0.65rem;
   display: grid;

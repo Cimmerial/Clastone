@@ -32,6 +32,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
@@ -511,6 +512,7 @@ export function FriendProfilePage() {
     friends,
     loading: friendsActionLoading,
   } = useFriends();
+  const { settings, updateSettings } = useSettingsStore();
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -595,6 +597,7 @@ export function FriendProfilePage() {
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
   const [showTasteDetails, setShowTasteDetails] = useState(false);
+  const [showAllOverlapOnChart, setShowAllOverlapOnChart] = useState(false);
   const [movieTasteConfig, setMovieTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('movies'));
   const [showTasteConfig, setShowTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('shows'));
   const profileMediaListModeOptionsWithExpanded = useMemo<ThemedDropdownOption<ProfileMediaListModeWithExpanded>[]>(
@@ -613,10 +616,18 @@ export function FriendProfilePage() {
 
   useEffect(() => {
     saveTasteSimilarityConfigScoped('movies', movieTasteConfig);
+    updateSettings({ movieTasteConfig });
   }, [movieTasteConfig]);
   useEffect(() => {
     saveTasteSimilarityConfigScoped('shows', showTasteConfig);
+    updateSettings({ showTasteConfig });
   }, [showTasteConfig]);
+  useEffect(() => {
+    if (settings.movieTasteConfig) setMovieTasteConfig(settings.movieTasteConfig);
+  }, [settings.movieTasteConfig]);
+  useEffect(() => {
+    if (settings.showTasteConfig) setShowTasteConfig(settings.showTasteConfig);
+  }, [settings.showTasteConfig]);
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
@@ -1948,12 +1959,12 @@ export function FriendProfilePage() {
   );
 
   const movieTasteChartData = useMemo(
-    () => buildTasteOverlapChartData(myRankedMovies, rankedMovies),
-    [myRankedMovies, rankedMovies]
+    () => buildTasteOverlapChartData(myRankedMovies, rankedMovies, showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60),
+    [myRankedMovies, rankedMovies, showAllOverlapOnChart]
   );
   const showTasteChartData = useMemo(
-    () => buildTasteOverlapChartData(myRankedShows, rankedShows),
-    [myRankedShows, rankedShows]
+    () => buildTasteOverlapChartData(myRankedShows, rankedShows, showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60),
+    [myRankedShows, rankedShows, showAllOverlapOnChart]
   );
   const movieTasteComparisons = useMemo(
     () => buildTasteComparisonRows(myRankedMovies, rankedMovies),
@@ -2704,6 +2715,14 @@ export function FriendProfilePage() {
                               <span><i style={{ background: '#f4a261' }} />You</span>
                               <span><i style={{ background: '#4da3ff' }} />Them</span>
                               <span>Above 0 = top 50% · below 0 = bottom 50%</span>
+                              <label className="profile-taste-chart-toggle-all">
+                                <input
+                                  type="checkbox"
+                                  checked={showAllOverlapOnChart}
+                                  onChange={(e) => setShowAllOverlapOnChart(e.target.checked)}
+                                />
+                                Show all overlap on chart
+                              </label>
                             </div>
                             <div className="profile-taste-breakdown-grid">
                               <div className="profile-taste-breakdown">

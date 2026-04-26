@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { TasteSimilarityConfig } from '../lib/tasteSimilarity';
 
 export type GlobalSettings = {
     topCastCount: number;
@@ -14,6 +15,8 @@ export type GlobalSettings = {
     collectionSeenBorderMode: boolean;
     watchRegion: string;
     myWatchProviderIds: number[];
+    movieTasteConfig?: TasteSimilarityConfig;
+    showTasteConfig?: TasteSimilarityConfig;
 };
 
 type SettingsStore = {
@@ -39,6 +42,8 @@ function getInitialSettings(): GlobalSettings {
         const csbm = localStorage.getItem('clastone-collectionSeenBorderMode');
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
+        const mtc = localStorage.getItem('clastone-movieTasteConfig');
+        const stc = localStorage.getItem('clastone-showTasteConfig');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' | 'compact' = 'tile';
         if (vm === 'detailed' || vm === 'tile' || vm === 'compact') {
@@ -68,6 +73,14 @@ function getInitialSettings(): GlobalSettings {
                 myWatchProviderIds = [];
             }
         }
+        let movieTasteConfig: TasteSimilarityConfig | undefined;
+        let showTasteConfig: TasteSimilarityConfig | undefined;
+        if (mtc) {
+            try { movieTasteConfig = JSON.parse(mtc) as TasteSimilarityConfig; } catch { movieTasteConfig = undefined; }
+        }
+        if (stc) {
+            try { showTasteConfig = JSON.parse(stc) as TasteSimilarityConfig; } catch { showTasteConfig = undefined; }
+        }
 
         return {
             topCastCount: cast ? Number(cast) : 5,
@@ -85,7 +98,9 @@ function getInitialSettings(): GlobalSettings {
             useSpotlightBackground: usb === 'true',
             collectionSeenBorderMode: csbm === 'true',
             watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
-            myWatchProviderIds
+            myWatchProviderIds,
+            movieTasteConfig,
+            showTasteConfig,
         };
     } catch {
         return {
@@ -101,7 +116,9 @@ function getInitialSettings(): GlobalSettings {
             useSpotlightBackground: false,
             collectionSeenBorderMode: false,
             watchRegion: 'US',
-            myWatchProviderIds: []
+            myWatchProviderIds: [],
+            movieTasteConfig: undefined,
+            showTasteConfig: undefined,
         };
     }
 }
@@ -177,6 +194,8 @@ export function SettingsProvider({
                 if (updates.collectionSeenBorderMode !== undefined) localStorage.setItem('clastone-collectionSeenBorderMode', String(next.collectionSeenBorderMode));
                 if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
                 if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
+                if (updates.movieTasteConfig !== undefined) localStorage.setItem('clastone-movieTasteConfig', JSON.stringify(next.movieTasteConfig));
+                if (updates.showTasteConfig !== undefined) localStorage.setItem('clastone-showTasteConfig', JSON.stringify(next.showTasteConfig));
 
             } catch { /* ignore */ }
             return next;
