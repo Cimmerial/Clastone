@@ -4,6 +4,7 @@ export type GlobalSettings = {
     topCastCount: number;
     topRoleCount: number;
     personProjectsLimit: number;
+    infoModalProjectSort: 'default' | 'seen-watchlisted-unseen' | 'new-old';
     viewMode: 'minimized' | 'detailed' | 'tile' | 'compact';
     tileViewSize: 'small' | 'default' | 'big';
     boycottTalkShows: boolean;
@@ -27,6 +28,7 @@ function getInitialSettings(): GlobalSettings {
         const cast = localStorage.getItem('clastone-topCastCount');
         const role = localStorage.getItem('clastone-topRoleCount');
         const ppl = localStorage.getItem('clastone-personProjectsLimit');
+        const imps = localStorage.getItem('clastone-infoModalProjectSort');
         const vm = localStorage.getItem('clastone-viewMode');
         const tvs = localStorage.getItem('clastone-tileViewSize');
         const min = localStorage.getItem('clastone-minimizedEntries');
@@ -71,6 +73,10 @@ function getInitialSettings(): GlobalSettings {
             topCastCount: cast ? Number(cast) : 5,
             topRoleCount: role ? Number(role) : 5,
             personProjectsLimit: ppl ? Number(ppl) : 12,
+            infoModalProjectSort:
+                imps === 'seen-watchlisted-unseen' || imps === 'new-old' || imps === 'default'
+                    ? imps
+                    : 'default',
             viewMode,
             tileViewSize,
             boycottTalkShows: bts === 'true',
@@ -86,6 +92,7 @@ function getInitialSettings(): GlobalSettings {
             topCastCount: 5,
             topRoleCount: 5,
             personProjectsLimit: 12,
+            infoModalProjectSort: 'default',
             viewMode: 'tile',
             tileViewSize: 'default',
             boycottTalkShows: false,
@@ -160,6 +167,7 @@ export function SettingsProvider({
                 if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));
                 if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
                 if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
+                if (updates.infoModalProjectSort !== undefined) localStorage.setItem('clastone-infoModalProjectSort', next.infoModalProjectSort);
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
                 if (updates.tileViewSize !== undefined) localStorage.setItem('clastone-tileViewSize', next.tileViewSize);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));

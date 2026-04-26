@@ -15,7 +15,7 @@
 .info-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
-  max-width: 900px;
+  max-width: 1035px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
@@ -157,12 +157,18 @@
   border-radius: 8px;
   overflow: hidden;
   background: #2a2a2a;
+  position: relative;
 }
 
 .info-modal-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: filter 0.16s ease;
+}
+
+.info-modal-poster:hover img {
+  filter: brightness(0.84);
 }
 
 .info-modal-poster-placeholder {
@@ -172,6 +178,69 @@
   align-items: center;
   justify-content: center;
   color: #666;
+}
+
+.info-modal-poster-hover-actions {
+  position: absolute;
+  top: 0.55rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.info-modal-poster:hover .info-modal-poster-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.info-modal-poster-hover-btn {
+  border-radius: 999px;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.46rem 0.18rem;
+  border: 1px solid;
+  color: var(--text-primary);
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.info-modal-poster-hover-btn--plus {
+  border-color: rgba(244, 162, 97, 0.78);
+  background: radial-gradient(circle at top left, rgba(244, 162, 97, 0.38), rgba(232, 93, 4, 0.2));
+}
+
+.info-modal-poster-hover-btn--minus {
+  border-color: rgba(244, 67, 54, 0.78);
+  background: radial-gradient(circle at top left, rgba(244, 67, 54, 0.36), rgba(229, 57, 53, 0.2));
+}
+
+.info-modal-poster-watchlist-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 0.38rem;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #cfe6ff;
+  background: rgba(20, 32, 50, 0.78);
+  border: 1px solid rgba(138, 193, 255, 0.42);
+  border-radius: 999px;
+  padding: 2px 6px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.info-modal-poster:hover .info-modal-poster-watchlist-pill {
+  opacity: 1;
 }
 
 .info-modal-basic-info {
@@ -320,7 +389,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 1 1 50%;
+  flex: 1 1 100%;
   min-width: 0;
   height: 34px;
   gap: 0.4rem;
@@ -587,6 +656,20 @@
   margin: 0;
 }
 
+.info-modal-section-title-group {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.info-modal-section-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  opacity: 0.75;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 .info-modal-inline-toggles {
   display: inline-flex;
   align-items: center;
@@ -598,6 +681,31 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.info-modal-project-sort-dropdown {
+  width: 232px;
+}
+
+.info-modal-project-sort-dropdown .themed-dropdown-trigger {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.38);
+  color: var(--text-muted);
+}
+
+.info-modal-project-sort-dropdown .themed-dropdown-trigger:hover {
+  border-color: rgba(244, 162, 97, 0.44);
+  background: rgba(10, 6, 14, 0.56);
+}
+
+.info-modal-project-sort-dropdown .themed-dropdown-value {
+  color: var(--accent-muted);
+  font-weight: 600;
+}
+
+.info-modal-project-sort-dropdown .themed-dropdown-chevron {
+  color: var(--accent-muted);
+  opacity: 0.82;
 }
 
 .info-modal-inline-toggle-label {
@@ -745,6 +853,50 @@
   pointer-events: auto;
 }
 
+.info-modal-project-hover-actions {
+  position: absolute;
+  top: 2.05rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.info-modal-person-card:hover .info-modal-project-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.info-modal-project-hover-btn {
+  border-radius: 999px;
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.44rem 0.16rem;
+  border: 1px solid;
+  color: var(--text-primary);
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.info-modal-project-hover-btn--plus {
+  border-color: rgba(255, 184, 120, 0.96);
+  background: radial-gradient(circle at top left, rgba(255, 178, 112, 0.94), rgba(232, 93, 4, 0.88));
+}
+
+.info-modal-project-hover-btn--minus {
+  border-color: rgba(255, 128, 128, 0.96);
+  background: radial-gradient(circle at top left, rgba(255, 105, 105, 0.94), rgba(229, 57, 53, 0.88));
+}
+
 .info-modal-person-watchlist-badge {
   position: absolute;
   left: 50%;
@@ -808,6 +960,12 @@
   margin: 0 0.4rem;
   background: rgba(255, 255, 255, 0.28);
   border-radius: 999px;
+}
+
+.info-modal-cast-divider--projects {
+  min-height: 170px;
+  margin: 0 0.55rem;
+  background: rgba(255, 255, 255, 0.36);
 }
 
 .info-modal-cast-name {

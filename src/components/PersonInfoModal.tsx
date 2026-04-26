@@ -11,6 +11,7 @@ import { InfoModal } from './InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from './UniversalEditModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
+import { ThemedDropdown } from './ThemedDropdown';
 import './InfoModal.css';
 
 interface PersonInfoModalProps {
@@ -42,6 +43,15 @@ interface PersonDetails {
   }>;
 }
 
+type ProjectRoleFilter = 'ACTOR' | 'DIRECTOR' | 'PRODUCER' | 'CREATOR' | 'OTHER';
+const ALL_PROJECT_ROLE_FILTERS: ProjectRoleFilter[] = ['ACTOR', 'DIRECTOR', 'PRODUCER', 'CREATOR', 'OTHER'];
+type InfoModalProjectSort = 'default' | 'seen-watchlisted-unseen' | 'new-old';
+const PROJECT_SORT_OPTIONS: Array<{ value: InfoModalProjectSort; label: string }> = [
+  { value: 'default', label: 'Default' },
+  { value: 'seen-watchlisted-unseen', label: 'Seen->Watchlisted->Unseen' },
+  { value: 'new-old', label: 'New->Old' },
+];
+
 export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, onEditPerson }: PersonInfoModalProps) {
   const navigate = useNavigate();
   const [details, setDetails] = useState<PersonDetails | null>(null);
@@ -49,11 +59,12 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   const [error, setError] = useState<string | null>(null);
   const [showBiography, setShowBiography] = useState(false);
   const [projectTypeFilter, setProjectTypeFilter] = useState<'ALL' | 'MOVIE' | 'SHOW'>('ALL');
-  const [projectRoleFilter, setProjectRoleFilter] = useState<'ALL' | 'ACTOR' | 'DIRECTOR_OR_PRODUCER' | 'OTHER'>('ALL');
+  const [projectRoleFilters, setProjectRoleFilters] = useState<ProjectRoleFilter[]>(ALL_PROJECT_ROLE_FILTERS);
+  const [visibleProjectsCount, setVisibleProjectsCount] = useState(20);
   const [projectInfoTarget, setProjectInfoTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const [projectEditTarget, setProjectEditTarget] = useState<{ tmdbId: number; mediaType: 'movie' | 'tv'; title: string; posterPath?: string; releaseDate?: string } | null>(null);
   const [isSavingProject, setIsSavingProject] = useState(false);
-  const { settings } = useSettingsStore();
+  const { settings, updateSettings } = useSettingsStore();
   const {
     byClass: moviesByClass,
     classOrder: movieClassOrder,
@@ -80,6 +91,13 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
+
+    setDetails({
+      name,
+      profilePath,
+      roles: [],
+    });
+    setVisibleProjectsCount(20);
 
     const fetchDetails = async () => {
       setLoading(true);
@@ -177,10 +195,23 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     return filtered;
   }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
 
-  const isDirectorProducerOrCreatorJob = (job?: string) => {
-    const j = (job || '').toLowerCase();
-    return j.includes('director') || j.includes('producer') || j.includes('creator');
-  };
+  const isDirectorJob = (job?: string) => (job || '').toLowerCase().includes('director');
+  const isProducerJob = (job?: string) => (job || '').toLowerCase().includes('producer');
+  const isCreatorJob = (job?: string) => (job || '').toLowerCase().includes('creator');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const dept = (details?.knownForDepartment || '').toLowerCase();
+    if (dept === 'acting') {
+      setProjectRoleFilters(['ACTOR']);
+      return;
+    }
+    if (dept === 'directing') {
+      setProjectRoleFilters(['DIRECTOR']);
+      return;
+    }
+    setProjectRoleFilters(ALL_PROJECT_ROLE_FILTERS);
+  }, [isOpen, tmdbId, details?.knownForDepartment]);
 
   const formatProjectRoleSummary = (role: { character?: string; job?: string }) => {
     const char = role.character?.trim();
@@ -190,23 +221,110 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   };
 
   const displayRoles = useMemo(() => {
-    return filteredRoles.filter((role) => {
+    const filtered = filteredRoles.filter((role) => {
       const typeMatch =
         projectTypeFilter === 'ALL' ||
         (projectTypeFilter === 'MOVIE' && role.mediaType === 'movie') ||
         (projectTypeFilter === 'SHOW' && role.mediaType === 'tv');
 
-      if (projectRoleFilter === 'ALL') return typeMatch;
-
       const hasCharacter = !!role.character?.trim();
-      const dirProdCreator = isDirectorProducerOrCreatorJob(role.job);
+      const director = isDirectorJob(role.job);
+      const producer = isProducerJob(role.job);
+      const creator = isCreatorJob(role.job);
+      const other = !hasCharacter && !director && !producer && !creator;
 
-      if (projectRoleFilter === 'ACTOR') return typeMatch && hasCharacter;
-      if (projectRoleFilter === 'DIRECTOR_OR_PRODUCER') return typeMatch && dirProdCreator;
-      // OTHER: crew-style row without acting credit and without director/producer/creator job
-      return typeMatch && !hasCharacter && !dirProdCreator;
+      if (!projectRoleFilters.length) return false;
+      if (hasCharacter && projectRoleFilters.includes('ACTOR')) return typeMatch;
+      if (director && projectRoleFilters.includes('DIRECTOR')) return typeMatch;
+      if (producer && projectRoleFilters.includes('PRODUCER')) return typeMatch;
+      if (creator && projectRoleFilters.includes('CREATOR')) return typeMatch;
+      if (other && projectRoleFilters.includes('OTHER')) return typeMatch;
+      return false;
     });
-  }, [filteredRoles, projectTypeFilter, projectRoleFilter]);
+
+    if (settings.infoModalProjectSort === 'new-old') {
+      return filtered.slice().sort((a, b) => {
+        const ta = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+        const tb = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+        return tb - ta;
+      });
+    }
+
+    if (settings.infoModalProjectSort === 'seen-watchlisted-unseen') {
+      const statusRank = (role: (typeof filtered)[number]) => {
+        const entryId = `tmdb-${role.mediaType}-${role.id}`;
+        const existing = role.mediaType === 'movie' ? getMovieById(entryId) : getShowById(entryId);
+        const seen = (existing?.watchRecords?.length ?? 0) > 0;
+        // If both seen and watchlisted, keep it in Seen.
+        if (seen) return 0;
+        if (isInWatchlist(entryId)) return 1;
+        return 2;
+      };
+
+      const rankTuple = (role: (typeof filtered)[number]) => {
+        const entryId = `tmdb-${role.mediaType}-${role.id}`;
+        const byClass = role.mediaType === 'movie' ? moviesByClass : tvByClass;
+        const classOrder = role.mediaType === 'movie' ? movieClassOrder : tvClassOrder;
+        for (let classIndex = 0; classIndex < classOrder.length; classIndex += 1) {
+          const classKey = classOrder[classIndex];
+          const items = byClass[classKey] ?? [];
+          const itemIndex = items.findIndex((item) => item.id === entryId);
+          if (itemIndex !== -1) return [classIndex, itemIndex] as const;
+        }
+        return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER] as const;
+      };
+
+      return filtered
+        .map((role, index) => ({ role, status: statusRank(role), rankTuple: rankTuple(role), index }))
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status - b.status;
+          if (a.rankTuple[0] !== b.rankTuple[0]) return a.rankTuple[0] - b.rankTuple[0];
+          if (a.rankTuple[1] !== b.rankTuple[1]) return a.rankTuple[1] - b.rankTuple[1];
+          return a.index - b.index;
+        })
+        .map((entry) => entry.role);
+    }
+
+    return filtered;
+  }, [filteredRoles, projectTypeFilter, projectRoleFilters, settings.infoModalProjectSort, getMovieById, getShowById, isInWatchlist]);
+  const visibleDisplayRoles = useMemo(
+    () => displayRoles.slice(0, visibleProjectsCount),
+    [displayRoles, visibleProjectsCount]
+  );
+  const totalLoadedRoles = filteredRoles.length;
+  const groupedVisibleDisplayRoles = useMemo(() => {
+    const groups: Record<'seen' | 'watchlisted' | 'unseen', typeof visibleDisplayRoles> = {
+      seen: [],
+      watchlisted: [],
+      unseen: [],
+    };
+
+    for (const role of visibleDisplayRoles) {
+      const entryId = `tmdb-${role.mediaType}-${role.id}`;
+      const existing = role.mediaType === 'movie' ? getMovieById(entryId) : getShowById(entryId);
+      const seen = (existing?.watchRecords?.length ?? 0) > 0;
+      if (seen) {
+        groups.seen.push(role);
+        continue;
+      }
+      if (isInWatchlist(entryId)) {
+        groups.watchlisted.push(role);
+        continue;
+      }
+      groups.unseen.push(role);
+    }
+
+    return groups;
+  }, [visibleDisplayRoles, getMovieById, getShowById, isInWatchlist]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (visibleProjectsCount >= displayRoles.length) return;
+    const timer = window.setTimeout(() => {
+      setVisibleProjectsCount((prev) => Math.min(prev + 20, displayRoles.length));
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, displayRoles.length, visibleProjectsCount]);
 
   const resolveProjectPosterPath = (project: { id: number; mediaType: 'movie' | 'tv'; posterPath?: string }) => {
     const entryId = `tmdb-${project.mediaType}-${project.id}`;
@@ -391,19 +509,34 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
       default: return department || 'Unknown';
     }
   };
-
+  const isRoleFilterActive = (filter: ProjectRoleFilter) => projectRoleFilters.includes(filter);
+  const handleProjectTypeFilterChange = (next: 'ALL' | 'MOVIE' | 'SHOW') => {
+    // Preserve the currently rendered amount when broadening/narrowing filters.
+    setVisibleProjectsCount((prev) => Math.min(prev, displayRoles.length));
+    setProjectTypeFilter(next);
+  };
+  const toggleRoleFilter = (filter: ProjectRoleFilter) => {
+    // Preserve the currently rendered amount when broadening/narrowing role filters.
+    setVisibleProjectsCount((prev) => Math.min(prev, displayRoles.length));
+    setProjectRoleFilters((prev) => {
+      if (prev.includes(filter)) {
+        return prev.filter((item) => item !== filter);
+      }
+      return [...prev, filter];
+    });
+  };
 
   return (
     <div className="info-modal-backdrop" onClick={onClose}>
       <div className="info-modal" onClick={e => e.stopPropagation()}>
         {/* Main Content */}
         <div className="info-modal-content">
-          {loading ? (
+          {!details && loading ? (
             <div className="info-modal-loading">
               <div className="loading-spinner"></div>
               <p>Loading details...</p>
             </div>
-          ) : error ? (
+          ) : error && !details ? (
             <div className="info-modal-error">
               <p>{error}</p>
               <button onClick={onClose}>Close</button>
@@ -475,8 +608,26 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
               {/* Projects Section (equivalent to Cast section) */}
               <div className="info-modal-section">
                 <div className="info-modal-section-header">
-                  <h3 className="info-modal-section-title">Projects</h3>
+                  <div className="info-modal-section-title-group">
+                    <h3 className="info-modal-section-title">Projects</h3>
+                    <span className="info-modal-section-count">
+                      {visibleDisplayRoles.length}/{totalLoadedRoles}
+                    </span>
+                  </div>
                   <div className="info-modal-inline-toggles">
+                    <div className="info-modal-inline-toggle-group">
+                      <span className="info-modal-inline-toggle-label">Sort:</span>
+                      <ThemedDropdown<InfoModalProjectSort>
+                        value={settings.infoModalProjectSort}
+                        options={PROJECT_SORT_OPTIONS}
+                        onChange={(value) => {
+                          setVisibleProjectsCount((prev) => Math.min(prev, displayRoles.length));
+                          updateSettings({ infoModalProjectSort: value });
+                        }}
+                        className="info-modal-project-sort-dropdown"
+                        aria-label="Project sort"
+                      />
+                    </div>
                     <div className="info-modal-inline-toggle-group">
                       <span className="info-modal-inline-toggle-label">Type:</span>
                       <div className="info-modal-inline-toggle-options">
@@ -485,7 +636,7 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                             key={option}
                             type="button"
                             className={`info-modal-inline-toggle-btn ${projectTypeFilter === option ? 'is-active' : ''}`}
-                            onClick={() => setProjectTypeFilter(option)}
+                            onClick={() => handleProjectTypeFilterChange(option)}
                           >
                             {option}
                           </button>
@@ -493,16 +644,16 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                       </div>
                     </div>
                     <div className="info-modal-inline-toggle-group">
-                      <span className="info-modal-inline-toggle-label">Role:</span>
+                      <span className="info-modal-inline-toggle-label">Roles shown:</span>
                       <div className="info-modal-inline-toggle-options">
-                        {(['ALL', 'ACTOR', 'DIRECTOR_OR_PRODUCER', 'OTHER'] as const).map((option) => (
+                        {(['ACTOR', 'DIRECTOR', 'PRODUCER', 'CREATOR', 'OTHER'] as const).map((option) => (
                           <button
                             key={option}
                             type="button"
-                            className={`info-modal-inline-toggle-btn ${projectRoleFilter === option ? 'is-active' : ''}`}
-                            onClick={() => setProjectRoleFilter(option)}
+                            className={`info-modal-inline-toggle-btn ${isRoleFilterActive(option) ? 'is-active' : ''}`}
+                            onClick={() => toggleRoleFilter(option)}
                           >
-                            {option === 'DIRECTOR_OR_PRODUCER' ? 'DIRECTOR/PRODUCER/CREATOR' : option}
+                            {option}
                           </button>
                         ))}
                       </div>
@@ -510,65 +661,161 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                   </div>
                 </div>
                 <div className="info-modal-cast-scroll">
-                  {displayRoles.slice(0, 20).map(project => (
-                    <div key={`${project.mediaType}-${project.id}`} className="info-modal-cast-member">
-                      {(() => {
-                        const entryId = `tmdb-${project.mediaType}-${project.id}`;
-                        const saved = project.mediaType === 'movie' ? !!getMovieById(entryId) : !!getShowById(entryId);
-                        const resolvedPosterPath = resolveProjectPosterPath(project);
-                        const onWatchlist = isInWatchlist(entryId);
-                        return (
-                          <div className="info-modal-person-card">
-                            {resolvedPosterPath ? (
-                              <img src={tmdbImagePath(resolvedPosterPath, 'w300')!} alt={project.title} className="info-modal-cast-portrait" />
-                            ) : (
-                              <div className="info-modal-cast-placeholder info-modal-cast-portrait">{project.title[0]}</div>
-                            )}
-                            {onWatchlist ? (
-                              <span className="info-modal-person-watchlist-badge">Watchlisted</span>
-                            ) : null}
-                            <div className="info-modal-person-actions">
-                              <button
-                                type="button"
-                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
-                                title={`View ${project.title} info`}
-                                onClick={() => setProjectInfoTarget({
-                                  tmdbId: project.id,
-                                  mediaType: project.mediaType,
-                                  title: project.title,
-                                  posterPath: resolvedPosterPath,
-                                  releaseDate: project.releaseDate,
-                                })}
-                              >
-                                <Info size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
-                                title={saved ? `Edit ${project.title}` : `Add ${project.title}`}
-                                onClick={() => setProjectEditTarget({
-                                  tmdbId: project.id,
-                                  mediaType: project.mediaType,
-                                  title: project.title,
-                                  posterPath: resolvedPosterPath,
-                                  releaseDate: project.releaseDate,
-                                })}
-                              >
-                                {saved ? <Edit size={13} /> : <Plus size={13} />}
-                              </button>
+                  {(settings.infoModalProjectSort === 'seen-watchlisted-unseen'
+                    ? ([
+                        ...groupedVisibleDisplayRoles.seen.map((project) => ({ kind: 'project' as const, project })),
+                        ...(groupedVisibleDisplayRoles.seen.length > 0 && groupedVisibleDisplayRoles.watchlisted.length > 0
+                          ? [{ kind: 'divider' as const, key: 'seen-watchlisted' }]
+                          : []),
+                        ...groupedVisibleDisplayRoles.watchlisted.map((project) => ({ kind: 'project' as const, project })),
+                        ...(groupedVisibleDisplayRoles.watchlisted.length > 0 && groupedVisibleDisplayRoles.unseen.length > 0
+                          ? [{ kind: 'divider' as const, key: 'watchlisted-unseen' }]
+                          : []),
+                        ...groupedVisibleDisplayRoles.unseen.map((project) => ({ kind: 'project' as const, project })),
+                      ] as Array<
+                        | { kind: 'project'; project: (typeof visibleDisplayRoles)[number] }
+                        | { kind: 'divider'; key: string }
+                      >)
+                    : visibleDisplayRoles.map((project) => ({ kind: 'project' as const, project }))
+                  ).map((entry) =>
+                    entry.kind === 'divider' ? (
+                      <div key={entry.key} className="info-modal-cast-divider info-modal-cast-divider--projects" aria-hidden="true" />
+                    ) : (
+                      <div key={`${entry.project.mediaType}-${entry.project.id}`} className="info-modal-cast-member">
+                        {(() => {
+                          const project = entry.project;
+                          const entryId = `tmdb-${project.mediaType}-${project.id}`;
+                          const savedEntry = project.mediaType === 'movie' ? getMovieById(entryId) : getShowById(entryId);
+                          const saved = !!savedEntry;
+                          const canToggleUnranked = !savedEntry || savedEntry.classKey === 'UNRANKED';
+                          const isUnranked = savedEntry?.classKey === 'UNRANKED';
+                          const resolvedPosterPath = resolveProjectPosterPath(project);
+                          const onWatchlist = isInWatchlist(entryId);
+                          return (
+                            <div className="info-modal-person-card">
+                              {resolvedPosterPath ? (
+                                <img src={tmdbImagePath(resolvedPosterPath, 'w300')!} alt={project.title} className="info-modal-cast-portrait" />
+                              ) : (
+                                <div className="info-modal-cast-placeholder info-modal-cast-portrait">{project.title[0]}</div>
+                              )}
+                              {onWatchlist ? (
+                                <span className="info-modal-person-watchlist-badge">Watchlisted</span>
+                              ) : null}
+                              <div className="info-modal-project-hover-actions">
+                                {canToggleUnranked ? (
+                                  <button
+                                    type="button"
+                                    className={`info-modal-project-hover-btn ${
+                                      isUnranked ? 'info-modal-project-hover-btn--minus' : 'info-modal-project-hover-btn--plus'
+                                    }`}
+                                    aria-label={isUnranked ? `Remove ${project.title} from unranked` : `Add ${project.title} to unranked`}
+                                    onClick={() => {
+                                      if (project.mediaType === 'movie') {
+                                        if (isUnranked) {
+                                          removeMovieEntry(entryId);
+                                          return;
+                                        }
+                                        if (savedEntry) {
+                                          moveMovieToClass(entryId, 'UNRANKED');
+                                          return;
+                                        }
+                                        addMovieFromSearch({
+                                          id: entryId,
+                                          title: project.title,
+                                          subtitle: project.releaseDate ? project.releaseDate.slice(0, 4) : 'Saved',
+                                          classKey: 'UNRANKED',
+                                          posterPath: resolvedPosterPath,
+                                        });
+                                        return;
+                                      }
+
+                                      if (isUnranked) {
+                                        removeShowEntry(entryId);
+                                        return;
+                                      }
+                                      if (savedEntry) {
+                                        moveShowToClass(entryId, 'UNRANKED');
+                                        return;
+                                      }
+                                      addShowFromSearch({
+                                        id: entryId,
+                                        title: project.title,
+                                        subtitle: project.releaseDate ? project.releaseDate.slice(0, 4) : 'Saved',
+                                        classKey: 'UNRANKED',
+                                      });
+                                    }}
+                                  >
+                                    {isUnranked ? 'Unranked-' : 'Unranked+'}
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className={`info-modal-project-hover-btn ${
+                                    onWatchlist ? 'info-modal-project-hover-btn--minus' : 'info-modal-project-hover-btn--plus'
+                                  }`}
+                                  aria-label={onWatchlist ? `Remove ${project.title} from watchlist` : `Add ${project.title} to watchlist`}
+                                  onClick={() => {
+                                    if (onWatchlist) {
+                                      removeFromWatchlist(entryId);
+                                      return;
+                                    }
+                                    addToWatchlist(
+                                      {
+                                        id: entryId,
+                                        title: project.title,
+                                        posterPath: resolvedPosterPath,
+                                        releaseDate: project.releaseDate,
+                                      },
+                                      project.mediaType === 'movie' ? 'movies' : 'tv'
+                                    );
+                                  }}
+                                >
+                                  {onWatchlist ? 'Watchlist-' : 'Watchlist+'}
+                                </button>
+                              </div>
+                              <div className="info-modal-person-actions">
+                                <button
+                                  type="button"
+                                  className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                  title={`View ${project.title} info`}
+                                  onClick={() => setProjectInfoTarget({
+                                    tmdbId: project.id,
+                                    mediaType: project.mediaType,
+                                    title: project.title,
+                                    posterPath: resolvedPosterPath,
+                                    releaseDate: project.releaseDate,
+                                  })}
+                                >
+                                  <Info size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
+                                  title={saved ? `Edit ${project.title}` : `Add ${project.title}`}
+                                  onClick={() => setProjectEditTarget({
+                                    tmdbId: project.id,
+                                    mediaType: project.mediaType,
+                                    title: project.title,
+                                    posterPath: resolvedPosterPath,
+                                    releaseDate: project.releaseDate,
+                                  })}
+                                >
+                                  {saved ? <Edit size={13} /> : <Plus size={13} />}
+                                </button>
+                              </div>
                             </div>
+                          );
+                        })()}
+                        <div className="info-modal-cast-info">
+                          <div className="info-modal-cast-name">{entry.project.title}</div>
+                          <div className="info-modal-cast-character">
+                            {formatProjectRoleSummary(entry.project)} • {entry.project.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+                            {entry.project.releaseDate && ` • ${getYear(entry.project.releaseDate)}`}
                           </div>
-                        );
-                      })()}
-                      <div className="info-modal-cast-info">
-                        <div className="info-modal-cast-name">{project.title}</div>
-                        <div className="info-modal-cast-character">
-                          {formatProjectRoleSummary(project)} • {project.mediaType === 'movie' ? 'Movie' : 'TV Show'}
-                          {project.releaseDate && ` • ${getYear(project.releaseDate)}`}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
             </>

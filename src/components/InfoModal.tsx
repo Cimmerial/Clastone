@@ -361,6 +361,24 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
       : undefined;
   const resolvedPosterPath = posterPath ?? details?.posterPath;
   const resolvedBackdropPath = details?.backdropPath;
+  const watchlistActionLabel = inWatchlist ? 'Watchlist-' : 'Watchlist+';
+  const watchlistActionAriaLabel = inWatchlist ? 'Remove from watchlist' : 'Add to watchlist';
+
+  const handleToggleWatchlist = () => {
+    if (inWatchlist) {
+      removeFromWatchlist(entryId);
+      return;
+    }
+    addToWatchlist(
+      {
+        id: entryId,
+        title: details?.title || title,
+        posterPath: resolvedPosterPath,
+        releaseDate: details?.releaseDate || releaseDate,
+      },
+      mediaType === 'movie' ? 'movies' : 'tv'
+    );
+  };
 
   const getSavedPersonProfilePath = (personId: number, fallback?: string) => {
     const savedActor = getPersonById(`tmdb-person-${personId}`);
@@ -484,6 +502,18 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
               {/* Top Section: Poster + Basic Info */}
               <div className="info-modal-top">
                 <div className="info-modal-poster">
+                  <div className="info-modal-poster-hover-actions">
+                    <button
+                      type="button"
+                      className={`info-modal-poster-hover-btn ${
+                        inWatchlist ? 'info-modal-poster-hover-btn--minus' : 'info-modal-poster-hover-btn--plus'
+                      }`}
+                      aria-label={watchlistActionAriaLabel}
+                      onClick={handleToggleWatchlist}
+                    >
+                      {watchlistActionLabel}
+                    </button>
+                  </div>
                   {resolvedPosterPath ? (
                     <img src={tmdbImagePath(resolvedPosterPath, 'w300')!} alt={details.title} />
                   ) : (
@@ -491,6 +521,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                       <PlayCircle size={48} />
                     </div>
                   )}
+                  {inWatchlist ? <div className="info-modal-poster-watchlist-pill">Watchlisted</div> : null}
                 </div>
                 
                 <div className="info-modal-basic-info">
@@ -510,29 +541,6 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                     {watchProviderGroups && (
                       <div className="info-modal-watch-right">
                         <div className="info-modal-watch-actions-row">
-                          <button
-                            type="button"
-                            className={`info-modal-watchlist-btn ${
-                              inWatchlist ? 'info-modal-watchlist-btn--remove' : 'info-modal-watchlist-btn--add'
-                            }`}
-                            onClick={() => {
-                              if (inWatchlist) {
-                                removeFromWatchlist(entryId);
-                                return;
-                              }
-                              addToWatchlist(
-                                {
-                                  id: entryId,
-                                  title: details.title,
-                                  posterPath: resolvedPosterPath,
-                                  releaseDate: details.releaseDate || releaseDate,
-                                },
-                                mediaType === 'movie' ? 'movies' : 'tv'
-                              );
-                            }}
-                          >
-                            {inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-                          </button>
                           <button
                             ref={watchOptionsButtonRef}
                             type="button"
