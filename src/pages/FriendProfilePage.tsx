@@ -188,7 +188,6 @@ function getAllWatches(
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
-    if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
   for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {

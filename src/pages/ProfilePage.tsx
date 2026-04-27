@@ -207,7 +207,7 @@ function getRecentWatches(
   return out.sort(compareRecentWatchEvents);
 }
 
-/** Flatten all watches that have an explicit watch date. */
+/** Flatten all watches for milestone calculations, including unknown/long-ago dates. */
 function getAllWatches(
   moviesByClass: Record<string, MovieShowItem[]>,
   tvByClass: Record<string, MovieShowItem[]>,
@@ -222,7 +222,6 @@ function getAllWatches(
   const out: { item: MovieShowItem; record: WatchRecord; sortKey: string; isMovie: boolean }[] = [];
   const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
     const key = getWatchRecordSortKey(record);
-    if (key === '0000-00-00') return;
     out.push({ item, record, sortKey: key, isMovie });
   };
   for (const classKey of collectClassKeys(moviesByClass, movieClassOrder)) {
@@ -532,6 +531,19 @@ export function ProfilePage() {
     const known = tvClassOrder;
     const fromData = Object.keys(tvByClass ?? {});
     return Array.from(new Set([...known, ...fromData])).filter((k) => k !== 'UNRANKED');
+  }, [tvClassOrder, tvByClass]);
+
+  // Milestones should count titles from every class, including UNRANKED.
+  const movieMilestoneClassKeys = useMemo(() => {
+    const known = movieClassOrder;
+    const fromData = Object.keys(moviesByClass ?? {});
+    return Array.from(new Set([...known, ...fromData]));
+  }, [movieClassOrder, moviesByClass]);
+
+  const tvMilestoneClassKeys = useMemo(() => {
+    const known = tvClassOrder;
+    const fromData = Object.keys(tvByClass ?? {});
+    return Array.from(new Set([...known, ...fromData]));
   }, [tvClassOrder, tvByClass]);
 
   const rankedMovies = useMemo(() => {
@@ -1249,8 +1261,8 @@ export function ProfilePage() {
 
   const allWatchesForMilestones = useMemo(() => {
     // Includes LONG_AGO/UNKNOWN so milestone numbering matches Quick stats.
-    return getAllWatches(moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys);
-  }, [moviesByClass, tvByClass, movieProfileClassKeys, tvProfileClassKeys]);
+    return getAllWatches(moviesByClass, tvByClass, movieMilestoneClassKeys, tvMilestoneClassKeys);
+  }, [moviesByClass, tvByClass, movieMilestoneClassKeys, tvMilestoneClassKeys]);
 
   const recentWatches = useMemo(() => {
     if (recentRange === 'milestones') return allRecentWatches;
