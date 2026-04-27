@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 import {
     getThrottlerState,
     subscribeToThrottler,
@@ -16,7 +17,33 @@ import { useSyncStatus } from '../context/SyncStatusContext';
 import { useAuth } from '../context/AuthContext';
 import { StorageVisualizer } from '../components/StorageVisualizer';
 import { MigrationOverlay, type MigrationStep } from '../components/MigrationOverlay';
+import { db } from '../lib/firebase';
 import './SettingsPage.css'; // Reuse settings page styling
+
+type GlobalUserStorageRow = {
+    userId: string;
+    username: string;
+    movieBytes: number;
+    tvBytes: number;
+    peopleBytes: number;
+    directorsBytes: number;
+    watchlistBytes: number;
+    totalBytes: number;
+};
+
+type GlobalStorageState = {
+    loading: boolean;
+    error: string | null;
+    rows: GlobalUserStorageRow[];
+    totals: {
+        movieBytes: number;
+        tvBytes: number;
+        peopleBytes: number;
+        directorsBytes: number;
+        watchlistBytes: number;
+        totalBytes: number;
+    } | null;
+};
 
 export function DiagnosticsPage() {
     const { isAdmin } = useAuth();
@@ -43,12 +70,18 @@ export function DiagnosticsPage() {
         byClass: directorByClass,
         forceSync: forceSyncDirectors
     } = useDirectorsStore();
-    const { movies: watchlistMovies, tv: watchlistTv, forceSync: forceSyncWatchlist } = useWatchlistStore();
+    const { forceSync: forceSyncWatchlist } = useWatchlistStore();
 
     const [isMigrating, setIsMigrating] = useState(false);
     const [migrationSteps, setMigrationSteps] = useState<MigrationStep[]>([]);
     const [migrationProgress, setMigrationProgress] = useState(0);
     const [migrationError, setMigrationError] = useState<string | undefined>();
+    const [globalStorage, setGlobalStorage] = useState<GlobalStorageState>({
+        loading: false,
+        error: null,
+        rows: [],
+        totals: null
+    });
 
     useEffect(() => {
         const unsubscribe = subscribeToThrottler(() => {
@@ -111,46 +144,108 @@ export function DiagnosticsPage() {
     const { queue, requestLog, isPaused } = state;
     const recentRequests = useMemo(() => requestLog.slice(0, 80), [requestLog]);
 
-    const appStorageDiagnostics = useMemo(() => {
+    const formatBytes = (bytes: number): string => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    };
+
+    const estimateGlobalStorage = async () => {
+        if (!db) {
+            setGlobalStorage((prev) => ({
+                ...prev,
+                error: 'Firebase is not configured.'
+            }));
+            return;
+        }
+
         const encodeSize = (value: unknown): number => {
             const serialized = JSON.stringify(value);
             return serialized ? new TextEncoder().encode(serialized).length : 0;
         };
 
-        const byDomain = {
-            movies: encodeSize({ classes, byClass }),
-            tv: encodeSize({ classes: tvClasses, byClass: tvByClass }),
-            people: encodeSize({ classes: peopleClasses, byClass: peopleByClass }),
-            directors: encodeSize({ classes: directorClasses, byClass: directorByClass }),
-            watchlist: encodeSize({ movies: watchlistMovies, tv: watchlistTv }),
-            writeQueueBuffer: encodeSize(queue)
-        };
+        setGlobalStorage({
+            loading: true,
+            error: null,
+            rows: [],
+            totals: null
+        });
 
-        const total = Object.values(byDomain).reduce((sum, value) => sum + value, 0);
-        const formatBytes = (bytes: number): string => {
-            if (bytes < 1024) return `${bytes} B`;
-            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-        };
+        try {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            const rows: GlobalUserStorageRow[] = [];
 
-        return {
-            byDomain,
-            total,
-            formatBytes
-        };
-    }, [
-        classes,
-        byClass,
-        tvClasses,
-        tvByClass,
-        peopleClasses,
-        peopleByClass,
-        directorClasses,
-        directorByClass,
-        watchlistMovies,
-        watchlistTv,
-        queue
-    ]);
+            for (const userDoc of usersSnap.docs) {
+                const userId = userDoc.id;
+                const usernameRaw = userDoc.data()?.username;
+                const username = typeof usernameRaw === 'string' && usernameRaw.trim().length > 0
+                    ? usernameRaw.trim()
+                    : userId;
+
+                const [movieSnap, tvSnap, peopleSnap, directorsSnap, watchlistSnap] = await Promise.all([
+                    getDocs(collection(db, 'users', userId, 'movieData')),
+                    getDocs(collection(db, 'users', userId, 'tvData')),
+                    getDocs(collection(db, 'users', userId, 'peopleData')),
+                    getDocs(collection(db, 'users', userId, 'directorsData')),
+                    getDocs(collection(db, 'users', userId, 'watchlistData')),
+                ]);
+
+                const movieBytes = encodeSize(movieSnap.docs.map((d) => d.data()));
+                const tvBytes = encodeSize(tvSnap.docs.map((d) => d.data()));
+                const peopleBytes = encodeSize(peopleSnap.docs.map((d) => d.data()));
+                const directorsBytes = encodeSize(directorsSnap.docs.map((d) => d.data()));
+                const watchlistBytes = encodeSize(watchlistSnap.docs.map((d) => d.data()));
+                const totalBytes = movieBytes + tvBytes + peopleBytes + directorsBytes + watchlistBytes;
+
+                rows.push({
+                    userId,
+                    username,
+                    movieBytes,
+                    tvBytes,
+                    peopleBytes,
+                    directorsBytes,
+                    watchlistBytes,
+                    totalBytes
+                });
+            }
+
+            rows.sort((a, b) => b.totalBytes - a.totalBytes);
+
+            const totals = rows.reduce(
+                (acc, row) => {
+                    acc.movieBytes += row.movieBytes;
+                    acc.tvBytes += row.tvBytes;
+                    acc.peopleBytes += row.peopleBytes;
+                    acc.directorsBytes += row.directorsBytes;
+                    acc.watchlistBytes += row.watchlistBytes;
+                    acc.totalBytes += row.totalBytes;
+                    return acc;
+                },
+                {
+                    movieBytes: 0,
+                    tvBytes: 0,
+                    peopleBytes: 0,
+                    directorsBytes: 0,
+                    watchlistBytes: 0,
+                    totalBytes: 0
+                }
+            );
+
+            setGlobalStorage({
+                loading: false,
+                error: null,
+                rows,
+                totals
+            });
+        } catch (error: unknown) {
+            setGlobalStorage({
+                loading: false,
+                error: error instanceof Error ? error.message : String(error),
+                rows: [],
+                totals: null
+            });
+        }
+    };
 
     return (
         <section>
@@ -251,41 +346,96 @@ export function DiagnosticsPage() {
                 )}
                 {isAdmin && (
                     <div className="settings-card card-surface">
-                        <h2 className="settings-title">Total App Storage (Estimate)</h2>
-                        <p className="settings-muted" style={{ marginBottom: '1rem' }}>
-                            Client-side estimate of serialized app payload size. Use Google Cloud Console for billing-accurate Firestore totals.
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                            <h2 className="settings-title" style={{ margin: 0 }}>Global Storage Estimate (All Users)</h2>
+                            <button
+                                type="button"
+                                className="settings-btn settings-btn-subtle"
+                                onClick={() => void estimateGlobalStorage()}
+                                disabled={globalStorage.loading}
+                            >
+                                {globalStorage.loading ? 'Loading...' : 'Load Global Storage'}
+                            </button>
+                        </div>
+                        <p className="settings-muted" style={{ marginBottom: '0.85rem' }}>
+                            Aggregates Firestore payload size estimates across all users for movie/tv/actor/director/watchlist subcollections.
                         </p>
 
-                        <div style={{ display: 'grid', gap: '0.6rem' }}>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Estimated Total</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.total)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Movies</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.movies)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">TV Shows</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.tv)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Actors</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.people)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Directors</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.directors)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Watchlist</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.watchlist)}</span>
-                            </div>
-                            <div className="settings-account-row">
-                                <span className="settings-account-label">Queue Buffer</span>
-                                <span className="settings-account-value">{appStorageDiagnostics.formatBytes(appStorageDiagnostics.byDomain.writeQueueBuffer)}</span>
-                            </div>
-                        </div>
+                        {globalStorage.error ? (
+                            <p className="settings-muted" style={{ color: 'var(--danger-color, #ef4444)' }}>
+                                {globalStorage.error}
+                            </p>
+                        ) : null}
+
+                        {globalStorage.totals ? (
+                            <>
+                                <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '1rem' }}>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Users Scanned</span>
+                                        <span className="settings-account-value">{globalStorage.rows.length}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Estimated Total</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.totalBytes)}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Movies</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.movieBytes)}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">TV Shows</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.tvBytes)}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Actors</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.peopleBytes)}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Directors</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.directorsBytes)}</span>
+                                    </div>
+                                    <div className="settings-account-row">
+                                        <span className="settings-account-label">Watchlist</span>
+                                        <span className="settings-account-value">{formatBytes(globalStorage.totals.watchlistBytes)}</span>
+                                    </div>
+                                </div>
+
+                                <div style={{ overflowX: 'auto', maxHeight: '42vh', overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                                        <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 1 }}>
+                                            <tr>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Username</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Total</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Movies</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>TV</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Actors</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Directors</th>
+                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Watchlist</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {globalStorage.rows.map((row) => (
+                                                <tr key={row.userId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                    <td style={{ padding: '0.5rem' }}>{row.username}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.totalBytes)}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.movieBytes)}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.tvBytes)}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.peopleBytes)}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.directorsBytes)}</td>
+                                                    <td style={{ padding: '0.5rem' }}>{formatBytes(row.watchlistBytes)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        ) : (
+                            !globalStorage.loading && (
+                                <p className="settings-muted" style={{ marginBottom: 0 }}>
+                                    Click &ldquo;Load Global Storage&rdquo; to fetch all users and estimate combined payload sizes.
+                                </p>
+                            )
+                        )}
                     </div>
                 )}
 

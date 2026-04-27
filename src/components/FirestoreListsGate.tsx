@@ -25,16 +25,23 @@ export function FirestoreListsGate({ children }: Props) {
       setInitialLoaded(true);
       return;
     }
-    Promise.all([loadUserLists(db, user.uid), loadGlobalCollections(db)]).then(([userLists, globalCollections]) => {
-      setInitialData({
-        lists: userLists.lists,
-        order: userLists.order,
-        entriesByListId: userLists.entriesByListId,
-        globalCollections,
+    Promise.all([loadUserLists(db, user.uid), loadGlobalCollections(db)])
+      .then(([userLists, globalCollections]) => {
+        setInitialData({
+          lists: userLists.lists,
+          order: userLists.order,
+          entriesByListId: userLists.entriesByListId,
+          globalCollections,
+        });
+        updateStatus('classes', 'idle', { label: 'Lists loaded' });
+      })
+      .catch((err: unknown) => {
+        console.error('[Clastone] Lists load error', err);
+        updateStatus('classes', 'error', { error: String(err) });
+      })
+      .finally(() => {
+        setInitialLoaded(true);
       });
-      updateStatus('classes', 'idle', { label: 'Lists loaded' });
-      setInitialLoaded(true);
-    });
   }, [user?.uid, updateStatus]);
 
   const onPersist = useCallback(async (payload: { lists: Awaited<ReturnType<typeof loadUserLists>>['lists']; order: string[]; entriesByListId: Awaited<ReturnType<typeof loadUserLists>>['entriesByListId']; pendingCount?: number }) => {

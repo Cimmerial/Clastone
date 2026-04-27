@@ -26,8 +26,10 @@ const DANGEROUS_PATTERNS = [
 // Characters allowed in class keys (more restrictive)
 const CLASS_KEY_ALLOWED = /^[A-Z0-9_]*$/;
 
-// Characters allowed in labels and taglines (more permissive but still safe)
-const LABEL_ALLOWED = /^[^<>\"'&]*$/;
+// Characters allowed in labels/taglines.
+// Keep it permissive for normal punctuation (quotes, apostrophes, ampersands, etc.)
+// while still blocking raw angle brackets so pasted HTML tags can't survive validation.
+const LABEL_ALLOWED = /^[^<>]*$/;
 
 /**
  * Sanitizes text for class keys (used for database keys)
