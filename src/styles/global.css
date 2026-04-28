@@ -15,6 +15,16 @@ body,
   height: 100%;
 }
 
+/* Keep page scroll behavior, hide visible right-side browser scrollbar. */
+html {
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--bg);

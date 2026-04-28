@@ -13,6 +13,8 @@ export type GlobalSettings = {
     collectionSeenBorderMode: boolean;
     watchRegion: string;
     myWatchProviderIds: number[];
+    showExampleProfile: boolean;
+    showHomeHeroIntro: boolean;
 };
 
 type SettingsStore = {
@@ -38,6 +40,8 @@ function getInitialSettings(): GlobalSettings {
         const csbm = localStorage.getItem('clastone-collectionSeenBorderMode');
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
+        const sep = localStorage.getItem('clastone-showExampleProfile');
+        const shhi = localStorage.getItem('clastone-showHomeHeroIntro');
 
         let viewMode: 'minimized' | 'detailed' | 'tile' | 'compact' = 'tile';
         if (vm === 'tile' || vm === 'compact') {
@@ -84,7 +88,9 @@ function getInitialSettings(): GlobalSettings {
             useSpotlightBackground: usb === 'true',
             collectionSeenBorderMode: csbm === 'true',
             watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
-            myWatchProviderIds
+            myWatchProviderIds,
+            showExampleProfile: sep !== 'false',
+            showHomeHeroIntro: shhi !== 'false'
         };
     } catch {
         return {
@@ -100,7 +106,9 @@ function getInitialSettings(): GlobalSettings {
             useSpotlightBackground: false,
             collectionSeenBorderMode: false,
             watchRegion: 'US',
-            myWatchProviderIds: []
+            myWatchProviderIds: [],
+            showExampleProfile: true,
+            showHomeHeroIntro: true
         };
     }
 }
@@ -184,6 +192,8 @@ export function SettingsProvider({
                 if (updates.collectionSeenBorderMode !== undefined) localStorage.setItem('clastone-collectionSeenBorderMode', String(next.collectionSeenBorderMode));
                 if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
                 if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
+                if (updates.showExampleProfile !== undefined) localStorage.setItem('clastone-showExampleProfile', String(next.showExampleProfile));
+                if (updates.showHomeHeroIntro !== undefined) localStorage.setItem('clastone-showHomeHeroIntro', String(next.showHomeHeroIntro));
 
             } catch { /* ignore */ }
             return next;

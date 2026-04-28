@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, GripVertical, Home, Pencil, Trash2, X } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { useAuth, hasFirebaseConfig } from '../context/AuthContext';
 import { RandomQuote } from '../components/RandomQuote';
 import { useMoviesStore } from '../state/moviesStore';
@@ -47,6 +47,7 @@ type BabyRoleUser = {
 };
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const { user, username, signOut, isAdmin, isBabyDev, pfpPhotoUrl } = useAuth();
   const { status } = useSyncStatus();
   const { settings, updateSettings } = useSettingsStore();
@@ -149,6 +150,7 @@ export function SettingsPage() {
   const [babyUsersLoading, setBabyUsersLoading] = useState(false);
   const [babyUsersError, setBabyUsersError] = useState<string | null>(null);
   const [babyUsers, setBabyUsers] = useState<BabyRoleUser[]>([]);
+  const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
 
   const signedIn = hasFirebaseConfig && user;
 
@@ -295,6 +297,28 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, [signedIn, user?.uid]);
+
+  useEffect(() => {
+    if (!db) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const adminQuery = query(
+          collection(db, 'users'),
+          where('email', '==', 'cimmerial@clastone.local')
+        );
+        const snap = await getDocs(adminQuery);
+        if (!cancelled) {
+          setExampleProfileUid(snap.empty ? null : snap.docs[0].id);
+        }
+      } catch {
+        if (!cancelled) setExampleProfileUid(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const savePfp = async (posterPath: string | null) => {
     if (!signedIn || !db || !user) return;
@@ -1188,6 +1212,50 @@ export function SettingsPage() {
               />
               <span className="settings-switch-slider"></span>
             </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Show example profile on Home</span>
+              <span className="settings-toggle-description">
+                Controls the featured example profile card on the Home page.
+              </span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.showExampleProfile}
+                onChange={(e) => updateSettings({ showExampleProfile: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Show Home intro quick-start block</span>
+              <span className="settings-toggle-description">
+                Shows or hides the Home page section from “Rank, Track, Organize” through “View My Stats”.
+              </span>
+            </div>
+            <label className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.showHomeHeroIntro}
+                onChange={(e) => updateSettings({ showHomeHeroIntro: e.target.checked })}
+              />
+              <span className="settings-switch-slider"></span>
+            </label>
+          </div>
+
+          <div className="settings-list-actions">
+            <button
+              type="button"
+              className="settings-btn settings-btn-subtle"
+              onClick={() => navigate(exampleProfileUid ? `/friends/${exampleProfileUid}` : '/friends')}
+            >
+              View Example Profile
+            </button>
           </div>
 
             </>

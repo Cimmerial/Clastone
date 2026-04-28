@@ -6,18 +6,31 @@
     right: 0;
     z-index: 48;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     justify-content: flex-end;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 64px 8px 8px;
-    /* right padding leaves room for DEV button */
+    align-items: stretch;
+    gap: 4px;
+    padding: 6px 8px 8px;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, transparent 100%);
     pointer-events: none;
     /* only buttons inside capture events */
     backdrop-filter: blur(2px);
-    flex-wrap: nowrap;
-    overflow: hidden;
+    overflow: visible;
+}
+
+.class-jump-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.class-jump-row--top {
+    gap: 4px;
+}
+
+.class-jump-bar--stacked .class-jump-row--top {
+    opacity: 0.92;
 }
 
 .class-jump-btn {
@@ -26,22 +39,60 @@
     border: 1px solid rgba(244, 162, 97, 0.45);
     background: rgba(0, 0, 0, 0.62);
     color: var(--accent-soft);
-    font-size: 0.6rem;
-    letter-spacing: 0.16em;
+    font-size: 0.52rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    padding: 0.28rem 0.55rem;
+    padding: 0.2rem 0.45rem;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
     backdrop-filter: blur(4px);
-    flex-shrink: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: fit-content;
+    max-width: none;
+}
+
+.class-jump-btn--top {
+    font-size: 0.52rem;
+    padding: 0.2rem 0.45rem;
+    letter-spacing: 0.14em;
 }
 
 .class-jump-btn:hover {
     border-color: rgba(244, 162, 97, 0.85);
     background: rgba(244, 162, 97, 0.14);
     color: var(--text-primary);
+}
+
+.class-jump-btn--unranked {
+    background: #f4a261;
+    color: #000;
+    border-color: #000;
+}
+
+.class-jump-btn--unranked:hover {
+    background: #ffc27f;
+    color: #000;
+    border-color: #000;
+}
+
+.class-jump-measure {
+    position: fixed;
+    left: -9999px;
+    top: -9999px;
+    visibility: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.class-jump-measure-chip {
+    display: inline-block;
+    border-radius: 999px;
+    border: 1px solid rgba(244, 162, 97, 0.45);
+    font-size: 0.52rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.45rem;
 }

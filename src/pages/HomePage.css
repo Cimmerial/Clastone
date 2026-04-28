@@ -156,6 +156,223 @@
   margin-top: 2rem;
 }
 
+.homepage-root.homepage-root .homepage-friends-watching {
+  margin-bottom: 1.5rem;
+  padding: 0;
+}
+
+.homepage-root.homepage-root .homepage-friends-watching-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.homepage-root.homepage-root .homepage-friends-watching-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.homepage-root.homepage-root .homepage-friends-watching-header span {
+  min-width: 2rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent-soft);
+  background: rgba(232, 93, 4, 0.12);
+  border: 1px solid rgba(232, 93, 4, 0.25);
+}
+
+.homepage-root.homepage-root .homepage-friends-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 93, 4, 0.25);
+  background: rgba(232, 93, 4, 0.1);
+  color: var(--accent-soft);
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-friends-refresh-btn:hover {
+  border-color: rgba(232, 93, 4, 0.5);
+  background: rgba(232, 93, 4, 0.2);
+}
+
+.homepage-root.homepage-root .homepage-friends-carousel {
+  display: flex;
+  gap: 0.85rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 0.5rem;
+}
+
+.homepage-root.homepage-root .homepage-friends-item {
+  flex: 0 0 auto;
+  width: 120px;
+}
+
+.homepage-root.homepage-root .homepage-friends-poster-wrap {
+  position: relative;
+  width: 120px;
+  height: 178px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.homepage-root.homepage-root .homepage-friends-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.homepage-root.homepage-root .homepage-friends-poster-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+}
+
+.homepage-root.homepage-root .homepage-friends-watcher-avatar {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  z-index: 2;
+}
+
+.homepage-root.homepage-root .homepage-friends-watcher-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.homepage-root.homepage-root .homepage-friends-hover-name {
+  position: absolute;
+  left: 0.35rem;
+  right: 0.35rem;
+  bottom: 2.5rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  color: #fff;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.78);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.homepage-root.homepage-root .homepage-friends-item:hover .homepage-friends-hover-name {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.homepage-root.homepage-root .homepage-friends-profile-link {
+  border: 0;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-friends-profile-link .homepage-friends-profile-link-hover {
+  display: none;
+}
+
+.homepage-root.homepage-root .homepage-friends-profile-link:hover .homepage-friends-profile-link-default {
+  display: none;
+}
+
+.homepage-root.homepage-root .homepage-friends-profile-link:hover .homepage-friends-profile-link-hover {
+  display: inline;
+}
+
+.homepage-root.homepage-root .homepage-friends-actions {
+  position: absolute;
+  left: 0.35rem;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  display: flex;
+  gap: 0.3rem;
+  justify-content: center;
+  opacity: 1;
+  transform: none;
+}
+
+.homepage-root.homepage-root .homepage-friends-actions .homepage-friends-action-btn {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.homepage-root.homepage-root .homepage-friends-item:hover .homepage-friends-actions .homepage-friends-action-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.homepage-root.homepage-root .homepage-friends-action-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.homepage-root.homepage-root .homepage-friends-action-btn:hover {
+  background: rgba(232, 93, 4, 0.88);
+  border-color: rgba(232, 93, 4, 0.95);
+}
+
+.homepage-root.homepage-root .homepage-friends-action-btn--watchlist-add:hover {
+  background: rgba(47, 153, 79, 0.92);
+  border-color: rgba(74, 186, 108, 0.95);
+}
+
+.homepage-root.homepage-root .homepage-friends-action-btn--watchlist-remove:hover {
+  background: rgba(180, 40, 40, 0.92);
+  border-color: rgba(210, 70, 70, 0.95);
+}
+
+.homepage-root.homepage-root .homepage-friends-action-btn--danger:hover {
+  background: rgba(180, 40, 40, 0.92);
+  border-color: rgba(210, 70, 70, 0.95);
+}
+
+.homepage-root.homepage-root .homepage-friends-item-date {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .homepage-root.homepage-root .example-profile-card {
   background: linear-gradient(135deg, rgba(232, 93, 4, 0.15) 0%, rgba(26, 10, 0, 0.95) 100%);
   border: 1px solid rgba(232, 93, 4, 0.3);
@@ -324,6 +541,70 @@
 
 .homepage-root.homepage-root .profile-view-btn:hover .btn-arrow {
   transform: rotate(-90deg) translateX(4px) !important;
+}
+
+.homepage-root.homepage-root .homepage-example-profile-hide-text {
+  margin-top: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  display: block;
+}
+
+.homepage-root.homepage-root .homepage-example-profile-hide-text:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 93, 4, 0.55);
+  text-underline-offset: 3px;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.58);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal {
+  width: min(440px, 100%);
+  border-radius: 14px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #111;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal h3 {
+  margin: 0;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal p {
+  margin: 0.65rem 0 0;
+  color: var(--text-muted);
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-hide-example-modal-btn--confirm {
+  background: rgba(232, 93, 4, 0.22);
+  border-color: rgba(232, 93, 4, 0.5);
 }
 
 /* --- Workflow Guides Section --- */
