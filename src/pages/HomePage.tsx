@@ -24,6 +24,25 @@ import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import './HomePage.css';
 
+type FriendRecentEntry = {
+  key: string;
+  friendUid: string;
+  friendName: string;
+  friendPfpPosterPath?: string;
+  friendPfpPhotoUrl?: string;
+  item: MovieShowItem;
+  record: WatchRecord;
+  sortKey: string;
+  isMovie: boolean;
+  friendPercentileRank: string;
+};
+
+let friendRecentEntriesCache: {
+  ownerUid: string;
+  friendsKey: string;
+  entries: FriendRecentEntry[];
+} | null = null;
+
 interface ExpandableSectionProps {
   title: string;
   children: React.ReactNode;
@@ -92,17 +111,7 @@ export function HomePage() {
   });
   /** Firebase UID for the featured example profile (used in /friends/:id link). */
   const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
-  const [friendRecentEntries, setFriendRecentEntries] = useState<{
-    key: string;
-    friendUid: string;
-    friendName: string;
-    friendPfpPosterPath?: string;
-    friendPfpPhotoUrl?: string;
-    item: MovieShowItem;
-    record: WatchRecord;
-    sortKey: string;
-    isMovie: boolean;
-  }[]>([]);
+  const [friendRecentEntries, setFriendRecentEntries] = useState<FriendRecentEntry[]>([]);
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{
     tmdbId: number;
@@ -112,7 +121,7 @@ export function HomePage() {
     mediaType: 'movie' | 'tv';
   } | null>(null);
   const [showHideExampleProfileConfirm, setShowHideExampleProfileConfirm] = useState(false);
-  const [friendRecentReloadTick, setFriendRecentReloadTick] = useState(0);
+  const [revealedRanksByEntryKey, setRevealedRanksByEntryKey] = useState<Record<string, boolean>>({});
 
   // Load example profile data on component mount
   useEffect(() => {
@@ -207,9 +216,22 @@ export function HomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadFriendRecentEntries = async () => {
+    const loadFriendRecentEntries = async (forceRefresh = false) => {
       if (!db || !user || friends.length === 0) {
         setFriendRecentEntries([]);
+        return;
+      }
+      const friendsKey = friends
+        .map((f) => `${f.uid}:${f.username}:${f.addedAt ?? ''}`)
+        .sort()
+        .join('|');
+      if (
+        !forceRefresh &&
+        friendRecentEntriesCache &&
+        friendRecentEntriesCache.ownerUid === user.uid &&
+        friendRecentEntriesCache.friendsKey === friendsKey
+      ) {
+        setFriendRecentEntries(friendRecentEntriesCache.entries);
         return;
       }
       const firestoreDb = db;
@@ -219,23 +241,15 @@ export function HomePage() {
         from.setDate(from.getDate() - 31);
         const min = toYMD(from);
         const max = toYMD(now);
-        const allEntries: {
-          key: string;
-          friendUid: string;
-          friendName: string;
-          friendPfpPosterPath?: string;
-          friendPfpPhotoUrl?: string;
-          item: MovieShowItem;
-          record: WatchRecord;
-          sortKey: string;
-          isMovie: boolean;
-        }[] = [];
+        const allEntries: FriendRecentEntry[] = [];
 
         await Promise.all(friends.map(async (friend) => {
           const [friendMovies, friendTv] = await Promise.all([
             loadMovies(firestoreDb, friend.uid),
             loadTvShows(firestoreDb, friend.uid),
           ]);
+          const movieRanks = buildFriendGlobalRanks(friendMovies.byClass, friendMovies.classes);
+          const tvRanks = buildFriendGlobalRanks(friendTv.byClass, friendTv.classes);
           const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
             const sortKey = getWatchRecordSortKey(record);
             if (sortKey === '0000-00-00' || sortKey < min || sortKey > max) return;
@@ -250,6 +264,7 @@ export function HomePage() {
               record,
               sortKey,
               isMovie,
+              friendPercentileRank: isMovie ? (movieRanks.get(item.id) ?? 'N/A') : (tvRanks.get(item.id) ?? 'N/A'),
             });
           };
 
@@ -268,6 +283,11 @@ export function HomePage() {
         allEntries.sort(compareRecentWatchEvents);
         if (!cancelled) {
           setFriendRecentEntries(allEntries);
+          friendRecentEntriesCache = {
+            ownerUid: user.uid,
+            friendsKey,
+            entries: allEntries,
+          };
         }
       } catch (error) {
         console.error('Failed to load friend recent watches:', error);
@@ -275,11 +295,11 @@ export function HomePage() {
       }
     };
 
-    void loadFriendRecentEntries();
+    void loadFriendRecentEntries(false);
     return () => {
       cancelled = true;
     };
-  }, [friends, user, friendRecentReloadTick]);
+  }, [friends, user]);
 
   const shouldShowFriendCarousel = useMemo(
     () => Boolean(user) && friends.length > 0 && friendRecentEntries.length > 0,
@@ -429,7 +449,58 @@ export function HomePage() {
                   <button
                     type="button"
                     className="homepage-friends-refresh-btn"
-                    onClick={() => setFriendRecentReloadTick((n) => n + 1)}
+                    onClick={async () => {
+                      if (!db || !user) return;
+                      const firestoreDb = db;
+                      const now = new Date();
+                      const from = new Date(now);
+                      from.setDate(from.getDate() - 31);
+                      const min = toYMD(from);
+                      const max = toYMD(now);
+                      const allEntries: FriendRecentEntry[] = [];
+                      await Promise.all(friends.map(async (friend) => {
+                        const [friendMovies, friendTv] = await Promise.all([
+                          loadMovies(firestoreDb, friend.uid),
+                          loadTvShows(firestoreDb, friend.uid),
+                        ]);
+                        const movieRanks = buildFriendGlobalRanks(friendMovies.byClass, friendMovies.classes);
+                        const tvRanks = buildFriendGlobalRanks(friendTv.byClass, friendTv.classes);
+                        const push = (item: MovieShowItem, record: WatchRecord, isMovie: boolean) => {
+                          const sortKey = getWatchRecordSortKey(record);
+                          if (sortKey === '0000-00-00' || sortKey < min || sortKey > max) return;
+                          const recordId = record.id ?? `${record.type ?? 'DATE'}-${sortKey}`;
+                          allEntries.push({
+                            key: `${friend.uid}-${item.id}-${recordId}`,
+                            friendUid: friend.uid,
+                            friendName: friend.username,
+                            friendPfpPosterPath: friend.pfpPosterPath,
+                            friendPfpPhotoUrl: friend.pfpPhotoUrl,
+                            item,
+                            record,
+                            sortKey,
+                            isMovie,
+                            friendPercentileRank: isMovie ? (movieRanks.get(item.id) ?? 'N/A') : (tvRanks.get(item.id) ?? 'N/A'),
+                          });
+                        };
+                        for (const list of Object.values(friendMovies.byClass ?? {})) {
+                          for (const item of list) {
+                            for (const record of item.watchRecords ?? []) push(item, record, true);
+                          }
+                        }
+                        for (const list of Object.values(friendTv.byClass ?? {})) {
+                          for (const item of list) {
+                            for (const record of item.watchRecords ?? []) push(item, record, false);
+                          }
+                        }
+                      }));
+                      allEntries.sort(compareRecentWatchEvents);
+                      setFriendRecentEntries(allEntries);
+                      friendRecentEntriesCache = {
+                        ownerUid: user.uid,
+                        friendsKey: friends.map((f) => `${f.uid}:${f.username}:${f.addedAt ?? ''}`).sort().join('|'),
+                        entries: allEntries,
+                      };
+                    }}
                     title="Refresh friends watches"
                     aria-label="Refresh friends watches"
                   >
@@ -442,6 +513,8 @@ export function HomePage() {
                     const rankState = getEntryRankState(entry);
                     const canAddToUnranked = !rankState.isRanked && rankState.classKey !== 'UNRANKED';
                     const canRemoveFromUnranked = rankState.classKey === 'UNRANKED';
+                    const rankBadgeText = entry.friendPercentileRank;
+                    const rankRevealed = Boolean(revealedRanksByEntryKey[entry.key]);
                     const pfpSrc = entry.friendPfpPosterPath
                       ? tmdbImagePath(entry.friendPfpPosterPath, 'w92')
                       : (entry.friendPfpPhotoUrl ?? null);
@@ -470,6 +543,16 @@ export function HomePage() {
                               <span>{entry.friendName.charAt(0).toUpperCase()}</span>
                             )}
                           </div>
+                          <button
+                            type="button"
+                            className={`homepage-friends-rank-toggle ${rankRevealed ? 'homepage-friends-rank-toggle--revealed' : ''}`}
+                            onClick={() => {
+                              setRevealedRanksByEntryKey((prev) => ({ ...prev, [entry.key]: true }));
+                            }}
+                            title={rankRevealed ? `Percentile rank: ${rankBadgeText}` : 'See rank'}
+                          >
+                            {rankRevealed ? rankBadgeText : 'See rank'}
+                          </button>
                           <button
                             type="button"
                             className="homepage-friends-hover-name homepage-friends-profile-link"
@@ -870,4 +953,25 @@ function withoutYearLabel(label: string): string {
     .replace(/\b\d{4}\b/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+function normalizePercentileLabel(value: string | null | undefined): string {
+  const text = String(value ?? '').trim();
+  if (/^\d+%$/.test(text)) return text;
+  return 'N/A';
+}
+
+function buildFriendGlobalRanks(
+  byClass: Record<string, MovieShowItem[]>,
+  classes: Array<{ key: string; isRanked?: boolean }>
+): Map<string, string> {
+  const rankedClassKeys = classes.filter((c) => c.isRanked !== false).map((c) => c.key);
+  const rankedItems = rankedClassKeys.flatMap((key) => byClass[key] ?? []);
+  const total = rankedItems.length;
+  const map = new Map<string, string>();
+  if (total <= 0) return map;
+  rankedItems.forEach((item, index) => {
+    map.set(item.id, `${Math.round(((total - index) / total) * 100)}%`);
+  });
+  return map;
 }
