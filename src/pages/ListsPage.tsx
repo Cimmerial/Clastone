@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { tmdbImagePath, tmdbMovieDetailsFull, tmdbPersonDetailsFull, tmdbSearchMovies, tmdbSearchPeople, tmdbSearchTv, tmdbTvDetailsFull, type TmdbMultiResult } from '../lib/tmdb';
 import { deleteGlobalCollection, saveGlobalCollectionsOrder as saveCollectionsOrder, upsertGlobalCollection } from '../lib/firestoreCollections';
+import type { CustomListAddPosition, ListSortMode } from '../lib/firestoreLists';
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
 import { InfoModal } from '../components/InfoModal';
@@ -41,6 +42,12 @@ function collectionEntryIdFor(mediaType: string, tmdbId: number): CollectionEntr
   return `tmdb-${normalizeCollectionMediaType(mediaType)}-${tmdbId}`;
 }
 
+function parseRankingPercentile(value?: string): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseFloat(String(value).replace('%', '').trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function hashString(input: string): number {
   let hash = 0;
   for (let i = 0; i < input.length; i += 1) {
@@ -48,6 +55,7 @@ function hashString(input: string): number {
   }
   return hash;
 }
+
 
 function pickPosterCollage(posters: string[], seedKey: string, minCount = 3, maxCount = 6): string[] {
   if (posters.length === 0) return [];
@@ -168,6 +176,12 @@ function RenameEntityModal({
   entryTypeCounts,
   allowColorEdit = false,
   allowSummaryEdit = false,
+  showWatchModalControls = false,
+  initialShowInWatchModal = true,
+  initialAllowWatchModalTagEditing = true,
+  showSortControls = false,
+  initialSortMode = 'custom',
+  initialCustomAddPosition = 'top',
   deleteLabel,
   onRequestDelete,
   onClose,
@@ -181,14 +195,24 @@ function RenameEntityModal({
   entryTypeCounts?: { movie: number; tv: number };
   allowColorEdit?: boolean;
   allowSummaryEdit?: boolean;
+  showWatchModalControls?: boolean;
+  initialShowInWatchModal?: boolean;
+  initialAllowWatchModalTagEditing?: boolean;
+  showSortControls?: boolean;
+  initialSortMode?: ListSortMode;
+  initialCustomAddPosition?: CustomListAddPosition;
   deleteLabel?: string;
   onRequestDelete?: () => void;
   onClose: () => void;
-  onSave: (payload: { name: string; color?: string; summary?: string; mediaType?: 'movie' | 'tv' | 'both' }) => void | Promise<void>;
+  onSave: (payload: { name: string; color?: string; summary?: string; mediaType?: 'movie' | 'tv' | 'both'; showInWatchModal?: boolean; allowWatchModalTagEditing?: boolean; sortMode?: ListSortMode; customAddPosition?: CustomListAddPosition }) => void | Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor ?? '#deb55e');
   const [summary, setSummary] = useState(initialSummary ?? '');
+  const [showInWatchModal, setShowInWatchModal] = useState(initialShowInWatchModal);
+  const [allowWatchModalTagEditing, setAllowWatchModalTagEditing] = useState(initialAllowWatchModalTagEditing);
+  const [sortMode, setSortMode] = useState<ListSortMode>(initialSortMode === 'release_date' ? 'release_date' : 'custom');
+  const [customAddPosition, setCustomAddPosition] = useState<CustomListAddPosition>(initialCustomAddPosition);
   const [movieSelected, setMovieSelected] = useState(initialType === 'movie' || initialType === 'both');
   const [showSelected, setShowSelected] = useState(initialType === 'tv' || initialType === 'both');
   const [typeError, setTypeError] = useState<string | null>(null);
@@ -264,6 +288,78 @@ function RenameEntityModal({
             {typeError ? <p className="lists-subtitle">{typeError}</p> : null}
           </div>
         ) : null}
+        {showSortControls ? (
+          <div className="lists-type-toggle-group">
+            <span className="lists-type-toggle-label">Sort mode</span>
+            <div className="lists-role-tags">
+              <button
+                type="button"
+                className={`lists-role-tag ${sortMode === 'release_date' ? 'lists-role-tag--on' : ''}`}
+                onClick={() => setSortMode('release_date')}
+              >
+                Release date
+              </button>
+              <button
+                type="button"
+                className={`lists-role-tag ${sortMode === 'custom' ? 'lists-role-tag--on' : ''}`}
+                onClick={() => setSortMode('custom')}
+              >
+                Custom
+              </button>
+            </div>
+            {sortMode === 'custom' ? (
+              <>
+                <span className="lists-type-toggle-label">When adding new entries</span>
+                <div className="lists-role-tags">
+                  <button
+                    type="button"
+                    className={`lists-role-tag ${customAddPosition === 'top' ? 'lists-role-tag--on' : ''}`}
+                    onClick={() => setCustomAddPosition('top')}
+                  >
+                    Add to top
+                  </button>
+                  <button
+                    type="button"
+                    className={`lists-role-tag ${customAddPosition === 'bottom' ? 'lists-role-tag--on' : ''}`}
+                    onClick={() => setCustomAddPosition('bottom')}
+                  >
+                    Add to bottom
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        {showWatchModalControls ? (
+          <div className="lists-type-toggle-group">
+            <span className="lists-type-toggle-label">Watch modal tag behavior</span>
+            <div className="lists-role-tags">
+              <button
+                type="button"
+                className={`lists-role-tag ${showInWatchModal ? 'lists-role-tag--on' : ''}`}
+                onClick={() => {
+                  const next = !showInWatchModal;
+                  setShowInWatchModal(next);
+                  if (!next) setAllowWatchModalTagEditing(false);
+                }}
+              >
+                Show in watch modal
+              </button>
+              <button
+                type="button"
+                className={`lists-role-tag ${allowWatchModalTagEditing ? 'lists-role-tag--on' : ''}`}
+                onClick={() => {
+                  if (!showInWatchModal) return;
+                  setAllowWatchModalTagEditing((prev) => !prev);
+                }}
+                disabled={!showInWatchModal}
+                title={!showInWatchModal ? 'Enable show-in-watch-modal first' : undefined}
+              >
+                Editable in watch modal
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="lists-modal-actions">
           {onRequestDelete ? (
             <button
@@ -286,7 +382,11 @@ function RenameEntityModal({
                 name: trimmed,
                 color: allowColorEdit ? color : undefined,
                 summary: allowSummaryEdit ? (summary.trim() || undefined) : undefined,
-                mediaType: supportsTypeEdit ? deriveMediaType() : undefined
+                mediaType: supportsTypeEdit ? deriveMediaType() : undefined,
+                showInWatchModal: showWatchModalControls ? showInWatchModal : undefined,
+                allowWatchModalTagEditing: showWatchModalControls ? (showInWatchModal ? allowWatchModalTagEditing : false) : undefined,
+                sortMode: showSortControls ? sortMode : undefined,
+                customAddPosition: showSortControls ? customAddPosition : undefined,
               });
               onClose();
             }}
@@ -1304,7 +1404,8 @@ export function ListDetailPage() {
       });
     }
     if (activeList) {
-      return (entriesByListId[activeList.id] ?? []).slice().sort((a, b) => a.position - b.position).map((entry) => {
+      const refs = (entriesByListId[activeList.id] ?? []).slice().sort((a, b) => a.position - b.position);
+      const mapped = refs.map((entry) => {
         const existing = entryMap.get(entry.entryId);
         const parsedTmdbId = Number.parseInt(entry.entryId.replace(/\D/g, ''), 10) || 0;
         const fallbackTitle = entry.title ?? existing?.title ?? entry.entryId;
@@ -1316,15 +1417,33 @@ export function ListDetailPage() {
           entry.posterPath,
           entry.releaseDate
         );
-        return {
+        const item = existing ?? fallbackItem;
+        const releaseTs = Date.parse(item.releaseDate ?? entry.releaseDate ?? '');
+        const safeReleaseTs = Number.isFinite(releaseTs) ? releaseTs : Number.MIN_SAFE_INTEGER;
+        const row: ListDetailItem = {
           id: entry.entryId,
           classKey: 'LIST',
           source: existing ? 'saved' : 'unseen',
           mediaType: entry.mediaType,
-          item: existing ?? fallbackItem,
+          item,
           title: existing?.title ?? fallbackTitle
         };
+        return {
+          row,
+          safeReleaseTs,
+          position: entry.position,
+        };
       });
+      if (activeList.sortMode === 'release_date') {
+        return mapped
+          .slice()
+          .sort((a, b) => {
+            if (a.safeReleaseTs !== b.safeReleaseTs) return b.safeReleaseTs - a.safeReleaseTs;
+            return a.position - b.position;
+          })
+          .map((entry) => entry.row);
+      }
+      return mapped.map((entry) => entry.row);
     }
     return [];
   }, [isCollection, activeCollection, activeList, entriesByListId, entryMap]);
@@ -1357,7 +1476,9 @@ export function ListDetailPage() {
       { movie: 0, tv: 0 }
     );
   }, [activeList, entriesByListId]);
-  const canDrag = (Boolean(activeList) && !isCollection) || (Boolean(activeCollection) && isCollection && canEditCollections);
+  const canDrag =
+    (Boolean(activeList) && !isCollection && (activeList?.sortMode ?? 'custom') === 'custom') ||
+    (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
   const filteredDetailItems = useMemo(() => {
     if (!isCollection) return detailItems;
@@ -1758,7 +1879,12 @@ export function ListDetailPage() {
               activeList.id,
               item.id,
               item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
-              { title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate }
+              {
+                title: item.title,
+                posterPath: item.posterPath,
+                releaseDate: item.releaseDate,
+                rankScore: parseRankingPercentile(item.percentileRank),
+              }
             )}
             onAddRemote={(result) => {
               const mediaType = result.media_type === 'tv' ? 'tv' : 'movie';
@@ -1780,7 +1906,12 @@ export function ListDetailPage() {
               activeList.id,
               item.id,
               item.id.startsWith('tmdb-tv-') ? 'tv' : 'movie',
-              { title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate }
+              {
+                title: item.title,
+                posterPath: item.posterPath,
+                releaseDate: item.releaseDate,
+                rankScore: parseRankingPercentile(item.percentileRank),
+              }
             )}
           />
         )
@@ -1831,6 +1962,7 @@ export function ListDetailPage() {
             label: list.name,
             color: list.color,
             selected: getSelectedListIdsForEntry(settingsFor.id).includes(list.id),
+            editableInWatchModal: list.allowWatchModalTagEditing !== false,
             href: `/lists/${list.id}`
           }))}
           collectionTags={(collectionIdsByEntryId.get(settingsFor.id) ?? []).map((id) => ({
@@ -1933,10 +2065,16 @@ export function ListDetailPage() {
           entryTypeCounts={activeListTypeCounts}
           allowColorEdit={canEditNameAndColor}
           allowSummaryEdit={isCollection ? Boolean(canEditNameAndColor) : Boolean(canEditDescription)}
+          showWatchModalControls={Boolean(activeList)}
+          initialShowInWatchModal={activeList?.showInWatchModal !== false}
+          initialAllowWatchModalTagEditing={activeList?.allowWatchModalTagEditing !== false}
+          showSortControls={Boolean(activeList)}
+          initialSortMode={activeList?.sortMode ?? 'custom'}
+          initialCustomAddPosition={activeList?.customAddPosition ?? 'top'}
           deleteLabel={isCollection ? 'Delete collection' : 'Delete list'}
           onRequestDelete={() => setShowDeleteConfirm(true)}
           onClose={() => setShowRenameModal(false)}
-          onSave={async ({ name, color, summary, mediaType }) => {
+          onSave={async ({ name, color, summary, mediaType, showInWatchModal, allowWatchModalTagEditing, sortMode, customAddPosition }) => {
             if (isCollection) {
               if (!activeCollection || !canEditCollections) return;
               const next = {
@@ -1955,7 +2093,11 @@ export function ListDetailPage() {
               name,
               mediaType: mediaType ?? activeList.mediaType,
               ...(canEditNameAndColor ? { color } : {}),
-              ...(canEditDescription ? { description: summary } : {})
+              ...(canEditDescription ? { description: summary } : {}),
+              ...(typeof showInWatchModal === 'boolean' ? { showInWatchModal } : {}),
+              ...(typeof allowWatchModalTagEditing === 'boolean' ? { allowWatchModalTagEditing } : {}),
+              ...(sortMode ? { sortMode } : {}),
+              ...(customAddPosition ? { customAddPosition } : {}),
             });
           }}
         />

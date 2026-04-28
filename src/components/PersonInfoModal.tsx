@@ -662,20 +662,30 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                 </div>
                 <div className="info-modal-cast-scroll">
                   {(settings.infoModalProjectSort === 'seen-watchlisted-unseen'
-                    ? ([
-                        ...groupedVisibleDisplayRoles.seen.map((project) => ({ kind: 'project' as const, project })),
-                        ...(groupedVisibleDisplayRoles.seen.length > 0 && groupedVisibleDisplayRoles.watchlisted.length > 0
-                          ? [{ kind: 'divider' as const, key: 'seen-watchlisted' }]
-                          : []),
-                        ...groupedVisibleDisplayRoles.watchlisted.map((project) => ({ kind: 'project' as const, project })),
-                        ...(groupedVisibleDisplayRoles.watchlisted.length > 0 && groupedVisibleDisplayRoles.unseen.length > 0
-                          ? [{ kind: 'divider' as const, key: 'watchlisted-unseen' }]
-                          : []),
-                        ...groupedVisibleDisplayRoles.unseen.map((project) => ({ kind: 'project' as const, project })),
-                      ] as Array<
-                        | { kind: 'project'; project: (typeof visibleDisplayRoles)[number] }
-                        | { kind: 'divider'; key: string }
-                      >)
+                    ? (() => {
+                        const orderedGroups: Array<{ key: 'seen' | 'watchlisted' | 'unseen'; projects: typeof visibleDisplayRoles }> = [
+                          { key: 'seen', projects: groupedVisibleDisplayRoles.seen },
+                          { key: 'watchlisted', projects: groupedVisibleDisplayRoles.watchlisted },
+                          { key: 'unseen', projects: groupedVisibleDisplayRoles.unseen },
+                        ];
+                        const nonEmptyGroups = orderedGroups.filter((group) => group.projects.length > 0);
+                        const entries: Array<
+                          | { kind: 'project'; project: (typeof visibleDisplayRoles)[number] }
+                          | { kind: 'divider'; key: string }
+                        > = [];
+
+                        nonEmptyGroups.forEach((group, index) => {
+                          if (index > 0) {
+                            entries.push({
+                              kind: 'divider',
+                              key: `${nonEmptyGroups[index - 1].key}-${group.key}`,
+                            });
+                          }
+                          entries.push(...group.projects.map((project) => ({ kind: 'project' as const, project })));
+                        });
+
+                        return entries;
+                      })()
                     : visibleDisplayRoles.map((project) => ({ kind: 'project' as const, project }))
                   ).map((entry) =>
                     entry.kind === 'divider' ? (

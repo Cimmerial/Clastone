@@ -11,7 +11,11 @@ export type ListEntryRef = {
   title?: string;
   posterPath?: string;
   releaseDate?: string;
+  rankScore?: number;
 };
+
+export type ListSortMode = 'custom' | 'release_date';
+export type CustomListAddPosition = 'top' | 'bottom';
 
 export type UserListDoc = {
   id: string;
@@ -23,6 +27,10 @@ export type UserListDoc = {
   createdAt: string;
   updatedAt: string;
   hidden?: boolean;
+  showInWatchModal?: boolean;
+  allowWatchModalTagEditing?: boolean;
+  sortMode?: ListSortMode;
+  customAddPosition?: CustomListAddPosition;
 };
 
 export type UserListState = {
@@ -68,6 +76,10 @@ export async function loadUserLists(db: Firestore, userId: string): Promise<User
       createdAt: String(data.createdAt ?? new Date(0).toISOString()),
       updatedAt: String(data.updatedAt ?? new Date(0).toISOString()),
       hidden: Boolean(data.hidden),
+      showInWatchModal: data.showInWatchModal !== false,
+      allowWatchModalTagEditing: data.allowWatchModalTagEditing !== false,
+      sortMode: ((data.sortMode as string | undefined) === 'release_date' ? 'release_date' : 'custom'),
+      customAddPosition: (data.customAddPosition as CustomListAddPosition | undefined) ?? 'top',
     });
   });
 
@@ -98,6 +110,10 @@ export async function saveUserLists(db: Firestore, userId: string, state: UserLi
       mediaType: list.mediaType,
       mode: list.mode,
       hidden: Boolean(list.hidden),
+      showInWatchModal: list.showInWatchModal !== false,
+      allowWatchModalTagEditing: list.allowWatchModalTagEditing !== false,
+      sortMode: list.sortMode ?? 'custom',
+      customAddPosition: list.customAddPosition ?? 'top',
       createdAt: list.createdAt,
       updatedAt: list.updatedAt,
       entries,

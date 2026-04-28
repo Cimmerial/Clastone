@@ -1673,11 +1673,15 @@ export function SearchPage() {
               const id = resultId(r);
               const isMovie = r.media_type === 'movie';
               const isTv = r.media_type === 'tv';
-              const imgPath = r.media_type === 'person' ? r.profile_path : r.poster_path;
-              const imgUrl = tmdbImagePath(imgPath);
               const existingMovie = isMovie ? getMovieById(id) : null;
               const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
               const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+              const existingPerson = r.media_type === 'person' ? getPersonById(id) : null;
+              const existingDirector = r.media_type === 'person' ? getDirectorById(id) : null;
+              const effectiveImagePath = r.media_type === 'person'
+                ? (existingPerson?.profilePath ?? existingDirector?.profilePath ?? r.profile_path)
+                : ((isMovie ? existingMovie?.posterPath : existingTv?.posterPath) ?? r.poster_path);
+              const imgUrl = tmdbImagePath(effectiveImagePath);
               const inWatchlist = (isMovie || isTv) && isInWatchlist(id);
               const inSelectedCollection = isInSelectedQuickCollection(r);
 
@@ -1725,7 +1729,7 @@ export function SearchPage() {
                               tmdbId: r.id,
                               mediaType: r.media_type as 'movie' | 'tv',
                               title: r.title,
-                              posterPath: r.poster_path || undefined,
+                              posterPath: effectiveImagePath || undefined,
                               releaseDate: r.release_date || undefined
                             })}
                             title="View detailed information"
@@ -1740,7 +1744,7 @@ export function SearchPage() {
                             onClick={() => setPersonInfoModalTarget({
                               tmdbId: r.id,
                               name: r.title,
-                              profilePath: r.profile_path || undefined
+                              profilePath: effectiveImagePath || undefined
                             })}
                             title="View detailed information"
                           >
@@ -2030,10 +2034,11 @@ export function SearchPage() {
                 const id = resultId(r);
                 const isMovie = r.media_type === 'movie';
                 const isTv = r.media_type === 'tv';
-                const imgUrl = tmdbImagePath(r.poster_path);
                 const existingMovie = isMovie ? getMovieById(id) : null;
                 const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
                 const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+                const effectivePosterPath = (isMovie ? existingMovie?.posterPath : existingTv?.posterPath) ?? r.poster_path;
+                const imgUrl = tmdbImagePath(effectivePosterPath);
                 const inWatchlist = isMovie ? isInWatchlist(id) : isInWatchlist(`tmdb-tv-${r.id}`);
                 const seen =
                   Boolean(isMovie && existingMovie?.watchRecords && existingMovie.watchRecords.length > 0) ||
@@ -2083,7 +2088,7 @@ export function SearchPage() {
                             tmdbId: r.id,
                             mediaType: r.media_type as 'movie' | 'tv',
                             title: r.title,
-                            posterPath: r.poster_path,
+                            posterPath: effectivePosterPath,
                             releaseDate: r.release_date,
                           })}
                           title="Info"
@@ -2220,10 +2225,11 @@ export function SearchPage() {
                 const id = resultId(r);
                 const isMovie = r.media_type === 'movie';
                 const isTv = r.media_type === 'tv';
-                const imgUrl = tmdbImagePath(r.poster_path);
                 const existingMovie = isMovie ? getMovieById(id) : null;
                 const inUnrankedMovie = existingMovie?.classKey === 'UNRANKED';
                 const existingTv = isTv ? getShowById(`tmdb-tv-${r.id}`) : null;
+                const effectivePosterPath = (isMovie ? existingMovie?.posterPath : existingTv?.posterPath) ?? r.poster_path;
+                const imgUrl = tmdbImagePath(effectivePosterPath);
                 const inWatchlist = isMovie ? isInWatchlist(id) : isInWatchlist(`tmdb-tv-${r.id}`);
 
                 const handleAddToWatchlist = () => {
@@ -2267,7 +2273,7 @@ export function SearchPage() {
                             tmdbId: r.id,
                             mediaType: r.media_type as 'movie' | 'tv',
                             title: r.title,
-                            posterPath: r.poster_path,
+                            posterPath: effectivePosterPath,
                             releaseDate: r.release_date,
                           })}
                           title="Info"
@@ -2441,6 +2447,7 @@ export function SearchPage() {
             label: list.name,
             color: list.color,
             selected: getSelectedListIdsForEntry(resultId(recordTarget)).includes(list.id),
+            editableInWatchModal: list.allowWatchModalTagEditing !== false,
             href: `/lists/${list.id}`,
           }))}
           collectionTags={(collectionIdsByEntryId.get(resultId(recordTarget)) ?? []).map((id) => ({

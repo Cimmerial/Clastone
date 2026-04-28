@@ -418,9 +418,12 @@ type TasteComparisonRow = {
   percentileGap: number;
 };
 
+type TasteChartSortMode = 'default' | 'mine' | 'theirs';
+
 function buildTasteOverlapChartData(
   mine: MovieShowItem[],
   theirs: MovieShowItem[],
+  sortMode: TasteChartSortMode,
   limit = 60
 ): TasteOverlapChartDatum[] {
   const myRanks = new Map<string, number>();
@@ -449,9 +452,15 @@ function buildTasteOverlapChartData(
     });
   }
 
-  overlap.sort(
-    (a, b) => (b.myPercentile + b.theirPercentile) / 2 - (a.myPercentile + a.theirPercentile) / 2
-  );
+  overlap.sort((a, b) => {
+    if (sortMode === 'mine') {
+      return a.myRank - b.myRank;
+    }
+    if (sortMode === 'theirs') {
+      return a.theirRank - b.theirRank;
+    }
+    return (b.myPercentile + b.theirPercentile) / 2 - (a.myPercentile + a.theirPercentile) / 2;
+  });
   if (overlap.length === 0) return [];
 
   const sampled =
@@ -595,6 +604,7 @@ export function FriendProfilePage() {
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
   const [showTasteDetails, setShowTasteDetails] = useState(false);
   const [showAllOverlapOnChart, setShowAllOverlapOnChart] = useState(false);
+  const [tasteChartSortMode, setTasteChartSortMode] = useState<TasteChartSortMode>('default');
   const [movieTasteConfig, setMovieTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('movies'));
   const [showTasteConfig, setShowTasteConfig] = useState<TasteSimilarityConfig>(() => loadTasteSimilarityConfigScoped('shows'));
   const profileMediaListModeOptionsWithExpanded = useMemo<ThemedDropdownOption<ProfileMediaListModeWithExpanded>[]>(
@@ -1948,12 +1958,22 @@ export function FriendProfilePage() {
   );
 
   const movieTasteChartData = useMemo(
-    () => buildTasteOverlapChartData(myRankedMovies, rankedMovies, showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60),
-    [myRankedMovies, rankedMovies, showAllOverlapOnChart]
+    () => buildTasteOverlapChartData(
+      myRankedMovies,
+      rankedMovies,
+      tasteChartSortMode,
+      showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60
+    ),
+    [myRankedMovies, rankedMovies, tasteChartSortMode, showAllOverlapOnChart]
   );
   const showTasteChartData = useMemo(
-    () => buildTasteOverlapChartData(myRankedShows, rankedShows, showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60),
-    [myRankedShows, rankedShows, showAllOverlapOnChart]
+    () => buildTasteOverlapChartData(
+      myRankedShows,
+      rankedShows,
+      tasteChartSortMode,
+      showAllOverlapOnChart ? Number.MAX_SAFE_INTEGER : 60
+    ),
+    [myRankedShows, rankedShows, tasteChartSortMode, showAllOverlapOnChart]
   );
   const movieTasteComparisons = useMemo(
     () => buildTasteComparisonRows(myRankedMovies, rankedMovies),
@@ -2316,9 +2336,10 @@ export function FriendProfilePage() {
                 className="profile-view-friends-btn"
                 onClick={handleViewFriendsOfFriend}
                 disabled={loadingFriendsOfFriend}
+                aria-label={showFriendsOfFriendModal ? 'Hide friends list' : 'View their friends'}
+                title={showFriendsOfFriendModal ? 'Hide friends list' : 'View their friends'}
               >
                 <Users2 size={16} />
-                {showFriendsOfFriendModal ? 'Hide Friends' : 'View Their Friends'}
               </button>
             )}
             {profileSocial &&
@@ -2328,9 +2349,10 @@ export function FriendProfilePage() {
                   type="button"
                   className="profile-unfriend-btn"
                   onClick={() => setShowUnfriendModal(true)}
+                  aria-label="Unfriend"
+                  title="Unfriend"
                 >
                   <UserX size={16} />
-                  Unfriend
                 </button>
               )}
             {profileSocial &&
@@ -2704,6 +2726,30 @@ export function FriendProfilePage() {
                               <span><i style={{ background: '#f4a261' }} />You</span>
                               <span><i style={{ background: '#4da3ff' }} />Them</span>
                               <span>Above 0 = top 50% · below 0 = bottom 50%</span>
+                              <div className="profile-taste-chart-sort">
+                                <span>Sort:</span>
+                                <button
+                                  type="button"
+                                  className={`profile-taste-chart-sort-btn ${tasteChartSortMode === 'default' ? 'active' : ''}`}
+                                  onClick={() => setTasteChartSortMode('default')}
+                                >
+                                  Default
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`profile-taste-chart-sort-btn ${tasteChartSortMode === 'mine' ? 'active' : ''}`}
+                                  onClick={() => setTasteChartSortMode('mine')}
+                                >
+                                  Your Rank
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`profile-taste-chart-sort-btn ${tasteChartSortMode === 'theirs' ? 'active' : ''}`}
+                                  onClick={() => setTasteChartSortMode('theirs')}
+                                >
+                                  Their Rank
+                                </button>
+                              </div>
                               <label className="profile-taste-chart-toggle-all">
                                 <input
                                   type="checkbox"
@@ -2715,12 +2761,12 @@ export function FriendProfilePage() {
                             </div>
                             <div className="profile-taste-breakdown-grid">
                               <div className="profile-taste-breakdown">
-                                <h5>Top 10 Best Matches</h5>
+                                <h5>Top {Math.min(15, section.comparisons.length)} Best Matches</h5>
                                 <ol>
                                   {section.comparisons
                                     .slice()
                                     .sort((a, b) => a.percentileGap - b.percentileGap)
-                                    .slice(0, 10)
+                                    .slice(0, 15)
                                     .map((entry) => (
                                       <li key={`${section.key}-match-${entry.id}`}>
                                         <span className="profile-taste-breakdown-title">{entry.title}</span>
@@ -2732,12 +2778,12 @@ export function FriendProfilePage() {
                                 </ol>
                               </div>
                               <div className="profile-taste-breakdown">
-                                <h5>Top 10 Biggest Discrepancies</h5>
+                                <h5>Top {Math.min(15, section.comparisons.length)} Biggest Discrepancies</h5>
                                 <ol>
                                   {section.comparisons
                                     .slice()
                                     .sort((a, b) => b.percentileGap - a.percentileGap)
-                                    .slice(0, 10)
+                                    .slice(0, 15)
                                     .map((entry) => (
                                       <li key={`${section.key}-diff-${entry.id}`}>
                                         <span className="profile-taste-breakdown-title">{entry.title}</span>

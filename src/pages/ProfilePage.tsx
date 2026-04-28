@@ -3887,6 +3887,7 @@ export function ProfilePage() {
             label: list.name,
             color: list.color,
             selected: getSelectedListIdsForEntry(rankingTarget.id).includes(list.id),
+            editableInWatchModal: list.allowWatchModalTagEditing !== false,
             href: `/lists/${list.id}`,
           }))}
           collectionTags={(collectionIdsByEntryId.get(rankingTarget.id) ?? []).map((id) => ({

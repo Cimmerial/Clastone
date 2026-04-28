@@ -1777,6 +1777,7 @@ export function WatchlistPage() {
             label: list.name,
             color: list.color,
             selected: getSelectedListIdsForEntry(recordTarget.id).includes(list.id),
+            editableInWatchModal: list.allowWatchModalTagEditing !== false,
             href: `/lists/${list.id}`
           }))}
           collectionTags={(collectionIdsByEntryId.get(recordTarget.id) ?? []).map((id) => ({

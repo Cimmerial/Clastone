@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { GlobalCollection } from '../lib/firestoreCollections';
-import type { ListEntryRef, ListMediaType, UserListDoc } from '../lib/firestoreLists';
+import type { CustomListAddPosition, ListEntryRef, ListMediaType, ListSortMode, UserListDoc } from '../lib/firestoreLists';
 
 type EntryMediaType = 'movie' | 'tv';
 const COLLECTION_ENTRY_CAP = 1000;
@@ -14,6 +14,7 @@ export type ListEntryMeta = {
   title?: string;
   posterPath?: string;
   releaseDate?: string;
+  rankScore?: number;
 };
 
 type ListsStore = {
@@ -24,11 +25,11 @@ type ListsStore = {
   tagsByEntryId: Map<string, string[]>;
   collectionIdsByEntryId: Map<string, string[]>;
   createList: (name: string, mediaType: ListMediaType, mode?: 'list' | 'collection', color?: string, description?: string) => string;
-  updateList: (listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color'>>) => void;
+  updateList: (listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color' | 'showInWatchModal' | 'allowWatchModalTagEditing' | 'sortMode' | 'customAddPosition'>>) => void;
   deleteList: (listId: string) => void;
   reorderLists: (orderedIds: string[]) => void;
   reorderEntriesInList: (listId: string, orderedEntryIds: string[]) => void;
-  addEntryToListTop: (listId: string, entryId: string, mediaType: EntryMediaType, meta?: { title?: string; posterPath?: string; releaseDate?: string }) => void;
+  addEntryToListTop: (listId: string, entryId: string, mediaType: EntryMediaType, meta?: ListEntryMeta) => void;
   setEntryListMembership: (entryId: string, mediaType: EntryMediaType, changes: ListMembershipChange[], meta?: ListEntryMeta) => void;
   getEditableListsForMediaType: (mediaType: EntryMediaType) => UserListDoc[];
   getSelectedListIdsForEntry: (entryId: string) => string[];
@@ -55,6 +56,28 @@ type ListsProviderProps = {
 
 function supportsMediaType(listType: ListMediaType, mediaType: EntryMediaType): boolean {
   return listType === 'both' || listType === mediaType;
+}
+
+function parseReleaseDateTimestamp(date?: string): number {
+  if (!date) return Number.MIN_SAFE_INTEGER;
+  const ts = Date.parse(date);
+  return Number.isFinite(ts) ? ts : Number.MIN_SAFE_INTEGER;
+}
+
+function sortEntriesForList(list: UserListDoc | undefined, entries: ListEntryRef[]): ListEntryRef[] {
+  if (!list || entries.length <= 1) return entries.map((entry, position) => ({ ...entry, position }));
+  const mode: ListSortMode = list.sortMode ?? 'custom';
+  if (mode === 'release_date') {
+    return entries
+      .slice()
+      .sort((a, b) => {
+        const dateDelta = parseReleaseDateTimestamp(b.releaseDate) - parseReleaseDateTimestamp(a.releaseDate);
+        if (dateDelta !== 0) return dateDelta;
+        return a.position - b.position;
+      })
+      .map((entry, position) => ({ ...entry, position }));
+  }
+  return entries.map((entry, position) => ({ ...entry, position }));
 }
 
 export function ListsProvider({
@@ -103,7 +126,11 @@ export function ListsProvider({
       color,
       createdAt: now,
       updatedAt: now,
-      hidden: false
+      hidden: false,
+      showInWatchModal: true,
+      allowWatchModalTagEditing: true,
+      sortMode: 'custom',
+      customAddPosition: 'top',
     };
     setLists((prev) => [...prev, next]);
     setListOrder((prev) => [...prev, id]);
@@ -111,9 +138,20 @@ export function ListsProvider({
     return id;
   }, []);
 
-  const updateList = useCallback((listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color'>>) => {
-    setLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...updates, updatedAt: new Date().toISOString() } : list)));
-  }, []);
+  const updateList = useCallback((listId: string, updates: Partial<Pick<UserListDoc, 'name' | 'description' | 'mediaType' | 'hidden' | 'color' | 'showInWatchModal' | 'allowWatchModalTagEditing' | 'sortMode' | 'customAddPosition'>>) => {
+    const now = new Date().toISOString();
+    const currentList = lists.find((list) => list.id === listId);
+    const nextList = currentList ? { ...currentList, ...updates, updatedAt: now } : undefined;
+    setLists((prev) => prev.map((list) => (list.id === listId ? { ...list, ...updates, updatedAt: now } : list)));
+    if (updates.sortMode && nextList) {
+      setEntriesByListId((prev) => {
+        const current = prev[listId] ?? [];
+        const normalized = current.map((entry, position) => ({ ...entry, position }));
+        const sorted = sortEntriesForList(nextList, normalized);
+        return { ...prev, [listId]: sorted };
+      });
+    }
+  }, [lists]);
 
   const deleteList = useCallback((listId: string) => {
     setLists((prev) => prev.filter((list) => list.id !== listId));
@@ -143,13 +181,21 @@ export function ListsProvider({
     });
   }, []);
 
-  const addEntryToListTop = useCallback((listId: string, entryId: string, mediaType: EntryMediaType, meta?: { title?: string; posterPath?: string; releaseDate?: string }) => {
+  const addEntryToListTop = useCallback((listId: string, entryId: string, mediaType: EntryMediaType, meta?: ListEntryMeta) => {
     setEntriesByListId((prev) => {
       const list = lists.find((item) => item.id === listId);
       const current = prev[listId] ?? [];
       if (current.some((entry) => entry.entryId === entryId)) return prev;
       if (list?.mode === 'collection' && current.length >= COLLECTION_ENTRY_CAP) return prev;
-      const next = [{ entryId, mediaType, position: 0, ...meta }, ...current].map((entry, position) => ({ ...entry, position }));
+      const customAddPosition: CustomListAddPosition = list?.customAddPosition ?? 'top';
+      const insertion = { entryId, mediaType, position: 0, ...meta };
+      const combined =
+        (list?.sortMode ?? 'custom') === 'custom'
+          ? customAddPosition === 'bottom'
+            ? [...current, insertion]
+            : [insertion, ...current]
+          : [...current, insertion];
+      const next = sortEntriesForList(list, combined);
       return { ...prev, [listId]: next };
     });
   }, [lists]);
@@ -164,7 +210,15 @@ export function ListsProvider({
         const hasEntry = current.some((entry) => entry.entryId === entryId);
         if (change.selected && !hasEntry) {
           if (list.mode === 'collection' && current.length >= COLLECTION_ENTRY_CAP) continue;
-          next[change.listId] = [...current, { entryId, mediaType, position: current.length, ...meta }];
+          const customAddPosition: CustomListAddPosition = list.customAddPosition ?? 'top';
+          const insertion = { entryId, mediaType, position: current.length, ...meta };
+          const combined =
+            (list.sortMode ?? 'custom') === 'custom'
+              ? customAddPosition === 'bottom'
+                ? [...current, insertion]
+                : [insertion, ...current]
+              : [...current, insertion];
+          next[change.listId] = sortEntriesForList(list, combined);
         }
         if (!change.selected && hasEntry) {
           const filtered = current.filter((entry) => entry.entryId !== entryId).map((entry, position) => ({ ...entry, position }));
@@ -177,7 +231,7 @@ export function ListsProvider({
 
   const getEditableListsForMediaType = useCallback((mediaType: EntryMediaType) => {
     return lists
-      .filter((list) => !list.hidden && supportsMediaType(list.mediaType, mediaType))
+      .filter((list) => !list.hidden && list.showInWatchModal !== false && supportsMediaType(list.mediaType, mediaType))
       .sort((a, b) => {
         const aIdx = listOrder.indexOf(a.id);
         const bIdx = listOrder.indexOf(b.id);

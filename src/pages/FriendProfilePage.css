@@ -136,6 +136,14 @@
   opacity: 1;
 }
 
+.profile-view-friends-btn {
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
 .profile-unfriend-btn {
   background: rgba(220, 38, 38, 0.05);
   color: #ef4444;
@@ -146,6 +154,14 @@
   background: rgba(220, 38, 38, 0.1);
   border-color: rgba(220, 38, 38, 0.3);
   opacity: 1;
+}
+
+.profile-unfriend-btn {
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 999px;
 }
 
 .profile-add-friend-btn {
@@ -1174,6 +1190,37 @@
 
 .profile-taste-chart-toggle-all input {
   margin: 0;
+}
+
+.profile-taste-chart-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.63rem;
+  color: var(--text-muted);
+}
+
+.profile-taste-chart-sort-btn {
+  border: 1px solid rgba(244, 162, 97, 0.28);
+  background: rgba(244, 162, 97, 0.1);
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  cursor: pointer;
+}
+
+.profile-taste-chart-sort-btn:hover {
+  border-color: rgba(244, 162, 97, 0.5);
+  color: var(--text-primary);
+}
+
+.profile-taste-chart-sort-btn.active {
+  border-color: rgba(244, 162, 97, 0.72);
+  background: rgba(244, 162, 97, 0.26);
+  color: var(--text-primary);
 }
 
 .profile-taste-breakdown-grid {

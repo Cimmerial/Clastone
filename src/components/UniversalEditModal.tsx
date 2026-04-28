@@ -99,7 +99,7 @@ type Props = {
   currentClassLabel?: string;
   isWatchlistItem?: boolean;
   onSave: (params: UniversalEditSaveParams, goToMedia: boolean) => void | Promise<void>;
-  availableTags?: { listId: string; label: string; selected: boolean; href?: string; color?: string }[];
+  availableTags?: { listId: string; label: string; selected: boolean; href?: string; color?: string; editableInWatchModal?: boolean }[];
   collectionTags?: { id: string; label: string; href?: string; color?: string }[];
   onTagToggle?: (listId: string, selected: boolean) => void;
   onClose: () => void;
@@ -1551,7 +1551,7 @@ export function UniversalEditModal({
                   </button>
                   {showTagHelpTooltip ? (
                     <span className="uem-section-tooltip" role="tooltip">
-                      click tags to add to list
+                      click tags to add to list (if enabled)
                     </span>
                   ) : null}
                 </span>
@@ -1568,14 +1568,18 @@ export function UniversalEditModal({
                   className={`uem-tag-chip ${tagSelections[tag.listId] ? 'uem-tag-chip--on' : ''}`}
                   style={tagSelections[tag.listId] && tag.color ? { borderColor: tag.color, background: `${tag.color}33` } : undefined}
                   onClick={() => {
+                    if (tag.editableInWatchModal === false) return;
                     setTagSelections((prev) => {
                       const nextSelected = !prev[tag.listId];
                       onTagToggle?.(tag.listId, nextSelected);
                       return { ...prev, [tag.listId]: nextSelected };
                     });
                   }}
+                  disabled={tag.editableInWatchModal === false}
+                  title={tag.editableInWatchModal === false ? 'Can only be edited from list/collection page' : undefined}
                 >
                   {tag.label}
+                  {tag.editableInWatchModal === false ? ' (locked)' : ''}
                   {tag.href ? (
                     <button
                       type="button"

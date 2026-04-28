@@ -352,6 +352,7 @@ export function MoviesPage() {
             label: list.name,
             color: list.color,
             selected: getSelectedListIdsForEntry((settingsFor || recordWatchFor!)?.id || '').includes(list.id),
+            editableInWatchModal: list.allowWatchModalTagEditing !== false,
             href: `/lists/${list.id}`,
           }))}
           collectionTags={(collectionIdsByEntryId.get((settingsFor || recordWatchFor!)?.id || '') ?? []).map((id) => ({

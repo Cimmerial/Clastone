@@ -21,6 +21,13 @@ interface FriendRequest {
   createdAt: string;
 }
 
+interface SentFriendRequest {
+  id: string;
+  to: string;
+  toUsername: string;
+  createdAt: string;
+}
+
 export interface UserProfile {
   uid: string;
   username: string;
@@ -33,10 +40,12 @@ export interface UserProfile {
 interface FriendsContextType {
   friends: Friend[];
   sentRequests: string[];
+  sentRequestItems: SentFriendRequest[];
   receivedRequests: FriendRequest[];
   loading: boolean;
   refreshFriends: () => Promise<void>;
   sendFriendRequest: (targetUser: UserProfile) => Promise<void>;
+  cancelSentRequest: (requestId: string, targetUid: string) => Promise<void>;
   acceptFriendRequest: (request: FriendRequest) => Promise<void>;
   rejectFriendRequest: (requestId: string) => Promise<void>;
   unfriend: (friendUid: string) => Promise<void>;
@@ -83,6 +92,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const { user, username } = useAuth();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [sentRequests, setSentRequests] = useState<string[]>([]);
+  const [sentRequestItems, setSentRequestItems] = useState<SentFriendRequest[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -129,8 +139,50 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
         where('from', '==', user.uid)
       );
       const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
-      const sentToUids = dedupeStrings(sentRequestsSnapshot.docs.map(doc => doc.data().to));
       const friendUidSet = new Set(friendsData.map((f) => f.uid));
+      const sentRequestsData = sentRequestsSnapshot.docs.map((snapshotDoc) => ({
+        id: snapshotDoc.id,
+        to: snapshotDoc.data().to as string,
+        toUsername: snapshotDoc.data().toUsername as string | undefined,
+        createdAt: snapshotDoc.data().createdAt as string,
+      }));
+      const latestByTarget = new Map<string, SentFriendRequest>();
+      for (const req of sentRequestsData) {
+        if (friendUidSet.has(req.to)) continue;
+        const existing = latestByTarget.get(req.to);
+        const existingTs = Date.parse(existing?.createdAt || '') || 0;
+        const reqTs = Date.parse(req.createdAt || '') || 0;
+        if (!existing || reqTs >= existingTs) {
+          latestByTarget.set(req.to, {
+            id: req.id,
+            to: req.to,
+            toUsername: req.toUsername || req.to,
+            createdAt: req.createdAt,
+          });
+        }
+      }
+      const dedupedSentRequestItems = Array.from(latestByTarget.values());
+      const missingUsernameRequests = dedupedSentRequestItems.filter((req) => req.toUsername === req.to);
+      if (missingUsernameRequests.length > 0) {
+        const enriched = await Promise.all(
+          missingUsernameRequests.map(async (req) => {
+            try {
+              const userSnap = await getDoc(doc(db!, 'users', req.to));
+              const resolvedUsername = userSnap.exists() ? (userSnap.data().username as string | undefined) : undefined;
+              return { ...req, toUsername: resolvedUsername || req.to };
+            } catch {
+              return req;
+            }
+          })
+        );
+        const enrichedByUid = new Map(enriched.map((req) => [req.to, req]));
+        setSentRequestItems(
+          dedupedSentRequestItems.map((req) => enrichedByUid.get(req.to) ?? req)
+        );
+      } else {
+        setSentRequestItems(dedupedSentRequestItems);
+      }
+      const sentToUids = dedupeStrings(dedupedSentRequestItems.map((req) => req.to));
       setSentRequests(sentToUids.filter((uid) => !friendUidSet.has(uid)));
 
       // Load received requests
@@ -172,6 +224,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       // Clear data when user logs out
       setFriends([]);
       setSentRequests([]);
+      setSentRequestItems([]);
       setReceivedRequests([]);
       setIsDataLoaded(false);
     }
@@ -260,18 +313,55 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           from: user.uid,
           to: targetUser.uid,
           fromUsername: username,
+          toUsername: targetUser.username,
           createdAt: nowIso
         });
       }
       
       // Update local state
       setSentRequests(prev => dedupeStrings([...prev, targetUser.uid]));
+      setSentRequestItems(prev => {
+        const withoutTarget = prev.filter((req) => req.to !== targetUser.uid);
+        return [...withoutTarget, {
+          id: `${user.uid}-${targetUser.uid}-${nowIso}`,
+          to: targetUser.uid,
+          toUsername: targetUser.username,
+          createdAt: nowIso,
+        }];
+      });
     } catch (error) {
       console.error('Error sending friend request:', error);
     } finally {
       setLoading(false);
     }
   }, [user, db, username]);
+
+  const cancelSentRequest = useCallback(async (requestId: string, targetUid: string) => {
+    if (!user || !db) return;
+
+    setLoading(true);
+    try {
+      if (requestId.startsWith(`${user.uid}-`)) {
+        // Optimistic/local-only id used before refresh loaded real Firestore doc id.
+        const matchingQuery = query(
+          collection(db!, 'friendRequests'),
+          where('from', '==', user.uid),
+          where('to', '==', targetUid)
+        );
+        const matchingSnapshot = await getDocs(matchingQuery);
+        await Promise.all(matchingSnapshot.docs.map((d) => deleteDoc(doc(db!, 'friendRequests', d.id))));
+      } else {
+        await deleteDoc(doc(db!, 'friendRequests', requestId));
+      }
+
+      setSentRequests((prev) => prev.filter((uid) => uid !== targetUid));
+      setSentRequestItems((prev) => prev.filter((request) => request.to !== targetUid));
+    } catch (error) {
+      console.error('Error canceling friend request:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, db]);
 
   const acceptFriendRequest = useCallback(async (request: FriendRequest) => {
     if (!user || !db) return;
@@ -417,10 +507,12 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const value: FriendsContextType = {
     friends,
     sentRequests,
+    sentRequestItems,
     receivedRequests,
     loading,
     refreshFriends,
     sendFriendRequest,
+    cancelSentRequest,
     acceptFriendRequest,
     rejectFriendRequest,
     unfriend,

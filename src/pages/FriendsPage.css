@@ -115,6 +115,10 @@
   text-transform: uppercase;
 }
 
+.pending-requests {
+  border-color: rgba(244, 162, 97, 0.32);
+}
+
 .requests-list {
   display: flex;
   flex-direction: column;
@@ -172,6 +176,34 @@
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.cancel-request-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 36px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-request-btn:hover:not(:disabled) {
+  border-color: rgba(255, 128, 128, 0.62);
+  color: #ffd0d0;
+  background: rgba(155, 26, 26, 0.22);
+}
+
+.cancel-request-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .accept-btn {

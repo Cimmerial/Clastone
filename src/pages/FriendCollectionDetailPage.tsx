@@ -365,7 +365,8 @@ export function FriendCollectionDetailPage() {
         addEntryToListTop(newListId, entryId, mediaType, {
           title: entry.title,
           posterPath: entry.posterPath,
-          releaseDate: entry.releaseDate
+          releaseDate: entry.releaseDate,
+          rankScore: typeof entry.rankScore === 'number' ? entry.rankScore : undefined,
         });
       }
       setShowCopyConfirmModal(false);

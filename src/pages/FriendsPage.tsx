@@ -61,10 +61,12 @@ export function FriendsPage() {
   const {
     friends,
     sentRequests,
+    sentRequestItems,
     receivedRequests,
     loading,
     refreshFriends,
     sendFriendRequest,
+    cancelSentRequest,
     acceptFriendRequest,
     rejectFriendRequest,
     searchUsers,
@@ -417,6 +419,35 @@ export function FriendsPage() {
                   </Link>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {loggedIn && sentRequestItems.length > 0 && (
+          <section className="friend-requests pending-requests">
+            <h2>Pending Friend Requests</h2>
+            <div className="requests-list">
+              {sentRequestItems
+                .slice()
+                .sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0))
+                .map((request) => (
+                  <div key={request.id} className="request-item">
+                    <div className="request-info">
+                      <strong>{request.toUsername}</strong>
+                      <span>Request sent</span>
+                    </div>
+                    <div className="request-actions">
+                      <button
+                        onClick={() => cancelSentRequest(request.id, request.to)}
+                        disabled={loading}
+                        className="cancel-request-btn"
+                      >
+                        <X size={16} />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ))}
             </div>
           </section>
         )}

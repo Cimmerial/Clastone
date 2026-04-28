@@ -60,7 +60,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const [personBirthdayCache, setPersonBirthdayCache] = useState<Record<number, string | null>>({});
   const [isSavingPerson, setIsSavingPerson] = useState(false);
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
-  const { collectionIdsByEntryId, globalCollections } = useListsStore();
+  const { lists, entriesByListId, collectionIdsByEntryId, globalCollections } = useListsStore();
   const { getPersonById, addPersonFromSearch, moveItemToClass: movePersonToClass, removePersonEntry, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
   const entryId = `tmdb-${mediaType}-${tmdbId}`;
@@ -341,14 +341,29 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
 
   const watchProviderGroups = getWatchProviderGroups();
   const resolvedCollectionTags = useMemo(() => {
-    if (collectionTags.length > 0) return collectionTags;
     const entryId = `tmdb-${mediaType}-${tmdbId}`;
-    return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({
+
+    const globalTags = (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({
       id,
       label: globalCollections.find((item) => item.id === id)?.name ?? id,
       color: globalCollections.find((item) => item.id === id)?.color,
     }));
-  }, [collectionTags, mediaType, tmdbId, collectionIdsByEntryId, globalCollections]);
+
+    const personalCollectionTags = lists
+      .filter((list) => list.mode === 'collection' && !list.hidden)
+      .filter((list) => (entriesByListId[list.id] ?? []).some((entry) => entry.entryId === entryId))
+      .map((list) => ({
+        id: list.id,
+        label: list.name,
+        color: list.color,
+      }));
+
+    const mergedById = new Map<string, { id: string; label: string; color?: string }>();
+    for (const tag of [...collectionTags, ...globalTags, ...personalCollectionTags]) {
+      mergedById.set(tag.id, tag);
+    }
+    return Array.from(mergedById.values());
+  }, [collectionTags, mediaType, tmdbId, collectionIdsByEntryId, globalCollections, lists, entriesByListId]);
   const rankTargetSavedEntry = personRankTarget
     ? personRankTarget.type === 'actor'
       ? getPersonById(`tmdb-person-${personRankTarget.id}`)
