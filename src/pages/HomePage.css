@@ -61,6 +61,22 @@
     0 0 36px rgba(232, 93, 4, 0.2);
 }
 
+.homepage-root.homepage-root .homepage-feedback-open-text {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 93, 4, 0.45);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-feedback-open-text:hover {
+  color: var(--text-primary);
+  text-decoration-color: rgba(232, 93, 4, 0.85);
+}
+
 @keyframes homepage-wordmark-shimmer {
   from {
     background-position: 0% 50%;
@@ -652,6 +668,116 @@
 .homepage-root.homepage-root .homepage-hide-example-modal-btn--confirm {
   background: rgba(232, 93, 4, 0.22);
   border-color: rgba(232, 93, 4, 0.5);
+}
+
+.homepage-root.homepage-root .homepage-feedback-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.62);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-modal {
+  width: min(640px, 100%);
+  border-radius: 14px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #111;
+}
+
+.homepage-root.homepage-root .homepage-feedback-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-modal-header h3 {
+  margin: 0;
+}
+
+.homepage-root.homepage-root .homepage-feedback-modal-close {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  width: 1.9rem;
+  height: 1.9rem;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-feedback-type-toggle {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-type-toggle button {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  padding: 0.42rem 0.7rem;
+  cursor: pointer;
+}
+
+.homepage-root.homepage-root .homepage-feedback-type-toggle button.is-active {
+  border-color: rgba(232, 93, 4, 0.7);
+  background: rgba(232, 93, 4, 0.2);
+  color: var(--text-primary);
+}
+
+.homepage-root.homepage-root .homepage-feedback-label {
+  display: grid;
+  gap: 0.42rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-input,
+.homepage-root.homepage-root .homepage-feedback-textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  padding: 0.5rem 0.65rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-textarea {
+  min-height: 170px;
+  resize: vertical;
+}
+
+.homepage-root.homepage-root .homepage-feedback-count {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.86rem;
+}
+
+.homepage-root.homepage-root .homepage-feedback-actions {
+  margin-top: 0.8rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.homepage-root.homepage-root .homepage-feedback-submit {
+  border: 1px solid rgba(232, 93, 4, 0.7);
+  border-radius: 999px;
+  background: rgba(232, 93, 4, 0.2);
+  color: var(--text-primary);
+  padding: 0.5rem 0.95rem;
+  cursor: pointer;
 }
 
 /* --- Workflow Guides Section --- */

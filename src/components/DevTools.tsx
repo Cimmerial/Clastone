@@ -20,6 +20,7 @@ import './DevTools.css';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { useListsStore } from '../state/listsStore';
 import { upsertGlobalCollection, type CollectionEntry } from '../lib/firestoreCollections';
+import { loadFeatureFeedback } from '../lib/firestoreFeatureFeedback';
 
 export function DevTools() {
   const { isAdmin, user } = useAuth();
@@ -52,6 +53,31 @@ export function DevTools() {
   });
   const [hamnetProbeJson, setHamnetProbeJson] = useState<string | null>(null);
   const [hamnetProbeLoading, setHamnetProbeLoading] = useState(false);
+  const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin || !db) return;
+    const firestoreDb = db;
+    let cancelled = false;
+    const refreshFeedbackBadge = async () => {
+      try {
+        const items = await loadFeatureFeedback(firestoreDb);
+        if (!cancelled) {
+          setOpenFeedbackCount(items.filter((item) => item.status !== 'completed').length);
+        }
+      } catch {
+        if (!cancelled) setOpenFeedbackCount(0);
+      }
+    };
+    void refreshFeedbackBadge();
+    const timer = window.setInterval(() => {
+      void refreshFeedbackBadge();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isAdmin, db]);
 
   const quickCollectionOptions = useMemo(
     () => globalCollections.map((collection) => ({ id: collection.id, name: collection.name })),
@@ -859,6 +885,7 @@ export function DevTools() {
     <>
       <button type="button" className="dev-fab" onClick={() => setOpen(true)} aria-label="Dev tools">
         DEV
+        {openFeedbackCount > 0 ? <span className="dev-fab-badge">{openFeedbackCount}</span> : null}
       </button>
       {open && (
         <div className="dev-modal-overlay" role="dialog" aria-modal="true">

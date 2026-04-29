@@ -31,6 +31,13 @@ import {
   subscribePersistDebounce,
   DEFAULT_PERSIST_DEBOUNCE_MS,
 } from '../lib/persistDebounce';
+import {
+  loadFeatureFeedback,
+  updateFeatureFeedbackStatus,
+  type FeatureFeedbackItem,
+  type FeedbackKind,
+  type FeedbackStatus,
+} from '../lib/firestoreFeatureFeedback';
 import './SettingsPage.css';
 
 const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings'];
@@ -151,6 +158,16 @@ export function SettingsPage() {
   const [babyUsersError, setBabyUsersError] = useState<string | null>(null);
   const [babyUsers, setBabyUsers] = useState<BabyRoleUser[]>([]);
   const [exampleProfileUid, setExampleProfileUid] = useState<string | null>(null);
+  const [featureFeedbackItems, setFeatureFeedbackItems] = useState<FeatureFeedbackItem[]>([]);
+  const [featureFeedbackLoading, setFeatureFeedbackLoading] = useState(false);
+  const [featureFeedbackError, setFeatureFeedbackError] = useState<string | null>(null);
+  const [showCompletedFeedback, setShowCompletedFeedback] = useState<Record<FeedbackKind, boolean>>({
+    feature_request: false,
+    bug_report: false,
+  });
+  const [editingFeedbackItem, setEditingFeedbackItem] = useState<FeatureFeedbackItem | null>(null);
+  const [editingFeedbackStatus, setEditingFeedbackStatus] = useState<FeedbackStatus>('default');
+  const [savingFeedbackStatus, setSavingFeedbackStatus] = useState(false);
 
   const signedIn = hasFirebaseConfig && user;
 
@@ -244,6 +261,7 @@ export function SettingsPage() {
   const canManageDevPanel = isAdmin;
   const canManageBabydevPanel = isBabyDev;
   const canUploadCustomPfp = isAdmin || isBabyDev;
+  const canManageFeatureFeedback = isAdmin;
 
   useEffect(() => subscribePersistDebounce(() => {
     setPersistDebounceSec(Math.round(getPersistDebounceMs() / 1000));
@@ -319,6 +337,41 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  const refreshFeatureFeedback = async () => {
+    if (!db || !canManageFeatureFeedback) return;
+    setFeatureFeedbackLoading(true);
+    setFeatureFeedbackError(null);
+    try {
+      const items = await loadFeatureFeedback(db);
+      setFeatureFeedbackItems(items);
+    } catch (error) {
+      setFeatureFeedbackError(error instanceof Error ? error.message : 'Failed to load feedback.');
+    } finally {
+      setFeatureFeedbackLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!signedIn || !canManageFeatureFeedback) return;
+    void refreshFeatureFeedback();
+  }, [signedIn, canManageFeatureFeedback]);
+
+  const groupedFeatureFeedback = useMemo(() => {
+    const byKind: Record<FeedbackKind, FeatureFeedbackItem[]> = {
+      feature_request: [],
+      bug_report: [],
+    };
+    featureFeedbackItems.forEach((item) => {
+      byKind[item.kind].push(item);
+    });
+    const sortOldestFirst = (a: FeatureFeedbackItem, b: FeatureFeedbackItem) =>
+      a.createdAt.localeCompare(b.createdAt);
+    (Object.keys(byKind) as FeedbackKind[]).forEach((kind) => {
+      byKind[kind].sort(sortOldestFirst);
+    });
+    return byKind;
+  }, [featureFeedbackItems]);
 
   const savePfp = async (posterPath: string | null) => {
     if (!signedIn || !db || !user) return;
@@ -1327,6 +1380,98 @@ export function SettingsPage() {
                     Manage babies
                   </button>
                 </div>
+                <div className="settings-dev-quotes">
+                  <h3 className="settings-subtitle settings-subtitle-spaced">Feature requests and bug reports</h3>
+                  {featureFeedbackError ? <p className="settings-quote-error">{featureFeedbackError}</p> : null}
+                  <div className="settings-list-actions">
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-subtle"
+                      onClick={() => void refreshFeatureFeedback()}
+                      disabled={featureFeedbackLoading || !db}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {featureFeedbackLoading ? <p className="settings-muted">Loading feedback…</p> : null}
+                  {!featureFeedbackLoading ? (
+                    <div className="settings-list">
+                      {(['feature_request', 'bug_report'] as FeedbackKind[]).map((kind) => {
+                        const label = kind === 'feature_request' ? 'Feature requests' : 'Bug reports';
+                        const items = groupedFeatureFeedback[kind];
+                        const active = items.filter((item) => item.status !== 'completed');
+                        const completed = items.filter((item) => item.status === 'completed');
+                        return (
+                          <div key={kind} className="settings-feedback-group">
+                            <h4 className="settings-subtitle">{label}</h4>
+                            {active.length === 0 ? <p className="settings-muted">No active {label.toLowerCase()}.</p> : null}
+                            {active.map((item) => (
+                              <div key={item.id} className="settings-list-item settings-feedback-item">
+                                <span className="settings-class-name">
+                                  <span className="settings-class-name-main">{item.title}</span>
+                                  <span className="settings-class-tagline">
+                                    {' '}| {feedbackStatusLabel(item.status)} | by {item.authorLabel}
+                                  </span>
+                                  <span className="settings-feedback-body">{item.body}</span>
+                                </span>
+                                <div className="settings-list-actions">
+                                  <button
+                                    type="button"
+                                    className="settings-btn settings-btn-subtle"
+                                    onClick={() => {
+                                      setEditingFeedbackItem(item);
+                                      setEditingFeedbackStatus(item.status);
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {completed.length > 0 ? (
+                              <>
+                                <div className="settings-list-actions">
+                                  <button
+                                    type="button"
+                                    className="settings-btn settings-btn-subtle"
+                                    onClick={() => setShowCompletedFeedback((prev) => ({ ...prev, [kind]: !prev[kind] }))}
+                                  >
+                                    {showCompletedFeedback[kind]
+                                      ? `Hide completed (${completed.length})`
+                                      : `Show completed (${completed.length})`}
+                                  </button>
+                                </div>
+                                {showCompletedFeedback[kind] ? completed.map((item) => (
+                                  <div key={item.id} className="settings-list-item settings-feedback-item settings-feedback-item-completed">
+                                    <span className="settings-class-name">
+                                      <span className="settings-class-name-main">{item.title}</span>
+                                      <span className="settings-class-tagline">
+                                        {' '}| Completed | by {item.authorLabel}
+                                      </span>
+                                      <span className="settings-feedback-body">{item.body}</span>
+                                    </span>
+                                    <div className="settings-list-actions">
+                                      <button
+                                        type="button"
+                                        className="settings-btn settings-btn-subtle"
+                                        onClick={() => {
+                                          setEditingFeedbackItem(item);
+                                          setEditingFeedbackStatus(item.status);
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                    </div>
+                                  </div>
+                                )) : null}
+                              </>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </>
             )}
           </div>
@@ -1565,6 +1710,65 @@ export function SettingsPage() {
           </div>
         </div>
       )}
+      {editingFeedbackItem ? (
+        <div className="settings-modal-backdrop" role="presentation">
+          <div
+            className="settings-modal card-surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit feedback status"
+          >
+            <h4 className="settings-title">Edit status</h4>
+            <p className="settings-muted">{editingFeedbackItem.title}</p>
+            <select
+              className="settings-select"
+              value={editingFeedbackStatus}
+              onChange={(e) => setEditingFeedbackStatus(e.target.value as FeedbackStatus)}
+              disabled={savingFeedbackStatus}
+            >
+              <option value="default">Default</option>
+              <option value="in_process">In process</option>
+              <option value="completed">Completed</option>
+            </select>
+            <div className="settings-list-actions">
+              <button
+                type="button"
+                className="settings-btn"
+                disabled={savingFeedbackStatus || !db}
+                onClick={async () => {
+                  if (!db) return;
+                  setSavingFeedbackStatus(true);
+                  try {
+                    await updateFeatureFeedbackStatus(db, editingFeedbackItem.id, editingFeedbackStatus);
+                    setEditingFeedbackItem(null);
+                    await refreshFeatureFeedback();
+                  } catch (error) {
+                    setFeatureFeedbackError(error instanceof Error ? error.message : 'Failed to update status.');
+                  } finally {
+                    setSavingFeedbackStatus(false);
+                  }
+                }}
+              >
+                {savingFeedbackStatus ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                className="settings-btn settings-btn-subtle"
+                disabled={savingFeedbackStatus}
+                onClick={() => setEditingFeedbackItem(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section >
   );
+}
+
+function feedbackStatusLabel(status: FeedbackStatus): string {
+  if (status === 'in_process') return 'In process';
+  if (status === 'completed') return 'Completed';
+  return 'Default';
 }

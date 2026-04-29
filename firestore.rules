@@ -198,5 +198,24 @@ service cloud.firestore {
         )
       );
     }
+
+    // Public feature/bug submissions. Anyone can create, only dev admin can read/update.
+    match /featureFeedback/{feedbackId} {
+      function isDevAdmin() {
+        return request.auth != null && request.auth.token.email == "cimmerial@clastone.local";
+      }
+      allow read: if isDevAdmin();
+      allow create: if
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() <= 250 &&
+        request.resource.data.body is string &&
+        request.resource.data.kind is string &&
+        (request.resource.data.kind == "feature_request" || request.resource.data.kind == "bug_report") &&
+        request.resource.data.status == "default" &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string;
+      allow update, delete: if isDevAdmin();
+    }
   }
 }

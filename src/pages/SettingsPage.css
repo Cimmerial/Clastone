@@ -442,6 +442,26 @@
   margin-bottom: 0.6rem;
 }
 
+.settings-feedback-group {
+  width: 100%;
+  margin-top: 0.8rem;
+}
+
+.settings-feedback-item {
+  align-items: flex-start;
+}
+
+.settings-feedback-item-completed {
+  opacity: 0.78;
+}
+
+.settings-feedback-body {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
 /* ── Display slider ── */
 
 .settings-slider-label {

@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, type LucideIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tmdbImagePath } from '../lib/tmdb';
+import { db } from '../lib/firebase';
+import { loadFeatureFeedback } from '../lib/firestoreFeatureFeedback';
 import './NavBar.css';
 
 const mainLinks = [
@@ -25,6 +27,7 @@ const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isAdmin, pfpPosterPath, pfpPhotoUrl } = useAuth();
+  const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
   const profileNavPhotoUrl = pfpPosterPath ? tmdbImagePath(pfpPosterPath, 'w185') ?? null : pfpPhotoUrl;
 
   // Filter icon links based on admin status
@@ -36,6 +39,33 @@ export function NavBar() {
     () => filteredIconLinks.filter((link) => link.to !== '/profile'),
     [filteredIconLinks]
   );
+
+  useEffect(() => {
+    if (!isAdmin || !db) {
+      setOpenFeedbackCount(0);
+      return;
+    }
+    const firestoreDb = db;
+    let cancelled = false;
+    const refreshBadge = async () => {
+      try {
+        const items = await loadFeatureFeedback(firestoreDb);
+        if (!cancelled) {
+          setOpenFeedbackCount(items.filter((item) => item.status !== 'completed').length);
+        }
+      } catch {
+        if (!cancelled) setOpenFeedbackCount(0);
+      }
+    };
+    void refreshBadge();
+    const timer = window.setInterval(() => {
+      void refreshBadge();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isAdmin]);
 
   return (
     <header className="nav-root">
@@ -75,6 +105,7 @@ export function NavBar() {
                 to={link.to}
                 label={link.label}
                 icon={link.icon}
+                badgeCount={link.to === '/settings' ? openFeedbackCount : 0}
               />
             ))}
             <NavItem
@@ -102,6 +133,7 @@ export function NavBar() {
                   to={link.to}
                   label={link.label}
                   icon={link.icon}
+                  badgeCount={link.to === '/settings' ? openFeedbackCount : 0}
                   onClick={() => setIsMobileMenuOpen(false)}
                 />
               ))}
@@ -125,9 +157,37 @@ const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
 export function MobileBottomNav() {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { isAdmin } = useAuth();
+  const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
 
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || !db) {
+      setOpenFeedbackCount(0);
+      return;
+    }
+    const firestoreDb = db;
+    let cancelled = false;
+    const refreshBadge = async () => {
+      try {
+        const items = await loadFeatureFeedback(firestoreDb);
+        if (!cancelled) {
+          setOpenFeedbackCount(items.filter((item) => item.status !== 'completed').length);
+        }
+      } catch {
+        if (!cancelled) setOpenFeedbackCount(0);
+      }
+    };
+    void refreshBadge();
+    const timer = window.setInterval(() => {
+      void refreshBadge();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [isAdmin]);
 
   return (
@@ -173,6 +233,9 @@ export function MobileBottomNav() {
                 >
                   <div className="mobile-more-icon">
                     <Icon size={24} />
+                    {to === '/settings' && openFeedbackCount > 0 ? (
+                      <span className="mobile-more-badge">{openFeedbackCount}</span>
+                    ) : null}
                   </div>
                   <span className="mobile-more-label">{label}</span>
                 </NavLink>
@@ -191,6 +254,7 @@ type NavItemProps = {
   icon?: LucideIcon;
   profilePhotoUrl?: string | null;
   isDesktopProfile?: boolean;
+  badgeCount?: number;
 };
 
 function NavItem({
@@ -199,9 +263,15 @@ function NavItem({
   icon: Icon,
   profilePhotoUrl,
   isDesktopProfile,
+  badgeCount = 0,
   onClick
 }: NavItemProps & { onClick?: () => void }) {
-  const linkClasses = ['nav-link', isDesktopProfile ? 'nav-link-profile' : '', isDesktopProfile ? 'nav-link-profile-push' : '']
+  const linkClasses = [
+    'nav-link',
+    isDesktopProfile ? 'nav-link-profile' : '',
+    isDesktopProfile ? 'nav-link-profile-push' : '',
+    badgeCount > 0 ? 'nav-link-has-badge' : '',
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -221,7 +291,10 @@ function NavItem({
       {isImageProfile ? (
         <img src={profilePhotoUrl ?? ''} alt="" className="nav-profile-avatar" />
       ) : Icon ? (
-        <Icon size={18} className="nav-link-icon" />
+        <>
+          <Icon size={18} className="nav-link-icon" />
+          {badgeCount > 0 ? <span className="nav-link-badge">{badgeCount}</span> : null}
+        </>
       ) : (
         <span className="nav-link-label">{label}</span>
       )}

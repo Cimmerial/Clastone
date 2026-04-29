@@ -22,6 +22,11 @@ import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
+import {
+  FEATURE_FEEDBACK_DAILY_LIMIT,
+  createFeatureFeedback,
+  type FeedbackKind,
+} from '../lib/firestoreFeatureFeedback';
 import './HomePage.css';
 
 type FriendRecentEntry = {
@@ -122,6 +127,12 @@ export function HomePage() {
   } | null>(null);
   const [showHideExampleProfileConfirm, setShowHideExampleProfileConfirm] = useState(false);
   const [revealedRanksByEntryKey, setRevealedRanksByEntryKey] = useState<Record<string, boolean>>({});
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>('feature_request');
+  const [feedbackTitle, setFeedbackTitle] = useState('');
+  const [feedbackBody, setFeedbackBody] = useState('');
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   // Load example profile data on component mount
   useEffect(() => {
@@ -394,11 +405,80 @@ export function HomePage() {
     }
   };
 
+  const feedbackWordCount = useMemo(() => countWords(feedbackBody), [feedbackBody]);
+  const feedbackTitleLength = feedbackTitle.length;
+
+  const submitFeatureFeedback = async () => {
+    if (!db) {
+      setFeedbackError('Feedback is unavailable until Firebase is configured.');
+      return;
+    }
+    const title = feedbackTitle.trim();
+    const body = feedbackBody.trim();
+    const bodyForSave = body.length > 0 ? body : '(no details provided)';
+    if (!title) {
+      setFeedbackError('Please add a title.');
+      return;
+    }
+    if (title.length > 250) {
+      setFeedbackError('Title must be 250 characters or fewer.');
+      return;
+    }
+    if (feedbackWordCount > 1500) {
+      setFeedbackError('Body must be 1500 words or fewer.');
+      return;
+    }
+
+    const authorUid = user?.uid ?? null;
+    const authorKey = authorUid ? `uid:${authorUid}` : getAnonymousFeedbackAuthorKey();
+    const authorLabel = user?.displayName ?? user?.email ?? 'Anonymous';
+    setIsSubmittingFeedback(true);
+    setFeedbackError(null);
+    try {
+      const recentCount = getRecentLocalFeedbackSubmissionCount(authorKey);
+      if (recentCount >= FEATURE_FEEDBACK_DAILY_LIMIT) {
+        setFeedbackError('You have reached the max of 20 submissions in the last 24 hours.');
+        return;
+      }
+      await createFeatureFeedback(db, {
+        kind: feedbackKind,
+        title,
+        body: bodyForSave,
+        authorUid,
+        authorLabel,
+        authorKey,
+      });
+      setFeedbackTitle('');
+      setFeedbackBody('');
+      setFeedbackKind('feature_request');
+      setIsFeedbackModalOpen(false);
+      recordLocalFeedbackSubmission(authorKey);
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : 'Could not submit right now.');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   return (
     <div className="homepage-root homepage-root">
       <div className="homepage-container">
         <header className="homepage-header">
           <h1 className="homepage-wordmark">CLASTONE</h1>
+          <span
+            className="homepage-feedback-open-text"
+            role="button"
+            tabIndex={0}
+            onClick={() => setIsFeedbackModalOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsFeedbackModalOpen(true);
+              }
+            }}
+          >
+            Feature request or bug report
+          </span>
         </header>
 
         <main className="homepage-main">
@@ -745,15 +825,7 @@ export function HomePage() {
               </div>
             </div>
 
-            <div className="features-feedback-notice">
-              <div className="feedback-content">
-                <MessagesSquare className="feedback-icon" size={24} />
-                <p>
-                  <strong>Got feedback?</strong> If you have any bugs or features you want, there is a 95% chance that <strong>Cooper</strong> is willing or wanting to fix/make that for you. 
-                  Reach out to him (or someone who knows him) to pass on the word and it will be done.
-                </p>
-              </div>
-            </div>
+        
           </section>
 
           <section className="homepage-guides">
@@ -936,6 +1008,84 @@ export function HomePage() {
           </div>
         </div>
       ) : null}
+      {isFeedbackModalOpen ? (
+        <div className="homepage-feedback-modal-backdrop" role="presentation">
+          <div
+            className="homepage-feedback-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Feature request or bug report"
+          >
+            <div className="homepage-feedback-modal-header">
+              <h3>Feature request or bug report</h3>
+              <button
+                type="button"
+                className="homepage-feedback-modal-close"
+                onClick={() => {
+                  if (isSubmittingFeedback) return;
+                  setIsFeedbackModalOpen(false);
+                }}
+                aria-label="Close"
+                disabled={isSubmittingFeedback}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="homepage-feedback-type-toggle">
+              <button
+                type="button"
+                className={feedbackKind === 'feature_request' ? 'is-active' : ''}
+                onClick={() => setFeedbackKind('feature_request')}
+                disabled={isSubmittingFeedback}
+              >
+                Feature request
+              </button>
+              <button
+                type="button"
+                className={feedbackKind === 'bug_report' ? 'is-active' : ''}
+                onClick={() => setFeedbackKind('bug_report')}
+                disabled={isSubmittingFeedback}
+              >
+                Bug report
+              </button>
+            </div>
+            <label className="homepage-feedback-label">
+              Title
+              <input
+                className="homepage-feedback-input"
+                value={feedbackTitle}
+                onChange={(e) => setFeedbackTitle(e.target.value.slice(0, 250))}
+                maxLength={250}
+                placeholder="Short title"
+                disabled={isSubmittingFeedback}
+              />
+              <span className="homepage-feedback-count">{feedbackTitleLength}/250</span>
+            </label>
+            <label className="homepage-feedback-label">
+              Body
+              <textarea
+                className="homepage-feedback-textarea"
+                value={feedbackBody}
+                onChange={(e) => setFeedbackBody(e.target.value)}
+                placeholder="Describe the feature or bug details"
+                disabled={isSubmittingFeedback}
+              />
+              <span className="homepage-feedback-count">{feedbackWordCount}/1500 words</span>
+            </label>
+            {feedbackError ? <p className="homepage-feedback-error">{feedbackError}</p> : null}
+            <div className="homepage-feedback-actions">
+              <button
+                type="button"
+                className="homepage-feedback-submit"
+                onClick={() => void submitFeatureFeedback()}
+                disabled={isSubmittingFeedback}
+              >
+                {isSubmittingFeedback ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -974,4 +1124,50 @@ function buildFriendGlobalRanks(
     map.set(item.id, `${Math.round(((total - index) / total) * 100)}%`);
   });
   return map;
+}
+
+function countWords(value: string): number {
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
+function getAnonymousFeedbackAuthorKey(): string {
+  const storageKey = 'clastone_feedback_author_key';
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+  const next = `anon:${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  window.localStorage.setItem(storageKey, next);
+  return next;
+}
+
+function getRecentLocalFeedbackSubmissionCount(authorKey: string): number {
+  const list = readLocalFeedbackSubmissionTimes(authorKey);
+  const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+  return list.filter((ts) => ts >= cutoff).length;
+}
+
+function recordLocalFeedbackSubmission(authorKey: string): void {
+  const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+  const list = readLocalFeedbackSubmissionTimes(authorKey).filter((ts) => ts >= cutoff);
+  list.push(Date.now());
+  writeLocalFeedbackSubmissionTimes(authorKey, list);
+}
+
+function readLocalFeedbackSubmissionTimes(authorKey: string): number[] {
+  const raw = window.localStorage.getItem(`clastone_feedback_rate_${authorKey}`);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalFeedbackSubmissionTimes(authorKey: string, values: number[]): void {
+  window.localStorage.setItem(`clastone_feedback_rate_${authorKey}`, JSON.stringify(values.slice(-FEATURE_FEEDBACK_DAILY_LIMIT)));
 }

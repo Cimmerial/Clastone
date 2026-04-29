@@ -13,12 +13,31 @@
   padding: 0.45rem 0.7rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .dev-fab:hover {
   border-color: rgba(244, 162, 97, 0.9);
   background: rgba(244, 162, 97, 0.12);
   color: var(--text-primary);
+}
+
+.dev-fab-badge {
+  min-width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
 }
 
 .dev-modal-overlay {
