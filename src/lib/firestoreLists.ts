@@ -99,10 +99,18 @@ export async function saveUserLists(db: Firestore, userId: string, state: UserLi
   const keep = new Set(state.lists.map((list) => list.id));
   for (const list of state.lists) {
     const listRef = doc(db, ...listsColPath, list.id);
-    const entries = (state.entriesByListId[list.id] ?? []).map((entry, idx) => ({
-      ...entry,
-      position: idx,
-    }));
+    const entries = (state.entriesByListId[list.id] ?? []).map((entry, idx) => {
+      const serialized: Record<string, unknown> = {
+        entryId: entry.entryId,
+        mediaType: entry.mediaType,
+        position: idx,
+      };
+      if (entry.title != null) serialized.title = entry.title;
+      if (entry.posterPath != null) serialized.posterPath = entry.posterPath;
+      if (entry.releaseDate != null) serialized.releaseDate = entry.releaseDate;
+      if (entry.rankScore != null) serialized.rankScore = entry.rankScore;
+      return serialized;
+    });
     batch.set(listRef, {
       name: list.name,
       description: list.description ?? null,
