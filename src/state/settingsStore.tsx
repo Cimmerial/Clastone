@@ -134,11 +134,16 @@ export function SettingsProvider({
     });
     const [pendingChanges, setPendingChanges] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hydratedRef = useRef(false);
     const lastStateRef = useRef(settings);
     lastStateRef.current = settings;
 
     useEffect(() => {
         if (!onPersist) return;
+        if (!hydratedRef.current) {
+            hydratedRef.current = true;
+            return;
+        }
 
         // Increment pending changes on every update (except initial mount).
         // We'll reset it to 0 after save.

@@ -5,9 +5,6 @@ import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
 import type { TmdbPersonCache } from '../lib/tmdb';
 import { tmdbPersonDetailsFull } from '../lib/tmdb';
-import { useMoviesStore } from './moviesStore';
-import { useTvStore } from './tvStore';
-import { getTotalMinutesFromRecords, getTotalEpisodesFromRecords } from './moviesStore';
 import { directorTemplates, mergePersonByClassForTemplate, type PersonTemplateId } from '../lib/classTemplates';
 
 export type DirectorItem = RankedItemBase & {
@@ -121,9 +118,6 @@ export function DirectorsProvider({
     );
 
 
-    const { byClass: moviesByClass } = useMoviesStore();
-    const { byClass: tvByClass } = useTvStore();
-
     const [pendingChanges, setPendingChanges] = useState(0);
     const [persistDebounceTick, setPersistDebounceTick] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,90 +132,6 @@ export function DirectorsProvider({
     const currentStateRef = useRef({ byClass, classes });
     currentStateRef.current = { byClass, classes };
 
-    // Watchtime calculation logic - only trigger when watch records actually change, not just positions
-    useEffect(() => {
-        setByClass(prev => {
-            const next = { ...prev };
-            let changed = false;
-
-            // Extract all movies and shows the user has seen
-            const allMovies = Object.values(moviesByClass).flat();
-            const allShows = Object.values(tvByClass).flat();
-
-            for (const classKey of Object.keys(next)) {
-                const list = next[classKey] ?? [];
-                const newList = list.map(director => {
-                    if (!director.tmdbId) return director;
-
-                    const roles = director.roles ?? [];
-                    const movieCredits = allMovies.filter(m =>
-                        roles.some(r => r.mediaType === 'movie' && `tmdb-movie-${r.id}` === m.id) &&
-                        (m.watchRecords?.length ?? 0) > 0
-                    );
-                    const showCredits = allShows.filter(s =>
-                        roles.some(r => r.mediaType === 'tv' && `tmdb-tv-${r.id}` === s.id) &&
-                        (s.watchRecords?.length ?? 0) > 0
-                    );
-
-                    const movieMinutes = movieCredits.reduce((sum, m) => sum + getTotalMinutesFromRecords(m.watchRecords ?? [], m.runtimeMinutes), 0);
-                    const showMinutes = showCredits.reduce((sum, s) => {
-                        // Using getTotalMinutesFromRecords for shows as well, since s.runtimeMinutes is the total show duration
-                        return sum + getTotalMinutesFromRecords(s.watchRecords ?? [], s.runtimeMinutes);
-                    }, 0);
-
-                    const moviesSeen = movieCredits.map(m => m.id);
-                    const showsSeen = showCredits.map(s => s.id);
-
-                    const allRecords = [
-                        ...movieCredits.flatMap(m => m.watchRecords ?? []),
-                        ...showCredits.flatMap(s => s.watchRecords ?? [])
-                    ].filter(r => (r.year ?? 0) > 0);
-
-                    // Sort chronologically
-                    allRecords.sort((a, b) => {
-                        const aVal = (a.year || 0) * 10000 + (a.month || 0) * 100 + (a.day || 0);
-                        const bVal = (b.year || 0) * 10000 + (b.month || 0) * 100 + (b.day || 0);
-                        return aVal - bVal;
-                    });
-
-                    const first = allRecords[0];
-                    const last = allRecords[allRecords.length - 1];
-
-                    const firstSeenDate = first ? `${first.year}-${String(first.month || 1).padStart(2, '0')}-${String(first.day || 1).padStart(2, '0')}` : undefined;
-                    const lastSeenDate = last ? `${last.year}-${String(last.month || 1).padStart(2, '0')}-${String(last.day || 1).padStart(2, '0')}` : undefined;
-
-                    if (
-                        director.movieMinutes !== movieMinutes ||
-                        director.showMinutes !== showMinutes ||
-                        director.moviesSeen.length !== moviesSeen.length ||
-                        director.showsSeen.length !== showsSeen.length ||
-                        director.firstSeenDate !== firstSeenDate ||
-                        director.lastSeenDate !== lastSeenDate
-                    ) {
-                        changed = true;
-                        return {
-                            ...director,
-                            movieMinutes,
-                            showMinutes,
-                            moviesSeen,
-                            showsSeen,
-                            firstSeenDate,
-                            lastSeenDate
-                        };
-                    }
-                    return director;
-                });
-
-                if (changed) {
-                    next[classKey] = newList;
-                }
-            }
-
-            return changed ? next : prev;
-        });
-    }, [moviesByClass, tvByClass]);
-
-
     // Debounced persistence logic
     useEffect(() => {
         // 1. Skip the very first "fresh load" mutation
@@ -233,7 +143,6 @@ export function DirectorsProvider({
         }
 
         if (!onPersist) return;
-
         // 2. Diffing
         const dirtyClasses: string[] = [];
         const classesMetadataChanged = classes !== lastSavedStateRef.current.classes;
@@ -374,58 +283,6 @@ export function DirectorsProvider({
         return hasChanges ? next : prev;
     }, [classOrder, classes]);
 
-
-    // Helper function to calculate initial watchtime stats for a director
-    const calculateDirectorStats = useCallback((director: DirectorItem, allMovies: any[], allShows: any[]) => {
-        if (!director.tmdbId) return director;
-
-        const roles = director.roles ?? [];
-        const movieCredits = allMovies.filter(m =>
-            roles.some(r => r.mediaType === 'movie' && `tmdb-movie-${r.id}` === m.id) &&
-            (m.watchRecords?.length ?? 0) > 0
-        );
-        const showCredits = allShows.filter(s =>
-            roles.some(r => r.mediaType === 'tv' && `tmdb-tv-${r.id}` === s.id) &&
-            (s.watchRecords?.length ?? 0) > 0
-        );
-
-        const movieMinutes = movieCredits.reduce((sum, m) => sum + getTotalMinutesFromRecords(m.watchRecords ?? [], m.runtimeMinutes), 0);
-        const showMinutes = showCredits.reduce((sum, s) => {
-            return sum + getTotalMinutesFromRecords(s.watchRecords ?? [], s.runtimeMinutes);
-        }, 0);
-
-        const moviesSeen = movieCredits.map(m => m.id);
-        const showsSeen = showCredits.map(s => s.id);
-
-        const allRecords = [
-            ...movieCredits.flatMap(m => m.watchRecords ?? []),
-            ...showCredits.flatMap(s => s.watchRecords ?? [])
-        ].filter(r => (r.year ?? 0) > 0);
-
-        // Sort chronologically
-        allRecords.sort((a, b) => {
-            const aVal = (a.year || 0) * 10000 + (a.month || 0) * 100 + (a.day || 0);
-            const bVal = (b.year || 0) * 10000 + (b.month || 0) * 100 + (b.day || 0);
-            return aVal - bVal;
-        });
-
-        const first = allRecords[0];
-        const last = allRecords[allRecords.length - 1];
-
-        const firstSeenDate = first ? `${first.year}-${String(first.month || 1).padStart(2, '0')}-${String(first.day || 1).padStart(2, '0')}` : undefined;
-        const lastSeenDate = last ? `${last.year}-${String(last.month || 1).padStart(2, '0')}-${String(last.day || 1).padStart(2, '0')}` : undefined;
-
-        return {
-            ...director,
-            movieMinutes,
-            showMinutes,
-            moviesSeen,
-            showsSeen,
-            firstSeenDate,
-            lastSeenDate
-        };
-    }, []);
-
     const addDirectorFromSearch = useCallback((incoming: {
         id: string;
         title: string;
@@ -437,10 +294,6 @@ export function DirectorsProvider({
         setByClass(prev => {
             const rankedKeys = new Set(classes.filter(c => c.isRanked).map(c => c.key));
             const isTargetRanked = rankedKeys.has(incoming.classKey);
-
-            // Extract all movies and shows the user has seen for initial calculation
-            const allMovies = Object.values(moviesByClass).flat();
-            const allShows = Object.values(tvByClass).flat();
 
             // Find existing
             let existingItem: DirectorItem | null = null;
@@ -510,22 +363,19 @@ export function DirectorsProvider({
                 rankInClass: 'Unranked'
             };
 
-            // Calculate initial stats based on existing watch records
-            const directorWithStats = calculateDirectorStats(base, allMovies, allShows);
-
             const next = { ...prev };
             const target = next[incoming.classKey] ?? [];
             if (incoming.position === 'top') {
-                next[incoming.classKey] = [directorWithStats, ...target];
+                next[incoming.classKey] = [base, ...target];
             } else if (incoming.position === 'middle') {
                 const mid = Math.ceil(target.length / 2);
-                next[incoming.classKey] = [...target.slice(0, mid), directorWithStats, ...target.slice(mid)];
+                next[incoming.classKey] = [...target.slice(0, mid), base, ...target.slice(mid)];
             } else {
-                next[incoming.classKey] = [...target, directorWithStats];
+                next[incoming.classKey] = [...target, base];
             }
             return next;
         });
-    }, [classes, classOrder, moviesByClass, tvByClass, calculateDirectorStats]);
+    }, [classes, classOrder]);
 
 
     const moveItemToClass = useCallback((itemId: string, toClassKey: string, options?: { toTop?: boolean; toMiddle?: boolean; atIndex?: number }) => {

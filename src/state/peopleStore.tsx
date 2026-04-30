@@ -5,9 +5,6 @@ import type { RankedItemBase } from '../components/RankedList';
 import type { ClassKey } from '../components/RankedList';
 import type { TmdbPersonCache } from '../lib/tmdb';
 import { tmdbPersonDetailsFull } from '../lib/tmdb';
-import { useMoviesStore } from './moviesStore';
-import { useTvStore } from './tvStore';
-import { getTotalMinutesFromRecords, getTotalEpisodesFromRecords } from './moviesStore';
 import { mergePersonByClassForTemplate, personTemplates, type PersonTemplateId } from '../lib/classTemplates';
 
 export type PersonItem = RankedItemBase & {
@@ -121,9 +118,6 @@ export function PeopleProvider({
     );
 
 
-    const { byClass: moviesByClass } = useMoviesStore();
-    const { byClass: tvByClass } = useTvStore();
-
     const [pendingChanges, setPendingChanges] = useState(0);
     const [persistDebounceTick, setPersistDebounceTick] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,90 +132,6 @@ export function PeopleProvider({
     const currentStateRef = useRef({ byClass, classes });
     currentStateRef.current = { byClass, classes };
 
-    // Watchtime calculation logic
-    useEffect(() => {
-        setByClass(prev => {
-            const next = { ...prev };
-            let changed = false;
-
-            // Extract all movies and shows the user has seen
-            const allMovies = Object.values(moviesByClass).flat();
-            const allShows = Object.values(tvByClass).flat();
-
-            for (const classKey of Object.keys(next)) {
-                const list = next[classKey] ?? [];
-                const newList = list.map(person => {
-                    if (!person.tmdbId) return person;
-
-                    const roles = person.roles ?? [];
-                    const movieCredits = allMovies.filter(m =>
-                        roles.some(r => r.mediaType === 'movie' && `tmdb-movie-${r.id}` === m.id) &&
-                        (m.watchRecords?.length ?? 0) > 0
-                    );
-                    const showCredits = allShows.filter(s =>
-                        roles.some(r => r.mediaType === 'tv' && `tmdb-tv-${r.id}` === s.id) &&
-                        (s.watchRecords?.length ?? 0) > 0
-                    );
-
-                    const movieMinutes = movieCredits.reduce((sum, m) => sum + getTotalMinutesFromRecords(m.watchRecords ?? [], m.runtimeMinutes), 0);
-                    const showMinutes = showCredits.reduce((sum, s) => {
-                        // Using getTotalMinutesFromRecords for shows as well, since s.runtimeMinutes is the total show duration
-                        return sum + getTotalMinutesFromRecords(s.watchRecords ?? [], s.runtimeMinutes);
-                    }, 0);
-
-                    const moviesSeen = movieCredits.map(m => m.id);
-                    const showsSeen = showCredits.map(s => s.id);
-
-                    const allRecords = [
-                        ...movieCredits.flatMap(m => m.watchRecords ?? []),
-                        ...showCredits.flatMap(s => s.watchRecords ?? [])
-                    ].filter(r => (r.year ?? 0) > 0);
-
-                    // Sort chronologically
-                    allRecords.sort((a, b) => {
-                        const aVal = (a.year || 0) * 10000 + (a.month || 0) * 100 + (a.day || 0);
-                        const bVal = (b.year || 0) * 10000 + (b.month || 0) * 100 + (b.day || 0);
-                        return aVal - bVal;
-                    });
-
-                    const first = allRecords[0];
-                    const last = allRecords[allRecords.length - 1];
-
-                    const firstSeenDate = first ? `${first.year}-${String(first.month || 1).padStart(2, '0')}-${String(first.day || 1).padStart(2, '0')}` : undefined;
-                    const lastSeenDate = last ? `${last.year}-${String(last.month || 1).padStart(2, '0')}-${String(last.day || 1).padStart(2, '0')}` : undefined;
-
-                    if (
-                        person.movieMinutes !== movieMinutes ||
-                        person.showMinutes !== showMinutes ||
-                        person.moviesSeen.length !== moviesSeen.length ||
-                        person.showsSeen.length !== showsSeen.length ||
-                        person.firstSeenDate !== firstSeenDate ||
-                        person.lastSeenDate !== lastSeenDate
-                    ) {
-                        changed = true;
-                        return {
-                            ...person,
-                            movieMinutes,
-                            showMinutes,
-                            moviesSeen,
-                            showsSeen,
-                            firstSeenDate,
-                            lastSeenDate
-                        };
-                    }
-                    return person;
-                });
-
-                if (changed) {
-                    next[classKey] = newList;
-                }
-            }
-
-            return changed ? next : prev;
-        });
-    }, [moviesByClass, tvByClass]);
-
-
     // Debounced persistence logic
     useEffect(() => {
         // 1. Skip the very first "fresh load" mutation
@@ -233,7 +143,6 @@ export function PeopleProvider({
         }
 
         if (!onPersist) return;
-
         // 2. Diffing
         const dirtyClasses: string[] = [];
         const classesMetadataChanged = classes !== lastSavedStateRef.current.classes;

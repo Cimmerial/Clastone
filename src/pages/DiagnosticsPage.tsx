@@ -258,7 +258,7 @@ export function DiagnosticsPage() {
 
             <div className="settings-grid">
                 {isAdmin && (
-                    <div className="settings-card card-surface">
+                    <div className="settings-card card-surface settings-card-wide">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem', gap: '0.75rem' }}>
                             <h2 className="settings-title" style={{ margin: 0 }}>Firebase Write Queue</h2>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -301,13 +301,15 @@ export function DiagnosticsPage() {
                                         <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Time</th>
                                         <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Type</th>
                                         <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Path</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Origin</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Details</th>
                                         <th style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {requestLog.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>No requests logged yet in this session.</td>
+                                            <td colSpan={6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>No requests logged yet in this session.</td>
                                         </tr>
                                     ) : (
                                         recentRequests.map((req) => (
@@ -327,6 +329,39 @@ export function DiagnosticsPage() {
                                                 <td style={{ padding: '0.5rem', wordBreak: 'break-all' }}>
                                                     <div>{req.path}</div>
                                                 </td>
+                                                <td style={{ padding: '0.5rem', maxWidth: '260px', wordBreak: 'break-word', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                    {String(req.metadata?.origin ?? 'n/a')}
+                                                </td>
+                                                <td style={{ padding: '0.5rem', maxWidth: '460px' }}>
+                                                    {req.type === 'writeBatch' ? (
+                                                        <details>
+                                                            <summary style={{ cursor: 'pointer' }}>
+                                                                {req.metadata?.operationCount ?? '?'} ops
+                                                                {req.metadata?.opBreakdown
+                                                                    ? ` (set:${req.metadata.opBreakdown.set ?? 0}, update:${req.metadata.opBreakdown.update ?? 0}, delete:${req.metadata.opBreakdown.delete ?? 0})`
+                                                                    : ''}
+                                                                {req.metadata?.storeName ? ` • ${String(req.metadata.storeName)}` : ''}
+                                                            </summary>
+                                                            <div style={{ marginTop: '0.3rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                                {(req.metadata?.operations ?? []).slice(0, 80).map((op: any, idx: number) => (
+                                                                    <div key={`${req.id}-op-${idx}`}>
+                                                                        {op.type} • {op.docPath}
+                                                                        {typeof op.fieldCount === 'number' ? ` • fields:${op.fieldCount}` : ''}
+                                                                    </div>
+                                                                ))}
+                                                                {(req.metadata?.operations?.length ?? 0) > 80 ? (
+                                                                    <div>... {req.metadata.operations.length - 80} more</div>
+                                                                ) : null}
+                                                            </div>
+                                                        </details>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                            {req.metadata?.operation ?? req.type}
+                                                            {req.metadata?.fieldCount ? ` • fields:${req.metadata.fieldCount}` : ''}
+                                                            {req.metadata?.storeName ? ` • ${String(req.metadata.storeName)}` : ''}
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td style={{ padding: '0.5rem' }}>
                                                     <span style={{
                                                         color: req.status === 'Queued' ? 'var(--warning-color, #f59e0b)' :
@@ -345,7 +380,7 @@ export function DiagnosticsPage() {
                     </div>
                 )}
                 {isAdmin && (
-                    <div className="settings-card card-surface">
+                    <div className="settings-card card-surface settings-card-wide">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
                             <h2 className="settings-title" style={{ margin: 0 }}>Global Storage Estimate (All Users)</h2>
                             <button

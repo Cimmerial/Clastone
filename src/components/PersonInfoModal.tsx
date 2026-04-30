@@ -143,23 +143,14 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
 
   // Apply boycott filter to roles
   const filteredRoles = useMemo(() => {
-    console.log('=== PersonInfoModal Filter Debug ===');
-    console.log('Settings:', settings);
-    console.log('BoycottTalkShows enabled:', settings.boycottTalkShows);
-    
     if (!details?.roles) {
-      console.log('No roles found in details');
       return [];
     }
-    
-    console.log('Original roles count:', details.roles.length);
-    console.log('Original roles:', details.roles.map(r => r.title));
-    
+
     if (!settings.boycottTalkShows && !settings.excludeSelfRoles) {
-      console.log('Both filters disabled, returning all roles');
       return details.roles;
     }
-    
+
     const filtered = details.roles.filter(role => {
       const title = role.title.toLowerCase();
       const character = (role.character || '').toLowerCase();
@@ -187,20 +178,10 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                          job.includes('self');
       
       const isBoycotted = isBoycottedTalkShow || (settings.excludeSelfRoles && isSelfRole);
-      
-      if (isBoycotted) {
-        console.log('FILTERING OUT:', role.title, `(${role.character || role.job || 'Unknown Role'})`);
-        if (isBoycottedTalkShow) console.log('  Reason: Talk show boycott');
-        if (settings.excludeSelfRoles && isSelfRole) console.log('  Reason: Self role exclusion');
-      }
-      
+
       return !isBoycotted;
     });
-    
-    console.log('Filtered roles count:', filtered.length);
-    console.log('Filtered roles:', filtered.map(r => r.title));
-    console.log('=== End Filter Debug ===');
-    
+
     return filtered;
   }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
 

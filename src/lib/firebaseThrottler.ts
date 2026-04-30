@@ -74,6 +74,20 @@ function addToLog(req: ThrottledRequest) {
     }
 }
 
+function deriveOriginFromStack(): string | undefined {
+    const stack = new Error().stack;
+    if (!stack) return undefined;
+    const lines = stack.split('\n').map((line) => line.trim());
+    const firstExternal = lines.find((line) =>
+        line &&
+        !line.includes('firebaseThrottler') &&
+        !line.includes('enqueueRequest') &&
+        !line.includes('processQueue') &&
+        (line.includes('/src/') || line.includes('.tsx') || line.includes('.ts'))
+    );
+    return firstExternal;
+}
+
 async function processQueue() {
     if (isProcessing || isPaused || queue.length === 0) return;
 
@@ -113,6 +127,10 @@ function enqueueRequest(
     metadata?: any
 ): Promise<void> {
     return new Promise((resolve, reject) => {
+        const enrichedMetadata = {
+            ...(metadata ?? {}),
+            origin: metadata?.origin ?? deriveOriginFromStack()
+        };
         const req: ThrottledRequest = {
             id: generateId(),
             type,
@@ -122,7 +140,7 @@ function enqueueRequest(
             resolve,
             reject,
             execute,
-            metadata
+            metadata: enrichedMetadata
         };
 
         queue.push(req);
@@ -142,11 +160,18 @@ export function throttledSetDoc<T = DocumentData>(
     data: WithFieldValue<T>,
     options?: SetOptions
 ): Promise<void> {
+    const fieldKeys = typeof data === 'object' && data !== null ? Object.keys(data as Record<string, unknown>) : [];
     return enqueueRequest('setDoc', reference.path, () => {
         if (options) {
             return setDoc(reference, data, options);
         }
         return setDoc(reference, data);
+    }, {
+        operation: 'set',
+        docPath: reference.path,
+        fieldCount: fieldKeys.length,
+        fieldKeys: fieldKeys.slice(0, 40),
+        hasMergeOptions: Boolean(options)
     });
 }
 
@@ -154,13 +179,22 @@ export function throttledUpdateDoc<T = DocumentData>(
     reference: DocumentReference<T>,
     data: UpdateData<T>
 ): Promise<void> {
-    return enqueueRequest('updateDoc', reference.path, () => updateDoc(reference, data as any));
+    const fieldKeys = typeof data === 'object' && data !== null ? Object.keys(data as Record<string, unknown>) : [];
+    return enqueueRequest('updateDoc', reference.path, () => updateDoc(reference, data as any), {
+        operation: 'update',
+        docPath: reference.path,
+        fieldCount: fieldKeys.length,
+        fieldKeys: fieldKeys.slice(0, 40)
+    });
 }
 
 export function throttledDeleteDoc<T = DocumentData>(
     reference: DocumentReference<T>
 ): Promise<void> {
-    return enqueueRequest('deleteDoc', reference.path, () => deleteDoc(reference));
+    return enqueueRequest('deleteDoc', reference.path, () => deleteDoc(reference), {
+        operation: 'delete',
+        docPath: reference.path
+    });
 }
 
 type DocumentData = { [field: string]: any };
@@ -169,6 +203,12 @@ type DocumentData = { [field: string]: any };
 export function throttledWriteBatch(db: Firestore, metadata?: any): WriteBatch {
     const actualBatch = writeBatch(db);
     let operationCount = 0;
+    const operations: Array<{
+        type: 'set' | 'update' | 'delete';
+        docPath: string;
+        fieldCount?: number;
+        fieldKeys?: string[];
+    }> = [];
 
     return {
         set(documentRef: DocumentReference<any>, data: any, options?: any) {
@@ -178,6 +218,13 @@ export function throttledWriteBatch(db: Firestore, metadata?: any): WriteBatch {
                 actualBatch.set(documentRef, data);
             }
             operationCount++;
+            const keys = typeof data === 'object' && data !== null ? Object.keys(data as Record<string, unknown>) : [];
+            operations.push({
+                type: 'set',
+                docPath: documentRef.path,
+                fieldCount: keys.length,
+                fieldKeys: keys.slice(0, 40)
+            });
             return this;
         },
         update(documentRef: DocumentReference<any>, data: any, ...rest: any[]) {
@@ -188,17 +235,39 @@ export function throttledWriteBatch(db: Firestore, metadata?: any): WriteBatch {
                 actualBatch.update(documentRef, data);
             }
             operationCount++;
+            const keys = typeof data === 'object' && data !== null ? Object.keys(data as Record<string, unknown>) : [];
+            operations.push({
+                type: 'update',
+                docPath: documentRef.path,
+                fieldCount: keys.length,
+                fieldKeys: keys.slice(0, 40)
+            });
             return this;
         },
         delete(documentRef: DocumentReference<any>) {
             actualBatch.delete(documentRef);
             operationCount++;
+            operations.push({
+                type: 'delete',
+                docPath: documentRef.path
+            });
             return this;
         },
         commit(): Promise<void> {
             if (operationCount === 0) return Promise.resolve();
-
-            return enqueueRequest('writeBatch', `Batch (${operationCount} ops)`, () => actualBatch.commit(), metadata);
+            const opBreakdown = operations.reduce(
+                (acc, op) => {
+                    acc[op.type] += 1;
+                    return acc;
+                },
+                { set: 0, update: 0, delete: 0 }
+            );
+            return enqueueRequest('writeBatch', `Batch (${operationCount} ops)`, () => actualBatch.commit(), {
+                ...(metadata ?? {}),
+                operationCount,
+                opBreakdown,
+                operations
+            });
         }
     };
 }

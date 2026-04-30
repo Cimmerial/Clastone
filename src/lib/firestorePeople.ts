@@ -50,6 +50,8 @@ export function pruneItem(item: PersonItem): PersonItem {
     return {
         ...item,
         roles,
+        movieMinutes: 0,
+        showMinutes: 0,
         moviesSeen: [],
         showsSeen: [],
         firstSeenDate: undefined,
@@ -83,10 +85,12 @@ export async function loadPeople(db: Firestore, userId: string): Promise<{
                 byClass[classKey] = ((d.data().items || []) as PersonItem[]).map((item) => ({
                     ...item,
                     roles: item.roles ?? [],
-                    moviesSeen: item.moviesSeen ?? [],
-                    showsSeen: item.showsSeen ?? [],
-                    movieMinutes: item.movieMinutes ?? 0,
-                    showMinutes: item.showMinutes ?? 0,
+                    moviesSeen: [],
+                    showsSeen: [],
+                    movieMinutes: 0,
+                    showMinutes: 0,
+                    firstSeenDate: undefined,
+                    lastSeenDate: undefined,
                 }));
             }
         });

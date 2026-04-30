@@ -141,8 +141,16 @@ export function WatchlistProvider({
         return [...released, ...sortedUnreleased];
       };
 
-      setMovies(prev => sortReleasedFirst(prev));
-      setTv(prev => sortReleasedFirst(prev));
+      setMovies(prev => {
+        const next = sortReleasedFirst(prev);
+        if (next.length === prev.length && next.every((entry, idx) => entry.id === prev[idx]?.id)) return prev;
+        return next;
+      });
+      setTv(prev => {
+        const next = sortReleasedFirst(prev);
+        if (next.length === prev.length && next.every((entry, idx) => entry.id === prev[idx]?.id)) return prev;
+        return next;
+      });
     };
 
     // Only run on initial mount after hydration

@@ -105,6 +105,11 @@ export function ListsProvider({
       return;
     }
     if (!onPersist) return;
+    const noChanges =
+      lists === lastSavedRef.current.lists &&
+      listOrder === lastSavedRef.current.listOrder &&
+      entriesByListId === lastSavedRef.current.entriesByListId;
+    if (noChanges) return;
 
     if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
     const payload = { lists, order: listOrder, entriesByListId, pendingCount: 1 };
