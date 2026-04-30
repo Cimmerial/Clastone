@@ -7,6 +7,8 @@ import { ArrowLeft, Eye, Info, Pencil, Plus } from 'lucide-react';
 import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAuth } from '../context/AuthContext';
@@ -16,7 +18,10 @@ import { deleteGlobalCollection, saveGlobalCollectionsOrder as saveCollectionsOr
 import type { CustomListAddPosition, ListSortMode } from '../lib/firestoreLists';
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
+import { EntryRowPerson } from '../components/EntryRowPerson';
 import { InfoModal } from '../components/InfoModal';
+import { PersonInfoModal } from '../components/PersonInfoModal';
+import { PersonRankingModal, type PersonRankingTarget } from '../components/PersonRankingModal';
 import { PageSearch } from '../components/PageSearch';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
@@ -25,7 +30,7 @@ import './ListsPage.css';
 
 type ListCard = { id: string; title: string; subtitle: string; href: string; color?: string };
 type CollectionCard = { id: string; title: string; seen: number; watchlistUnseen: number; total: number; href: string; color?: string };
-type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv'; item?: MovieShowItem; title: string };
+type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv' | 'person'; item?: MovieShowItem | any; title: string };
 type CollectionEntryId = `tmdb-tv-${number}` | `tmdb-movie-${number}`;
 type CollectionViewerFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
 
@@ -46,6 +51,12 @@ function parseRankingPercentile(value?: string): number | undefined {
   if (!value) return undefined;
   const parsed = Number.parseFloat(String(value).replace('%', '').trim());
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseBirthDateTimestamp(value?: string): number {
+  if (!value) return Number.MIN_SAFE_INTEGER;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : Number.MIN_SAFE_INTEGER;
 }
 
 function hashString(input: string): number {
@@ -404,16 +415,18 @@ function CreateEntityModal({
   onCreate,
   title,
   defaultColor,
-  includeDescription = false
+  includeDescription = false,
+  includePersonType = true,
 }: {
   onClose: () => void;
   title: string;
   defaultColor?: string;
   includeDescription?: boolean;
-  onCreate: (name: string, type: 'movie' | 'tv' | 'both', color?: string, description?: string) => void;
+  includePersonType?: boolean;
+  onCreate: (name: string, type: 'movie' | 'tv' | 'both' | 'person', color?: string, description?: string) => void;
 }) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<'movie' | 'tv' | 'both'>('both');
+  const [type, setType] = useState<'movie' | 'tv' | 'both' | 'person'>('both');
   const [color, setColor] = useState(defaultColor ?? '#deb55e');
   const [description, setDescription] = useState('');
   return (
@@ -421,8 +434,9 @@ function CreateEntityModal({
       <div className="lists-modal" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="List name" className="lists-input" autoFocus />
-        <select value={type} onChange={(e) => setType(e.target.value as 'movie' | 'tv' | 'both')} className="lists-select">
+        <select value={type} onChange={(e) => setType(e.target.value as 'movie' | 'tv' | 'both' | 'person')} className="lists-select">
           <option value="movie">Movie</option><option value="tv">Show</option><option value="both">Movie + Show</option>
+          {includePersonType ? <option value="person">Person</option> : null}
         </select>
         <div className="lists-color-row">
           <span>Tag color</span>
@@ -482,6 +496,43 @@ function AddSavedEntryModal({ title, items, onClose, onAdd }: { title: string; i
           {filtered.slice(0, 30).map((item) => (
             <button key={item.id} className="lists-saved-card" onClick={() => onAdd(item)}>
               <div className="lists-saved-poster">{item.posterPath ? <img src={tmdbImagePath(item.posterPath, 'w185') ?? ''} alt={item.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}</div>
+              <span className="lists-saved-title">{item.title}</span>
+            </button>
+          ))}
+          {filtered.length === 0 ? <div className="lists-subtitle">No matches.</div> : null}
+        </div>
+        <div className="lists-modal-actions"><button className="lists-button" onClick={onClose}>Close</button></div>
+      </div>
+    </div>
+  );
+}
+
+function AddSavedPersonModal({
+  title,
+  items,
+  onClose,
+  onAdd
+}: {
+  title: string;
+  items: Array<{ id: string; title: string; profilePath?: string }>;
+  onClose: () => void;
+  onAdd: (item: { id: string; title: string; profilePath?: string }) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter((item) => item.title.toLowerCase().includes(needle));
+  }, [items, query]);
+  return (
+    <div className="lists-modal-backdrop" onClick={onClose}>
+      <div className="lists-modal lists-modal--add-entry" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} className="lists-input" placeholder="Search saved people..." autoFocus />
+        <div className="lists-saved-grid">
+          {filtered.slice(0, 50).map((item) => (
+            <button key={item.id} className="lists-saved-card" onClick={() => onAdd(item)}>
+              <div className="lists-saved-poster">{item.profilePath ? <img src={tmdbImagePath(item.profilePath, 'w185') ?? ''} alt={item.title} loading="lazy" /> : <div className="lists-saved-poster-fallback" />}</div>
               <span className="lists-saved-title">{item.title}</span>
             </button>
           ))}
@@ -1121,6 +1172,22 @@ export function ListsPage() {
   const { lists, listOrder, entriesByListId, globalCollections, createList, reorderLists, reorderGlobalCollections, upsertGlobalCollection: upsertGlobalCollectionLocal } = useListsStore();
   const { byClass: movieByClass } = useMoviesStore();
   const { byClass: tvByClass } = useTvStore();
+  const {
+    byClass: peopleByClass,
+    classes: peopleClasses,
+    moveItemToClass: movePersonToClass,
+    addPersonFromSearch,
+    removePersonEntry,
+    getPersonById
+  } = usePeopleStore();
+  const {
+    byClass: directorsByClass,
+    classes: directorsClasses,
+    moveItemToClass: moveDirectorToClass,
+    addDirectorFromSearch,
+    removeDirectorEntry,
+    getDirectorById
+  } = useDirectorsStore();
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
   const [showCreateGlobalCollectionModal, setShowCreateGlobalCollectionModal] = useState(false);
@@ -1129,6 +1196,8 @@ export function ListsPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const allEntries = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
   const entryById = useMemo(() => new Map(allEntries.map((entry) => [entry.id, entry])), [allEntries]);
+  const allPeopleEntries = useMemo(() => [...Object.values(peopleByClass).flat(), ...Object.values(directorsByClass).flat()], [peopleByClass, directorsByClass]);
+  const peopleById = useMemo(() => new Map(allPeopleEntries.map((entry) => [entry.id, entry])), [allPeopleEntries]);
   const listById = useMemo(() => new Map(lists.map((item) => [item.id, item])), [lists]);
   const listCards = useMemo<Array<ListCard & { posterBackgrounds: string[] }>>(() => listOrder
     .map((id) => listById.get(id))
@@ -1136,7 +1205,12 @@ export function ListsPage() {
     .filter((list) => list.mode === 'list')
     .map((list) => {
       const entryPosters = (entriesByListId[list.id] ?? [])
-        .map((entry) => entryById.get(entry.entryId)?.posterPath)
+        .map((entry) => {
+          if (entry.mediaType === 'person') {
+            return peopleById.get(entry.entryId)?.profilePath ?? entry.posterPath;
+          }
+          return entryById.get(entry.entryId)?.posterPath ?? entry.posterPath;
+        })
         .filter((poster): poster is string => Boolean(poster));
       return {
         id: list.id,
@@ -1146,7 +1220,7 @@ export function ListsPage() {
         color: list.color,
         posterBackgrounds: pickPosterCollage(entryPosters, list.id),
       };
-    }), [listOrder, listById, entriesByListId, entryById]);
+    }), [listOrder, listById, entriesByListId, entryById, peopleById]);
   const collectionCards = useMemo<Array<CollectionCard & { posterBackgrounds: string[] }>>(() => globalCollections.map((collection) => {
     const total = collection.entries.length;
     const statuses = collection.entries.map((entry) => {
@@ -1304,6 +1378,7 @@ export function ListsPage() {
         <CreateEntityModal
           title="Create List"
           includeDescription
+          includePersonType
           onClose={() => setShowCreateListModal(false)}
           onCreate={(name, type, color, description) => createList(name, type, 'list', color, description)}
         />
@@ -1313,13 +1388,15 @@ export function ListsPage() {
           title="Make Collection"
           defaultColor="#48b66e"
           includeDescription
+          includePersonType={false}
           onClose={() => setShowCreateCollectionModal(false)}
           onCreate={(name, type, color, description) => {
+            if (type === 'person') return;
             createList(name, type, 'collection', color, description);
           }}
         />
       ) : null}
-      {showCreateGlobalCollectionModal && canEditCollections ? <CreateEntityModal title="Make New Global Collection" defaultColor="#48b66e" includeDescription onClose={() => setShowCreateGlobalCollectionModal(false)} onCreate={async (name, type, color, description) => { if (!db) return; const id = `collection-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()}`; const next = { id, name, summary: description, mediaType: type, color, hidden: false, updatedAt: new Date().toISOString(), entries: [] }; await upsertGlobalCollection(db, next); upsertGlobalCollectionLocal(next); }} /> : null}
+      {showCreateGlobalCollectionModal && canEditCollections ? <CreateEntityModal title="Make New Global Collection" defaultColor="#48b66e" includeDescription includePersonType={false} onClose={() => setShowCreateGlobalCollectionModal(false)} onCreate={async (name, type, color, description) => { if (!db || type === 'person') return; const id = `collection-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()}`; const next = { id, name, summary: description, mediaType: type, color, hidden: false, updatedAt: new Date().toISOString(), entries: [] }; await upsertGlobalCollection(db, next); upsertGlobalCollectionLocal(next); }} /> : null}
       {showCollectionsInfoModal ? (
         <InfoTextModal
           title="About Collections"
@@ -1371,6 +1448,22 @@ export function ListDetailPage() {
     addShowFromSearch,
     removeShowEntry
   } = useTvStore();
+  const {
+    byClass: peopleByClass,
+    classes: peopleClasses,
+    moveItemToClass: movePersonToClass,
+    addPersonFromSearch,
+    removePersonEntry,
+    getPersonById
+  } = usePeopleStore();
+  const {
+    byClass: directorsByClass,
+    classes: directorsClasses,
+    moveItemToClass: moveDirectorToClass,
+    addDirectorFromSearch,
+    removeDirectorEntry,
+    getDirectorById
+  } = useDirectorsStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -1378,6 +1471,8 @@ export function ListDetailPage() {
   const [collectionViewerFilter, setCollectionViewerFilter] = useState<CollectionViewerFilter>('ALL');
   const [settingsFor, setSettingsFor] = useState<MovieShowItem | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; entryId?: string; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
+  const [personInfoModalTarget, setPersonInfoModalTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
+  const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
   const activeCollection = globalCollections.find((item) => item.id === collectionId);
   const activeList = lists.find((item) => item.id === listId);
   const isPersonalCollection = Boolean(activeList && activeList.mode === 'collection');
@@ -1386,6 +1481,11 @@ export function ListDetailPage() {
     [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()].forEach((item) => map.set(item.id, item));
     return map;
   }, [movieByClass, tvByClass]);
+  const peopleEntryMap = useMemo(() => {
+    const map = new Map<string, any>();
+    [...Object.values(peopleByClass).flat(), ...Object.values(directorsByClass).flat()].forEach((item) => map.set(item.id, item));
+    return map;
+  }, [peopleByClass, directorsByClass]);
   const detailItems = useMemo<ListDetailItem[]>(() => {
     if (isCollection && activeCollection) {
       return activeCollection.entries.slice().sort((a, b) => a.position - b.position).map((entry) => {
@@ -1406,6 +1506,23 @@ export function ListDetailPage() {
     if (activeList) {
       const refs = (entriesByListId[activeList.id] ?? []).slice().sort((a, b) => a.position - b.position);
       const mapped = refs.map((entry) => {
+        if (entry.mediaType === 'person') {
+          const existingPerson = peopleEntryMap.get(entry.entryId);
+          const fallbackTitle = entry.title ?? existingPerson?.title ?? entry.entryId;
+          const row: ListDetailItem = {
+            id: entry.entryId,
+            classKey: 'LIST',
+            source: existingPerson ? 'saved' : 'unseen',
+            mediaType: 'person',
+            item: existingPerson,
+            title: existingPerson?.title ?? fallbackTitle
+          };
+          return {
+            row,
+            safeReleaseTs: parseBirthDateTimestamp(existingPerson?.birthday),
+            position: entry.position,
+          };
+        }
         const existing = entryMap.get(entry.entryId);
         const parsedTmdbId = Number.parseInt(entry.entryId.replace(/\D/g, ''), 10) || 0;
         const fallbackTitle = entry.title ?? existing?.title ?? entry.entryId;
@@ -1446,7 +1563,7 @@ export function ListDetailPage() {
       return mapped.map((entry) => entry.row);
     }
     return [];
-  }, [isCollection, activeCollection, activeList, entriesByListId, entryMap]);
+  }, [isCollection, activeCollection, activeList, entriesByListId, entryMap, peopleEntryMap]);
   const movieIdsInNonUnrankedClasses = useMemo(() => {
     const ids = new Set<string>();
     for (const [classKey, items] of Object.entries(movieByClass)) {
@@ -1480,8 +1597,13 @@ export function ListDetailPage() {
     (Boolean(activeList) && !isCollection && (activeList?.sortMode ?? 'custom') === 'custom') ||
     (Boolean(activeCollection) && isCollection && canEditCollections);
   const allSavedItems = useMemo(() => [...Object.values(movieByClass).flat(), ...Object.values(tvByClass).flat()], [movieByClass, tvByClass]);
+  const allSavedPeople = useMemo(() => [...Object.values(peopleByClass).flat(), ...Object.values(directorsByClass).flat()], [peopleByClass, directorsByClass]);
+  const shouldUseCollectionViewerFilters = useMemo(
+    () => isCollection && detailItems.some((row) => row.mediaType !== 'person'),
+    [isCollection, detailItems]
+  );
   const filteredDetailItems = useMemo(() => {
-    if (!isCollection) return detailItems;
+    if (!shouldUseCollectionViewerFilters) return detailItems;
     if (collectionViewerFilter === 'ALL') return detailItems;
     return detailItems.filter((row) => {
       const item = row.item;
@@ -1499,7 +1621,7 @@ export function ListDetailPage() {
       return isWatchlisted;
     });
   }, [
-    isCollection,
+    shouldUseCollectionViewerFilters,
     detailItems,
     collectionViewerFilter,
     movieIdsInNonUnrankedClasses,
@@ -1530,6 +1652,13 @@ export function ListDetailPage() {
       return true;
     });
   }, [activeList, entriesByListId, allSavedItems]);
+  const addableSavedPeople = useMemo(() => {
+    if (!activeList || activeList.mediaType !== 'person') return [];
+    const existing = new Set((entriesByListId[activeList.id] ?? []).map((entry) => entry.entryId));
+    return allSavedPeople
+      .filter((person) => !existing.has(person.id))
+      .map((person) => ({ id: person.id, title: person.title, profilePath: person.profilePath }));
+  }, [activeList, entriesByListId, allSavedPeople]);
   const removeCollectionEntry = async (entryId: string) => {
     if (!activeCollection || !canEditCollections) return;
     const nextEntries = activeCollection.entries
@@ -1542,7 +1671,7 @@ export function ListDetailPage() {
       await upsertGlobalCollection(db, nextCollection);
     }
   };
-  const removePersonalCollectionEntry = (entryId: string, mediaType: 'movie' | 'tv') => {
+  const removePersonalCollectionEntry = (entryId: string, mediaType: 'movie' | 'tv' | 'person') => {
     if (!activeList || activeList.mode !== 'collection') return;
     setEntryListMembership(entryId, mediaType, [{ listId: activeList.id, selected: false }]);
   };
@@ -1580,7 +1709,7 @@ export function ListDetailPage() {
           ) : null}
         </div>
       </header>
-      {isCollection ? (
+      {shouldUseCollectionViewerFilters ? (
         <div className="lists-collection-toolbar">
           <div className="lists-collection-filter-row">
             {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
@@ -1610,7 +1739,7 @@ export function ListDetailPage() {
         getClassCountLabel={(_classKey, items) =>
           isCollection ? `${items.length}/${detailItems.length} entries` : `${items.length} entries`
         }
-        getClassLabel={() => `${title} | ${isCollection ? 'Collection' : 'List'}`}
+        getClassLabel={() => `${title} | ${(isCollection || isPersonalCollection) ? 'Collection' : 'List'}`}
         getClassTagline={() => undefined}
         renderClassActions={() => <AddDeleteActions showAdd={!isCollection && Boolean(activeList)} onAdd={() => setShowAddEntryModal(true)} showDelete={!isCollection || canEditCollections} onDelete={() => setShowDeleteConfirm(true)} showCopyList={Boolean(isCollection && canEditCollections)} onCopyList={async () => {
           const lines = detailItems.map((item) => item.title).join('\n');
@@ -1649,6 +1778,38 @@ export function ListDetailPage() {
           }
         } : undefined}
         renderRow={(row) => row.item ? (() => {
+          if (row.mediaType === 'person') {
+            return (
+              <div className="lists-entry-tile-wrap">
+                <EntryRowPerson
+                  item={row.item}
+                  viewMode="tile"
+                  onOpenSettings={(person) => {
+                    const personId = typeof person?.id === 'string' ? person.id : row.id;
+                    const tmdbId = Number.parseInt(personId.replace(/\D/g, ''), 10) || 0;
+                    const isDirector = Boolean(getDirectorById(personId));
+                    setPersonRankingTarget({
+                      tmdbId,
+                      id: personId,
+                      name: person?.title ?? row.title,
+                      profilePath: person?.profilePath,
+                      mediaType: isDirector ? 'director' : 'actor',
+                      existingClassKey: isDirector ? getDirectorById(personId)?.classKey : getPersonById(personId)?.classKey
+                    });
+                  }}
+                  onInfo={(person) => {
+                    const personId = typeof person?.id === 'string' ? person.id : row.id;
+                    const tmdbId = Number.parseInt(personId.replace(/\D/g, ''), 10) || 0;
+                    setPersonInfoModalTarget({
+                      tmdbId,
+                      name: person?.title ?? row.title,
+                      profilePath: person?.profilePath
+                    });
+                  }}
+                />
+              </div>
+            );
+          }
           const item = row.item;
           const isCollectionLike = isCollection || isPersonalCollection;
           const isSavedUnranked = isCollectionLike && row.source === 'saved' && item.classKey === 'UNRANKED';
@@ -1836,7 +1997,7 @@ export function ListDetailPage() {
               }
               onInfo={(entry) => {
                 const tmdbId = entry.tmdbId ?? (parseInt(entry.id.replace(/\D/g, ''), 10) || 0);
-                setInfoModalTarget({ tmdbId, entryId: entry.id, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType });
+                setInfoModalTarget({ tmdbId, entryId: entry.id, title: entry.title, posterPath: entry.posterPath, releaseDate: entry.releaseDate, mediaType: row.mediaType === 'movie' ? 'movie' : 'tv' });
               }}
               onOpenSettings={(entry) => setSettingsFor(entry)}
             />
@@ -1867,7 +2028,17 @@ export function ListDetailPage() {
         )}
       />
       {showAddEntryModal && activeList ? (
-        activeList.mode === 'collection' ? (
+        activeList.mediaType === 'person' ? (
+          <AddSavedPersonModal
+            title={`Add to ${activeList.name}`}
+            items={addableSavedPeople}
+            onClose={() => setShowAddEntryModal(false)}
+            onAdd={(person) => addEntryToListTop(activeList.id, person.id, 'person', {
+              title: person.title,
+              posterPath: person.profilePath
+            })}
+          />
+        ) : activeList.mode === 'collection' ? (
           <AddCollectionEntryModal
             title={`Add to ${activeList.name}`}
             items={addableSavedItems}
@@ -2055,13 +2226,71 @@ export function ListDetailPage() {
         })()
       ) : null}
       {infoModalTarget ? <InfoModal isOpen onClose={() => setInfoModalTarget(null)} tmdbId={infoModalTarget.tmdbId} mediaType={infoModalTarget.mediaType} title={infoModalTarget.title} posterPath={infoModalTarget.posterPath} releaseDate={infoModalTarget.releaseDate} collectionTags={infoModalTarget.mediaType === 'movie' ? (() => { const entryId = infoModalTarget.entryId || `tmdb-movie-${infoModalTarget.tmdbId}`; return (collectionIdsByEntryId.get(entryId) ?? []).map((id) => ({ id, label: globalCollections.find((item) => item.id === id)?.name ?? id, color: globalCollections.find((item) => item.id === id)?.color })); })() : []} onEditWatches={() => { const target = detailItems.find((row) => row.id === `tmdb-${infoModalTarget.mediaType}-${infoModalTarget.tmdbId}`)?.item; if (target) { setInfoModalTarget(null); setSettingsFor(target); } }} /> : null}
+      {personInfoModalTarget ? (
+        <PersonInfoModal
+          isOpen
+          onClose={() => setPersonInfoModalTarget(null)}
+          tmdbId={personInfoModalTarget.tmdbId}
+          name={personInfoModalTarget.name}
+          profilePath={personInfoModalTarget.profilePath}
+        />
+      ) : null}
+      {personRankingTarget ? (
+        <PersonRankingModal
+          target={personRankingTarget}
+          rankedClasses={(personRankingTarget.mediaType === 'director' ? directorsClasses : peopleClasses).map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
+          currentClassKey={personRankingTarget.existingClassKey}
+          currentClassLabel={personRankingTarget.existingClassKey
+            ? (personRankingTarget.mediaType === 'director'
+              ? directorsClasses.find((c) => c.key === personRankingTarget.existingClassKey)?.label
+              : peopleClasses.find((c) => c.key === personRankingTarget.existingClassKey)?.label)
+            : undefined}
+          onSave={(params) => {
+            if (!personRankingTarget || !params.classKey) return;
+            if (personRankingTarget.mediaType === 'director') {
+              const existing = getDirectorById(personRankingTarget.id);
+              if (existing) {
+                moveDirectorToClass(personRankingTarget.id, params.classKey, { toTop: params.position === 'top', toMiddle: params.position === 'middle' });
+              } else {
+                addDirectorFromSearch({
+                  id: personRankingTarget.id,
+                  title: personRankingTarget.name,
+                  profilePath: personRankingTarget.profilePath,
+                  classKey: params.classKey,
+                  position: params.position ?? 'top'
+                });
+              }
+            } else {
+              const existing = getPersonById(personRankingTarget.id);
+              if (existing) {
+                movePersonToClass(personRankingTarget.id, params.classKey, { toTop: params.position === 'top', toMiddle: params.position === 'middle' });
+              } else {
+                addPersonFromSearch({
+                  id: personRankingTarget.id,
+                  title: personRankingTarget.name,
+                  profilePath: personRankingTarget.profilePath,
+                  classKey: params.classKey,
+                  position: params.position ?? 'top'
+                });
+              }
+            }
+          }}
+          onRemoveEntry={(id) => {
+            if (personRankingTarget?.mediaType === 'director') removeDirectorEntry(id);
+            else removePersonEntry(id);
+            setPersonRankingTarget(null);
+          }}
+          onClose={() => setPersonRankingTarget(null)}
+          isSaving={false}
+        />
+      ) : null}
       {showRenameModal ? (
         <RenameEntityModal
           title={isCollection ? (canEditNameAndColor ? 'Edit Collection' : 'Rename Collection') : ((canEditNameAndColor || canEditDescription) ? 'Edit List' : 'Rename List')}
           initialName={title}
           initialColor={isCollection ? activeCollection?.color : activeList?.color}
           initialSummary={isCollection ? activeCollection?.summary : activeList?.description}
-          initialType={activeList?.mediaType}
+          initialType={activeList?.mediaType === 'person' ? undefined : activeList?.mediaType}
           entryTypeCounts={activeListTypeCounts}
           allowColorEdit={canEditNameAndColor}
           allowSummaryEdit={isCollection ? Boolean(canEditNameAndColor) : Boolean(canEditDescription)}

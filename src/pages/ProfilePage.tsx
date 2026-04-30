@@ -1127,6 +1127,22 @@ export function ProfilePage() {
     }
     return map;
   }, [movieClassOrder, moviesByClass, tvClassOrder, tvByClass]);
+  const personPosterByEntryId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const classKey of peopleClassOrder) {
+      for (const item of peopleByClass[classKey] ?? []) {
+        if (!item.profilePath) continue;
+        map.set(String(item.id), item.profilePath);
+      }
+    }
+    for (const classKey of directorsClassOrder) {
+      for (const item of directorsByClass[classKey] ?? []) {
+        if (!item.profilePath) continue;
+        map.set(String(item.id), item.profilePath);
+      }
+    }
+    return map;
+  }, [peopleClassOrder, peopleByClass, directorsClassOrder, directorsByClass]);
 
   const listProgress = useMemo(() => {
     return listOrder
@@ -1134,10 +1150,7 @@ export function ProfilePage() {
       .filter((list): list is NonNullable<typeof list> => Boolean(list))
       .filter((list) => list.mode === 'list' && !list.hidden)
       .map((list) => {
-        const entries = (entriesByListId[list.id] ?? []).filter((entry) => {
-          const entryId = String(entry.entryId ?? '');
-          return entryId.startsWith('tmdb-movie-') || entryId.startsWith('tmdb-tv-');
-        });
+        const entries = entriesByListId[list.id] ?? [];
         const posterPaths = entries
           .slice()
           .sort((a, b) => {
@@ -1145,7 +1158,13 @@ export function ProfilePage() {
             const bKey = stableHash(`${list.id}:${String(b.entryId ?? '')}`);
             return aKey - bKey;
           })
-          .map((entry) => posterByEntryId.get(String(entry.entryId ?? '')))
+          .map((entry) => {
+            const entryId = String(entry.entryId ?? '');
+            if (entryId.startsWith('tmdb-person-')) {
+              return personPosterByEntryId.get(entryId);
+            }
+            return posterByEntryId.get(entryId);
+          })
           .filter((posterPath): posterPath is string => Boolean(posterPath))
           .slice(0, 6);
         return {
@@ -1158,7 +1177,19 @@ export function ProfilePage() {
         };
       })
       .filter((item) => item.count > 0);
-  }, [listOrder, lists, entriesByListId, posterByEntryId]);
+  }, [listOrder, lists, entriesByListId, posterByEntryId, personPosterByEntryId]);
+  const personListsByEntryId = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; label: string; color?: string }>>();
+    for (const list of lists) {
+      if (list.mode !== 'list' || list.mediaType !== 'person' || list.hidden) continue;
+      for (const entry of entriesByListId[list.id] ?? []) {
+        const current = map.get(entry.entryId) ?? [];
+        current.push({ id: list.id, label: list.name, color: list.color });
+        map.set(entry.entryId, current);
+      }
+    }
+    return map;
+  }, [lists, entriesByListId]);
 
   const getQuantile = (sortedValues: number[], percentile: number) => {
     if (sortedValues.length === 0) return null;
@@ -3930,6 +3961,7 @@ export function ProfilePage() {
       {personRankingTarget && (
         <PersonRankingModal
           target={personRankingTarget}
+          profilePersonLists={personListsByEntryId.get(personRankingTarget.id) ?? []}
           rankedClasses={personRankingTarget.mediaType === 'actor' ? peopleClasses : directorsClasses}
           currentClassKey={personRankingTarget.existingClassKey}
           currentClassLabel={personRankingTarget.existingClassKey ? 

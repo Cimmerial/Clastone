@@ -72,6 +72,24 @@
   margin-top: 4px;
 }
 
+.prm-profile-list-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.prm-profile-list-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  color: #cfcfcf;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .prm-header-actions {
   display: flex;
   align-items: center;
@@ -192,6 +210,63 @@
   flex-direction: column;
   gap: 16px;
 }
+
+.prm-tag-section {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prm-tag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prm-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cfcfcf;
+  border-radius: 999px;
+  padding: 4px 7px 4px 11px;
+}
+
+.prm-tag-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 0;
+  font-size: 0.74rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.prm-tag-pill--on {
+  border-color: rgba(192, 160, 80, 0.6);
+  background: rgba(192, 160, 80, 0.18);
+  color: #e8d196;
+}
+
+.prm-tag-eye-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d9d9d9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 
 .prm-cancel-override {
   align-self: flex-start;

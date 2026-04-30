@@ -7,6 +7,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
+import { useListsStore } from '../state/listsStore';
 import { InfoModal } from './InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from './UniversalEditModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
@@ -88,6 +89,14 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     removeShowEntry,
   } = useTvStore();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
+  const { lists, entriesByListId } = useListsStore();
+  const personListTags = useMemo(() => {
+    const entryId = `tmdb-person-${tmdbId}`;
+    return lists
+      .filter((list) => list.mode === 'list' && list.mediaType === 'person' && !list.hidden)
+      .filter((list) => (entriesByListId[list.id] ?? []).some((entry) => entry.entryId === entryId))
+      .map((list) => ({ id: list.id, label: list.name, color: list.color }));
+  }, [lists, entriesByListId, tmdbId]);
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -599,6 +608,19 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
                       <div className="info-modal-info-item">
                         <PlayCircle size={16} />
                         <span>Known for: {getDepartmentLabel(details.knownForDepartment)}</span>
+                        {personListTags.length > 0 ? (
+                          <span className="info-modal-collection-tags-inline">
+                            {personListTags.map((tag) => (
+                              <span
+                                key={tag.id}
+                                className="info-modal-collection-tag"
+                                style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                              >
+                                {tag.label}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
                       </div>
                     )}
                   </div>

@@ -1,12 +1,12 @@
 import { collection, doc, getDocs, type Firestore } from 'firebase/firestore';
 import { throttledWriteBatch } from './firebaseThrottler';
 
-export type ListMediaType = 'movie' | 'tv' | 'both';
+export type ListMediaType = 'movie' | 'tv' | 'both' | 'person';
 export type ListMode = 'list' | 'collection';
 
 export type ListEntryRef = {
   entryId: string;
-  mediaType: 'movie' | 'tv';
+  mediaType: 'movie' | 'tv' | 'person';
   position: number;
   title?: string;
   posterPath?: string;

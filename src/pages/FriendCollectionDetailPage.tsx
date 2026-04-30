@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Info, Settings } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { tmdbImagePath } from '../lib/tmdb';
 import { loadMovies } from '../lib/firestoreMovies';
 import { loadTvShows } from '../lib/firestoreTvShows';
+import { loadPeople } from '../lib/firestorePeople';
+import { loadDirectors } from '../lib/firestoreDirectors';
 import { loadWatchlist } from '../lib/firestoreWatchlist';
 import { loadUserLists } from '../lib/firestoreLists';
 import { RankedList, type RankedItemBase } from '../components/RankedList';
 import { EntryRowMovieShow, type MovieShowItem } from '../components/EntryRowMovieShow';
 import { InfoModal } from '../components/InfoModal';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
+import { PersonInfoModal } from '../components/PersonInfoModal';
+import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { useMoviesStore } from '../state/moviesStore';
@@ -18,6 +23,8 @@ import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { PageSearch } from '../components/PageSearch';
 import '../components/RankedList.css';
 import './ListsPage.css';
@@ -72,6 +79,12 @@ function buildCollectionFallbackItem(
   };
 }
 
+function parseSortableDate(value?: string): number {
+  if (!value) return Number.MIN_SAFE_INTEGER;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : Number.MIN_SAFE_INTEGER;
+}
+
 export function FriendCollectionDetailPage() {
   const navigate = useNavigate();
   const { friendId, collectionId, listId } = useParams<{ friendId: string; collectionId?: string; listId?: string }>();
@@ -100,11 +113,15 @@ export function FriendCollectionDetailPage() {
   } = useTvStore();
   const watchlist = useWatchlistStore();
   const { settings } = useSettingsStore();
+  const { classes: peopleClasses, addPersonFromSearch, removePersonEntry, getPersonById } = usePeopleStore();
+  const { classes: directorsClasses, addDirectorFromSearch, removeDirectorEntry, getDirectorById } = useDirectorsStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
   const [friendMoviesData, setFriendMoviesData] = useState<any>(null);
   const [friendTvData, setFriendTvData] = useState<any>(null);
+  const [friendPeopleData, setFriendPeopleData] = useState<any>(null);
+  const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
   const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[]; tv: any[] } | null>(null);
   const [friendListsData, setFriendListsData] = useState<{ lists: any[]; order: string[]; entriesByListId: Record<string, any[]> } | null>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('THEIRS');
@@ -121,6 +138,8 @@ export function FriendCollectionDetailPage() {
   const [showCopyConfirmModal, setShowCopyConfirmModal] = useState(false);
   const [copySaveError, setCopySaveError] = useState<string | null>(null);
   const [copySavePending, setCopySavePending] = useState(false);
+  const [personInfoTarget, setPersonInfoTarget] = useState<{ tmdbId: number; name: string; profilePath?: string } | null>(null);
+  const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -148,14 +167,18 @@ export function FriendCollectionDetailPage() {
         const username = profileData.username === 'cimmerial@clastone.local' ? 'Cimmerial' : String(profileData.username ?? 'Friend');
         setFriendProfile({ uid: actualFriendUid, username });
 
-        const [moviesData, tvData, watchlistData, listsData] = await Promise.all([
+        const [moviesData, tvData, peopleData, directorsData, watchlistData, listsData] = await Promise.all([
           loadMovies(db, actualFriendUid),
           loadTvShows(db, actualFriendUid),
+          loadPeople(db, actualFriendUid),
+          loadDirectors(db, actualFriendUid),
           loadWatchlist(db, actualFriendUid),
           loadUserLists(db, actualFriendUid),
         ]);
         setFriendMoviesData(moviesData);
         setFriendTvData(tvData);
+        setFriendPeopleData(peopleData);
+        setFriendDirectorsData(directorsData);
         setFriendWatchlistData({ movies: watchlistData.movies, tv: watchlistData.tv });
         setFriendListsData(listsData);
       } catch (err: any) {
@@ -214,6 +237,30 @@ export function FriendCollectionDetailPage() {
     for (const classDef of friendTvData?.classes ?? []) for (const item of friendTvData?.byClass?.[classDef.key] ?? []) if (!map.has(item.id)) map.set(item.id, item);
     return map;
   }, [myMoviesByClass, myTvByClass, friendMoviesData, friendTvData]);
+  const friendPersonMetaById = useMemo(() => {
+    const map = new Map<string, { title?: string; profilePath?: string; birthday?: string }>();
+    for (const classDef of friendPeopleData?.classes ?? []) {
+      for (const item of friendPeopleData?.byClass?.[classDef.key] ?? []) {
+        map.set(String(item.id), {
+          title: item.title,
+          profilePath: item.profilePath,
+          birthday: item.birthday
+        });
+      }
+    }
+    for (const classDef of friendDirectorsData?.classes ?? []) {
+      for (const item of friendDirectorsData?.byClass?.[classDef.key] ?? []) {
+        if (!map.has(String(item.id))) {
+          map.set(String(item.id), {
+            title: item.title,
+            profilePath: item.profilePath,
+            birthday: item.birthday
+          });
+        }
+      }
+    }
+    return map;
+  }, [friendPeopleData, friendDirectorsData]);
 
   const activeGlobalCollection = useMemo(
     () => (collectionId ? globalCollections.find((item) => item.id === collectionId) ?? null : null),
@@ -297,7 +344,16 @@ export function FriendCollectionDetailPage() {
         }));
       }
     } else if (activeCustomListLike && friendListsData) {
-      const entries = (friendListsData.entriesByListId[activeCustomListLike.id] ?? []).slice().sort((a: any, b: any) => a.position - b.position);
+      const sortMode = activeCustomListLike.sortMode === 'release_date' ? 'release_date' : 'custom';
+      const entries = (friendListsData.entriesByListId[activeCustomListLike.id] ?? [])
+        .slice()
+        .sort((a: any, b: any) => {
+          if (sortMode === 'release_date') {
+            const dateDelta = parseSortableDate(b.releaseDate) - parseSortableDate(a.releaseDate);
+            if (dateDelta !== 0) return dateDelta;
+          }
+          return (a.position ?? 0) - (b.position ?? 0);
+        });
       for (const entry of entries) {
         const entryId = String(entry.entryId ?? '');
         if (!/^tmdb-(movie|tv)-\d+$/.test(entryId)) continue;
@@ -316,15 +372,46 @@ export function FriendCollectionDetailPage() {
     }
     return baseRows;
   }, [activeGlobalCollection, activeCustomListLike, friendListsData, itemById, viewerMode, friendSeenIds, mySeenIds, friendWatchlistIds, watchlist]);
+  const personListEntries = useMemo(() => {
+    if (!activeCustomListLike || !friendListsData) return [] as Array<{ id: string; title: string; profilePath?: string }>;
+    const sortMode = activeCustomListLike.sortMode === 'release_date' ? 'release_date' : 'custom';
+    return (friendListsData.entriesByListId[activeCustomListLike.id] ?? [])
+      .slice()
+      .sort((a: any, b: any) => {
+        if (sortMode === 'release_date') {
+          const bMeta = friendPersonMetaById.get(String(b.entryId ?? ''));
+          const aMeta = friendPersonMetaById.get(String(a.entryId ?? ''));
+          const dateDelta = parseSortableDate(bMeta?.birthday) - parseSortableDate(aMeta?.birthday);
+          if (dateDelta !== 0) return dateDelta;
+        }
+        return (a.position ?? 0) - (b.position ?? 0);
+      })
+      .filter((entry: any) => /^tmdb-person-\d+$/.test(String(entry.entryId ?? '')))
+      .map((entry: any) => ({
+        id: String(entry.entryId),
+        title: String(friendPersonMetaById.get(String(entry.entryId))?.title ?? entry.title ?? entry.entryId ?? 'Unknown Person'),
+        profilePath: (friendPersonMetaById.get(String(entry.entryId))?.profilePath ?? entry.posterPath) as string | undefined
+      }));
+  }, [activeCustomListLike, friendListsData, friendPersonMetaById]);
+  const isPeopleListView = Boolean(activeCustomListLike?.mediaType === 'person');
+  const shouldUseViewerFilters = useMemo(
+    () => !isPeopleListView,
+    [isPeopleListView]
+  );
 
   const visibleRows = useMemo(() => {
+    if (!shouldUseViewerFilters) return rows;
     if (filter === 'SEEN') return rows.filter((row) => row.seen);
     if (filter === 'UNSEEN') return rows.filter((row) => !row.seen);
     if (filter === 'WATCHLISTED') return rows.filter((row) => row.watchlisted);
     return rows;
-  }, [rows, filter]);
+  }, [rows, filter, shouldUseViewerFilters]);
 
   const searchItems = useMemo(() => visibleRows.map((row) => ({ id: row.id, title: row.title })), [visibleRows]);
+  const personSearchItems = useMemo(
+    () => personListEntries.map((person) => ({ id: person.id, title: person.title })),
+    [personListEntries]
+  );
   const handleSearchSelect = useCallback((id: string) => {
     const el = document.getElementById(`friend-collection-tile-${id}`);
     if (!el) return;
@@ -376,6 +463,27 @@ export function FriendCollectionDetailPage() {
       setCopySavePending(false);
     }
   };
+  const handlePersonSave = (params: PersonRankingSaveParams) => {
+    if (!personRankingTarget) return;
+    if (!params.classKey) return;
+    if (personRankingTarget.mediaType === 'director') {
+      addDirectorFromSearch({
+        id: personRankingTarget.id,
+        title: personRankingTarget.name,
+        profilePath: personRankingTarget.profilePath,
+        classKey: params.classKey,
+        position: params.position ?? 'top'
+      });
+      return;
+    }
+    addPersonFromSearch({
+      id: personRankingTarget.id,
+      title: personRankingTarget.name,
+      profilePath: personRankingTarget.profilePath,
+      classKey: params.classKey,
+      position: params.position ?? 'top'
+    });
+  };
 
   return (
     <section className="lists-page">
@@ -399,23 +507,80 @@ export function FriendCollectionDetailPage() {
       </header>
 
       <div className="lists-collection-toolbar">
-        <div className="lists-collection-filter-row">
-          <div className="friend-movie-collection-toggle-group">
-            <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'THEIRS' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('THEIRS')}>Their View</button>
-            <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'MINE' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('MINE')}>Your View</button>
-          </div>
-          <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
+        {shouldUseViewerFilters ? (
           <div className="lists-collection-filter-row">
-            {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
-              <button key={option} type="button" className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>
-            ))}
+            <div className="friend-movie-collection-toggle-group">
+              <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'THEIRS' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('THEIRS')}>Their View</button>
+              <button type="button" className={`filter-toggle-btn lists-collection-filter-btn ${viewerMode === 'MINE' ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setViewerMode('MINE')}>Your View</button>
+            </div>
+            <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
+            <div className="lists-collection-filter-row">
+              {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
+                <button key={option} type="button" className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>
+              ))}
+            </div>
           </div>
-        </div>
-        <PageSearch items={searchItems} onSelect={handleSearchSelect} placeholder="Search this collection..." className="lists-collection-page-search" pageKey={`friend-collection-${friendProfile.uid}-${collectionId ?? listId ?? 'unknown'}`} />
+        ) : null}
+        <PageSearch items={isPeopleListView ? personSearchItems : searchItems} onSelect={handleSearchSelect} placeholder="Search this collection..." className="lists-collection-page-search" pageKey={`friend-collection-${friendProfile.uid}-${collectionId ?? listId ?? 'unknown'}`} />
       </div>
 
-      {visibleRows.length === 0 ? (
-        <div className="friend-movie-collection-empty card-surface">No entries match "{filter}".</div>
+      {isPeopleListView ? (
+        personListEntries.length === 0 ? (
+          <div className="friend-movie-collection-empty card-surface">No entries.</div>
+        ) : (
+          <div className="friend-people-list-grid">
+            {personListEntries.map((person) => (
+              <div key={person.id} id={`friend-collection-tile-${person.id}`} className="friend-people-list-card">
+                <div className="friend-people-list-poster">
+                  {person.profilePath ? (
+                    <img src={tmdbImagePath(person.profilePath, 'w300') ?? ''} alt={person.title} loading="lazy" />
+                  ) : (
+                    <span className="friend-people-list-fallback">👤</span>
+                  )}
+                  <button
+                    type="button"
+                    className="friend-people-list-icon-btn friend-people-list-icon-btn--left"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const tmdbId = parseInt(person.id.replace(/\D/g, ''), 10) || 0;
+                      setPersonRankingTarget(null);
+                      setPersonInfoTarget({ tmdbId, name: person.title, profilePath: person.profilePath });
+                    }}
+                    title={`Info for ${person.title}`}
+                    aria-label={`Info for ${person.title}`}
+                  >
+                    <Info size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className="friend-people-list-icon-btn friend-people-list-icon-btn--right"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const tmdbId = parseInt(person.id.replace(/\D/g, ''), 10) || 0;
+                      const preferredType: 'actor' | 'director' = getDirectorById(person.id) ? 'director' : 'actor';
+                      setPersonInfoTarget(null);
+                      setPersonRankingTarget({
+                        id: person.id,
+                        tmdbId,
+                        name: person.title,
+                        profilePath: person.profilePath,
+                        mediaType: preferredType,
+                        existingClassKey: preferredType === 'director' ? getDirectorById(person.id)?.classKey : getPersonById(person.id)?.classKey
+                      });
+                    }}
+                    title={`Edit ${person.title}`}
+                    aria-label={`Edit ${person.title}`}
+                  >
+                    <Settings size={12} />
+                  </button>
+                </div>
+                <div className="friend-people-list-title">{person.title}</div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : visibleRows.length === 0 ? (
+        <div className="friend-movie-collection-empty card-surface">{shouldUseViewerFilters ? `No entries match "${filter}".` : 'No entries.'}</div>
       ) : (
         <RankedList<CollectionRow>
           classOrder={['LIST']}
@@ -719,6 +884,34 @@ export function FriendCollectionDetailPage() {
             </div>
           </div>
         </div>
+      ) : null}
+      {personInfoTarget ? (
+        <PersonInfoModal
+          isOpen
+          onClose={() => setPersonInfoTarget(null)}
+          tmdbId={personInfoTarget.tmdbId}
+          name={personInfoTarget.name}
+          profilePath={personInfoTarget.profilePath}
+        />
+      ) : null}
+      {personRankingTarget ? (
+        <PersonRankingModal
+          target={personRankingTarget}
+          rankedClasses={(personRankingTarget.mediaType === 'director' ? directorsClasses : peopleClasses).map((c) => ({ key: c.key, label: c.label, tagline: c.tagline, isRanked: c.isRanked }))}
+          currentClassKey={personRankingTarget.existingClassKey}
+          currentClassLabel={(personRankingTarget.mediaType === 'director' ? directorsClasses : peopleClasses).find((c) => c.key === personRankingTarget.existingClassKey)?.label}
+          onSave={(params) => {
+            handlePersonSave(params);
+            setPersonRankingTarget(null);
+          }}
+          onClose={() => setPersonRankingTarget(null)}
+          onRemoveEntry={(id) => {
+            if (personRankingTarget.mediaType === 'director') removeDirectorEntry(id);
+            else removePersonEntry(id);
+            setPersonRankingTarget(null);
+          }}
+          isSaving={false}
+        />
       ) : null}
     </section>
   );

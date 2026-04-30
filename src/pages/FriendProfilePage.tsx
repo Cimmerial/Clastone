@@ -859,6 +859,26 @@ export function FriendProfilePage() {
     }
     return map;
   }, [friendMoviesData, friendTvData]);
+  const friendPersonPosterByEntryId = useMemo(() => {
+    const map = new Map<string, string>();
+    if (friendPeopleData?.classes && friendPeopleData?.byClass) {
+      for (const classDef of friendPeopleData.classes) {
+        for (const item of friendPeopleData.byClass[classDef.key] ?? []) {
+          if (!item.profilePath) continue;
+          map.set(String(item.id), item.profilePath);
+        }
+      }
+    }
+    if (friendDirectorsData?.classes && friendDirectorsData?.byClass) {
+      for (const classDef of friendDirectorsData.classes) {
+        for (const item of friendDirectorsData.byClass[classDef.key] ?? []) {
+          if (!item.profilePath) continue;
+          map.set(String(item.id), item.profilePath);
+        }
+      }
+    }
+    return map;
+  }, [friendPeopleData, friendDirectorsData]);
 
   const friendListProgress = useMemo(() => {
     if (!friendListsData) return [];
@@ -867,10 +887,7 @@ export function FriendProfilePage() {
       .map((id: string) => byId.get(id))
       .filter((list: any) => list && list.mode === 'list' && !list.hidden)
       .map((list: any) => {
-        const entries = (friendListsData.entriesByListId[list.id] ?? []).filter((entry: any) => {
-          const entryId = String(entry.entryId ?? '');
-          return entryId.startsWith('tmdb-movie-') || entryId.startsWith('tmdb-tv-');
-        });
+        const entries = friendListsData.entriesByListId[list.id] ?? [];
         const posterPaths = entries
           .slice()
           .sort((a: any, b: any) => {
@@ -878,7 +895,13 @@ export function FriendProfilePage() {
             const bKey = stableHash(`${list.id}:${String(b.entryId ?? '')}`);
             return aKey - bKey;
           })
-          .map((entry: any) => friendPosterByEntryId.get(String(entry.entryId ?? '')))
+          .map((entry: any) => {
+            const entryId = String(entry.entryId ?? '');
+            if (entryId.startsWith('tmdb-person-')) {
+              return friendPersonPosterByEntryId.get(entryId);
+            }
+            return friendPosterByEntryId.get(entryId);
+          })
           .filter((posterPath: string | undefined): posterPath is string => Boolean(posterPath))
           .slice(0, 6);
         return {
@@ -891,7 +914,22 @@ export function FriendProfilePage() {
         };
       })
       .filter((item) => item.count > 0);
-  }, [friendListsData, friendPosterByEntryId, resolvedProfileUid, friendProfile?.uid, friendId]);
+  }, [friendListsData, friendPosterByEntryId, friendPersonPosterByEntryId, resolvedProfileUid, friendProfile?.uid, friendId]);
+  const friendPersonListsByEntryId = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; label: string; color?: string }>>();
+    if (!friendListsData) return map;
+    const byId = new Map(friendListsData.lists.map((list: any) => [list.id, list]));
+    for (const listId of friendListsData.order) {
+      const list = byId.get(listId);
+      if (!list || list.mode !== 'list' || list.mediaType !== 'person' || list.hidden) continue;
+      for (const entry of friendListsData.entriesByListId[list.id] ?? []) {
+        const current = map.get(entry.entryId) ?? [];
+        current.push({ id: list.id, label: list.name, color: list.color });
+        map.set(entry.entryId, current);
+      }
+    }
+    return map;
+  }, [friendListsData]);
 
   // NOTE: The UI already shows "Top 10 Movies" and "Top 10 Shows" - 
   // charts removed as requested
@@ -4406,6 +4444,7 @@ export function FriendProfilePage() {
       {personRankingTarget && (
         <PersonRankingModal
           target={personRankingTarget}
+          profilePersonLists={friendPersonListsByEntryId.get(personRankingTarget.id) ?? []}
           rankedClasses={personRankingTarget.mediaType === 'actor' ? myPeopleClasses : myDirectorsClasses}
           currentClassKey={personRankingTarget.existingClassKey}
           currentClassLabel={personRankingTarget.existingClassKey ? 

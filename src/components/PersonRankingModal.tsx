@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUp, ArrowDown, X, ChevronLeft, Info, Image as ImageIcon } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, ChevronLeft, Info, Image as ImageIcon, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { PersonInfoModal } from './PersonInfoModal';
 import { tmdbImagePath, tmdbPersonProfiles } from '../lib/tmdb';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useListsStore } from '../state/listsStore';
 import './PersonRankingModal.css';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -35,6 +37,7 @@ type Props = {
   onRemoveEntry?: (itemId: string) => void;
   onGoPickTemplate?: () => void;
   isSaving: boolean;
+  profilePersonLists?: Array<{ id: string; label: string; color?: string }>;
 };
 
 /* ─── Main Modal ─────────────────────────────────────── */
@@ -49,6 +52,7 @@ export function PersonRankingModal({
   onRemoveEntry,
   onGoPickTemplate,
   isSaving,
+  profilePersonLists = [],
 }: Props) {
   const [selectedClassKey, setSelectedClassKey] = useState<string>('');
   const [selectedPosition, setSelectedPosition] = useState<'top' | 'middle' | 'bottom'>('top');
@@ -65,6 +69,7 @@ export function PersonRankingModal({
 
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
+  const navigate = useNavigate();
 
   const rankedPickable = useMemo(
     () => rankedClasses.filter((c) => c.key !== 'UNRANKED'),
@@ -72,10 +77,20 @@ export function PersonRankingModal({
   );
   const { getPersonById, updatePersonCache, forceSync: forceSyncPeople } = usePeopleStore();
   const { getDirectorById, updateDirectorCache, forceSync: forceSyncDirectors } = useDirectorsStore();
+  const { getEditableListsForMediaType, getSelectedListIdsForEntry, setEntryListMembership } = useListsStore();
+  const [selectedPersonListIds, setSelectedPersonListIds] = useState<string[]>([]);
+  const editablePersonLists = useMemo(
+    () => getEditableListsForMediaType('person'),
+    [getEditableListsForMediaType]
+  );
 
   useEffect(() => {
     setSelectedImagePath(target.profilePath ?? null);
   }, [target.profilePath, target.id]);
+
+  useEffect(() => {
+    setSelectedPersonListIds(getSelectedListIdsForEntry(target.id));
+  }, [getSelectedListIdsForEntry, target.id]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -240,6 +255,19 @@ export function PersonRankingModal({
             <span className="prm-type-badge">
               {target.mediaType === 'actor' ? 'Actor' : 'Director'}
             </span>
+            {profilePersonLists.length > 0 ? (
+              <div className="prm-profile-list-tags">
+                {profilePersonLists.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="prm-profile-list-tag"
+                    style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                  >
+                    {tag.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="prm-header-actions">
             {target.tmdbId ? (
@@ -309,6 +337,53 @@ export function PersonRankingModal({
               <ClassList />
             </div>
           )}
+          {editablePersonLists.length > 0 ? (
+            <div className="prm-tag-section">
+              <div className="prm-section-header">
+                <h3 className="prm-section-title">Person Tags</h3>
+                <p className="prm-section-subtitle">Only people lists are shown here.</p>
+              </div>
+              <div className="prm-tag-grid">
+                {editablePersonLists.map((list) => {
+                  const selected = selectedPersonListIds.includes(list.id);
+                  return (
+                    <div key={list.id} className={`prm-tag-pill ${selected ? 'prm-tag-pill--on' : ''}`}>
+                      <button
+                        type="button"
+                        className={`prm-tag-btn ${selected ? 'prm-tag-btn--on' : ''}`}
+                        onClick={() => {
+                          const nextSelected = !selected;
+                          setSelectedPersonListIds((prev) =>
+                            nextSelected ? [...prev, list.id] : prev.filter((id) => id !== list.id)
+                          );
+                          setEntryListMembership(target.id, 'person', [{ listId: list.id, selected: nextSelected }], {
+                            title: target.name,
+                            posterPath: target.profilePath
+                          });
+                        }}
+                      >
+                        {list.name}
+                      </button>
+                      {selected ? (
+                        <button
+                          type="button"
+                          className="prm-tag-eye-btn"
+                          onClick={() => {
+                            onClose();
+                            navigate(`/lists/${list.id}`);
+                          }}
+                          title={`Open ${list.name}`}
+                          aria-label={`Open ${list.name}`}
+                        >
+                          <Eye size={12} />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}

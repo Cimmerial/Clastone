@@ -202,6 +202,77 @@
   letter-spacing: 0.04em;
 }
 
+.friend-people-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 0.45rem;
+}
+
+.friend-people-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.friend-people-list-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.friend-people-list-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.friend-people-list-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
+.friend-people-list-title {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+
+.friend-people-list-icon-btn {
+  position: absolute;
+  top: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(16, 16, 16, 0.78);
+  color: #eee;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  z-index: 2;
+}
+
+.friend-people-list-poster:hover .friend-people-list-icon-btn {
+  opacity: 1;
+}
+
+.friend-people-list-icon-btn--left {
+  left: 5px;
+}
+
+.friend-people-list-icon-btn--right {
+  right: 5px;
+}
+
 .friend-collection-poster-fallback {
   width: 100%;
   height: 100%;

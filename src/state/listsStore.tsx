@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { GlobalCollection } from '../lib/firestoreCollections';
 import type { CustomListAddPosition, ListEntryRef, ListMediaType, ListSortMode, UserListDoc } from '../lib/firestoreLists';
 
-type EntryMediaType = 'movie' | 'tv';
+type EntryMediaType = 'movie' | 'tv' | 'person';
 const COLLECTION_ENTRY_CAP = 1000;
 
 export type ListMembershipChange = {
@@ -55,6 +55,7 @@ type ListsProviderProps = {
 };
 
 function supportsMediaType(listType: ListMediaType, mediaType: EntryMediaType): boolean {
+  if (mediaType === 'person') return listType === 'person';
   return listType === 'both' || listType === mediaType;
 }
 
