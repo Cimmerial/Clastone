@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { RandomQuote } from '../components/RandomQuote';
@@ -907,6 +907,8 @@ export function WatchlistPage() {
     }
   });
   const [infoModalTarget, setInfoModalTarget] = useState<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string; mediaType: 'movie' | 'tv' } | null>(null);
+  const providerFetchInFlightRef = useRef<Set<string>>(new Set());
+  const providerFetchErroredRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -924,46 +926,52 @@ export function WatchlistPage() {
     }
   }, [watchingNextTvIds]);
 
-  useEffect(() => {
-    const fetchAllProviders = async () => {
+  const fetchMissingProviders = useCallback(
+    async (entryIds?: string[]) => {
+      const idFilter = entryIds ? new Set(entryIds) : null;
       const allEntries = [...movies, ...tv];
-      const existingIds = new Set(Object.keys(watchProviders));
-      const newProvidersById: Record<string, Array<TmdbWatchProvider & { type: 'subs' | 'rent' }>> = {};
-
       for (const entry of allEntries) {
-        if (existingIds.has(entry.id)) continue;
-        existingIds.add(entry.id);
+        if (idFilter && !idFilter.has(entry.id)) continue;
+        if (watchProviders[entry.id]) continue;
+        if (providerFetchInFlightRef.current.has(entry.id)) continue;
+        if (providerFetchErroredRef.current.has(entry.id)) continue;
+
         const match = entry.id.match(/^tmdb-(movie|tv)-(\d+)$/);
         if (!match) continue;
         const [, media, idStr] = match;
         const tmdbId = parseInt(idStr, 10);
         if (Number.isNaN(tmdbId)) continue;
 
-        try {
-          const res = await tmdbWatchProviders(tmdbId, media as 'movie' | 'tv');
-          const us = res?.results?.US;
-          if (us) {
-            const combined: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }> = [
-              ...(us.flatrate || []).map(p => ({ ...p, type: 'subs' as const })),
-              ...(us.rent || []).map(p => ({ ...p, type: 'rent' as const }))
-            ];
-
-            if (combined.length > 0) {
-              newProvidersById[entry.id] = combined;
-            }
+        providerFetchInFlightRef.current.add(entry.id);
+        void (async () => {
+          try {
+            const res = await tmdbWatchProviders(tmdbId, media as 'movie' | 'tv');
+            const us = res?.results?.US;
+            const combined: Array<TmdbWatchProvider & { type: 'subs' | 'rent' }> = us
+              ? [
+                  ...(us.flatrate || []).map((p) => ({ ...p, type: 'subs' as const })),
+                  ...(us.rent || []).map((p) => ({ ...p, type: 'rent' as const })),
+                ]
+              : [];
+            setWatchProviders((prev) => {
+              if (prev[entry.id]) return prev;
+              return combined.length > 0 ? { ...prev, [entry.id]: combined } : prev;
+            });
+          } catch (err) {
+            providerFetchErroredRef.current.add(entry.id);
+            console.error(`Failed to fetch providers for ${entry.id}`, err);
+          } finally {
+            providerFetchInFlightRef.current.delete(entry.id);
           }
-        } catch (err) {
-          console.error(`Failed to fetch providers for ${entry.id}`, err);
-        }
+        })();
       }
+    },
+    [movies, tv, watchProviders]
+  );
 
-      const newIds = Object.keys(newProvidersById);
-      if (newIds.length > 0) {
-        setWatchProviders((prev) => ({ ...prev, ...newProvidersById }));
-      }
-    };
-    fetchAllProviders();
-  }, [movies, tv]);
+  useEffect(() => {
+    void fetchMissingProviders();
+  }, [fetchMissingProviders]);
 
   useEffect(() => {
     try {
@@ -1683,6 +1691,7 @@ export function WatchlistPage() {
                     setIsMyServicesModalOpen(true);
                     return;
                   }
+                  void fetchMissingProviders();
                   setWatchlistVisibilityMode('FREE');
                 }}
                 disabled={(settings.myWatchProviderIds?.length ?? 0) === 0}
