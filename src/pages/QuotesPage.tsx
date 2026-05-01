@@ -59,6 +59,68 @@ const DEFAULT_FORM: QuoteFormState = {
   fallbackSourceTitle: '',
 };
 
+function normalizeQuoteText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function diceCoefficient(a: string, b: string): number {
+  if (!a.length || !b.length) return 0;
+  if (a === b) return 1;
+  const bigrams = (input: string): string[] => {
+    if (input.length < 2) return [input];
+    const out: string[] = [];
+    for (let i = 0; i < input.length - 1; i += 1) {
+      out.push(input.slice(i, i + 2));
+    }
+    return out;
+  };
+  const aBigrams = bigrams(a);
+  const bBigrams = bigrams(b);
+  const counts = new Map<string, number>();
+  aBigrams.forEach((gram) => counts.set(gram, (counts.get(gram) ?? 0) + 1));
+  let overlap = 0;
+  bBigrams.forEach((gram) => {
+    const count = counts.get(gram) ?? 0;
+    if (count > 0) {
+      overlap += 1;
+      counts.set(gram, count - 1);
+    }
+  });
+  return (2 * overlap) / (aBigrams.length + bBigrams.length);
+}
+
+function findBestQuoteMatch(
+  text: string,
+  sourceTitle: string | null,
+  quotes: FirebaseQuote[],
+  threshold: number = 0.8,
+): { quote: FirebaseQuote; similarity: number } | null {
+  const normalizedText = normalizeQuoteText(text);
+  if (!normalizedText) return null;
+  const normalizedSource = (sourceTitle ?? '').trim().toLowerCase();
+  const sameSource = normalizedSource
+    ? quotes.filter((quote) => quote.source.trim().toLowerCase() === normalizedSource)
+    : [];
+  const pool = sameSource.length > 0 ? sameSource : quotes;
+  let bestQuote: FirebaseQuote | null = null;
+  let bestSimilarity = 0;
+  pool.forEach((quote) => {
+    const similarity = diceCoefficient(normalizeQuoteText(quote.text), normalizedText);
+    if (bestQuote == null || similarity > bestSimilarity) {
+      bestQuote = quote;
+      bestSimilarity = similarity;
+    }
+  });
+  if (!bestQuote || bestSimilarity < threshold) return null;
+  return { quote: bestQuote, similarity: bestSimilarity };
+}
+
 export function QuotesPage() {
   const { user, username, isAdmin, isBabyDev } = useAuth();
   const { byClass: moviesByClass } = useMoviesStore();
@@ -329,6 +391,21 @@ export function QuotesPage() {
     () => sortedSubmissions.filter((item) => item.status === 'approved'),
     [sortedSubmissions],
   );
+  const duplicateWarningMatch = useMemo(() => {
+    if (modalMode !== 'add' && modalMode !== 'request') return null;
+    const sourceTitle = form.selectedSource?.title?.trim() || form.fallbackSourceTitle.trim() || null;
+    return findBestQuoteMatch(form.text, sourceTitle, quotes, 0.8);
+  }, [modalMode, form.text, form.selectedSource?.title, form.fallbackSourceTitle, quotes]);
+  const pendingDuplicateBySubmissionId = useMemo(() => {
+    const map = new Map<string, { quote: FirebaseQuote; similarity: number }>();
+    submittedQuotes
+      .filter((submission) => submission.status === 'pending')
+      .forEach((submission) => {
+        const match = findBestQuoteMatch(submission.text, submission.source, quotes, 0.8);
+        if (match) map.set(submission.id, match);
+      });
+    return map;
+  }, [submittedQuotes, quotes]);
 
   const openModal = (mode: ModalMode, quote?: FirebaseQuote) => {
     setQuotesError(null);
@@ -362,6 +439,31 @@ export function QuotesPage() {
     setSourceResults([]);
     setSourceSearchMode('cinema');
     setModalMode(mode);
+  };
+
+  const openAddQuoteForSource = (sourceGroup: { source: string; quotes: FirebaseQuote[] }) => {
+    const firstQuoteWithMeta = sourceGroup.quotes.find((quote) => quote.sourceTmdbId && quote.sourceMediaType);
+    setQuotesError(null);
+    setQuotesNotice(null);
+    setEditingQuote(null);
+    setForm({
+      ...DEFAULT_FORM,
+      fallbackSourceTitle: sourceGroup.source,
+      selectedSource:
+        firstQuoteWithMeta?.sourceTmdbId && firstQuoteWithMeta?.sourceMediaType
+          ? {
+              tmdbId: firstQuoteWithMeta.sourceTmdbId,
+              mediaType: firstQuoteWithMeta.sourceMediaType,
+              title: sourceGroup.source,
+              posterPath: firstQuoteWithMeta.sourcePosterPath,
+              popularity: 0,
+            }
+          : null,
+    });
+    setSourceQuery('');
+    setSourceResults([]);
+    setSourceSearchMode('cinema');
+    setModalMode('add');
   };
 
   const closeModal = () => {
@@ -760,6 +862,11 @@ export function QuotesPage() {
                         <span className="quotes-meta-line">
                           &ldquo;{submission.text}&rdquo; — {submission.speakerFirstName}
                         </span>
+                        {submission.status === 'pending' && pendingDuplicateBySubmissionId.get(submission.id) ? (
+                          <span className="quotes-meta-line quotes-meta-line-warning">
+                            Quote might be a duplicate due to {Math.round((pendingDuplicateBySubmissionId.get(submission.id)?.similarity ?? 0) * 100)}% similarity.
+                          </span>
+                        ) : null}
                       </span>
                       {canManageQuotes && submission.status === 'pending' ? (
                         <div className="settings-list-actions">
@@ -849,6 +956,14 @@ export function QuotesPage() {
                 value={form.text}
                 onChange={(event) => setForm((prev) => ({ ...prev, text: event.target.value }))}
               />
+              {duplicateWarningMatch ? (
+                <div className="quotes-duplicate-warning">
+                  <strong>Are you sure this isn&apos;t already added?</strong>
+                  <span>
+                    {Math.round(duplicateWarningMatch.similarity * 100)}% similar to: &ldquo;{duplicateWarningMatch.quote.text}&rdquo;
+                  </span>
+                </div>
+              ) : null}
               {sourceSearchMode !== 'person' ? (
                 <>
                   <input
@@ -1002,6 +1117,20 @@ export function QuotesPage() {
             <p className="settings-muted" style={{ marginBottom: '0.75rem' }}>
               {sourceModalGroup.quotes.length} {sourceModalGroup.quotes.length === 1 ? 'quote' : 'quotes'}
             </p>
+            {canManageQuotes ? (
+              <div className="settings-list-actions" style={{ marginBottom: '0.6rem' }}>
+                <button
+                  type="button"
+                  className="settings-btn"
+                  onClick={() => {
+                    setSourceModalKey(null);
+                    openAddQuoteForSource(sourceModalGroup);
+                  }}
+                >
+                  Add Quote
+                </button>
+              </div>
+            ) : null}
             <div className="settings-list">
               {sourceModalGroup.quotes.map((quote) => (
                 <div key={quote.id} className="settings-list-item">

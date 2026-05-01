@@ -65,6 +65,21 @@
   font-size: 0.8rem;
 }
 
+.quotes-meta-line-warning {
+  color: #ffd48a;
+}
+
+.quotes-duplicate-warning {
+  border: 1px solid rgba(255, 200, 113, 0.5);
+  background: rgba(255, 173, 51, 0.12);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  color: #ffe8b5;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+}
+
 .quotes-modal-backdrop {
   position: fixed;
   inset: 0;
