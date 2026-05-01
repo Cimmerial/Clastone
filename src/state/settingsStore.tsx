@@ -13,6 +13,15 @@ export type GlobalSettings = {
     collectionSeenBorderMode: boolean;
     watchRegion: string;
     myWatchProviderIds: number[];
+    watchlistVisibilityMode: 'ALL' | 'FREE';
+    watchlistRecommendedOnly: boolean;
+    watchlistUseAllMyServices: boolean;
+    watchlistSelectedProviderIds: number[];
+    watchlistActorIds: number[];
+    watchlistActorNames: Record<number, string>;
+    watchlistDirectorIds: number[];
+    watchlistDirectorNames: Record<number, string>;
+    watchlistGenres: string[];
     showExampleProfile: boolean;
     showHomeHeroIntro: boolean;
 };
@@ -40,6 +49,15 @@ function getInitialSettings(): GlobalSettings {
         const csbm = localStorage.getItem('clastone-collectionSeenBorderMode');
         const wr = localStorage.getItem('clastone-watchRegion');
         const wps = localStorage.getItem('clastone-myWatchProviderIds');
+        const wvm = localStorage.getItem('clastone-watchlistVisibilityMode');
+        const wro = localStorage.getItem('clastone-watchlistRecommendedOnly');
+        const wuas = localStorage.getItem('clastone-watchlistUseAllMyServices');
+        const wsp = localStorage.getItem('clastone-watchlistSelectedProviderIds');
+        const waids = localStorage.getItem('clastone-watchlistActorIds');
+        const wan = localStorage.getItem('clastone-watchlistActorNames');
+        const wdids = localStorage.getItem('clastone-watchlistDirectorIds');
+        const wdn = localStorage.getItem('clastone-watchlistDirectorNames');
+        const wg = localStorage.getItem('clastone-watchlistGenres');
         const sep = localStorage.getItem('clastone-showExampleProfile');
         const shhi = localStorage.getItem('clastone-showHomeHeroIntro');
 
@@ -72,6 +90,42 @@ function getInitialSettings(): GlobalSettings {
             }
         }
 
+        const parseNumArray = (raw: string | null): number[] => {
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return [];
+                return parsed.map((n) => Number(n)).filter((n) => Number.isFinite(n));
+            } catch {
+                return [];
+            }
+        };
+        const parseNameMap = (raw: string | null): Record<number, string> => {
+            if (!raw) return {};
+            try {
+                const parsed = JSON.parse(raw) as Record<string, unknown>;
+                const out: Record<number, string> = {};
+                for (const [k, v] of Object.entries(parsed ?? {})) {
+                    const id = Number(k);
+                    if (!Number.isFinite(id) || typeof v !== 'string') continue;
+                    out[id] = v;
+                }
+                return out;
+            } catch {
+                return {};
+            }
+        };
+        const parseStringArray = (raw: string | null): string[] => {
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return [];
+                return parsed.filter((v): v is string => typeof v === 'string');
+            } catch {
+                return [];
+            }
+        };
+
         return {
             topCastCount: cast ? Number(cast) : 5,
             topRoleCount: role ? Number(role) : 5,
@@ -89,6 +143,15 @@ function getInitialSettings(): GlobalSettings {
             collectionSeenBorderMode: csbm === 'true',
             watchRegion: (wr && /^[A-Z]{2}$/.test(wr)) ? wr : 'US',
             myWatchProviderIds,
+            watchlistVisibilityMode: wvm === 'FREE' ? 'FREE' : 'ALL',
+            watchlistRecommendedOnly: wro === 'true',
+            watchlistUseAllMyServices: wuas !== 'false',
+            watchlistSelectedProviderIds: parseNumArray(wsp),
+            watchlistActorIds: parseNumArray(waids),
+            watchlistActorNames: parseNameMap(wan),
+            watchlistDirectorIds: parseNumArray(wdids),
+            watchlistDirectorNames: parseNameMap(wdn),
+            watchlistGenres: parseStringArray(wg),
             showExampleProfile: sep !== 'false',
             showHomeHeroIntro: shhi !== 'false'
         };
@@ -107,6 +170,15 @@ function getInitialSettings(): GlobalSettings {
             collectionSeenBorderMode: false,
             watchRegion: 'US',
             myWatchProviderIds: [],
+            watchlistVisibilityMode: 'ALL',
+            watchlistRecommendedOnly: false,
+            watchlistUseAllMyServices: true,
+            watchlistSelectedProviderIds: [],
+            watchlistActorIds: [],
+            watchlistActorNames: {},
+            watchlistDirectorIds: [],
+            watchlistDirectorNames: {},
+            watchlistGenres: [],
             showExampleProfile: true,
             showHomeHeroIntro: true
         };
@@ -197,6 +269,15 @@ export function SettingsProvider({
                 if (updates.collectionSeenBorderMode !== undefined) localStorage.setItem('clastone-collectionSeenBorderMode', String(next.collectionSeenBorderMode));
                 if (updates.watchRegion !== undefined) localStorage.setItem('clastone-watchRegion', next.watchRegion);
                 if (updates.myWatchProviderIds !== undefined) localStorage.setItem('clastone-myWatchProviderIds', JSON.stringify(next.myWatchProviderIds));
+                if (updates.watchlistVisibilityMode !== undefined) localStorage.setItem('clastone-watchlistVisibilityMode', next.watchlistVisibilityMode);
+                if (updates.watchlistRecommendedOnly !== undefined) localStorage.setItem('clastone-watchlistRecommendedOnly', String(next.watchlistRecommendedOnly));
+                if (updates.watchlistUseAllMyServices !== undefined) localStorage.setItem('clastone-watchlistUseAllMyServices', String(next.watchlistUseAllMyServices));
+                if (updates.watchlistSelectedProviderIds !== undefined) localStorage.setItem('clastone-watchlistSelectedProviderIds', JSON.stringify(next.watchlistSelectedProviderIds));
+                if (updates.watchlistActorIds !== undefined) localStorage.setItem('clastone-watchlistActorIds', JSON.stringify(next.watchlistActorIds));
+                if (updates.watchlistActorNames !== undefined) localStorage.setItem('clastone-watchlistActorNames', JSON.stringify(next.watchlistActorNames));
+                if (updates.watchlistDirectorIds !== undefined) localStorage.setItem('clastone-watchlistDirectorIds', JSON.stringify(next.watchlistDirectorIds));
+                if (updates.watchlistDirectorNames !== undefined) localStorage.setItem('clastone-watchlistDirectorNames', JSON.stringify(next.watchlistDirectorNames));
+                if (updates.watchlistGenres !== undefined) localStorage.setItem('clastone-watchlistGenres', JSON.stringify(next.watchlistGenres));
                 if (updates.showExampleProfile !== undefined) localStorage.setItem('clastone-showExampleProfile', String(next.showExampleProfile));
                 if (updates.showHomeHeroIntro !== undefined) localStorage.setItem('clastone-showHomeHeroIntro', String(next.showHomeHeroIntro));
 
