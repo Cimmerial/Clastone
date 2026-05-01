@@ -925,7 +925,7 @@ export function QuotesPage() {
       </section>
 
       {modalMode ? (
-        <div className="quotes-modal-backdrop" role="presentation" onClick={closeModal}>
+        <div className="quotes-modal-backdrop" role="presentation">
           <div
             className="quotes-modal card-surface"
             role="dialog"
