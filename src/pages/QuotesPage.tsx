@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   addGlobalQuote,
@@ -61,6 +63,8 @@ export function QuotesPage() {
   const { user, username, isAdmin, isBabyDev } = useAuth();
   const { byClass: moviesByClass } = useMoviesStore();
   const { byClass: tvByClass } = useTvStore();
+  const { byClass: peopleByClass } = usePeopleStore();
+  const { byClass: directorsByClass } = useDirectorsStore();
   const canManageQuotes = isAdmin || isBabyDev;
   const [quotes, setQuotes] = useState<FirebaseQuote[]>([]);
   const [submissions, setSubmissions] = useState<QuoteSubmission[]>([]);
@@ -150,39 +154,61 @@ export function QuotesPage() {
     };
   }, [canManageQuotes]);
 
-  const savedPosterBySourceTitle = useMemo(() => {
-    const map = new Map<string, string>();
-    const addFrom = (items: Array<{ title: string; posterPath?: string }>) => {
+  const savedPosters = useMemo(() => {
+    const byTitle = new Map<string, string>();
+    const byTypedTmdb = new Map<string, string>();
+    const addFrom = (
+      mediaType: 'movie' | 'tv' | 'person',
+      items: Array<{ title: string; tmdbId?: number; posterPath?: string; profilePath?: string }>,
+    ) => {
       items.forEach((item) => {
-        const key = item.title.trim().toLowerCase();
-        if (!key || !item.posterPath) return;
-        if (!map.has(key)) map.set(key, item.posterPath);
+        const path = mediaType === 'person' ? item.profilePath : item.posterPath;
+        if (!path) return;
+        const titleKey = item.title.trim().toLowerCase();
+        if (titleKey && !byTitle.has(titleKey)) byTitle.set(titleKey, path);
+        if (item.tmdbId != null) {
+          const typedKey = `${mediaType}:${item.tmdbId}`;
+          if (!byTypedTmdb.has(typedKey)) byTypedTmdb.set(typedKey, path);
+        }
       });
     };
-    addFrom(Object.values(moviesByClass).flat());
-    addFrom(Object.values(tvByClass).flat());
-    return map;
-  }, [moviesByClass, tvByClass]);
+    addFrom('movie', Object.values(moviesByClass).flat());
+    addFrom('tv', Object.values(tvByClass).flat());
+    addFrom('person', Object.values(peopleByClass).flat());
+    addFrom('person', Object.values(directorsByClass).flat());
+    return { byTitle, byTypedTmdb };
+  }, [moviesByClass, tvByClass, peopleByClass, directorsByClass]);
 
   const sourceGroups = useMemo(() => {
     const groups = new Map<string, { source: string; quotes: FirebaseQuote[]; posterPath?: string }>();
     quotes.forEach((quote) => {
       const sourceKey = quote.source.trim().toLowerCase();
+      const typedTmdbKey =
+        quote.sourceMediaType && quote.sourceTmdbId != null
+          ? `${quote.sourceMediaType}:${quote.sourceTmdbId}`
+          : null;
+      const profilePoster =
+        (typedTmdbKey ? savedPosters.byTypedTmdb.get(typedTmdbKey) : undefined) ||
+        savedPosters.byTitle.get(sourceKey);
       if (!groups.has(sourceKey)) {
         groups.set(sourceKey, {
           source: quote.source,
           quotes: [],
-          posterPath: quote.sourcePosterPath || savedPosterBySourceTitle.get(sourceKey),
+          // Prefer the user's selected poster/profile image over default quote metadata.
+          posterPath: profilePoster || quote.sourcePosterPath,
         });
       }
       const current = groups.get(sourceKey);
       if (!current) return;
       current.quotes.push(quote);
+      if (!current.posterPath && profilePoster) {
+        current.posterPath = profilePoster;
+      }
       if (!current.posterPath && quote.sourcePosterPath) {
         current.posterPath = quote.sourcePosterPath;
       }
       if (!current.posterPath) {
-        const savedPoster = savedPosterBySourceTitle.get(sourceKey);
+        const savedPoster = savedPosters.byTitle.get(sourceKey);
         if (savedPoster) current.posterPath = savedPoster;
       }
       if (!current.posterPath) {
@@ -193,7 +219,7 @@ export function QuotesPage() {
     return Array.from(groups.entries())
       .map(([key, value]) => ({ key, ...value }))
       .sort((a, b) => a.source.localeCompare(b.source));
-  }, [quotes, savedPosterBySourceTitle, resolvedPosterBySource]);
+  }, [quotes, savedPosters, resolvedPosterBySource]);
   useEffect(() => {
     let cancelled = false;
     const missingGroups = sourceGroups.filter((group) => !group.posterPath);
@@ -269,15 +295,22 @@ export function QuotesPage() {
     setBulkSourceSearchMode('cinema');
   }, [sourceModalGroup?.key, sourceModalGroup?.source]);
   const existingSourceTitles = useMemo(
-    () => sourceGroups.map((group) => group.source).sort((a, b) => a.localeCompare(b)),
+    () =>
+      sourceGroups
+        .slice()
+        .sort((a, b) => {
+          if (b.quotes.length !== a.quotes.length) return b.quotes.length - a.quotes.length;
+          return a.source.localeCompare(b.source);
+        })
+        .map((group) => group.source),
     [sourceGroups],
   );
   const filteredExistingSources = useMemo(() => {
     const q = sourceQuery.trim().toLowerCase();
-    if (!q) return existingSourceTitles.slice(0, 12);
+    if (!q) return existingSourceTitles.slice(0, 15);
     return existingSourceTitles
       .filter((title) => title.toLowerCase().includes(q))
-      .slice(0, 12);
+      .slice(0, 15);
   }, [existingSourceTitles, sourceQuery]);
 
   const sortedSubmissions = useMemo(() => {
@@ -910,7 +943,7 @@ export function QuotesPage() {
               ) : null}
               {filteredExistingSources.length > 0 ? (
                 <div className="quotes-existing-sources">
-                  <span className="quotes-existing-sources-label">Existing sources (legacy-compatible):</span>
+                  <span className="quotes-existing-sources-label">Top Existing Sources:</span>
                   <div className="quotes-existing-sources-list">
                     {filteredExistingSources.map((title) => (
                       <button
