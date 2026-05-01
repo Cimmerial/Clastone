@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, type LucideIcon } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, MessageSquareQuote, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tmdbImagePath } from '../lib/tmdb';
 import { db } from '../lib/firebase';
 import { loadFeatureFeedback } from '../lib/firestoreFeatureFeedback';
+import { subscribePendingQuoteSubmissionCount } from '../lib/firestoreQuotes';
 import './NavBar.css';
 
 const mainLinks = [
@@ -19,6 +20,7 @@ const mainLinks = [
 const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/search', label: 'Search', icon: Search },
   { to: '/friends', label: 'People', icon: Users },
+  { to: '/quotes', label: 'Quotes', icon: MessageSquareQuote },
   { to: '/profile', label: 'Profile', icon: Home },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw },
@@ -26,14 +28,23 @@ const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
 
 export function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isAdmin, pfpPosterPath, pfpPhotoUrl } = useAuth();
+  const { isAdmin, isBabyDev, pfpPosterPath, pfpPhotoUrl } = useAuth();
   const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
+  const [pendingQuoteCount, setPendingQuoteCount] = useState(0);
   const profileNavPhotoUrl = pfpPosterPath ? tmdbImagePath(pfpPosterPath, 'w185') ?? null : pfpPhotoUrl;
 
   // Filter icon links based on admin status
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
   }, [isAdmin]);
+
+  useEffect(() => {
+    if ((!isAdmin && !isBabyDev) || !db) {
+      setPendingQuoteCount(0);
+      return;
+    }
+    return subscribePendingQuoteSubmissionCount(db, setPendingQuoteCount);
+  }, [isAdmin, isBabyDev]);
 
   const desktopIconLinks = useMemo(
     () => filteredIconLinks.filter((link) => link.to !== '/profile'),
@@ -105,7 +116,13 @@ export function NavBar() {
                 to={link.to}
                 label={link.label}
                 icon={link.icon}
-                badgeCount={link.to === '/settings' ? openFeedbackCount : 0}
+                badgeCount={
+                  link.to === '/settings'
+                    ? openFeedbackCount
+                    : link.to === '/quotes' && (isAdmin || isBabyDev)
+                      ? pendingQuoteCount
+                      : 0
+                }
               />
             ))}
             <NavItem
@@ -156,12 +173,21 @@ const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
 
 export function MobileBottomNav() {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, isBabyDev } = useAuth();
   const [openFeedbackCount, setOpenFeedbackCount] = useState(0);
+  const [pendingQuoteCount, setPendingQuoteCount] = useState(0);
 
   const filteredIconLinks = useMemo(() => {
     return iconLinks.filter(link => link.to !== '/diagnostics' || isAdmin);
   }, [isAdmin]);
+
+  useEffect(() => {
+    if ((!isAdmin && !isBabyDev) || !db) {
+      setPendingQuoteCount(0);
+      return;
+    }
+    return subscribePendingQuoteSubmissionCount(db, setPendingQuoteCount);
+  }, [isAdmin, isBabyDev]);
 
   useEffect(() => {
     if (!isAdmin || !db) {
@@ -233,8 +259,9 @@ export function MobileBottomNav() {
                 >
                   <div className="mobile-more-icon">
                     <Icon size={24} />
-                    {to === '/settings' && openFeedbackCount > 0 ? (
-                      <span className="mobile-more-badge">{openFeedbackCount}</span>
+                    {to === '/settings' && openFeedbackCount > 0 ? <span className="mobile-more-badge">{openFeedbackCount}</span> : null}
+                    {to === '/quotes' && (isAdmin || isBabyDev) && pendingQuoteCount > 0 ? (
+                      <span className="mobile-more-badge">{pendingQuoteCount}</span>
                     ) : null}
                   </div>
                   <span className="mobile-more-label">{label}</span>

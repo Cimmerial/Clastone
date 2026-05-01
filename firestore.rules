@@ -199,6 +199,50 @@ service cloud.firestore {
       );
     }
 
+    // Quote submissions: everyone can request, dev/babydev can moderate.
+    match /quoteSubmissions/{submissionId} {
+      function isDevAdmin() {
+        return request.auth != null && request.auth.token.email == "cimmerial@clastone.local";
+      }
+      function isBabyDev() {
+        return request.auth != null &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.devRole == "babydev";
+      }
+      function isDevOrBaby() {
+        return isDevAdmin() || isBabyDev();
+      }
+
+      allow read: if request.auth != null &&
+        (isDevOrBaby() || resource.data.requesterUid == request.auth.uid);
+
+      allow create: if request.auth != null &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.category is string &&
+        request.resource.data.text is string &&
+        request.resource.data.speakerFirstName is string &&
+        request.resource.data.speakerFullName is string &&
+        request.resource.data.source is string &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string;
+
+      // Only dev/babydev can resolve, and only from pending -> approved/rejected.
+      allow update: if request.auth != null &&
+        isDevOrBaby() &&
+        resource.data.status == "pending" &&
+        (request.resource.data.status == "approved" || request.resource.data.status == "rejected") &&
+        request.resource.data.requesterUid == resource.data.requesterUid &&
+        request.resource.data.category == resource.data.category &&
+        request.resource.data.text == resource.data.text &&
+        request.resource.data.speakerFirstName == resource.data.speakerFirstName &&
+        request.resource.data.speakerFullName == resource.data.speakerFullName &&
+        request.resource.data.source == resource.data.source &&
+        request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if false;
+    }
+
     // Public feature/bug submissions. Anyone can create, only dev admin can read/update.
     match /featureFeedback/{feedbackId} {
       function isDevAdmin() {

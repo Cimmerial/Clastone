@@ -36,7 +36,7 @@ export function RandomQuote() {
             if (!grouped[item.category]) grouped[item.category] = [];
             grouped[item.category].push({
                 text: item.text,
-                character: item.character,
+                character: item.speakerFirstName || item.character,
                 source: item.source,
             });
         });
@@ -46,6 +46,9 @@ export function RandomQuote() {
     const activeCategoryQuotes = useMemo(() => {
         const path = location.pathname.split('/')[1] || 'profile';
         const quoteSource = groupedFirebaseQuotes ?? typedQuotesData;
+        if (path === 'quotes') {
+            return Object.values(quoteSource).flat();
+        }
         const category = quoteSource[path] ? path : 'profile';
         return quoteSource[category] ?? [];
     }, [location.pathname, groupedFirebaseQuotes]);

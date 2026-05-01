@@ -7,6 +7,7 @@ import { WatchlistPage } from './pages/WatchlistPage';
 import { SearchPage } from './pages/SearchPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
+import { QuotesPage } from './pages/QuotesPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
 import { FriendMovieCollectionPage } from './pages/FriendMovieCollectionPage';
 import { FriendTvCollectionPage } from './pages/FriendTvCollectionPage';
@@ -34,6 +35,7 @@ export function AppRoutes() {
       <Route path="/lists/collection/:collectionId" element={<ListDetailPage />} />
       <Route path="/search" element={<SearchPage />} />
       <Route path="/friends" element={<FriendsPage />} />
+      <Route path="/quotes" element={<QuotesPage />} />
       <Route path="/friends/:friendId" element={<FriendProfilePage />} />
       <Route path="/friends/:friendId/collection/movies" element={<FriendMovieCollectionPage />} />
       <Route path="/friends/:friendId/collection/shows" element={<FriendTvCollectionPage />} />

@@ -14,16 +14,6 @@ import { usePeopleStore, defaultPeopleClasses } from '../state/peopleStore';
 import { useDirectorsStore, defaultDirectorsClasses } from '../state/directorsStore';
 import { sanitizeClassName, sanitizeLabel, sanitizeTagline, isValidLabel, isValidTagline } from '../lib/sanitize';
 import { db } from '../lib/firebase';
-import {
-  addGlobalQuote,
-  deleteGlobalQuote,
-  loadGlobalQuotes,
-  migrateGeneralQuotesToProfile,
-  migrateLegacyQuotesIfNeeded,
-  updateGlobalQuote,
-  type FirebaseQuote,
-  type QuoteCategory,
-} from '../lib/firestoreQuotes';
 import { tmdbImagePath, tmdbMediaPosters } from '../lib/tmdb';
 import {
   getPersistDebounceMs,
@@ -39,8 +29,6 @@ import {
   type FeedbackStatus,
 } from '../lib/firestoreFeatureFeedback';
 import './SettingsPage.css';
-
-const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings'];
 
 type ClassSectionKey = 'classManagement' | 'display' | 'dev' | 'babydev';
 type ClassManagerKind = 'movies' | 'tv' | 'actors' | 'directors';
@@ -125,20 +113,7 @@ export function SettingsPage() {
   const [persistDebounceSec, setPersistDebounceSec] = useState(() =>
     Math.round(getPersistDebounceMs() / 1000)
   );
-  const [quotes, setQuotes] = useState<FirebaseQuote[]>([]);
-  const [quoteForm, setQuoteForm] = useState({
-    category: 'movies' as QuoteCategory,
-    text: '',
-    character: '',
-    source: '',
-  });
-  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
-  const [quotesLoading, setQuotesLoading] = useState(false);
-  const [quotesError, setQuotesError] = useState<string | null>(null);
   const [quotesNotice, setQuotesNotice] = useState<string | null>(null);
-  const [showQuoteModal, setShowQuoteModal] = useState(false);
-  const [showQuotesList, setShowQuotesList] = useState(false);
-  const [pendingDeleteQuoteId, setPendingDeleteQuoteId] = useState<string | null>(null);
   const [showPfpModal, setShowPfpModal] = useState(false);
   const [pfpQuery, setPfpQuery] = useState('');
   const [pfpPosterPath, setPfpPosterPath] = useState<string | null>(null);
@@ -179,15 +154,6 @@ export function SettingsPage() {
   const canAddUnrankedPeople = useMemo(() => newUnrankedLabelPeople.trim().length > 0, [newUnrankedLabelPeople]);
   const canAddRankedDirectors = useMemo(() => newRankedLabelDirectors.trim().length > 0, [newRankedLabelDirectors]);
   const canAddUnrankedDirectors = useMemo(() => newUnrankedLabelDirectors.trim().length > 0, [newUnrankedLabelDirectors]);
-  const sortedQuotes = useMemo(() => {
-    const categoryOrder = new Map(quoteCategories.map((category, index) => [category, index]));
-    return quotes.slice().sort((a, b) => {
-      const categoryA = categoryOrder.get(a.category) ?? Number.MAX_SAFE_INTEGER;
-      const categoryB = categoryOrder.get(b.category) ?? Number.MAX_SAFE_INTEGER;
-      if (categoryA !== categoryB) return categoryA - categoryB;
-      return a.text.localeCompare(b.text);
-    });
-  }, [quotes]);
   const accountAgeDays = useMemo(() => {
     const creationTime = user?.metadata.creationTime;
     if (!creationTime) return null;
@@ -243,20 +209,6 @@ export function SettingsPage() {
       });
   }, [savedPosterCandidates, pfpQuery, getMovieById, getShowById]);
 
-  const refreshQuotes = async () => {
-    if (!db) return;
-    setQuotesLoading(true);
-    setQuotesError(null);
-    try {
-      const loaded = await loadGlobalQuotes(db);
-      setQuotes(loaded);
-    } catch (error) {
-      setQuotesError(error instanceof Error ? error.message : 'Failed to load quotes.');
-    } finally {
-      setQuotesLoading(false);
-    }
-  };
-
   const canManageQuotes = isAdmin || isBabyDev;
   const canManageDevPanel = isAdmin;
   const canManageBabydevPanel = isBabyDev;
@@ -266,36 +218,6 @@ export function SettingsPage() {
   useEffect(() => subscribePersistDebounce(() => {
     setPersistDebounceSec(Math.round(getPersistDebounceMs() / 1000));
   }), []);
-
-  useEffect(() => {
-    if (!signedIn || !canManageQuotes || !db) return;
-    let cancelled = false;
-    (async () => {
-      setQuotesLoading(true);
-      setQuotesError(null);
-      try {
-        const migrated = await migrateLegacyQuotesIfNeeded(db);
-        if (!cancelled && migrated) {
-          setQuotesNotice('Legacy quotes migrated to Firebase.');
-        }
-        const migratedGeneral = await migrateGeneralQuotesToProfile(db);
-        if (!cancelled && migratedGeneral) {
-          setQuotesNotice('General quotes migrated to Profile quotes.');
-        }
-        const loaded = await loadGlobalQuotes(db);
-        if (!cancelled) setQuotes(loaded);
-      } catch (error) {
-        if (!cancelled) {
-          setQuotesError(error instanceof Error ? error.message : 'Failed to load quotes.');
-        }
-      } finally {
-        if (!cancelled) setQuotesLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn, canManageQuotes]);
 
   useEffect(() => {
     if (!signedIn || !db || !user?.uid) return;
@@ -628,182 +550,17 @@ export function SettingsPage() {
     setIsClassTypeMenuOpen(false);
   }, [selectedClassManager]);
 
-  const resetQuoteForm = () => {
-    setQuoteForm({ category: 'movies', text: '', character: '', source: '' });
-    setEditingQuoteId(null);
-  };
-
-  const openAddQuoteModal = () => {
-    resetQuoteForm();
-    setShowQuoteModal(true);
-  };
-
-  const openEditQuoteModal = (quote: FirebaseQuote) => {
-    setEditingQuoteId(quote.id);
-    setQuoteForm({
-      category: quote.category,
-      text: quote.text,
-      character: quote.character,
-      source: quote.source,
-    });
-    setShowQuoteModal(true);
-  };
-
-  const closeQuoteModal = () => {
-    setShowQuoteModal(false);
-    resetQuoteForm();
-  };
-
   const renderQuoteTools = (sectionTitle: string) => (
     <div className="settings-dev-quotes">
       <h3 className="settings-subtitle settings-subtitle-spaced">{sectionTitle}</h3>
-      {quotesError ? <p className="settings-quote-error">{quotesError}</p> : null}
+      <p className="settings-muted">
+        Quote management moved to the dedicated Quotes page.
+      </p>
       <div className="settings-list-actions">
-        <button type="button" className="settings-btn" disabled={!db} onClick={openAddQuoteModal}>
-          Add Quote
-        </button>
-        <button
-          type="button"
-          className="settings-btn settings-btn-subtle"
-          onClick={() => setShowQuotesList((prev) => !prev)}
-          disabled={quotesLoading}
-        >
-          {showQuotesList ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          {showQuotesList ? 'Hide All Quotes' : 'Show All Quotes'}
-        </button>
+        <NavLink to="/quotes" className="settings-btn settings-btn-subtle">
+          Open Quotes Page
+        </NavLink>
       </div>
-
-      {showQuotesList && (
-        <div className="settings-list settings-quotes-dropdown">
-          {quotesLoading && <p className="settings-muted">Loading quotes…</p>}
-          {!quotesLoading && sortedQuotes.length === 0 && <p className="settings-muted">No quotes in Firebase yet.</p>}
-          {!quotesLoading &&
-            sortedQuotes.map((quote) => (
-              <div key={quote.id} className="settings-list-item">
-                <span className="settings-class-name">
-                  <span className="settings-class-name-main">{quote.category.toUpperCase()}</span>
-                  <span className="settings-class-tagline">
-                    {' '}
-                    | &ldquo;{quote.text}&rdquo; — {quote.character} ({quote.source})
-                  </span>
-                </span>
-                <div className="settings-list-actions">
-                  <button type="button" className="settings-btn settings-btn-subtle" onClick={() => openEditQuoteModal(quote)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={`settings-btn settings-btn-subtle ${pendingDeleteQuoteId === quote.id ? 'settings-btn-danger' : ''}`}
-                    onClick={async () => {
-                      if (!db) return;
-                      if (pendingDeleteQuoteId !== quote.id) {
-                        setPendingDeleteQuoteId(quote.id);
-                        return;
-                      }
-                      try {
-                        await deleteGlobalQuote(db, quote.id);
-                        setPendingDeleteQuoteId(null);
-                        await refreshQuotes();
-                      } catch (error) {
-                        setQuotesError(error instanceof Error ? error.message : 'Failed to delete quote.');
-                      }
-                    }}
-                  >
-                    {pendingDeleteQuoteId === quote.id ? 'Confirm Delete' : 'Delete'}
-                  </button>
-                </div>
-              </div>
-            ))}
-        </div>
-      )}
-
-      {showQuoteModal && (
-        <div className="settings-modal-backdrop" role="presentation" onClick={closeQuoteModal}>
-          <div
-            className="settings-modal card-surface"
-            role="dialog"
-            aria-modal="true"
-            aria-label={editingQuoteId ? 'Edit quote modal' : 'Add quote modal'}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h4 className="settings-title">{editingQuoteId ? 'Edit Quote' : 'Add Quote'}</h4>
-            <div className="settings-quote-form">
-              <select
-                className="settings-select"
-                value={quoteForm.category}
-                onChange={(e) => setQuoteForm((prev) => ({ ...prev, category: e.target.value as QuoteCategory }))}
-              >
-                {quoteCategories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="settings-input"
-                placeholder="Quote text"
-                value={quoteForm.text}
-                onChange={(e) => setQuoteForm((prev) => ({ ...prev, text: e.target.value }))}
-              />
-              <input
-                className="settings-input"
-                placeholder="Character / speaker"
-                value={quoteForm.character}
-                onChange={(e) => setQuoteForm((prev) => ({ ...prev, character: e.target.value }))}
-              />
-              <input
-                className="settings-input"
-                placeholder="Source title"
-                value={quoteForm.source}
-                onChange={(e) => setQuoteForm((prev) => ({ ...prev, source: e.target.value }))}
-              />
-              <div className="settings-list-actions">
-                <button
-                  type="button"
-                  className="settings-btn"
-                  disabled={
-                    !db ||
-                    quoteForm.text.trim().length === 0 ||
-                    quoteForm.character.trim().length === 0 ||
-                    quoteForm.source.trim().length === 0
-                  }
-                  onClick={async () => {
-                    if (!db) return;
-                    try {
-                      if (editingQuoteId) {
-                        await updateGlobalQuote(db, editingQuoteId, {
-                          category: quoteForm.category,
-                          text: quoteForm.text,
-                          character: quoteForm.character,
-                          source: quoteForm.source,
-                        });
-                        setQuotesNotice('Quote updated.');
-                      } else {
-                        await addGlobalQuote(db, {
-                          category: quoteForm.category,
-                          text: quoteForm.text,
-                          character: quoteForm.character,
-                          source: quoteForm.source,
-                        });
-                        setQuotesNotice('Quote added.');
-                      }
-                      closeQuoteModal();
-                      await refreshQuotes();
-                    } catch (error) {
-                      setQuotesError(error instanceof Error ? error.message : 'Failed to save quote.');
-                    }
-                  }}
-                >
-                  Save
-                </button>
-                <button type="button" className="settings-btn settings-btn-subtle" onClick={closeQuoteModal}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 
