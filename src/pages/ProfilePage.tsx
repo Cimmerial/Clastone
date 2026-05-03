@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { db } from '../lib/firebase';
 import { RandomQuote } from '../components/RandomQuote';
 import {
   useMoviesStore,
@@ -59,6 +60,22 @@ import {
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
+import { ProfileSuperlativesSection } from '../components/ProfileSuperlativesSection';
+import {
+  createGlobalSuperlative,
+  deleteGlobalSuperlative,
+  loadGlobalSuperlatives,
+  loadUserSuperlativeSlots,
+  saveUserSuperlativeSlots,
+  type GlobalSuperlativeDefinition,
+  type ProfileSuperlativeEntry,
+  type ProfileSuperlativeSlot,
+} from '../lib/firestoreSuperlatives';
+import {
+  buildSavedSuperlativeCandidates,
+  searchSuperlativeCandidates,
+  type SuperlativeEntryCandidate,
+} from '../lib/profileSuperlatives';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
@@ -521,6 +538,34 @@ export function ProfilePage() {
   const [actorsViewMode, setActorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
   const [directorsViewMode, setDirectorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
   const [movieWordCloudOpen, setMovieWordCloudOpen] = useState(false);
+  const [superlativeDefinitions, setSuperlativeDefinitions] = useState<GlobalSuperlativeDefinition[]>([]);
+  const [superlativeSlots, setSuperlativeSlots] = useState<ProfileSuperlativeSlot[]>([]);
+  const canManageSuperlativeCatalog = isAdmin || isBabyDev;
+
+  useEffect(() => {
+    const firestore = db;
+    if (!user?.uid || !firestore) return;
+    let cancelled = false;
+
+    const loadSuperlatives = async () => {
+      try {
+        const [definitions, slots] = await Promise.all([
+          loadGlobalSuperlatives(firestore),
+          loadUserSuperlativeSlots(firestore, user.uid),
+        ]);
+        if (cancelled) return;
+        setSuperlativeDefinitions(definitions);
+        setSuperlativeSlots(slots);
+      } catch (error) {
+        console.error('[Clastone] Failed to load profile superlatives', error);
+      }
+    };
+
+    void loadSuperlatives();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   // On your own profile, include "unranked-but-curated" classes in top lists,
   // but never include the literal UNRANKED bucket.
@@ -1756,6 +1801,119 @@ export function ProfilePage() {
     };
     setPersonRankingTarget(target);
   };
+
+  const savedSuperlativeCandidates = useMemo<SuperlativeEntryCandidate[]>(
+    () =>
+      buildSavedSuperlativeCandidates({
+        moviesByClass,
+        tvByClass,
+        peopleByClass,
+        directorsByClass,
+      }),
+    [moviesByClass, tvByClass, peopleByClass, directorsByClass]
+  );
+
+  const peopleByTmdbId = useMemo(() => {
+    const map = new Map<number, PersonItem>();
+    for (const items of Object.values(peopleByClass)) {
+      for (const item of items ?? []) {
+        if (item.tmdbId != null) map.set(item.tmdbId, item);
+      }
+    }
+    return map;
+  }, [peopleByClass]);
+
+  const directorsByTmdbId = useMemo(() => {
+    const map = new Map<number, DirectorItem>();
+    for (const items of Object.values(directorsByClass)) {
+      for (const item of items ?? []) {
+        if (item.tmdbId != null) map.set(item.tmdbId, item);
+      }
+    }
+    return map;
+  }, [directorsByClass]);
+
+  const handleSaveSuperlativeSlots = useCallback(
+    async (nextSlots: ProfileSuperlativeSlot[]) => {
+      if (!user?.uid || !db) return;
+      const saved = await saveUserSuperlativeSlots(db, user.uid, nextSlots);
+      setSuperlativeSlots(saved);
+    },
+    [user?.uid]
+  );
+
+  const handleCreateSuperlativeDefinition = useCallback(
+    async (label: string) => {
+      if (!db) return;
+      await createGlobalSuperlative(db, { label, createdBy: user?.uid ?? username ?? undefined });
+      const definitions = await loadGlobalSuperlatives(db);
+      setSuperlativeDefinitions(definitions);
+    },
+    [user?.uid, username]
+  );
+
+  const handleDeleteSuperlativeDefinition = useCallback(async (superlativeId: string) => {
+    if (!db) return;
+    await deleteGlobalSuperlative(db, superlativeId);
+    const definitions = await loadGlobalSuperlatives(db);
+    setSuperlativeDefinitions(definitions);
+  }, []);
+
+  const handleSearchSuperlativeCandidates = useCallback(
+    (queryText: string, signal?: AbortSignal) =>
+      searchSuperlativeCandidates(queryText, savedSuperlativeCandidates, signal),
+    [savedSuperlativeCandidates]
+  );
+
+  const handleSuperlativeEntryClick = useCallback(
+    (entry: ProfileSuperlativeEntry) => {
+      if (entry.entryType === 'movie') {
+        const target: MovieShowItem = {
+          id: entry.entryId,
+          tmdbId: entry.tmdbId,
+          title: entry.title,
+          posterPath: entry.posterPath,
+          releaseDate: entry.releaseDate,
+          classKey: '',
+        } as MovieShowItem;
+        handleMovieClick(target);
+        return;
+      }
+      if (entry.entryType === 'tv') {
+        const target: MovieShowItem = {
+          id: entry.entryId,
+          tmdbId: entry.tmdbId,
+          title: entry.title,
+          posterPath: entry.posterPath,
+          releaseDate: entry.releaseDate,
+          classKey: '',
+        } as MovieShowItem;
+        handleShowClick(target);
+        return;
+      }
+
+      const tmdbId =
+        entry.tmdbId ??
+        Number((entry.entryId.match(/(\d+)$/) ?? [])[1] ?? 0);
+      const actor = peopleByTmdbId.get(tmdbId);
+      if (actor) {
+        handleActorClick(actor);
+        return;
+      }
+      const director = directorsByTmdbId.get(tmdbId);
+      if (director) {
+        handleDirectorClick(director);
+        return;
+      }
+      handleActorClick({
+        id: entry.entryId,
+        tmdbId,
+        title: entry.title,
+        profilePath: entry.posterPath,
+      } as PersonItem);
+    },
+    [peopleByTmdbId, directorsByTmdbId, handleMovieClick, handleShowClick, handleActorClick, handleDirectorClick]
+  );
 
   // Handle saving from the person ranking modal
   const handlePersonRankingSave = async (params: PersonRankingSaveParams, goToList: boolean) => {
@@ -3857,6 +4015,18 @@ export function ProfilePage() {
           getUserShowStatus={getUserShowStatus}
         />
       </div>
+
+      <ProfileSuperlativesSection
+        isOwnProfile={true}
+        slots={superlativeSlots}
+        definitions={superlativeDefinitions}
+        canManageCatalog={canManageSuperlativeCatalog}
+        onSaveSlots={handleSaveSuperlativeSlots}
+        onCreateDefinition={handleCreateSuperlativeDefinition}
+        onDeleteDefinition={handleDeleteSuperlativeDefinition}
+        onSearchCandidates={handleSearchSuperlativeCandidates}
+        onEntryClick={handleSuperlativeEntryClick}
+      />
 
       <MovieTitleWordCloudModal
         isOpen={movieWordCloudOpen}

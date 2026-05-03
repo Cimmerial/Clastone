@@ -1250,3 +1250,238 @@
   overflow-y: auto;
 }
 
+.profile-superlatives {
+  margin-top: 0.4rem;
+}
+
+.profile-superlatives-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-superlatives-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(244, 162, 97, 0.45);
+  background: rgba(232, 93, 4, 0.2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.profile-superlative-grid {
+  margin-top: 0.15rem;
+}
+
+.profile-superlative-card {
+  position: relative;
+}
+
+.profile-superlative-entry-hitbox {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+
+.profile-superlative-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.profile-superlative-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.profile-superlatives--friend .profile-superlative-label {
+  color: #fff;
+}
+
+.profile-superlative-entry-title {
+  font-size: 0.67rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-superlative-drag-handle,
+.profile-superlative-edit-btn {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.profile-superlative-drag-handle {
+  top: 0.3rem;
+  left: 0.3rem;
+}
+
+.profile-superlative-edit-btn {
+  top: 0.3rem;
+  right: 0.3rem;
+}
+
+.profile-superlative-card--dragging {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+
+.profile-superlative-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 1rem;
+}
+
+.profile-superlative-modal {
+  width: min(40rem, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1rem;
+}
+
+.profile-superlative-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.profile-superlative-modal-header h3 {
+  margin: 0;
+}
+
+.profile-superlative-modal-close {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: var(--text);
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.profile-superlative-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.profile-superlative-select,
+.profile-superlative-input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.profile-superlative-catalog-tools {
+  margin-bottom: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem;
+}
+
+.profile-superlative-catalog-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.profile-superlative-catalog-row button,
+.profile-superlative-danger-btn {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.profile-superlative-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.profile-superlative-search-results {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem;
+  max-height: 14rem;
+  overflow: auto;
+  margin-bottom: 0.7rem;
+}
+
+.profile-superlative-search-group h4 {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.profile-superlative-search-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  padding: 0.35rem 0.45rem;
+  margin-bottom: 0.3rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.profile-superlative-search-item small {
+  color: var(--text-muted);
+}
+
+.profile-superlative-search-item.active {
+  border-color: rgba(244, 162, 97, 0.5);
+  background: rgba(244, 162, 97, 0.18);
+}
+
+.profile-superlative-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+

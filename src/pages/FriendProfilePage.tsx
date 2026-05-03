@@ -70,6 +70,14 @@ import {
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
+import { ProfileSuperlativesSection } from '../components/ProfileSuperlativesSection';
+import {
+  loadGlobalSuperlatives,
+  normalizeProfileSuperlativeSlots,
+  type GlobalSuperlativeDefinition,
+  type ProfileSuperlativeEntry,
+  type ProfileSuperlativeSlot,
+} from '../lib/firestoreSuperlatives';
 import './FriendProfilePage.css';
 import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
@@ -599,6 +607,8 @@ export function FriendProfilePage() {
   const [friendDirectorsData, setFriendDirectorsData] = useState<any>(null);
   const [friendWatchlistData, setFriendWatchlistData] = useState<{ movies: any[], tv: any[] } | null>(null);
   const [friendListsData, setFriendListsData] = useState<{ lists: any[]; order: string[]; entriesByListId: Record<string, any[]> } | null>(null);
+  const [superlativeDefinitions, setSuperlativeDefinitions] = useState<GlobalSuperlativeDefinition[]>([]);
+  const [friendSuperlativeSlots, setFriendSuperlativeSlots] = useState<ProfileSuperlativeSlot[]>([]);
 
   const [recentRange, setRecentRange] = useState<ProfileRecentRange>('this_year');
   const [recentViewMode, setRecentViewMode] = useState<'tile' | 'chart'>('tile');
@@ -640,6 +650,24 @@ export function FriendProfilePage() {
   useEffect(() => {
     saveTasteSimilarityConfigScoped('shows', showTasteConfig);
   }, [showTasteConfig]);
+
+  useEffect(() => {
+    const firestore = db;
+    if (!firestore) return;
+    let cancelled = false;
+    const loadDefinitions = async () => {
+      try {
+        const definitions = await loadGlobalSuperlatives(firestore);
+        if (!cancelled) setSuperlativeDefinitions(definitions);
+      } catch (error) {
+        console.error('[Clastone] Failed to load superlatives catalog', error);
+      }
+    };
+    void loadDefinitions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Cache for friends data to avoid repeated requests
   const [friendsCache, setFriendsCache] = useState<Map<string, any>>(new Map());
@@ -966,6 +994,7 @@ export function FriendProfilePage() {
         setLoading(true);
         setError(null);
         setResolvedProfileUid(null);
+        setFriendSuperlativeSlots([]);
         console.log('🔍 Starting friend profile load for:', friendId);
         console.log('👤 Current user:', user?.uid);
 
@@ -1001,6 +1030,7 @@ export function FriendProfilePage() {
           console.log('✅ Friend profile loaded:', friendDoc.data());
           
           let profileData = friendDoc.data();
+          setFriendSuperlativeSlots(normalizeProfileSuperlativeSlots((profileData as Record<string, unknown>).superlativeSlots));
           
           // Featured admin account stores login-style username; show a proper display name everywhere (including /friends/:uid).
           if (profileData.username === 'cimmerial@clastone.local') {
@@ -2263,6 +2293,77 @@ export function FriendProfilePage() {
     };
     setPersonRankingTarget(target);
   };
+
+  const friendPeopleByTmdbId = useMemo(() => {
+    const map = new Map<number, any>();
+    const byClass = friendPeopleData?.byClass as Record<string, any[]> | undefined;
+    if (!byClass) return map;
+    for (const items of Object.values(byClass)) {
+      for (const item of items ?? []) {
+        if (item?.tmdbId != null) map.set(item.tmdbId, item);
+      }
+    }
+    return map;
+  }, [friendPeopleData]);
+
+  const friendDirectorsByTmdbId = useMemo(() => {
+    const map = new Map<number, any>();
+    const byClass = friendDirectorsData?.byClass as Record<string, any[]> | undefined;
+    if (!byClass) return map;
+    for (const items of Object.values(byClass)) {
+      for (const item of items ?? []) {
+        if (item?.tmdbId != null) map.set(item.tmdbId, item);
+      }
+    }
+    return map;
+  }, [friendDirectorsData]);
+
+  const handleSuperlativeEntryClick = useCallback(
+    (entry: ProfileSuperlativeEntry) => {
+      if (entry.entryType === 'movie') {
+        handleMovieClick({
+          id: entry.entryId,
+          tmdbId: entry.tmdbId,
+          title: entry.title,
+          posterPath: entry.posterPath,
+          releaseDate: entry.releaseDate,
+          classKey: '',
+        } as MovieShowItem);
+        return;
+      }
+      if (entry.entryType === 'tv') {
+        handleShowClick({
+          id: entry.entryId,
+          tmdbId: entry.tmdbId,
+          title: entry.title,
+          posterPath: entry.posterPath,
+          releaseDate: entry.releaseDate,
+          classKey: '',
+        } as MovieShowItem);
+        return;
+      }
+      const tmdbId =
+        entry.tmdbId ??
+        Number((entry.entryId.match(/(\d+)$/) ?? [])[1] ?? 0);
+      const actor = friendPeopleByTmdbId.get(tmdbId);
+      if (actor) {
+        handleActorClick(actor);
+        return;
+      }
+      const director = friendDirectorsByTmdbId.get(tmdbId);
+      if (director) {
+        handleDirectorClick(director);
+        return;
+      }
+      handleActorClick({
+        id: entry.entryId,
+        tmdbId,
+        title: entry.title,
+        profilePath: entry.posterPath,
+      });
+    },
+    [friendPeopleByTmdbId, friendDirectorsByTmdbId, handleMovieClick, handleShowClick, handleActorClick, handleDirectorClick]
+  );
 
   // Handle saving from the person ranking modal
   const handlePersonRankingSave = async (params: PersonRankingSaveParams, goToList: boolean) => {
@@ -4657,6 +4758,13 @@ export function FriendProfilePage() {
           }}
         />
       </div>
+
+      <ProfileSuperlativesSection
+        isOwnProfile={false}
+        slots={friendSuperlativeSlots}
+        definitions={superlativeDefinitions}
+        onEntryClick={handleSuperlativeEntryClick}
+      />
 
       <MovieTitleWordCloudModal
         isOpen={movieWordCloudOpen}
