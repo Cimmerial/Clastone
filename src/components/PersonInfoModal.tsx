@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { useSettingsStore } from '../state/settingsStore';
+import { usePeopleStore } from '../state/peopleStore';
+import { useDirectorsStore } from '../state/directorsStore';
 import { isActorProjectTitleExcluded } from '../lib/actorProjectTitleFilters';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
@@ -47,6 +49,20 @@ interface PersonDetails {
 
 type ProjectRoleFilter = 'ACTOR' | 'DIRECTOR' | 'PRODUCER' | 'CREATOR' | 'OTHER';
 const ALL_PROJECT_ROLE_FILTERS: ProjectRoleFilter[] = ['ACTOR', 'DIRECTOR', 'PRODUCER', 'CREATOR', 'OTHER'];
+function findPersonOrDirectorByTmdbId<T extends { id: string; tmdbId?: number }>(
+  byClass: Record<string, T[]>,
+  tmdbId: number
+): T | null {
+  for (const list of Object.values(byClass)) {
+    const found = list.find(
+      (p) =>
+        p.tmdbId === tmdbId || (parseInt(String(p.id).replace(/\D/g, ''), 10) || 0) === tmdbId
+    );
+    if (found) return found;
+  }
+  return null;
+}
+
 type InfoModalProjectSort = 'default' | 'seen-watchlisted-unseen' | 'new-old';
 const PROJECT_SORT_OPTIONS: Array<{ value: InfoModalProjectSort; label: string }> = [
   { value: 'default', label: 'Default' },
@@ -91,6 +107,9 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
   } = useTvStore();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { lists, entriesByListId } = useListsStore();
+  const { byClass: peopleByClass, updatePersonCache } = usePeopleStore();
+  const { byClass: directorsByClass, updateDirectorCache } = useDirectorsStore();
+
   const personListTags = useMemo(() => {
     const entryId = `tmdb-person-${tmdbId}`;
     return lists
@@ -141,6 +160,34 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
 
     fetchDetails();
   }, [isOpen, tmdbId]);
+
+  useEffect(() => {
+    if (!isOpen || !tmdbId || !details?.birthday?.trim()) return;
+    const patch: Pick<TmdbPersonCache, 'birthday' | 'deathday'> = {
+      birthday: details.birthday,
+      deathday: details.deathday,
+    };
+    const actor = findPersonOrDirectorByTmdbId(peopleByClass, tmdbId);
+    if (actor) {
+      if (actor.birthday === patch.birthday && actor.deathday === patch.deathday) return;
+      updatePersonCache(actor.id, patch);
+      return;
+    }
+    const director = findPersonOrDirectorByTmdbId(directorsByClass, tmdbId);
+    if (director) {
+      if (director.birthday === patch.birthday && director.deathday === patch.deathday) return;
+      updateDirectorCache(director.id, patch);
+    }
+  }, [
+    isOpen,
+    tmdbId,
+    details?.birthday,
+    details?.deathday,
+    peopleByClass,
+    directorsByClass,
+    updatePersonCache,
+    updateDirectorCache,
+  ]);
 
   // Apply same actor-project filters as ranking rows (Settings → Display).
   const filteredRoles = useMemo(() => {

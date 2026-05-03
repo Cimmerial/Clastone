@@ -6,6 +6,10 @@ import './PageSearch.css';
 export interface SearchableItem {
     id: string;
     title: string;
+    /** If set, substring search uses this (and title) so titles can stay short for sorting. */
+    searchText?: string;
+    /** Optional line shown in the dropdown; defaults to title. */
+    resultLabel?: string;
 }
 
 interface PageSearchProps {
@@ -17,9 +21,11 @@ interface PageSearchProps {
     placeholder?: string;
     className?: string;
     pageKey?: string; // Add pageKey for state persistence
+    /** Max rows in the dropdown (default 5). */
+    maxResults?: number;
 }
 
-export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', placeholder = 'Search page...', className = '', pageKey }: PageSearchProps) {
+export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', placeholder = 'Search page...', className = '', pageKey, maxResults = 5 }: PageSearchProps) {
     // Use page state if pageKey is provided, otherwise use local state
     const pageState = pageKey ? usePageState(pageKey) : null;
     const [query, setQuery] = useState(pageState?.searchQuery || '');
@@ -45,8 +51,11 @@ export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', pl
         if (!query.trim()) return [];
         const lowerQuery = query.toLowerCase();
 
+        const haystack = (item: SearchableItem) =>
+            `${item.searchText ?? ''} ${item.title}`.toLowerCase();
+
         return items
-            .filter(item => item.title.toLowerCase().includes(lowerQuery))
+            .filter((item) => haystack(item).includes(lowerQuery))
             .sort((a, b) => {
                 const aTitle = a.title.toLowerCase();
                 const bTitle = b.title.toLowerCase();
@@ -56,8 +65,8 @@ export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', pl
                 if (!aStarts && bStarts) return 1;
                 return aTitle.localeCompare(bTitle);
             })
-            .slice(0, 5);
-    }, [items, query]);
+            .slice(0, maxResults);
+    }, [items, query, maxResults]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -106,19 +115,21 @@ export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', pl
 
             {isOpen && results.length > 0 && (
                 <div className="page-search-results">
-                    {results.map((item) => (
+                    {results.map((item) => {
+                        const label = item.resultLabel ?? item.title;
+                        return (
                         <div
                             key={item.id}
                             className="page-search-result-item"
                             onClick={() => handleSelect(item.id)}
                         >
-                            <span className="page-search-result-title">{item.title}</span>
+                            <span className="page-search-result-title">{label}</span>
                             {onEdit ? (
                                 <button
                                     type="button"
                                     className="page-search-result-edit"
                                     title="Edit"
-                                    aria-label={`Edit ${item.title}`}
+                                    aria-label={`Edit ${label}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleEdit(item.id);
@@ -128,7 +139,8 @@ export function PageSearch({ items, onSelect, onEdit, offsetRight = '1.5rem', pl
                                 </button>
                             ) : null}
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             )}
             {isOpen && query && results.length === 0 && (

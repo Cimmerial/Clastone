@@ -67,7 +67,9 @@ export function EntryRowPerson({
   }, []);
 
   useEffect(() => {
-    if (isVisible && item.tmdbId && (!item.roles || item.roles.length === 0)) {
+    const needsRoles = !item.roles || item.roles.length === 0;
+    const needsBirthday = !item.birthday?.trim();
+    if (isVisible && item.tmdbId && (needsRoles || needsBirthday)) {
       tmdbPersonDetailsFull(item.tmdbId).then(cache => {
         if (cache) {
           const { profilePath: _ignoredProfilePath, ...cacheWithoutProfile } = cache;
@@ -75,7 +77,7 @@ export function EntryRowPerson({
         }
       }).catch(err => console.error('[Clastone] EntryRowPerson fetch failed', err));
     }
-  }, [isVisible, item.tmdbId, item.id, updatePersonCache, item.roles]);
+  }, [isVisible, item.tmdbId, item.id, updatePersonCache, item.roles, item.birthday]);
 
   const watchedMovieIds = useMemo(() => {
     const ids = new Set<string>();

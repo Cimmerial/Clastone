@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { PageSearch, type SearchableItem } from '../components/PageSearch';
 import { RandomQuote } from '../components/RandomQuote';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
@@ -17,6 +18,7 @@ import {
   subscribeQuoteSubmissions,
   subscribeQuoteSubmissionsForRequester,
   type FirebaseQuote,
+  normalizeQuoteCategoryForForm,
   type QuoteCategory,
   type QuoteSubmission,
   QuoteSubmissionAlreadyResolvedError,
@@ -27,7 +29,7 @@ import { tmdbImagePath, tmdbSearchMovies, tmdbSearchPeople, tmdbSearchTv, type T
 import '../components/RankedList.css';
 import './QuotesPage.css';
 
-const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'watchlist', 'search', 'profile', 'settings'];
+const quoteCategories: QuoteCategory[] = ['movies', 'tv', 'actors', 'directors', 'search', 'profile'];
 
 type ModalMode = 'add' | 'request' | 'edit' | null;
 
@@ -155,6 +157,9 @@ export function QuotesPage() {
   const [showAcceptedRequests, setShowAcceptedRequests] = useState(true);
   const [allUsernames, setAllUsernames] = useState<string[]>([]);
   const [editAddedByUsername, setEditAddedByUsername] = useState('');
+  const [flashQuoteId, setFlashQuoteId] = useState<string | null>(null);
+  const [flashSourceKey, setFlashSourceKey] = useState<string | null>(null);
+  const [flashSubmissionId, setFlashSubmissionId] = useState<string | null>(null);
 
   const refreshQuotes = async () => {
     if (!db) return;
@@ -407,13 +412,107 @@ export function QuotesPage() {
     return map;
   }, [submittedQuotes, quotes]);
 
+  const quoteSearchItems = useMemo((): SearchableItem[] => {
+    const fromQuotes: SearchableItem[] = quotes.map((q) => {
+      const snippet = q.text.length > 80 ? `${q.text.slice(0, 80)}…` : q.text;
+      return {
+        id: `quote:${q.id}`,
+        title: snippet,
+        searchText: `${q.source} ${q.text} ${q.speakerFirstName || ''} ${q.speakerFullName || ''}`.trim(),
+        resultLabel: `${q.source} — “${snippet}”`,
+      };
+    });
+    const fromSources: SearchableItem[] = sourceGroups.map((g) => ({
+      id: `source:${g.key}`,
+      title: g.source,
+      searchText: g.source,
+      resultLabel: `${g.source} · ${g.quotes.length} quote${g.quotes.length === 1 ? '' : 's'}`,
+    }));
+    const fromSubmissions: SearchableItem[] = sortedSubmissions.map((s) => {
+      const snippet = s.text.length > 80 ? `${s.text.slice(0, 80)}…` : s.text;
+      return {
+        id: `submission:${s.id}`,
+        title: snippet,
+        searchText: `${s.source} ${s.text} ${s.speakerFirstName} ${s.requesterUsername}`.trim(),
+        resultLabel: `${s.source} (submission) — “${snippet}”`,
+      };
+    });
+    return [...fromQuotes, ...fromSources, ...fromSubmissions];
+  }, [quotes, sourceGroups, sortedSubmissions]);
+
+  const handleQuoteSearchSelect = useCallback((rawId: string) => {
+    setFlashQuoteId(null);
+    setFlashSourceKey(null);
+    setFlashSubmissionId(null);
+
+    if (rawId.startsWith('quote:')) {
+      const qid = rawId.slice('quote:'.length);
+      const quote = quotes.find((q) => q.id === qid);
+      if (!quote) return;
+      setSourceModalKey(quote.source.trim().toLowerCase());
+      setFlashQuoteId(qid);
+      return;
+    }
+    if (rawId.startsWith('source:')) {
+      const key = rawId.slice('source:'.length);
+      setFlashSourceKey(key);
+      return;
+    }
+    if (rawId.startsWith('submission:')) {
+      const sid = rawId.slice('submission:'.length);
+      setShowSubmittedRequests(true);
+      setShowAcceptedRequests(true);
+      setFlashSubmissionId(sid);
+    }
+  }, [quotes]);
+
+  useEffect(() => {
+    if (!flashQuoteId || !sourceModalGroup) return;
+    if (!sourceModalGroup.quotes.some((q) => q.id === flashQuoteId)) return;
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`quotes-quote-${flashQuoteId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    const clearTimer = window.setTimeout(() => setFlashQuoteId(null), 3000);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [flashQuoteId, sourceModalGroup]);
+
+  useEffect(() => {
+    if (!flashSourceKey) return;
+    let rafId = 0;
+    rafId = requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-quotes-source-key]')).find(
+        (el) => el.getAttribute('data-quotes-source-key') === flashSourceKey,
+      )?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const clearTimer = window.setTimeout(() => setFlashSourceKey(null), 2800);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(clearTimer);
+    };
+  }, [flashSourceKey]);
+
+  useEffect(() => {
+    if (!flashSubmissionId) return;
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`quotes-submission-${flashSubmissionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    const clearTimer = window.setTimeout(() => setFlashSubmissionId(null), 2800);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [flashSubmissionId]);
+
   const openModal = (mode: ModalMode, quote?: FirebaseQuote) => {
     setQuotesError(null);
     setQuotesNotice(null);
     if (mode === 'edit' && quote) {
       setEditingQuote(quote);
       setForm({
-        category: quote.category,
+        category: normalizeQuoteCategoryForForm(quote.category),
         text: quote.text,
         speakerFirstName: quote.speakerFirstName || quote.character,
         speakerFullName: quote.speakerFullName || '',
@@ -747,13 +846,24 @@ export function QuotesPage() {
   }, [bulkSourceQuery, bulkSourceSearchMode, sourceModalGroup?.key]);
 
   return (
-    <section>
+    <section className="quotes-page">
       <header className="page-heading">
         <div>
           <h1 className="page-title">Quotes</h1>
           <RandomQuote />
         </div>
       </header>
+      {!modalMode && !sourceModalGroup ? (
+        <PageSearch
+          items={quoteSearchItems}
+          onSelect={handleQuoteSearchSelect}
+          placeholder="Search source or quote..."
+          className="page-search-locked"
+          pageKey="quotes"
+          maxResults={18}
+          offsetRight="1.5rem"
+        />
+      ) : null}
       <div className="quotes-page-actions">
         {canManageQuotes ? (
           <button type="button" className="settings-btn" onClick={() => openModal('add')}>
@@ -784,7 +894,8 @@ export function QuotesPage() {
           {nonPersonSourceGroups.map((group) => (
             <article
               key={group.key}
-              className={`entry-tile quotes-source-tile ${sourceModalKey === group.key ? 'quotes-source-tile-active' : ''}`}
+              data-quotes-source-key={group.key}
+              className={`entry-tile quotes-source-tile ${sourceModalKey === group.key ? 'quotes-source-tile-active' : ''} ${flashSourceKey === group.key ? 'quotes-flash-target' : ''}`}
               onClick={() => setSourceModalKey(group.key)}
             >
               <div className="entry-tile-poster">
@@ -809,7 +920,8 @@ export function QuotesPage() {
               {personSourceGroups.map((group) => (
                 <article
                   key={group.key}
-                  className={`entry-tile quotes-source-tile ${sourceModalKey === group.key ? 'quotes-source-tile-active' : ''}`}
+                  data-quotes-source-key={group.key}
+                  className={`entry-tile quotes-source-tile ${sourceModalKey === group.key ? 'quotes-source-tile-active' : ''} ${flashSourceKey === group.key ? 'quotes-flash-target' : ''}`}
                   onClick={() => setSourceModalKey(group.key)}
                 >
                   <div className="entry-tile-poster">
@@ -852,7 +964,11 @@ export function QuotesPage() {
                 <>
                   {submittedQuotes.length === 0 ? <p className="settings-muted">No submitted quotes.</p> : null}
                   {submittedQuotes.map((submission) => (
-                    <div key={submission.id} className="settings-list-item">
+                    <div
+                      key={submission.id}
+                      id={`quotes-submission-${submission.id}`}
+                      className={`settings-list-item ${flashSubmissionId === submission.id ? 'quotes-flash-target' : ''}`}
+                    >
                       <span className="settings-class-name">
                         <span className="settings-class-name-main">{submission.source}</span>
                         <span className="settings-class-tagline">
@@ -904,7 +1020,11 @@ export function QuotesPage() {
                 <>
                   {acceptedQuotes.length === 0 ? <p className="settings-muted">No accepted quotes yet.</p> : null}
                   {acceptedQuotes.map((submission) => (
-                    <div key={submission.id} className="settings-list-item">
+                    <div
+                      key={submission.id}
+                      id={`quotes-submission-${submission.id}`}
+                      className={`settings-list-item ${flashSubmissionId === submission.id ? 'quotes-flash-target' : ''}`}
+                    >
                       <span className="settings-class-name">
                         <span className="settings-class-name-main">{submission.source}</span>
                         <span className="settings-class-tagline">
@@ -1133,7 +1253,11 @@ export function QuotesPage() {
             ) : null}
             <div className="settings-list">
               {sourceModalGroup.quotes.map((quote) => (
-                <div key={quote.id} className="settings-list-item">
+                <div
+                  key={quote.id}
+                  id={`quotes-quote-${quote.id}`}
+                  className={`settings-list-item ${flashQuoteId === quote.id ? 'quotes-flash-target' : ''}`}
+                >
                   <span className="settings-class-name">
                     <span className="settings-class-name-main">&ldquo;{quote.text}&rdquo;</span>
                     <span className="settings-class-tagline">

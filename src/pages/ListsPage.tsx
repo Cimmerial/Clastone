@@ -23,6 +23,7 @@ import { InfoModal } from '../components/InfoModal';
 import { PersonInfoModal } from '../components/PersonInfoModal';
 import { PersonRankingModal, type PersonRankingTarget } from '../components/PersonRankingModal';
 import { PageSearch } from '../components/PageSearch';
+import { RandomQuote } from '../components/RandomQuote';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
@@ -1321,7 +1322,13 @@ export function ListsPage() {
   };
   return (
     <section className="lists-page">
-      <header className="page-heading"><div><h1 className="page-title">Lists</h1></div><div /></header>
+      <header className="page-heading">
+        <div>
+          <h1 className="page-title">Lists</h1>
+          <RandomQuote />
+        </div>
+        <div />
+      </header>
       <section className="class-section">
         <header className="class-section-header"><div><div className="lists-section-title-row"><h3 className="class-section-title">Lists</h3><button className="lists-info-btn" onClick={() => setShowListsInfoModal(true)} title="About lists" aria-label="About lists"><Info size={13} /></button></div><p className="class-section-count">{listCards.length} entries</p></div><button className="lists-button" onClick={() => setShowCreateListModal(true)} title="New list"><Plus size={16} />New</button></header>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onListDragEnd}><SortableContext items={listCards.map((item) => item.id)} strategy={verticalListSortingStrategy}><div className="lists-card-grid">{listCards.map((card) => <div key={card.id} className="lists-card-slot"><HoverCard title={card.title} subtitle={card.subtitle} href={card.href} sortableId={card.id} color={card.color} posterBackgrounds={card.posterBackgrounds} /></div>)}</div></SortableContext></DndContext>

@@ -49,6 +49,13 @@ import {
   type ProfileWatchYearFilter,
 } from '../lib/profileMediaListHelpers';
 import {
+  PROFILE_PEOPLE_LIST_MODE_OPTIONS,
+  buildTopFivePerBirthYearInRankOrder,
+  rankTopPeopleDisplayCount,
+  type ProfilePeopleListMode,
+} from '../lib/profilePeopleListHelpers';
+import { useProfilePeopleBirthdayEnrichment } from '../hooks/useProfilePeopleBirthdayEnrichment';
+import {
   PROFILE_RECENT_RANGE_OPTIONS,
   percentileFillWidthFromBadge,
   type ProfileRecentRange,
@@ -602,8 +609,8 @@ export function FriendProfilePage() {
   const [showWatchYearFilter, setShowWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showFriendAvgRuntimeCharts, setShowFriendAvgRuntimeCharts] = useState(false);
   const [showFriendCopyTools, setShowFriendCopyTools] = useState(false);
-  const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
-  const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
+  const [actorsViewMode, setActorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
+  const [directorsViewMode, setDirectorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
   const [showTasteDetails, setShowTasteDetails] = useState(false);
   const [showAllOverlapOnChart, setShowAllOverlapOnChart] = useState(false);
   const [tasteChartSortMode, setTasteChartSortMode] = useState<TasteChartSortMode>('default');
@@ -1353,8 +1360,6 @@ export function FriendProfilePage() {
     return list;
   }, [friendPeopleData]);
 
-  const top5Actors = useMemo(() => rankedActors.slice(0, 5), [rankedActors]);
-
   const rankedDirectors = useMemo(() => {
     if (!friendDirectorsData || !friendDirectorsData.byClass || !friendDirectorsData.classes) return [];
     const list: any[] = [];
@@ -1368,7 +1373,49 @@ export function FriendProfilePage() {
     return list;
   }, [friendDirectorsData]);
 
-  const top5Directors = useMemo(() => rankedDirectors.slice(0, 5), [rankedDirectors]);
+  const actorsMany =
+    rankedActors.length > 10 &&
+    (rankedDirectors.length === 0 || rankedDirectors.length > 10);
+  const directorsMany =
+    rankedDirectors.length > 10 &&
+    (rankedActors.length === 0 || rankedActors.length > 10);
+
+  useEffect(() => {
+    if (!actorsMany && actorsViewMode === 'by_birthyear') setActorsViewMode('rank_top');
+  }, [actorsMany, actorsViewMode]);
+
+  useEffect(() => {
+    if (!directorsMany && directorsViewMode === 'by_birthyear') setDirectorsViewMode('rank_top');
+  }, [directorsMany, directorsViewMode]);
+
+  const actorsRankTopSlice = useMemo(() => {
+    const n = rankTopPeopleDisplayCount(rankedActors.length, actorsMany);
+    return rankedActors.slice(0, n);
+  }, [rankedActors, actorsMany]);
+
+  const directorsRankTopSlice = useMemo(() => {
+    const n = rankTopPeopleDisplayCount(rankedDirectors.length, directorsMany);
+    return rankedDirectors.slice(0, n);
+  }, [rankedDirectors, directorsMany]);
+
+  const getActorBirthdayEnriched = useProfilePeopleBirthdayEnrichment(
+    rankedActors,
+    actorsViewMode === 'by_birthyear'
+  );
+  const getDirectorBirthdayEnriched = useProfilePeopleBirthdayEnrichment(
+    rankedDirectors,
+    directorsViewMode === 'by_birthyear'
+  );
+
+  const actorsByBirthYear = useMemo(
+    () => buildTopFivePerBirthYearInRankOrder(rankedActors, getActorBirthdayEnriched),
+    [rankedActors, getActorBirthdayEnriched]
+  );
+
+  const directorsByBirthYear = useMemo(
+    () => buildTopFivePerBirthYearInRankOrder(rankedDirectors, getDirectorBirthdayEnriched),
+    [rankedDirectors, getDirectorBirthdayEnriched]
+  );
 
   const hasActors = rankedActors.length > 0;
   const hasDirectors = rankedDirectors.length > 0;
@@ -3907,26 +3954,46 @@ export function FriendProfilePage() {
             <div className="profile-card card-surface">
               <div className="profile-card-header">
                 <h2 className="profile-card-title">
-                  {showAllActorsWithClasses ? `All ${rankedActorsCount} Actors` : 'Top 5 Actors'}
+                  {actorsViewMode === 'all_classes'
+                    ? `All ${rankedActorsCount} Actors`
+                    : actorsViewMode === 'by_birthyear'
+                      ? 'Actors by Birth Year'
+                      : actorsMany
+                        ? 'Top 10 Actors'
+                        : 'Top 5 Actors'}
                 </h2>
-                <button
-                  type="button"
-                  className="profile-stats-expand-btn profile-tiny-expand-btn"
-                  onClick={() => setShowAllActorsWithClasses(!showAllActorsWithClasses)}
-                >
-                  {showAllActorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
-                </button>
+                {actorsMany ? (
+                  <div className="profile-card-actions profile-card-actions--with-dropdown">
+                    <ThemedDropdown
+                      className="profile-list-mode-dropdown"
+                      value={actorsViewMode}
+                      options={PROFILE_PEOPLE_LIST_MODE_OPTIONS}
+                      onChange={setActorsViewMode}
+                      aria-label="Actors list view"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="profile-stats-expand-btn profile-tiny-expand-btn"
+                    onClick={() =>
+                      setActorsViewMode(actorsViewMode === 'all_classes' ? 'rank_top' : 'all_classes')
+                    }
+                  >
+                    {actorsViewMode === 'all_classes' ? 'Show Top 5' : 'Show all with classes'}
+                  </button>
+                )}
               </div>
-              {showAllActorsWithClasses && (
-                <PageSearch 
-                  items={searchableActors} 
-                  onSelect={handleScrollToId} 
-                  placeholder="Search all actors..." 
+              {actorsViewMode === 'all_classes' && (
+                <PageSearch
+                  items={searchableActors}
+                  onSelect={handleScrollToId}
+                  placeholder="Search all actors..."
                   className="profile-section-search"
                   pageKey="friend-profile-actors"
                 />
               )}
-              {showAllActorsWithClasses ? (
+              {actorsViewMode === 'all_classes' ? (
                 <div className="profile-classes-view">
                   {friendPeopleData?.classes?.filter((c: any) => c.isRanked && friendPeopleData.byClass[c.key]?.length > 0).map((classDef: any) => (
                     <div key={classDef.key} className="profile-class-section">
@@ -3941,8 +4008,8 @@ export function FriendProfilePage() {
                           const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
                           const userStatus = getUserActorStatus(tmdbId);
                           return (
-                            <div 
-                              key={a.id} 
+                            <div
+                              key={a.id}
                               id={`profile-entry-${a.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleActorClick(a)}
@@ -3969,14 +4036,58 @@ export function FriendProfilePage() {
                     </div>
                   ))}
                 </div>
+              ) : actorsViewMode === 'by_birthyear' ? (
+                <div className="profile-classes-view">
+                  {actorsByBirthYear.map((section) => (
+                    <div
+                      key={section.year === 'unknown' ? 'unknown' : String(section.year)}
+                      className="profile-class-section"
+                    >
+                      <h3 className="profile-class-title">
+                        {section.year === 'unknown' ? 'Year unknown' : section.year}
+                      </h3>
+                      <div className="profile-class-grid profile-class-grid--yearly">
+                        {section.items.map((a: any, i: number) => {
+                          const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
+                          const userStatus = getUserActorStatus(tmdbId);
+                          return (
+                            <div
+                              key={a.id}
+                              id={`profile-entry-${a.id}`}
+                              className="profile-top-item profile-top-item--clickable"
+                              onClick={() => handleActorClick(a)}
+                            >
+                              <div className="profile-top-poster">
+                                {a.profilePath ? (
+                                  <img src={tmdbImagePath(a.profilePath) ?? ''} alt={a.title} loading="lazy" />
+                                ) : (
+                                  <span className="profile-top-poster-placeholder">🎭</span>
+                                )}
+                                <span className="profile-top-rank">#{i + 1}</span>
+                                <div className="profile-top-overlay">
+                                  <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                    {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="profile-top-info">
+                                <span className="profile-top-title">{a.title}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="profile-top-grid">
-                  {top5Actors.map((a: any, i: number) => {
+                  {actorsRankTopSlice.map((a: any, i: number) => {
                     const tmdbId = (a.tmdbId ?? parseInt(a.id.replace(/\D/g, ''), 10)) || 0;
                     const userStatus = getUserActorStatus(tmdbId);
                     return (
-                      <div 
-                        key={a.id} 
+                      <div
+                        key={a.id}
                         className="profile-top-item profile-top-item--clickable"
                         onClick={() => handleActorClick(a)}
                       >
@@ -4008,26 +4119,46 @@ export function FriendProfilePage() {
             <div className="profile-card card-surface">
               <div className="profile-card-header">
                 <h2 className="profile-card-title">
-                  {showAllDirectorsWithClasses ? `All ${rankedDirectorsCount} Directors` : 'Top 5 Directors'}
+                  {directorsViewMode === 'all_classes'
+                    ? `All ${rankedDirectorsCount} Directors`
+                    : directorsViewMode === 'by_birthyear'
+                      ? 'Directors by Birth Year'
+                      : directorsMany
+                        ? 'Top 10 Directors'
+                        : 'Top 5 Directors'}
                 </h2>
-                <button
-                  type="button"
-                  className="profile-stats-expand-btn profile-tiny-expand-btn"
-                  onClick={() => setShowAllDirectorsWithClasses(!showAllDirectorsWithClasses)}
-                >
-                  {showAllDirectorsWithClasses ? 'Show Top 5' : 'Show all with classes'}
-                </button>
+                {directorsMany ? (
+                  <div className="profile-card-actions profile-card-actions--with-dropdown">
+                    <ThemedDropdown
+                      className="profile-list-mode-dropdown"
+                      value={directorsViewMode}
+                      options={PROFILE_PEOPLE_LIST_MODE_OPTIONS}
+                      onChange={setDirectorsViewMode}
+                      aria-label="Directors list view"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="profile-stats-expand-btn profile-tiny-expand-btn"
+                    onClick={() =>
+                      setDirectorsViewMode(directorsViewMode === 'all_classes' ? 'rank_top' : 'all_classes')
+                    }
+                  >
+                    {directorsViewMode === 'all_classes' ? 'Show Top 5' : 'Show all with classes'}
+                  </button>
+                )}
               </div>
-              {showAllDirectorsWithClasses && (
-                <PageSearch 
-                  items={searchableDirectors} 
-                  onSelect={handleScrollToId} 
-                  placeholder="Search all directors..." 
+              {directorsViewMode === 'all_classes' && (
+                <PageSearch
+                  items={searchableDirectors}
+                  onSelect={handleScrollToId}
+                  placeholder="Search all directors..."
                   className="profile-section-search"
                   pageKey="friend-profile-directors"
                 />
               )}
-              {showAllDirectorsWithClasses ? (
+              {directorsViewMode === 'all_classes' ? (
                 <div className="profile-classes-view">
                   {friendDirectorsData?.classes?.filter((c: any) => c.isRanked && friendDirectorsData.byClass[c.key]?.length > 0).map((classDef: any) => (
                     <div key={classDef.key} className="profile-class-section">
@@ -4042,8 +4173,8 @@ export function FriendProfilePage() {
                           const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
                           const userStatus = getUserDirectorStatus(tmdbId);
                           return (
-                            <div 
-                              key={d.id} 
+                            <div
+                              key={d.id}
                               id={`profile-entry-${d.id}`}
                               className="profile-top-item profile-top-item--clickable"
                               onClick={() => handleDirectorClick(d)}
@@ -4070,14 +4201,58 @@ export function FriendProfilePage() {
                     </div>
                   ))}
                 </div>
+              ) : directorsViewMode === 'by_birthyear' ? (
+                <div className="profile-classes-view">
+                  {directorsByBirthYear.map((section) => (
+                    <div
+                      key={section.year === 'unknown' ? 'unknown' : String(section.year)}
+                      className="profile-class-section"
+                    >
+                      <h3 className="profile-class-title">
+                        {section.year === 'unknown' ? 'Year unknown' : section.year}
+                      </h3>
+                      <div className="profile-class-grid profile-class-grid--yearly">
+                        {section.items.map((d: any, i: number) => {
+                          const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
+                          const userStatus = getUserDirectorStatus(tmdbId);
+                          return (
+                            <div
+                              key={d.id}
+                              id={`profile-entry-${d.id}`}
+                              className="profile-top-item profile-top-item--clickable"
+                              onClick={() => handleDirectorClick(d)}
+                            >
+                              <div className="profile-top-poster">
+                                {d.profilePath ? (
+                                  <img src={tmdbImagePath(d.profilePath) ?? ''} alt={d.title} loading="lazy" />
+                                ) : (
+                                  <span className="profile-top-poster-placeholder">🎬</span>
+                                )}
+                                <span className="profile-top-rank">#{i + 1}</span>
+                                <div className="profile-top-overlay">
+                                  <span className={userStatus.isRanked ? 'profile-top-overlay-text profile-top-overlay-text--seen' : 'profile-top-overlay-text'}>
+                                    {userStatus.isRanked ? 'EDIT' : 'SAVE'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="profile-top-info">
+                                <span className="profile-top-title">{d.title}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="profile-top-grid">
-                  {top5Directors.map((d: any, i: number) => {
+                  {directorsRankTopSlice.map((d: any, i: number) => {
                     const tmdbId = (d.tmdbId ?? parseInt(d.id.replace(/\D/g, ''), 10)) || 0;
                     const userStatus = getUserDirectorStatus(tmdbId);
                     return (
-                      <div 
-                        key={d.id} 
+                      <div
+                        key={d.id}
                         className="profile-top-item profile-top-item--clickable"
                         onClick={() => handleDirectorClick(d)}
                       >

@@ -379,6 +379,13 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  .mobile-tab-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .mobile-tab {
     display: flex;
     flex-direction: column;

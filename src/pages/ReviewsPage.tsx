@@ -1,17 +1,19 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Info, Pencil, Search, Settings, Star } from 'lucide-react';
+import { Info, Pencil, Settings, Star } from 'lucide-react';
 import { InfoModal } from '../components/InfoModal';
+import { PageSearch } from '../components/PageSearch';
 import { UniversalEditModal, type UniversalEditTarget } from '../components/UniversalEditModal';
 import type { MovieShowItem } from '../components/EntryRowMovieShow';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
-import { buildReviewCards, findFirstMatchingReview, sortReviewCards, splitRoundRobin, type ReviewCardItem } from '../lib/reviews';
+import { buildReviewCards, sortReviewCards, splitRoundRobin, type ReviewCardItem } from '../lib/reviews';
 import { useListsStore } from '../state/listsStore';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { tmdbImagePath } from '../lib/tmdb';
 import { useNavigate } from 'react-router-dom';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { RandomQuote } from '../components/RandomQuote';
 import './ReviewsPage.css';
 
 type ActiveEditorState = {
@@ -61,9 +63,6 @@ export function ReviewsPage() {
   const { isMobile } = useMobileViewMode();
   const [favoritesFirst, setFavoritesFirst] = useState(false);
   const [expandedReviewIds, setExpandedReviewIds] = useState<Set<string>>(() => new Set());
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [focusedReviewId, setFocusedReviewId] = useState<string | null>(null);
   const [infoModalTarget, setInfoModalTarget] = useState<{
     tmdbId: number;
@@ -109,6 +108,34 @@ export function ReviewsPage() {
     [sortedReviews, isMobile]
   );
 
+  const pageSearchItems = useMemo(
+    () =>
+      sortedReviews.map((card) => {
+        const snippet =
+          card.reviewBody.length > 48 ? `${card.reviewBody.slice(0, 48)}…` : card.reviewBody;
+        const resultLabel = card.reviewTitle
+          ? `${card.entryTitle} — ${card.reviewTitle}`
+          : card.reviewBody
+            ? `${card.entryTitle} — ${snippet}`
+            : card.entryTitle;
+        return {
+          id: card.id,
+          title: card.entryTitle,
+          searchText: `${card.entryTitle} ${card.reviewTitle} ${card.reviewBody}`,
+          resultLabel,
+        };
+      }),
+    [sortedReviews]
+  );
+
+  const focusReviewCard = useCallback((reviewId: string) => {
+    setFocusedReviewId(reviewId);
+    setExpandedReviewIds((prev) => new Set(prev).add(reviewId));
+    window.requestAnimationFrame(() => {
+      reviewRefs.current[reviewId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, []);
+
   const currentModalItem = useMemo(() => {
     if (!activeEditor) return null;
     if (activeEditor.card.mediaType === 'movie') {
@@ -139,18 +166,6 @@ export function ReviewsPage() {
     });
   }, []);
 
-  const handleSearch = useCallback(() => {
-    const match = findFirstMatchingReview(sortedReviews, searchQuery);
-    if (!match) {
-      setSearchError('No matching reviews found.');
-      return;
-    }
-    setSearchError(null);
-    setFocusedReviewId(match.id);
-    setExpandedReviewIds((prev) => new Set(prev).add(match.id));
-    reviewRefs.current[match.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [searchQuery, sortedReviews]);
-
   const openReviewEditor = useCallback((card: ReviewCardItem) => {
     setActiveEditor({ card, openReviewEditor: true });
   }, []);
@@ -159,56 +174,44 @@ export function ReviewsPage() {
     setActiveEditor({ card, openReviewEditor: false });
   }, []);
 
+  const hasActiveOverlay = Boolean(activeEditor || infoModalTarget);
+
   return (
     <section className="reviews-page">
       <header className="page-heading">
         <div>
           <h1 className="page-title">Reviews</h1>
-          <p className="reviews-subtitle">Your latest watch reviews, sorted newest first.</p>
+          <RandomQuote />
         </div>
-        <div className="reviews-controls">
-          <label className="reviews-favorites-toggle" htmlFor="reviews-favorites-first">
-            <input
-              id="reviews-favorites-first"
-              type="checkbox"
-              checked={favoritesFirst}
-              onChange={(event) => setFavoritesFirst(event.target.checked)}
-            />
-            <span>
-              <Star size={14} />
-              Favorites First
-            </span>
-          </label>
-          <button
-            type="button"
-            className="reviews-search-toggle"
-            onClick={() => {
-              setSearchOpen((open) => !open);
-              setSearchError(null);
-            }}
-          >
-            <Search size={16} />
-            Search
-          </button>
-        </div>
+        {!hasActiveOverlay ? (
+          <div className="page-actions-row">
+            <button
+              type="button"
+              className={`class-visibility-btn reviews-fav-toggle${favoritesFirst ? ' reviews-fav-toggle--on' : ''}`}
+              onClick={() => setFavoritesFirst((prev) => !prev)}
+              title={favoritesFirst ? 'Showing favorites first' : 'Sort favorites to the top'}
+              aria-pressed={favoritesFirst}
+            >
+              <Star size={18} />
+              <span className="filter-label">Favorites first</span>
+            </button>
+          </div>
+        ) : null}
       </header>
 
-      {searchOpen ? (
-        <div className="reviews-search-bar">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') handleSearch();
-            }}
-            placeholder="Search entry title or review keywords..."
-            aria-label="Search reviews"
-          />
-          <button type="button" onClick={handleSearch}>Go</button>
-        </div>
+      {!hasActiveOverlay && sortedReviews.length > 0 ? (
+        <PageSearch
+          items={pageSearchItems}
+          onSelect={(id) => focusReviewCard(id)}
+          onEdit={(id) => {
+            const card = sortedReviews.find((c) => c.id === id);
+            if (card) openSettingsModal(card);
+          }}
+          placeholder="Search reviews..."
+          className="page-search-locked"
+          pageKey="reviews"
+        />
       ) : null}
-      {searchError ? <p className="reviews-search-error">{searchError}</p> : null}
 
       {sortedReviews.length === 0 ? (
         <div className="reviews-empty">No reviews yet. Add one from any entry settings menu.</div>
@@ -232,9 +235,9 @@ export function ReviewsPage() {
                       <div className="reviews-card-summary">
                         {posterUrl ? <img src={posterUrl} alt="" className="reviews-card-poster" loading="lazy" /> : <div className="reviews-card-poster reviews-card-poster-placeholder" />}
                         <div>
-                          <h3>{card.reviewTitle}</h3>
-                          <p>{card.entryTitle}</p>
-                          <span>{card.reviewDateLabel}</span>
+                          <h3 className="reviews-card-title">{card.reviewTitle}</h3>
+                          <p className="reviews-card-entry">{card.entryTitle}</p>
+                          <span className="reviews-card-date">{card.reviewDateLabel}</span>
                         </div>
                       </div>
                       <div className="reviews-card-actions" onClick={(event) => event.stopPropagation()}>

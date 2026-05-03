@@ -1,5 +1,5 @@
 import type { MovieShowItem, WatchRecord, WatchReview } from '../components/EntryRowMovieShow';
-import { getWatchRecordSortKey } from '../state/moviesStore';
+import { formatWatchLabel, getWatchRecordSortKey } from '../state/moviesStore';
 
 export type ReviewsSourceScope =
   | { kind: 'self' }
@@ -20,7 +20,7 @@ export type ReviewCardItem = {
   reviewTitle: string;
   reviewBody: string;
   favoriteReview: boolean;
-  reviewUpdatedAtMs: number;
+  /** Display date for the watch this review is attached to (not last-edited). */
   reviewDateLabel: string;
   watchSortKey: string;
   dayOrder: number;
@@ -39,32 +39,6 @@ function hasReviewContent(review?: WatchReview): review is WatchReview {
   return Boolean(review.title?.trim() || review.body?.trim());
 }
 
-function parseUpdatedAtMs(value?: string): number {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatReviewDate(value: string | undefined, fallback: WatchRecord): string {
-  const updatedMs = parseUpdatedAtMs(value);
-  if (updatedMs > 0) {
-    return new Date(updatedMs).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
-  const sortKey = getWatchRecordSortKey(fallback);
-  if (sortKey === '0000-00-00') return 'Long Ago';
-  const [y, m, d] = sortKey.split('-').map((part) => Number.parseInt(part, 10));
-  if (!y || !m || !d) return 'Unknown date';
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 function buildCardsForMedia(
   entries: MovieShowItem[],
   mediaType: 'movie' | 'tv',
@@ -75,9 +49,8 @@ function buildCardsForMedia(
     for (const watch of entry.watchRecords ?? []) {
       if (!hasReviewContent(watch.review)) continue;
       const review = watch.review;
-      const reviewTitle = review.title.trim() || entry.title;
+      const reviewTitle = review.title.trim();
       const reviewBody = review.body.trim();
-      const reviewUpdatedAtMs = parseUpdatedAtMs(review.updatedAt);
       cards.push({
         id: `${entry.id}::${watch.id}`,
         entryId: entry.id,
@@ -93,8 +66,7 @@ function buildCardsForMedia(
         reviewTitle,
         reviewBody,
         favoriteReview: review.favoriteReview === true,
-        reviewUpdatedAtMs,
-        reviewDateLabel: formatReviewDate(review.updatedAt, watch),
+        reviewDateLabel: formatWatchLabel(watch),
         watchSortKey: getWatchRecordSortKey(watch),
         dayOrder: watch.dayOrder ?? 0,
         searchText: `${entry.title} ${review.title} ${review.body}`.toLowerCase(),
@@ -118,13 +90,11 @@ export function buildReviewCards({
   ];
 }
 
+/** When favoritesFirst is false, ordering is by watch date only (newest watch first). */
 export function sortReviewCards(cards: ReviewCardItem[], favoritesFirst: boolean): ReviewCardItem[] {
   return [...cards].sort((a, b) => {
     if (favoritesFirst && a.favoriteReview !== b.favoriteReview) {
       return a.favoriteReview ? -1 : 1;
-    }
-    if (b.reviewUpdatedAtMs !== a.reviewUpdatedAtMs) {
-      return b.reviewUpdatedAtMs - a.reviewUpdatedAtMs;
     }
     const keySort = b.watchSortKey.localeCompare(a.watchSortKey);
     if (keySort !== 0) return keySort;
@@ -140,10 +110,4 @@ export function splitRoundRobin<T>(items: T[], columnCount: number): T[][] {
     columns[index % safeColumnCount].push(item);
   });
   return columns;
-}
-
-export function findFirstMatchingReview(cards: ReviewCardItem[], query: string): ReviewCardItem | null {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return null;
-  return cards.find((card) => card.searchText.includes(normalized)) ?? null;
 }

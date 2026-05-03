@@ -1,3 +1,23 @@
+.quotes-flash-target {
+  animation: quotes-flash-pulse 2.4s ease-out;
+  border-radius: 10px;
+}
+
+@keyframes quotes-flash-pulse {
+  0% {
+    box-shadow: 0 0 0 3px rgba(244, 162, 97, 0.95);
+    background-color: rgba(244, 162, 97, 0.16);
+  }
+  40% {
+    box-shadow: 0 0 0 2px rgba(244, 162, 97, 0.55);
+    background-color: rgba(244, 162, 97, 0.09);
+  }
+  100% {
+    box-shadow: none;
+    background-color: transparent;
+  }
+}
+
 .quotes-page-actions {
   display: flex;
   gap: 0.5rem;

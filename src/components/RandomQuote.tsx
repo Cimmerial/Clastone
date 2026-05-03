@@ -9,6 +9,14 @@ type Quote = { text: string; character: string; source: string };
 type QuotesData = Record<string, Quote[]>;
 
 const typedQuotesData = quotesData as QuotesData;
+
+function flattenQuoteBuckets(source: QuotesData): Quote[] {
+  return Object.values(source).flat();
+}
+
+function movieAndTvQuotes(source: QuotesData): Quote[] {
+  return [...(source.movies ?? []), ...(source.tv ?? [])];
+}
 const DIRK_DIGGLER_TEXT = 'Dirk Diggler';
 
 function renderHighlightedDirk(text: string) {
@@ -44,11 +52,17 @@ export function RandomQuote() {
     }, [firebaseQuotes]);
 
     const activeCategoryQuotes = useMemo(() => {
-        const path = location.pathname.split('/')[1] || 'profile';
+        const segments = location.pathname.split('/').filter(Boolean);
+        const path = segments[0] || 'profile';
         const quoteSource = groupedFirebaseQuotes ?? typedQuotesData;
-        if (path === 'quotes') {
-            return Object.values(quoteSource).flat();
+
+        if (path === 'quotes' || path === 'lists' || path === 'settings') {
+            return flattenQuoteBuckets(quoteSource);
         }
+        if (path === 'watchlist' || path === 'reviews') {
+            return movieAndTvQuotes(quoteSource);
+        }
+
         const category = quoteSource[path] ? path : 'profile';
         return quoteSource[category] ?? [];
     }, [location.pathname, groupedFirebaseQuotes]);

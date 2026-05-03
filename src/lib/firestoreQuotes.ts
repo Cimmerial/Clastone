@@ -16,19 +16,20 @@ import {
 } from 'firebase/firestore';
 import legacyQuotes from '../data/quotes.json';
 
+/** Active categories for new/edited quotes (Firestore may still contain legacy `watchlist` / `settings`). */
 export type QuoteCategory =
   | 'movies'
   | 'tv'
   | 'actors'
   | 'directors'
-  | 'watchlist'
   | 'search'
-  | 'profile'
-  | 'settings';
+  | 'profile';
+
+export type StoredQuoteCategory = QuoteCategory | 'watchlist' | 'settings';
 
 export type FirebaseQuote = {
   id: string;
-  category: QuoteCategory;
+  category: StoredQuoteCategory;
   text: string;
   speakerFirstName: string;
   speakerFullName: string;
@@ -49,7 +50,7 @@ export type QuoteSubmissionStatus = 'pending' | 'approved' | 'rejected';
 export type QuoteSubmission = {
   id: string;
   status: QuoteSubmissionStatus;
-  category: QuoteCategory;
+  category: StoredQuoteCategory;
   text: string;
   speakerFirstName: string;
   speakerFullName: string;
@@ -96,7 +97,7 @@ export class QuoteEditConflictError extends Error {
   }
 }
 
-function toQuoteCategory(value: string): QuoteCategory {
+function parseStoredQuoteCategory(value: string): StoredQuoteCategory {
   const safe = value.trim().toLowerCase();
   // "general" has been retired; map it to profile.
   if (safe === 'general') return 'profile';
@@ -115,6 +116,13 @@ function toQuoteCategory(value: string): QuoteCategory {
   return 'profile';
 }
 
+/** Map legacy stored categories to a value allowed in the quote form dropdown. */
+export function normalizeQuoteCategoryForForm(stored: StoredQuoteCategory): QuoteCategory {
+  if (stored === 'watchlist') return 'movies';
+  if (stored === 'settings') return 'profile';
+  return stored;
+}
+
 export async function loadGlobalQuotes(db: Firestore): Promise<FirebaseQuote[]> {
   const snap = await getDocs(collection(db, QUOTES_ROOT));
   if (snap.empty) return [];
@@ -126,7 +134,7 @@ export async function loadGlobalQuotes(db: Firestore): Promise<FirebaseQuote[]> 
       const sourceRaw = String(data.source ?? '').trim();
       return {
         id: d.id,
-        category: toQuoteCategory(String(data.category ?? 'profile')),
+        category: parseStoredQuoteCategory(String(data.category ?? 'profile')),
         text: String(data.text ?? ''),
         speakerFirstName: speakerFirstNameRaw,
         speakerFullName: speakerFullNameRaw,
@@ -150,7 +158,7 @@ export async function loadGlobalQuotes(db: Firestore): Promise<FirebaseQuote[]> 
 }
 
 export type QuoteWritePayload = {
-  category: QuoteCategory;
+  category: StoredQuoteCategory;
   text: string;
   source: string;
   speakerFirstName?: string;
@@ -277,7 +285,7 @@ function toQuoteSubmission(id: string, data: Record<string, unknown>): QuoteSubm
       data.status === 'approved' || data.status === 'rejected'
         ? data.status
         : 'pending',
-    category: toQuoteCategory(String(data.category ?? 'profile')),
+    category: parseStoredQuoteCategory(String(data.category ?? 'profile')),
     text: String(data.text ?? ''),
     speakerFirstName: String(data.speakerFirstName ?? data.character ?? ''),
     speakerFullName: String(data.speakerFullName ?? ''),
@@ -466,7 +474,7 @@ export async function migrateLegacyQuotesIfNeeded(db: Firestore): Promise<boolea
   const now = new Date().toISOString();
 
   Object.entries(typedLegacy).forEach(([categoryKey, quotes]) => {
-    const category = toQuoteCategory(categoryKey);
+    const category = parseStoredQuoteCategory(categoryKey);
     quotes.forEach((quote) => {
       const ref = doc(collection(db, QUOTES_ROOT));
       batch.set(ref, {

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, LayoutList, MessageSquareQuote, NotebookText, type LucideIcon } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, MessageSquareQuote, NotebookText, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tmdbImagePath } from '../lib/tmdb';
@@ -16,14 +16,14 @@ const mainLinks: { to: string; label: string; icon?: LucideIcon }[] = [
   { to: '/actors', label: 'Actors' },
   { to: '/directors', label: 'Directors' },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
-  { to: '/lists', label: 'Lists', icon: LayoutList },
+  { to: '/lists', label: 'Lists', icon: List },
   { to: '/reviews', label: 'Reviews', icon: NotebookText },
+  { to: '/quotes', label: 'Quotes', icon: MessageSquareQuote },
 ];
 
 const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/search', label: 'Search', icon: Search },
   { to: '/friends', label: 'People', icon: Users },
-  { to: '/quotes', label: 'Quotes', icon: MessageSquareQuote },
   { to: '/profile', label: 'Profile', icon: Home },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/diagnostics', label: 'Diagnostics', icon: RefreshCw },
@@ -99,7 +99,15 @@ export function NavBar() {
                 ))}
                 <span className="nav-sep" aria-hidden role="separator" />
                 {mainLinks.slice(MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
-                  <NavItem key={link.to} to={link.to} label={link.label} icon={link.icon} />
+                  <NavItem
+                    key={link.to}
+                    to={link.to}
+                    label={link.label}
+                    icon={link.icon}
+                    badgeCount={
+                      link.to === '/quotes' && (isAdmin || isBabyDev) ? pendingQuoteCount : 0
+                    }
+                  />
                 ))}
               </nav>
               <nav className="nav-menu nav-menu-right">
@@ -118,7 +126,15 @@ export function NavBar() {
             ))}
             <span className="nav-sep" aria-hidden role="separator" />
             {mainLinks.slice(MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
-              <NavItem key={link.to} to={link.to} label={link.label} icon={link.icon} />
+              <NavItem
+                key={link.to}
+                to={link.to}
+                label={link.label}
+                icon={link.icon}
+                badgeCount={
+                  link.to === '/quotes' && (isAdmin || isBabyDev) ? pendingQuoteCount : 0
+                }
+              />
             ))}
             <span className="nav-sep" aria-hidden role="separator" />
             {desktopIconLinks.map((link) => (
@@ -127,13 +143,7 @@ export function NavBar() {
                 to={link.to}
                 label={link.label}
                 icon={link.icon}
-                badgeCount={
-                  link.to === '/settings'
-                    ? openFeedbackCount
-                    : link.to === '/quotes' && (isAdmin || isBabyDev)
-                      ? pendingQuoteCount
-                      : 0
-                }
+                badgeCount={link.to === '/settings' ? openFeedbackCount : 0}
               />
             ))}
             <NavItem
@@ -179,8 +189,9 @@ const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/actors', label: 'Actors', icon: UserRound },
   { to: '/directors', label: 'Direct.', icon: Video },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
-  { to: '/lists', label: 'Lists', icon: LayoutList },
+  { to: '/lists', label: 'Lists', icon: List },
   { to: '/reviews', label: 'Reviews', icon: NotebookText },
+  { to: '/quotes', label: 'Quotes', icon: MessageSquareQuote },
 ];
 
 export function MobileBottomNav() {
@@ -240,7 +251,12 @@ export function MobileBottomNav() {
             }
             aria-label={label}
           >
-            <Icon size={22} />
+            <span className="mobile-tab-icon-wrap">
+              <Icon size={22} />
+              {to === '/quotes' && (isAdmin || isBabyDev) && pendingQuoteCount > 0 ? (
+                <span className="mobile-more-badge">{pendingQuoteCount}</span>
+              ) : null}
+            </span>
             <span className="mobile-tab-label">{label}</span>
           </NavLink>
         ))}
@@ -272,9 +288,6 @@ export function MobileBottomNav() {
                   <div className="mobile-more-icon">
                     <Icon size={24} />
                     {to === '/settings' && openFeedbackCount > 0 ? <span className="mobile-more-badge">{openFeedbackCount}</span> : null}
-                    {to === '/quotes' && (isAdmin || isBabyDev) && pendingQuoteCount > 0 ? (
-                      <span className="mobile-more-badge">{pendingQuoteCount}</span>
-                    ) : null}
                   </div>
                   <span className="mobile-more-label">{label}</span>
                 </NavLink>
