@@ -92,6 +92,11 @@
   gap: 4rem;
 }
 
+.homepage-root.homepage-root .homepage-hero-intro-block {
+  display: flex;
+  flex-direction: column;
+}
+
 .homepage-root.homepage-root .homepage-hero {
   text-align: center;
   color: var(--text-primary);

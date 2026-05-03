@@ -9,6 +9,10 @@ import { formatDuration, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useNavigate } from 'react-router-dom';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
+import { isActorProjectTitleExcluded } from '../lib/actorProjectTitleFilters';
+
+/** Max actor/director projects shown per row (formerly a settings slider). */
+const PERSON_PROJECTS_DISPLAY_LIMIT = 12;
 
 type Props = {
   item: PersonItem | DirectorItem;
@@ -131,13 +135,13 @@ export function EntryRowPerson({
       });
     }
 
-    // Exclude The Simpsons if enabled
-    if (settings.excludeSimpsons) {
-      all = all.filter(r => {
-        const title = r.title.toLowerCase();
-        return !title.includes('the simpsons');
-      });
-    }
+    all = all.filter(
+      (r) =>
+        !isActorProjectTitleExcluded(r.title, {
+          excludeSimpsons: settings.excludeSimpsons,
+          excludeFamilyGuy: settings.excludeFamilyGuy,
+        })
+    );
 
     const seen = all.filter((r: any) => (r.mediaType === 'movie' && seenMovies.has(`tmdb-movie-${r.id}`)) ||
       (r.mediaType === 'tv' && seenShows.has(`tmdb-tv-${r.id}`)));
@@ -177,13 +181,12 @@ export function EntryRowPerson({
     });
 
     return { seenRoles: seen, knownFor: unseen };
-  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, settings.excludeSimpsons, moviesGlobalRanks, tvGlobalRanks]);
+  }, [item.roles, seenMovies, seenShows, settings.boycottTalkShows, settings.excludeSelfRoles, settings.excludeSimpsons, settings.excludeFamilyGuy, moviesGlobalRanks, tvGlobalRanks]);
 
 
-  // Combine and apply limit from settings
   const { rolesWithMetadata, lastSeenIndex } = useMemo(() => {
     const combined = [...seenRoles, ...knownFor];
-    const limited = combined.slice(0, settings.personProjectsLimit);
+    const limited = combined.slice(0, PERSON_PROJECTS_DISPLAY_LIMIT);
 
     // Find where seen ends in the limited list
     let lastSeen = -1;
@@ -195,7 +198,7 @@ export function EntryRowPerson({
     }
 
     return { rolesWithMetadata: limited, lastSeenIndex: lastSeen };
-  }, [seenRoles, knownFor, settings.personProjectsLimit, seenMovies, seenShows]);
+  }, [seenRoles, knownFor, seenMovies, seenShows]);
 
   const calculateAge = (birthday?: string, deathday?: string) => {
     if (!birthday) return null;

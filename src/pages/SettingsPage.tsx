@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, GripVertical, Home, Pencil, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronRight, GripVertical, Home, Info, Pencil, Trash2, X } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
@@ -40,6 +40,77 @@ type BabyRoleUser = {
   email?: string;
   devRole?: string;
 };
+
+function DisplayToggle({
+  label,
+  info,
+  checked,
+  onChange,
+  footer,
+}: {
+  label: string;
+  info: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  footer?: ReactNode;
+}) {
+  return (
+    <div className="settings-display-toggle-wrap">
+      <div className="settings-display-toggle-row">
+        <span className="settings-display-toggle-label">{label}</span>
+        <span className="settings-display-info-wrap">
+          <button type="button" className="settings-display-info-btn" aria-label={`About: ${label}`}>
+            <Info size={15} strokeWidth={2.4} aria-hidden />
+          </button>
+          <div className="settings-display-tooltip" role="tooltip">
+            {info}
+          </div>
+        </span>
+        <label className="settings-switch">
+          <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+          <span className="settings-switch-slider" />
+        </label>
+      </div>
+      {footer ? <div className="settings-display-toggle-footer">{footer}</div> : null}
+    </div>
+  );
+}
+
+function SettingsCollapsibleCardHeader({
+  title,
+  expanded,
+  onToggle,
+  titleId,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  titleId: string;
+}) {
+  return (
+    <div
+      className="settings-card-heading-row settings-card-heading-row--toggle"
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <h2 className="settings-title" id={titleId}>
+        {title}
+      </h2>
+      <span className="settings-collapse-toggle" aria-hidden="true">
+        {expanded ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
+      </span>
+    </div>
+  );
+}
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -580,17 +651,12 @@ export function SettingsPage() {
           </p>
         ) : null}
         <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
-          <div className="settings-card-heading-row">
-            <h2 className="settings-title">Class Management</h2>
-            <button
-              type="button"
-              className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('classManagement')}
-              aria-label={expandedSections.classManagement ? 'Collapse class management' : 'Expand class management'}
-            >
-              {expandedSections.classManagement ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-            </button>
-          </div>
+          <SettingsCollapsibleCardHeader
+            title="Class Management"
+            expanded={expandedSections.classManagement}
+            onToggle={() => handleToggleSection('classManagement')}
+            titleId="settings-heading-class-management"
+          />
           {expandedSections.classManagement && (
             <>
               <p className="settings-muted">
@@ -882,209 +948,138 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
-          <div className="settings-card-heading-row">
-            <h2 className="settings-title">Display</h2>
-            <button
-              type="button"
-              className="settings-collapse-toggle"
-              onClick={() => handleToggleSection('display')}
-              aria-label={expandedSections.display ? 'Collapse display settings' : 'Expand display settings'}
-            >
-              {expandedSections.display ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-            </button>
-          </div>
+          <SettingsCollapsibleCardHeader
+            title="Display"
+            expanded={expandedSections.display}
+            onToggle={() => handleToggleSection('display')}
+            titleId="settings-heading-display"
+          />
           {expandedSections.display && (
             <>
-          <p className="settings-muted">
-            Adjust how entries appear across your lists.
-          </p>
-          <label className="settings-slider-label">
-            <span>Show Cast Count: <strong>{settings.topCastCount}</strong></span>
-            <input
-              type="range"
-              min={0}
-              max={20}
-              value={settings.topCastCount}
-              className="settings-slider"
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                updateSettings({ topCastCount: v });
-              }}
-            />
-            <span className="settings-slider-range">0 – 20</span>
-          </label>
+              <p className="settings-muted settings-display-lead">
+                Short labels below; hover the info icon on each row for full behavior and examples.
+              </p>
 
-          <label className="settings-slider-label">
-            <span>Actor Projects Limit: <strong>{settings.personProjectsLimit}</strong></span>
-            <input
-              type="range"
-              min={0}
-              max={20}
-              value={settings.personProjectsLimit}
-              className="settings-slider"
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                updateSettings({ personProjectsLimit: v });
-              }}
-            />
-            <span className="settings-slider-range">0 – 20</span>
-          </label>
+              <div className="settings-display-grid">
+                <div className="settings-display-col">
+                  <h3 className="settings-display-col-title">Actor projects</h3>
+                  <DisplayToggle
+                    label="Talk / awards clutter"
+                    checked={settings.boycottTalkShows}
+                    onChange={(v) => updateSettings({ boycottTalkShows: v })}
+                    info='When on, drops variety and awards-style titles from person filmographies—examples include "The Tonight Show", "Jimmy Kimmel Live!", "The Graham Norton Show", "Golden Globe Awards", "LIVE with Kelly and Mark", "The One Show", "Late Night with Seth Meyers", and "The Late Late Show with James Corden". Applies to ranked actor/director rows, Search person projects, and the person info modal.'
+                  />
+                  <DisplayToggle
+                    label="Hide “Self” credits"
+                    checked={settings.excludeSelfRoles}
+                    onChange={(v) => updateSettings({ excludeSelfRoles: v })}
+                    info='Hides roles billed as "Self" or "Self - Guest" (talk-show beats, award ceremonies, documentary appearances, etc.) from the same places as other actor-project filters.'
+                  />
+                  <DisplayToggle
+                    label="Hide The Simpsons"
+                    checked={settings.excludeSimpsons}
+                    onChange={(v) => updateSettings({ excludeSimpsons: v })}
+                    info="Removes The Simpsons from appearing in filmography of people within info modal."
+                  />
+                  <DisplayToggle
+                    label="Hide Family Guy"
+                    checked={settings.excludeFamilyGuy}
+                    onChange={(v) => updateSettings({ excludeFamilyGuy: v })}
+                    info="Removes Family Guy from appearing in filmography of people within info modal."
+                  />
+                </div>
 
-          <div className="settings-select-row">
-            <span className="settings-select-label">Tile View Size: <strong>{settings.tileViewSize}</strong></span>
-            <select
-              value={settings.tileViewSize}
-              className="settings-select"
-              onChange={(e) => {
-                const v = e.target.value as 'small' | 'default' | 'big';
-                updateSettings({ tileViewSize: v });
-              }}
-            >
-              <option value="small">Small</option>
-              <option value="default">Default</option>
-              <option value="big">Big</option>
-            </select>
-          </div>
+                <div className="settings-display-col">
+                  <h3 className="settings-display-col-title">Layout</h3>
+                  <div className="settings-display-tile-block">
+                    <div className="settings-display-toggle-row settings-display-toggle-row--header-only">
+                      <span className="settings-display-toggle-label">Poster tile size</span>
+                      <span className="settings-display-info-wrap">
+                        <button type="button" className="settings-display-info-btn" aria-label="About: Poster tile size">
+                          <Info size={15} strokeWidth={2.4} aria-hidden />
+                        </button>
+                        <div className="settings-display-tooltip" role="tooltip">
+                          Controls how large movie/show posters appear in tile-style lists app-wide. Small is the default for new sessions; pick Medium or Large if you want bigger thumbnails.
+                        </div>
+                      </span>
+                    </div>
+                    <div
+                      className="settings-display-segmented"
+                      role="group"
+                      aria-label="Poster tile size"
+                    >
+                      {(
+                        [
+                          { key: 'small' as const, label: 'Small' },
+                          { key: 'default' as const, label: 'Medium' },
+                          { key: 'big' as const, label: 'Large' },
+                        ]
+                      ).map(({ key, label }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`settings-display-segmented-btn${settings.tileViewSize === key ? ' is-active' : ''}`}
+                          onClick={() => updateSettings({ tileViewSize: key })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
+                  <DisplayToggle
+                    label="Spotlight backdrop"
+                    checked={settings.useSpotlightBackground}
+                    onChange={(v) => updateSettings({ useSpotlightBackground: v })}
+                    info="Adds the animated colored-dot background (similar to the login screen) across main pages."
+                  />
+                  <DisplayToggle
+                    label="Seen = green border"
+                    checked={settings.collectionSeenBorderMode}
+                    onChange={(v) => updateSettings({ collectionSeenBorderMode: v })}
+                    info="In collections: off = unseen entries look muted; on = seen entries get a strong green border instead of graying out unseen. Applies to your lists and when browsing friends’ collections."
+                  />
+                </div>
 
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Boycott certain shows/movies from actor lists</span>
-              <span className="settings-toggle-description">Hides variety/talk shows and awards like 'The Tonight Show', 'Jimmy Kimmel Live!', 'The Graham Norton Show', 'Golden Globe Awards', 'LIVE with Kelly and Mark', 'The One Show', 'Late Night with Seth Meyers', and 'The Late Late Show with James Corden'.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.boycottTalkShows}
-                onChange={(e) => updateSettings({ boycottTalkShows: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Exclude The Simpsons from actor projects</span>
-              <span className="settings-toggle-description">Hides The Simpsons TV show from actor filmographies to reduce clutter.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.excludeSimpsons}
-                onChange={(e) => updateSettings({ excludeSimpsons: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Exclude "Self" roles from actor projects</span>
-              <span className="settings-toggle-description">Hides roles where actors are listed as "Self" or "Self - Guest" (talk show appearances, award shows, documentaries, etc.) from info modal and detailed views.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.excludeSelfRoles}
-                onChange={(e) => updateSettings({ excludeSelfRoles: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Use spotlight background</span>
-              <span className="settings-toggle-description">Adds animated colored dots background effect (like login screen) to all pages.</span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.useSpotlightBackground}
-                onChange={(e) => updateSettings({ useSpotlightBackground: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Collection seen/unseen style</span>
-              <span className="settings-toggle-description">
-                Off (default): unseen entries are grayed out. On: unseen entries look normal, and seen entries get a thick green border. Applies to your collections and friends' collection views.
-              </span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.collectionSeenBorderMode}
-                onChange={(e) => updateSettings({ collectionSeenBorderMode: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Show example profile on Home</span>
-              <span className="settings-toggle-description">
-                Controls the featured example profile card on the Home page.
-              </span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.showExampleProfile}
-                onChange={(e) => updateSettings({ showExampleProfile: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-toggle-row">
-            <div className="settings-toggle-info">
-              <span className="settings-toggle-label">Show Home intro quick-start block</span>
-              <span className="settings-toggle-description">
-                Shows or hides the Home page section from “Rank, Track, Organize” through “View My Stats”.
-              </span>
-            </div>
-            <label className="settings-switch">
-              <input
-                type="checkbox"
-                checked={settings.showHomeHeroIntro}
-                onChange={(e) => updateSettings({ showHomeHeroIntro: e.target.checked })}
-              />
-              <span className="settings-switch-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-list-actions">
-            <button
-              type="button"
-              className="settings-btn settings-btn-subtle"
-              onClick={() => navigate(exampleProfileUid ? `/friends/${exampleProfileUid}` : '/friends')}
-            >
-              View Example Profile
-            </button>
-          </div>
-
+                <div className="settings-display-col">
+                  <h3 className="settings-display-col-title">Home</h3>
+                  <DisplayToggle
+                    label="Show Featured sample profile"
+                    checked={settings.showExampleProfile}
+                    onChange={(v) => updateSettings({ showExampleProfile: v })}
+                    info="Shows the highlighted example profile card on the Home page so new visitors can jump into a filled-out profile."
+                    footer={
+                      settings.showExampleProfile ? (
+                        <button
+                          type="button"
+                          className="settings-btn settings-btn-subtle settings-display-follow-btn"
+                          onClick={() => navigate(exampleProfileUid ? `/friends/${exampleProfileUid}` : '/friends')}
+                        >
+                          Open example profile
+                        </button>
+                      ) : null
+                    }
+                  />
+                  <DisplayToggle
+                    label="Show Home quick-start"
+                    checked={settings.showHomeHeroIntro}
+                    onChange={(v) => updateSettings({ showHomeHeroIntro: v })}
+                    info='Shows the top Home block from “Rank, Track, Organize” through shortcut buttons like “View My Stats”. You can still reopen it from here if you hide it from Home.'
+                  />
+                </div>
+              </div>
             </>
           )}
         </div>
 
         {signedIn && canManageDevPanel && (
           <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
-            <div className="settings-card-heading-row">
-              <h2 className="settings-title">Dev</h2>
-              <button
-                type="button"
-                className="settings-collapse-toggle"
-                onClick={() => handleToggleSection('dev')}
-                aria-label={expandedSections.dev ? 'Collapse dev settings' : 'Expand dev settings'}
-              >
-                {expandedSections.dev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-              </button>
-            </div>
+            <SettingsCollapsibleCardHeader
+              title="Dev"
+              expanded={expandedSections.dev}
+              onToggle={() => handleToggleSection('dev')}
+              titleId="settings-heading-dev"
+            />
             {expandedSections.dev && (
               <>
                 <p className="settings-muted">Admin tools (all environments).</p>
@@ -1236,17 +1231,12 @@ export function SettingsPage() {
 
         {signedIn && canManageBabydevPanel && (
           <div className="settings-card card-surface settings-card-wide settings-collapsible-card">
-            <div className="settings-card-heading-row">
-              <h2 className="settings-title">Babydev</h2>
-              <button
-                type="button"
-                className="settings-collapse-toggle"
-                onClick={() => handleToggleSection('babydev')}
-                aria-label={expandedSections.babydev ? 'Collapse babydev settings' : 'Expand babydev settings'}
-              >
-                {expandedSections.babydev ? <ChevronDown size={18} strokeWidth={2.8} /> : <ChevronRight size={18} strokeWidth={2.8} />}
-              </button>
-            </div>
+            <SettingsCollapsibleCardHeader
+              title="Babydev"
+              expanded={expandedSections.babydev}
+              onToggle={() => handleToggleSection('babydev')}
+              titleId="settings-heading-babydev"
+            />
             {expandedSections.babydev && (
               <>
                 <p className="settings-muted">Quote tools for BabyDev access.</p>

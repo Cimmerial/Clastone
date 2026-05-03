@@ -43,6 +43,7 @@ type WatchReviewDraft = {
   body: string;
   publiclyViewable: boolean;
   containsSpoilers: boolean;
+  favoriteReview: boolean;
 };
 
 export interface WatchMatrixEntry {
@@ -110,6 +111,8 @@ type Props = {
   /** When there are no ranked tiers, Ranking section links user to pick a template (parent provides navigation). */
   onGoPickTemplate?: () => void;
   isSaving: boolean;
+  /** Optional record id to open directly in the review editor when modal mounts. */
+  initialReviewEntryId?: string;
 };
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -583,6 +586,7 @@ export function UniversalEditModal({
   onGoToWatchlist,
   onGoPickTemplate,
   isSaving,
+  initialReviewEntryId,
 }: Props) {
   const navigate = useNavigate();
   const { isMobile } = useMobileViewMode();
@@ -643,6 +647,7 @@ export function UniversalEditModal({
     body: '',
     publiclyViewable: false,
     containsSpoilers: true,
+    favoriteReview: false,
   });
   const [selectedClassKey, setSelectedClassKey] = useState<string>('');
   const [selectedPosition, setSelectedPosition] = useState<'top' | 'middle' | 'bottom'>('top');
@@ -807,9 +812,26 @@ export function UniversalEditModal({
       body: existing?.body ?? '',
       publiclyViewable: existing?.publiclyViewable ?? false,
       containsSpoilers: existing?.containsSpoilers !== false,
+      favoriteReview: existing?.favoriteReview === true,
     });
     setEditingReviewEntryId(entryId);
   }, [entries]);
+
+  const lastAutoOpenedReviewRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialReviewEntryId) return;
+    if (editingReviewEntryId) return;
+    if (lastAutoOpenedReviewRef.current === initialReviewEntryId) return;
+    if (!entries.some((entry) => entry.id === initialReviewEntryId)) return;
+    lastAutoOpenedReviewRef.current = initialReviewEntryId;
+    openReviewModal(initialReviewEntryId);
+  }, [initialReviewEntryId, editingReviewEntryId, entries, openReviewModal]);
+
+  useEffect(() => {
+    if (!initialReviewEntryId) {
+      lastAutoOpenedReviewRef.current = null;
+    }
+  }, [initialReviewEntryId]);
 
   const closeReviewModal = useCallback(() => {
     setEditingReviewEntryId(null);
@@ -827,6 +849,7 @@ export function UniversalEditModal({
           body: sanitizedBody,
           publiclyViewable: reviewDraft.publiclyViewable,
           containsSpoilers: reviewDraft.containsSpoilers,
+          favoriteReview: reviewDraft.favoriteReview,
           updatedAt: new Date().toISOString(),
         }
       : undefined;
@@ -1842,6 +1865,22 @@ export function UniversalEditModal({
                   <span className="uem-review-switch-copy">
                     <span className="uem-review-switch-label">Publicly viewable</span>
                     <span className="uem-review-switch-hint">Allow on a future public reviews page</span>
+                  </span>
+                </label>
+                <label className="uem-review-switch" htmlFor="uem-review-favorite">
+                  <input
+                    id="uem-review-favorite"
+                    type="checkbox"
+                    className="uem-review-switch-input"
+                    checked={reviewDraft.favoriteReview}
+                    onChange={(event) =>
+                      setReviewDraft((prev) => ({ ...prev, favoriteReview: event.target.checked }))
+                    }
+                  />
+                  <span className="uem-review-switch-track" aria-hidden />
+                  <span className="uem-review-switch-copy">
+                    <span className="uem-review-switch-label">Favorite review</span>
+                    <span className="uem-review-switch-hint">Pin above others when favorites-first is enabled</span>
                   </span>
                 </label>
               </div>

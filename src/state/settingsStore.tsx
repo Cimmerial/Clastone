@@ -1,13 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 export type GlobalSettings = {
-    topCastCount: number;
     topRoleCount: number;
-    personProjectsLimit: number;
     infoModalProjectSort: 'default' | 'seen-watchlisted-unseen' | 'new-old';
     viewMode: 'minimized' | 'detailed' | 'tile' | 'compact';
     tileViewSize: 'small' | 'default' | 'big';
     boycottTalkShows: boolean;
     excludeSimpsons: boolean;
+    excludeFamilyGuy: boolean;
     excludeSelfRoles: boolean;
     useSpotlightBackground: boolean;
     collectionSeenBorderMode: boolean;
@@ -35,15 +34,14 @@ const SettingsContext = createContext<SettingsStore | null>(null);
 
 function getInitialSettings(): GlobalSettings {
     try {
-        const cast = localStorage.getItem('clastone-topCastCount');
         const role = localStorage.getItem('clastone-topRoleCount');
-        const ppl = localStorage.getItem('clastone-personProjectsLimit');
         const imps = localStorage.getItem('clastone-infoModalProjectSort');
         const vm = localStorage.getItem('clastone-viewMode');
         const tvs = localStorage.getItem('clastone-tileViewSize');
         const min = localStorage.getItem('clastone-minimizedEntries');
         const bts = localStorage.getItem('clastone-boycottTalkShows');
         const es = localStorage.getItem('clastone-excludeSimpsons');
+        const efg = localStorage.getItem('clastone-excludeFamilyGuy');
         const esr = localStorage.getItem('clastone-excludeSelfRoles');
         const usb = localStorage.getItem('clastone-useSpotlightBackground');
         const csbm = localStorage.getItem('clastone-collectionSeenBorderMode');
@@ -73,7 +71,7 @@ function getInitialSettings(): GlobalSettings {
             viewMode = 'tile';
         }
 
-        let tileViewSize: 'small' | 'default' | 'big' = 'default';
+        let tileViewSize: 'small' | 'default' | 'big' = 'small';
         if (tvs === 'small' || tvs === 'default' || tvs === 'big') {
             tileViewSize = tvs as any;
         }
@@ -127,9 +125,7 @@ function getInitialSettings(): GlobalSettings {
         };
 
         return {
-            topCastCount: cast ? Number(cast) : 5,
             topRoleCount: role ? Number(role) : 5,
-            personProjectsLimit: ppl ? Number(ppl) : 12,
             infoModalProjectSort:
                 imps === 'seen-watchlisted-unseen' || imps === 'new-old' || imps === 'default'
                     ? imps
@@ -138,6 +134,7 @@ function getInitialSettings(): GlobalSettings {
             tileViewSize,
             boycottTalkShows: bts === 'true',
             excludeSimpsons: es === 'true',
+            excludeFamilyGuy: efg === 'true',
             excludeSelfRoles: esr === 'true',
             useSpotlightBackground: usb === 'true',
             collectionSeenBorderMode: csbm === 'true',
@@ -157,14 +154,13 @@ function getInitialSettings(): GlobalSettings {
         };
     } catch {
         return {
-            topCastCount: 5,
             topRoleCount: 5,
-            personProjectsLimit: 12,
             infoModalProjectSort: 'default',
             viewMode: 'tile',
-            tileViewSize: 'default',
+            tileViewSize: 'small',
             boycottTalkShows: false,
             excludeSimpsons: false,
+            excludeFamilyGuy: false,
             excludeSelfRoles: false,
             useSpotlightBackground: false,
             collectionSeenBorderMode: false,
@@ -198,11 +194,13 @@ export function SettingsProvider({
     const [settings, setSettings] = useState<GlobalSettings>(() => {
         const defaults = getInitialSettings();
         if (!initialSettings) return defaults;
-        const merged = { ...defaults, ...initialSettings };
+        const merged = { ...defaults, ...initialSettings } as GlobalSettings & Record<string, unknown>;
+        delete merged.topCastCount;
+        delete merged.personProjectsLimit;
         if (merged.viewMode === 'detailed' || merged.viewMode === 'minimized') {
             merged.viewMode = 'tile';
         }
-        return merged;
+        return merged as GlobalSettings;
     });
     const [pendingChanges, setPendingChanges] = useState(0);
     const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -256,14 +254,13 @@ export function SettingsProvider({
             }
             // Save to local storage as backup and for non-auth users.
             try {
-                if (updates.topCastCount !== undefined) localStorage.setItem('clastone-topCastCount', String(next.topCastCount));
                 if (updates.topRoleCount !== undefined) localStorage.setItem('clastone-topRoleCount', String(next.topRoleCount));
-                if (updates.personProjectsLimit !== undefined) localStorage.setItem('clastone-personProjectsLimit', String(next.personProjectsLimit));
                 if (updates.infoModalProjectSort !== undefined) localStorage.setItem('clastone-infoModalProjectSort', next.infoModalProjectSort);
                 if (updates.viewMode !== undefined) localStorage.setItem('clastone-viewMode', next.viewMode);
                 if (updates.tileViewSize !== undefined) localStorage.setItem('clastone-tileViewSize', next.tileViewSize);
                 if (updates.boycottTalkShows !== undefined) localStorage.setItem('clastone-boycottTalkShows', String(next.boycottTalkShows));
                 if (updates.excludeSimpsons !== undefined) localStorage.setItem('clastone-excludeSimpsons', String(next.excludeSimpsons));
+                if (updates.excludeFamilyGuy !== undefined) localStorage.setItem('clastone-excludeFamilyGuy', String(next.excludeFamilyGuy));
                 if (updates.excludeSelfRoles !== undefined) localStorage.setItem('clastone-excludeSelfRoles', String(next.excludeSelfRoles));
                 if (updates.useSpotlightBackground !== undefined) localStorage.setItem('clastone-useSpotlightBackground', String(next.useSpotlightBackground));
                 if (updates.collectionSeenBorderMode !== undefined) localStorage.setItem('clastone-collectionSeenBorderMode', String(next.collectionSeenBorderMode));

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { tmdbPersonDetailsFull, tmdbImagePath, type TmdbPersonCache } from '../lib/tmdb';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/bodyScrollLock';
 import { useSettingsStore } from '../state/settingsStore';
+import { isActorProjectTitleExcluded } from '../lib/actorProjectTitleFilters';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useWatchlistStore } from '../state/watchlistStore';
@@ -141,49 +142,55 @@ export function PersonInfoModal({ isOpen, onClose, tmdbId, name, profilePath, on
     fetchDetails();
   }, [isOpen, tmdbId]);
 
-  // Apply boycott filter to roles
+  // Apply same actor-project filters as ranking rows (Settings → Display).
   const filteredRoles = useMemo(() => {
     if (!details?.roles) {
       return [];
     }
 
-    if (!settings.boycottTalkShows && !settings.excludeSelfRoles) {
-      return details.roles;
+    let all = details.roles;
+
+    if (settings.boycottTalkShows || settings.excludeSelfRoles) {
+      all = all.filter((role) => {
+        const title = role.title.toLowerCase();
+        const character = (role.character || '').toLowerCase();
+        const job = (role.job || '').toLowerCase();
+
+        const isBoycottedTalkShow =
+          title.includes('the tonight show') ||
+          title.includes('the tonight show starring jimmy fallon') ||
+          title.includes('the late show with stephen colbert') ||
+          title.includes('the late night show') ||
+          title.includes('jimmy kimmel live') ||
+          title.includes('the graham norton show') ||
+          title.includes('golden globe awards') ||
+          title.includes('live with kelly') ||
+          title.includes('the one show') ||
+          title.includes('late night with seth meyers') ||
+          title.includes('the late late show with james corden');
+
+        const isSelfRole =
+          character === 'self' ||
+          character === 'self - guest' ||
+          job === 'self' ||
+          job === 'self - guest' ||
+          character.includes('self') ||
+          job.includes('self');
+
+        return !isBoycottedTalkShow && !(settings.excludeSelfRoles && isSelfRole);
+      });
     }
 
-    const filtered = details.roles.filter(role => {
-      const title = role.title.toLowerCase();
-      const character = (role.character || '').toLowerCase();
-      const job = (role.job || '').toLowerCase();
-      
-      // Boycott talk shows filter
-      const isBoycottedTalkShow = title.includes('the tonight show') || 
-                                  title.includes('the tonight show starring jimmy fallon') ||
-                                  title.includes('the late show with stephen colbert') ||
-                                  title.includes('the late night show') || 
-                                  title.includes('jimmy kimmel live') || 
-                                  title.includes('the graham norton show') ||
-                                  title.includes('golden globe awards') ||
-                                  title.includes('live with kelly') ||
-                                  title.includes('the one show') ||
-                                  title.includes('late night with seth meyers') ||
-                                  title.includes('the late late show with james corden');
-      
-      // Self roles filter
-      const isSelfRole = character === 'self' || 
-                         character === 'self - guest' ||
-                         job === 'self' || 
-                         job === 'self - guest' ||
-                         character.includes('self') ||
-                         job.includes('self');
-      
-      const isBoycotted = isBoycottedTalkShow || (settings.excludeSelfRoles && isSelfRole);
+    all = all.filter(
+      (role) =>
+        !isActorProjectTitleExcluded(role.title, {
+          excludeSimpsons: settings.excludeSimpsons,
+          excludeFamilyGuy: settings.excludeFamilyGuy,
+        })
+    );
 
-      return !isBoycotted;
-    });
-
-    return filtered;
-  }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles]);
+    return all;
+  }, [details?.roles, settings.boycottTalkShows, settings.excludeSelfRoles, settings.excludeSimpsons, settings.excludeFamilyGuy]);
 
   const isDirectorJob = (job?: string) => (job || '').toLowerCase().includes('director');
   const isProducerJob = (job?: string) => (job || '').toLowerCase().includes('producer');

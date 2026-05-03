@@ -16,6 +16,8 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useNavigate } from 'react-router-dom';
 
 const TMDB_REFRESH_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
+/** Cast faces shown per movie/TV row (formerly a settings slider). */
+const ENTRY_ROW_TOP_CAST_COUNT = 5;
 const tmdbRefreshInFlight = new Set<string>();
 const tmdbRefreshLastFailureAt = new Map<string, number>();
 
@@ -28,6 +30,8 @@ export type WatchReview = {
   publiclyViewable: boolean;
   /** When true, review may spoil plot; shown for future public UI. Omitted on older saves — treat as true. */
   containsSpoilers?: boolean;
+  /** Optional user pin for favorites-first ordering in review browser. */
+  favoriteReview?: boolean;
   updatedAt: string;
 };
 
@@ -169,8 +173,7 @@ export function EntryRowMovieShow({
   const { getPersonById, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, classes: directorsClasses } = useDirectorsStore();
 
-  const topCastCount = settings.topCastCount;
-  const castSlice = (item.cast ?? []).slice(0, topCastCount);
+  const castSlice = (item.cast ?? []).slice(0, ENTRY_ROW_TOP_CAST_COUNT);
   const [hoveredCastId, setHoveredCastId] = useState<number | null>(null);
 
   // Hardcoded to true since toggles are removed

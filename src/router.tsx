@@ -16,6 +16,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { HomePage } from './pages/HomePage';
 import { ListsPage, ListDetailPage } from './pages/ListsPage';
+import { ReviewsPage } from './pages/ReviewsPage';
 import { useAuth } from './context/AuthContext';
 
 export function AppRoutes() {
@@ -33,6 +34,7 @@ export function AppRoutes() {
       <Route path="/lists" element={<ListsPage />} />
       <Route path="/lists/:listId" element={<ListDetailPage />} />
       <Route path="/lists/collection/:collectionId" element={<ListDetailPage />} />
+      <Route path="/reviews" element={<ReviewsPage />} />
       <Route path="/search" element={<SearchPage />} />
       <Route path="/friends" element={<FriendsPage />} />
       <Route path="/quotes" element={<QuotesPage />} />

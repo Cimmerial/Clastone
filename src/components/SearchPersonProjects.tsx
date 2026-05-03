@@ -4,6 +4,7 @@ import { tmdbImagePath, tmdbPersonDetailsFull } from '../lib/tmdb';
 import { useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { isActorProjectTitleExcluded } from '../lib/actorProjectTitleFilters';
 import { useWatchlistStore } from '../state/watchlistStore';
 
 type Props = {
@@ -70,13 +71,12 @@ export function SearchPersonProjects({ personId, onRecordMedia }: Props) {
       });
     }
 
-    // Exclude The Simpsons if enabled
-    if (settings.excludeSimpsons) {
-      all = all.filter(r => {
-        const title = r.title.toLowerCase();
-        return !title.includes('the simpsons');
-      });
-    }
+    all = all.filter((r) =>
+      !isActorProjectTitleExcluded(r.title, {
+        excludeSimpsons: settings.excludeSimpsons,
+        excludeFamilyGuy: settings.excludeFamilyGuy,
+      })
+    );
 
     // Get all movies and shows from stores
     const allMovies = Object.values(moviesByClass).flat();
@@ -122,7 +122,7 @@ export function SearchPersonProjects({ personId, onRecordMedia }: Props) {
     });
 
     return { seenRoles: seen, knownFor: unseen };
-  }, [personCache, settings.boycottTalkShows, settings.excludeSimpsons, moviesGlobalRanks, tvGlobalRanks, JSON.stringify(moviesByClass), JSON.stringify(tvByClass)]);
+  }, [personCache, settings.boycottTalkShows, settings.excludeSelfRoles, settings.excludeSimpsons, settings.excludeFamilyGuy, moviesGlobalRanks, tvGlobalRanks, JSON.stringify(moviesByClass), JSON.stringify(tvByClass)]);
 
   // Create seen check sets for render function
   const allMovies = Object.values(moviesByClass).flat();

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, LayoutList, MessageSquareQuote, type LucideIcon } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, LayoutList, MessageSquareQuote, NotebookText, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tmdbImagePath } from '../lib/tmdb';
@@ -17,6 +17,7 @@ const mainLinks: { to: string; label: string; icon?: LucideIcon }[] = [
   { to: '/directors', label: 'Directors' },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
   { to: '/lists', label: 'Lists', icon: LayoutList },
+  { to: '/reviews', label: 'Reviews', icon: NotebookText },
 ];
 
 const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
@@ -179,6 +180,7 @@ const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/directors', label: 'Direct.', icon: Video },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
   { to: '/lists', label: 'Lists', icon: LayoutList },
+  { to: '/reviews', label: 'Reviews', icon: NotebookText },
 ];
 
 export function MobileBottomNav() {

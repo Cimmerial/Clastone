@@ -126,6 +126,7 @@ export function HomePage() {
     mediaType: 'movie' | 'tv';
   } | null>(null);
   const [showHideExampleProfileConfirm, setShowHideExampleProfileConfirm] = useState(false);
+  const [showHideHomeHeroIntroConfirm, setShowHideHomeHeroIntroConfirm] = useState(false);
   const [revealedRanksByEntryKey, setRevealedRanksByEntryKey] = useState<Record<string, boolean>>({});
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>('feature_request');
@@ -483,42 +484,58 @@ export function HomePage() {
 
         <main className="homepage-main">
           {settings.showHomeHeroIntro ? (
-            <section className="homepage-hero">
-              <div className="hero-content">
-                <h2 className="hero-title">Rank, Track, Organize</h2>
-                <p className="hero-description">
-                  Rank your movies, shows, actors, and directors in a class-based system (far superior to a simple 5 star scale).
-                  View your friend profiles, see watchlist overlap, and make suggestions.
-                </p>
-                <div className="hero-actions">
-                  <NavLink to="/search" className="hero-btn primary">
-                    <Search size={20} />
-                    Add Movies/Shows/People
-                  </NavLink>
-                  <NavLink to="/movies" className="hero-btn primary">
-                    <Film size={20} />
-                    Your Movies
-                  </NavLink>
-                  <NavLink to="/tv" className="hero-btn primary">
-                    <Tv size={20} />
-                    Your TV Shows
-                  </NavLink>
-                  <NavLink to="/settings" className="hero-btn secondary">
-                    <Settings size={20} />
-                    Edit Classes
-                  </NavLink>
-                  <NavLink to="/friends" className="hero-btn secondary">
-                    <Users size={20} />
-                    People
-                  </NavLink>
-                  
-                  <NavLink to="/profile" className="hero-btn secondary">
-                    <User size={20} />
-                    View My Stats
-                  </NavLink>
+            <div className="homepage-hero-intro-block">
+              <section className="homepage-hero">
+                <div className="hero-content">
+                  <h2 className="hero-title">Rank, Track, Organize</h2>
+                  <p className="hero-description">
+                    Rank your movies, shows, actors, and directors in a class-based system (far superior to a simple 5 star scale).
+                    View your friend profiles, see watchlist overlap, and make suggestions.
+                  </p>
+                  <div className="hero-actions">
+                    <NavLink to="/search" className="hero-btn primary">
+                      <Search size={20} />
+                      Add Movies/Shows/People
+                    </NavLink>
+                    <NavLink to="/movies" className="hero-btn primary">
+                      <Film size={20} />
+                      Your Movies
+                    </NavLink>
+                    <NavLink to="/tv" className="hero-btn primary">
+                      <Tv size={20} />
+                      Your TV Shows
+                    </NavLink>
+                    <NavLink to="/settings" className="hero-btn secondary">
+                      <Settings size={20} />
+                      Edit Classes
+                    </NavLink>
+                    <NavLink to="/friends" className="hero-btn secondary">
+                      <Users size={20} />
+                      People
+                    </NavLink>
+
+                    <NavLink to="/profile" className="hero-btn secondary">
+                      <User size={20} />
+                      View My Stats
+                    </NavLink>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+              <span
+                className="homepage-example-profile-hide-text"
+                role="button"
+                tabIndex={0}
+                onClick={() => setShowHideHomeHeroIntroConfirm(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowHideHomeHeroIntroConfirm(true);
+                  }
+                }}
+              >
+                Hide Home intro quick-start block
+              </span>
+            </div>
           ) : null}
 
           <section className="homepage-example-profile">
@@ -1001,6 +1018,33 @@ export function HomePage() {
                 type="button"
                 className="homepage-hide-example-modal-btn"
                 onClick={() => setShowHideExampleProfileConfirm(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {showHideHomeHeroIntroConfirm ? (
+        <div className="homepage-hide-example-modal-backdrop" onClick={() => setShowHideHomeHeroIntroConfirm(false)}>
+          <div className="homepage-hide-example-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Hide Home intro quick-start block?</h3>
+            <p>Are you sure you want to hide it? You can re-enable it in Settings (Show Home intro quick-start block).</p>
+            <div className="homepage-hide-example-modal-actions">
+              <button
+                type="button"
+                className="homepage-hide-example-modal-btn homepage-hide-example-modal-btn--confirm"
+                onClick={() => {
+                  updateSettings({ showHomeHeroIntro: false });
+                  setShowHideHomeHeroIntroConfirm(false);
+                }}
+              >
+                Yes, hide it
+              </button>
+              <button
+                type="button"
+                className="homepage-hide-example-modal-btn"
+                onClick={() => setShowHideHomeHeroIntroConfirm(false)}
               >
                 Cancel
               </button>
