@@ -34,6 +34,10 @@ import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { useListsStore } from '../state/listsStore';
 import { ThemedDropdown } from '../components/ThemedDropdown';
 import {
+  type ProfileFunGraphId,
+  PROFILE_FUN_GRAPH_OPTIONS_OWN,
+} from '../lib/profileFunGraphs';
+import {
   buildTopTenByWatchYear,
   buildBottomTenByWatchYear,
   PROFILE_MEDIA_LIST_MODE_OPTIONS,
@@ -506,11 +510,10 @@ export function ProfilePage() {
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
   const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
-  const [scatterYAxisMode, setScatterYAxisMode] = useState<'rank' | 'release_year'>('rank');
   const [pruneScatterOutliers, setPruneScatterOutliers] = useState(false);
-  const [showAvgRuntimeCharts, setShowAvgRuntimeCharts] = useState(false);
   const [showCopyTools, setShowCopyTools] = useState(false);
-  const [showScatterplots, setShowScatterplots] = useState(false);
+  const [profileFunGraph, setProfileFunGraph] = useState<ProfileFunGraphId>('amount_per_ranked_class');
+  const [profileGraphMedia, setProfileGraphMedia] = useState<'movie' | 'tv'>('movie');
   const [movieViewMode, setMovieViewMode] = useState<ProfileMediaListMode>('top10');
   const [movieWatchYearFilter, setMovieWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showViewMode, setShowViewMode] = useState<ProfileMediaListMode>('top10');
@@ -675,6 +678,13 @@ export function ProfilePage() {
       return (item.watchRecords ?? []).some((r) => r.year === currentYear && (r.type ?? 'DATE') !== 'DNF');
     };
 
+    const percentForWatch = (watch: WatchRecord) => {
+      const watchType = watch.type ?? 'DATE';
+      return watchType === 'DNF' || watchType === 'DNF_LONG_AGO' || watchType === 'CURRENT'
+        ? Math.max(0, Math.min(100, watch.dnfPercent ?? 0))
+        : 100;
+    };
+
     let totalMinutes = 0;
     let moviesMinutes = 0;
     let showsMinutes = 0;
@@ -799,6 +809,7 @@ export function ProfilePage() {
       for (const item of moviesByClass[k] ?? []) {
         for (const record of item.watchRecords ?? []) {
           if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+            if (chartScope === 'this_year' && record.year !== currentYear) continue;
             const year = record.year;
             if (!movieYearWatchCounts[year]) {
               movieYearWatchCounts[year] = { count: 0, watchTime: 0 };
@@ -821,6 +832,7 @@ export function ProfilePage() {
       for (const item of tvByClass[k] ?? []) {
         for (const record of item.watchRecords ?? []) {
           if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+            if (chartScope === 'this_year' && record.year !== currentYear) continue;
             const year = record.year;
             if (!tvYearWatchCounts[year]) {
               tvYearWatchCounts[year] = { count: 0, watchTime: 0 };
@@ -916,7 +928,7 @@ export function ProfilePage() {
     const movieAvgRuntimeByCategory = movieClassOrder
       .filter(k => isRankedMovieClass(k))
       .map(k => {
-        const items = moviesByClass[k] ?? [];
+        const items = (moviesByClass[k] ?? []).filter(inScope);
         const runtimes = items
           .filter(item => item.runtimeMinutes && item.runtimeMinutes > 0)
           .map(item => item.runtimeMinutes!);
@@ -933,7 +945,7 @@ export function ProfilePage() {
     const showAvgRuntimeByCategory = tvClassOrder
       .filter(k => isRankedTvClass(k))
       .map(k => {
-        const items = tvByClass[k] ?? [];
+        const items = (tvByClass[k] ?? []).filter(inScope);
         const runtimes = items
           .filter(item => item.runtimeMinutes && item.runtimeMinutes > 0)
           .map(item => item.runtimeMinutes!);
@@ -943,6 +955,48 @@ export function ProfilePage() {
           label: getTvClassLabel(k),
           avgRuntime,
           count: items.length
+        };
+      });
+
+    const movieWatchPercentSumByCategory = movieClassOrder
+      .filter((k) => isRankedMovieClass(k))
+      .map((k) => {
+        const items = (moviesByClass[k] ?? []).filter(inScope);
+        let watchPercentSum = 0;
+        for (const item of items) {
+          for (const watch of item.watchRecords ?? []) {
+            watchPercentSum += percentForWatch(watch);
+          }
+        }
+        const avgWatchPercentPerEntry =
+          items.length > 0 ? Math.round((watchPercentSum / items.length) * 10) / 10 : 0;
+        return {
+          key: k,
+          label: getMovieClassLabel(k),
+          watchPercentSum,
+          avgWatchPercentPerEntry,
+          count: items.length,
+        };
+      });
+
+    const showWatchPercentSumByCategory = tvClassOrder
+      .filter((k) => isRankedTvClass(k))
+      .map((k) => {
+        const items = (tvByClass[k] ?? []).filter(inScope);
+        let watchPercentSum = 0;
+        for (const item of items) {
+          for (const watch of item.watchRecords ?? []) {
+            watchPercentSum += percentForWatch(watch);
+          }
+        }
+        const avgWatchPercentPerEntry =
+          items.length > 0 ? Math.round((watchPercentSum / items.length) * 10) / 10 : 0;
+        return {
+          key: k,
+          label: getTvClassLabel(k),
+          watchPercentSum,
+          avgWatchPercentPerEntry,
+          count: items.length,
         };
       });
 
@@ -1076,6 +1130,8 @@ export function ProfilePage() {
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
       showAvgRuntimeByCategory,
+      movieWatchPercentSumByCategory,
+      showWatchPercentSumByCategory,
       movieRuntimeVsRankData,
       showRuntimeVsRankData,
       movieGenreData,
@@ -1289,35 +1345,27 @@ export function ProfilePage() {
     [pruneScatterOutliers]
   );
 
-  const movieScatterData = useMemo(() => {
-    if (!showScatterplots) return [];
-    const base =
-      scatterYAxisMode === 'release_year'
-        ? stats.movieRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number')
-        : stats.movieRuntimeVsRankData;
-    return filterScatterOutliers(base, 'runtime', scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear');
-  }, [showScatterplots, stats.movieRuntimeVsRankData, scatterYAxisMode, filterScatterOutliers]);
+  const movieRuntimeVsRankingScatter = useMemo(() => {
+    if (profileFunGraph !== 'runtime_vs_ranking') return [];
+    return filterScatterOutliers(stats.movieRuntimeVsRankData, 'runtime', 'rank');
+  }, [profileFunGraph, stats.movieRuntimeVsRankData, filterScatterOutliers]);
 
-  const showScatterData = useMemo(() => {
-    if (!showScatterplots) return [];
-    const base =
-      scatterYAxisMode === 'release_year'
-        ? stats.showRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number')
-        : stats.showRuntimeVsRankData;
-    return filterScatterOutliers(base, 'runtime', scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear');
-  }, [showScatterplots, stats.showRuntimeVsRankData, scatterYAxisMode, filterScatterOutliers]);
+  const showRuntimeVsRankingScatter = useMemo(() => {
+    if (profileFunGraph !== 'runtime_vs_ranking') return [];
+    return filterScatterOutliers(stats.showRuntimeVsRankData, 'runtime', 'rank');
+  }, [profileFunGraph, stats.showRuntimeVsRankData, filterScatterOutliers]);
 
-  const movieRankByReleaseData = useMemo(() => {
-    if (!showScatterplots) return [];
+  const movieRankingVsReleaseScatter = useMemo(() => {
+    if (profileFunGraph !== 'ranking_vs_release_year') return [];
     const base = stats.movieRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number');
     return filterScatterOutliers(base, 'releaseYear', 'rank');
-  }, [showScatterplots, stats.movieRuntimeVsRankData, filterScatterOutliers]);
+  }, [profileFunGraph, stats.movieRuntimeVsRankData, filterScatterOutliers]);
 
-  const showRankByReleaseData = useMemo(() => {
-    if (!showScatterplots) return [];
+  const showRankingVsReleaseScatter = useMemo(() => {
+    if (profileFunGraph !== 'ranking_vs_release_year') return [];
     const base = stats.showRuntimeVsRankData.filter((p) => typeof p.releaseYear === 'number');
     return filterScatterOutliers(base, 'releaseYear', 'rank');
-  }, [showScatterplots, stats.showRuntimeVsRankData, filterScatterOutliers]);
+  }, [profileFunGraph, stats.showRuntimeVsRankData, filterScatterOutliers]);
 
   const getReleaseYearDomain = (points: Array<{ releaseYear: number | null }>): [number, number] | undefined => {
     const years = points.map((p) => p.releaseYear).filter((y): y is number => typeof y === 'number' && Number.isFinite(y));
@@ -1328,10 +1376,14 @@ export function ProfilePage() {
     return [minYear, maxYear];
   };
 
-  const movieReleaseYearDomain = useMemo(() => getReleaseYearDomain(movieScatterData), [movieScatterData]);
-  const showReleaseYearDomain = useMemo(() => getReleaseYearDomain(showScatterData), [showScatterData]);
-  const movieRankByReleaseYearDomain = useMemo(() => getReleaseYearDomain(movieRankByReleaseData), [movieRankByReleaseData]);
-  const showRankByReleaseYearDomain = useMemo(() => getReleaseYearDomain(showRankByReleaseData), [showRankByReleaseData]);
+  const movieRankByReleaseYearDomain = useMemo(
+    () => getReleaseYearDomain(movieRankingVsReleaseScatter),
+    [movieRankingVsReleaseScatter]
+  );
+  const showRankByReleaseYearDomain = useMemo(
+    () => getReleaseYearDomain(showRankingVsReleaseScatter),
+    [showRankingVsReleaseScatter]
+  );
 
   const allRecentWatches = useMemo(() => {
     // Use the same "all classes except UNRANKED" behavior as the profile views,
@@ -1881,7 +1933,7 @@ export function ProfilePage() {
       const data = payload[0].payload;
       return (
         <div className="profile-chart-tooltip">
-          <p className="profile-chart-tooltip-category">{data.label}</p>
+          <p className="profile-chart-tooltip-category">{data.label ?? data.key}</p>
           <p className="profile-chart-tooltip-count">{data.count} items</p>
           <p className="profile-chart-tooltip-watchtime">{formatDuration(data.watchTime)}</p>
         </div>
@@ -1944,6 +1996,30 @@ export function ProfilePage() {
     setProfileLinkCopied(true);
     window.setTimeout(() => setProfileLinkCopied(false), 1600);
   }, [user?.uid]);
+
+  const funGraphWatchYearData =
+    profileGraphMedia === 'movie' ? stats.movieWatchYearData : stats.tvWatchYearData;
+  const funGraphWatchYearHasData = funGraphWatchYearData.some(
+    (p: { count?: number; watchTime?: number }) => (p.count ?? 0) > 0 || (p.watchTime ?? 0) > 0
+  );
+  const funGraphRankedCategories =
+    profileGraphMedia === 'movie' ? stats.movieRankedCategories : stats.tvRankedCategories;
+  const funGraphGenreData = profileGraphMedia === 'movie' ? stats.movieGenreData : stats.tvGenreData;
+  const funGraphReleaseYearData =
+    profileGraphMedia === 'movie' ? stats.movieReleaseYearData : stats.tvReleaseYearData;
+  const funGraphAvgRuntimeData =
+    profileGraphMedia === 'movie' ? stats.movieAvgRuntimeByCategory : stats.showAvgRuntimeByCategory;
+  const funGraphWatchPercentData =
+    profileGraphMedia === 'movie'
+      ? stats.movieWatchPercentSumByCategory
+      : stats.showWatchPercentSumByCategory;
+  const funGraphRuntimeScatter =
+    profileGraphMedia === 'movie' ? movieRuntimeVsRankingScatter : showRuntimeVsRankingScatter;
+  const funGraphRankReleaseScatter =
+    profileGraphMedia === 'movie' ? movieRankingVsReleaseScatter : showRankingVsReleaseScatter;
+  const funGraphRankReleaseDomain =
+    profileGraphMedia === 'movie' ? movieRankByReleaseYearDomain : showRankByReleaseYearDomain;
+  const funGraphGenreMediaLabel = profileGraphMedia === 'movie' ? 'movies' : 'shows';
 
   return (
     <section>
@@ -2195,685 +2271,358 @@ export function ProfilePage() {
                   View word cloud
                 </button>
               </div>
+
+              <h4 className="profile-fun-graphs-title">Graphs</h4>
+              <div className="profile-stats-charts profile-stats-charts--single">
+                <div className="profile-chart-section profile-chart-section--full-width profile-fun-graphs-panel">
+                  <div className="profile-fun-graphs-toolbar">
+                    <ThemedDropdown
+                      value={profileFunGraph}
+                      options={PROFILE_FUN_GRAPH_OPTIONS_OWN}
+                      onChange={setProfileFunGraph}
+                      aria-label="Choose profile chart"
+                      className="profile-fun-graph-dropdown"
+                    />
+                    <div className="profile-fun-graphs-toggles">
+                      <div className="profile-chart-toggle">
+                        <button
+                          type="button"
+                          className={`profile-chart-toggle-btn ${profileGraphMedia === 'movie' ? 'active' : ''}`}
+                          onClick={() => setProfileGraphMedia('movie')}
+                        >
+                          Movies
+                        </button>
+                        <button
+                          type="button"
+                          className={`profile-chart-toggle-btn ${profileGraphMedia === 'tv' ? 'active' : ''}`}
+                          onClick={() => setProfileGraphMedia('tv')}
+                        >
+                          Shows
+                        </button>
+                      </div>
+                      {(profileFunGraph === 'watchcount_per_year' ||
+                        profileFunGraph === 'amount_per_ranked_class' ||
+                        profileFunGraph === 'genre' ||
+                        profileFunGraph === 'release_year' ||
+                        profileFunGraph === 'avg_runtime_per_ranked_class' ||
+                        profileFunGraph === 'avg_watch_percent_per_ranked_class') && (
+                        <div className="profile-chart-toggle">
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                            onClick={() => setChartScope('all')}
+                          >
+                            All
+                          </button>
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                            onClick={() => setChartScope('this_year')}
+                          >
+                            This year
+                          </button>
+                        </div>
+                      )}
+                      {(profileFunGraph === 'watchcount_per_year' ||
+                        profileFunGraph === 'amount_per_ranked_class') && (
+                        <div className="profile-chart-toggle">
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                            onClick={() => setChartMode('count')}
+                          >
+                            Count
+                          </button>
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                            onClick={() => setChartMode('time')}
+                          >
+                            Time
+                          </button>
+                        </div>
+                      )}
+                      {(profileFunGraph === 'runtime_vs_ranking' ||
+                        profileFunGraph === 'ranking_vs_release_year') && (
+                        <div className="profile-chart-toggle">
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${!pruneScatterOutliers ? 'active' : ''}`}
+                            onClick={() => setPruneScatterOutliers(false)}
+                          >
+                            Outliers on
+                          </button>
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${pruneScatterOutliers ? 'active' : ''}`}
+                            onClick={() => setPruneScatterOutliers(true)}
+                          >
+                            Prune outliers
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {profileFunGraph === 'watchcount_per_year' &&
+                    (funGraphWatchYearHasData ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={funGraphWatchYearData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip content={<WatchYearTooltip />} />
+                          <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No watch data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'amount_per_ranked_class' && (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={funGraphRankedCategories}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" />
+                        <Tooltip content={<CategoryTooltip />} />
+                        <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {profileFunGraph === 'genre' &&
+                    (funGraphGenreData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphGenreData} barCategoryGap={2}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis
+                            dataKey="name"
+                            stroke="rgba(255,255,255,0.5)"
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            fontSize={10}
+                          />
+                          <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {payload[0].value} {funGraphGenreMediaLabel}
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="count" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No genre data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'release_year' &&
+                    (funGraphReleaseYearData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={funGraphReleaseYearData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip content={<YearTooltip />} />
+                          <Bar dataKey="count" fill="var(--accent-soft)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No release year data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'avg_runtime_per_ranked_class' &&
+                    (funGraphAvgRuntimeData.some((d) => d.avgRuntime > 0) ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphAvgRuntimeData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.key}</p>
+                                    <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.count} {profileGraphMedia === 'movie' ? 'movies' : 'shows'}
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="avgRuntime" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No runtime data for ranked titles in this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'avg_watch_percent_per_ranked_class' &&
+                    (funGraphWatchPercentData.some((d) => d.watchPercentSum > 0) ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphWatchPercentData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as {
+                                  label: string;
+                                  watchPercentSum: number;
+                                  avgWatchPercentPerEntry: number;
+                                  count: number;
+                                };
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.label}</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.avgWatchPercentPerEntry}% avg (summed watch % ÷ {data.count}{' '}
+                                      {profileGraphMedia === 'movie' ? 'movies' : 'shows'})
+                                    </p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.watchPercentSum}% total across all watches
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="avgWatchPercentPerEntry" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No watch percent data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'runtime_vs_ranking' &&
+                    (funGraphRuntimeScatter.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <ScatterChart data={funGraphRuntimeScatter} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis
+                            type="number"
+                            dataKey="runtime"
+                            name="Runtime"
+                            unit=" min"
+                            stroke="rgba(255,255,255,0.5)"
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="rank"
+                            name="Absolute Rank"
+                            stroke="rgba(255,255,255,0.5)"
+                            allowDecimals={false}
+                            reversed
+                          />
+                          <Tooltip
+                            cursor={{ strokeDasharray: '3 3' }}
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as {
+                                  title: string;
+                                  classLabel: string;
+                                  runtime: number;
+                                  absoluteRank: string;
+                                };
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.title}</p>
+                                    <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                                    <p className="profile-chart-tooltip-count">Runtime: {data.runtime} min</p>
+                                    <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Scatter data={funGraphRuntimeScatter}>
+                            {funGraphRuntimeScatter.map((point, index) => (
+                              <Cell key={`rt-rank-${point.title}-${index}`} fill={point.color} />
+                            ))}
+                          </Scatter>
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">Not enough ranked runtime data for a scatter plot.</p>
+                    ))}
+
+                  {profileFunGraph === 'ranking_vs_release_year' &&
+                    (funGraphRankReleaseScatter.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <ScatterChart data={funGraphRankReleaseScatter} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis
+                            type="number"
+                            dataKey="releaseYear"
+                            name="Release Year"
+                            stroke="rgba(255,255,255,0.5)"
+                            allowDecimals={false}
+                            domain={funGraphRankReleaseDomain}
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="rank"
+                            name="Absolute Rank"
+                            stroke="rgba(255,255,255,0.5)"
+                            allowDecimals={false}
+                            reversed
+                          />
+                          <Tooltip
+                            cursor={{ strokeDasharray: '3 3' }}
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as {
+                                  title: string;
+                                  classLabel: string;
+                                  releaseYear?: number | null;
+                                  absoluteRank: string;
+                                };
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.title}</p>
+                                    <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      Release Year: {data.releaseYear ?? 'Unknown'}
+                                    </p>
+                                    <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Scatter data={funGraphRankReleaseScatter}>
+                            {funGraphRankReleaseScatter.map((point, index) => (
+                              <Cell key={`rank-rel-${point.title}-${index}`} fill={point.color} />
+                            ))}
+                          </Scatter>
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">Not enough ranked titles with release years for a scatter plot.</p>
+                    ))}
+                </div>
+              </div>
             </section>
-
-            <div className="profile-stats-charts">
-              {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
-                <div className="profile-chart-section">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Movies Watched by Year</h3>
-                    <div className="profile-chart-toggle">
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                        onClick={() => setChartMode('count')}
-                      >
-                        Count
-                      </button>
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                        onClick={() => setChartMode('time')}
-                      >
-                        Time
-                      </button>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.movieWatchYearData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                      <YAxis stroke="rgba(255,255,255,0.5)" />
-                      <Tooltip content={<WatchYearTooltip />} />
-                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              {stats.tvWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
-                <div className="profile-chart-section">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Shows Watched by Year</h3>
-                    <div className="profile-chart-toggle">
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                        onClick={() => setChartMode('count')}
-                      >
-                        Count
-                      </button>
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                        onClick={() => setChartMode('time')}
-                      >
-                        Time
-                      </button>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.tvWatchYearData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                      <YAxis stroke="rgba(255,255,255,0.5)" />
-                      <Tooltip content={<WatchYearTooltip />} />
-                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies by Ranked Category</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.movieRankedCategories}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows by Ranked Category</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.tvRankedCategories}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies by Genre</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.movieGenreData} barCategoryGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="rgba(255,255,255,0.5)" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={80} 
-                      fontSize={10}
-                    />
-                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
-                              <p className="profile-chart-tooltip-count">{payload[0].value} movies</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }} 
-                    />
-                    <Bar dataKey="count" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows by Genre</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.tvGenreData} barCategoryGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="rgba(255,255,255,0.5)" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={80} 
-                      fontSize={10}
-                    />
-                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
-                              <p className="profile-chart-tooltip-count">{payload[0].value} shows</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }} 
-                    />
-                    <Bar dataKey="count" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies by Release Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.movieReleaseYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<YearTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent-soft)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows by Release Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
-                      onClick={() => setChartScope('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
-                      onClick={() => setChartScope('this_year')}
-                    >
-                      This year
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.tvReleaseYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<YearTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent-soft)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {showAvgRuntimeCharts ? (
-                <>
-                  <div className="profile-chart-section">
-                    <h3 className="profile-chart-title">Runtime by Movie Category</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={stats.movieAvgRuntimeByCategory}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="profile-chart-tooltip">
-                                <p className="profile-chart-tooltip-category">{data.key}</p>
-                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                                <p className="profile-chart-tooltip-count">{data.count} movies</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="profile-chart-section">
-                    <h3 className="profile-chart-title">Runtime by Show Category</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={stats.showAvgRuntimeByCategory}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="profile-chart-tooltip">
-                                <p className="profile-chart-tooltip-category">{data.key}</p>
-                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                                <p className="profile-chart-tooltip-count">{data.count} shows</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
-              ) : (
-                <div className="profile-chart-section profile-chart-section--full-width">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Runtime by Category</h3>
-                    <button
-                      type="button"
-                      className="profile-show-all-toggle profile-tiny-expand-btn"
-                      onClick={() => setShowAvgRuntimeCharts(true)}
-                    >
-                      Load
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {showScatterplots ? (
-                <>
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">
-                    Movie Runtime vs {scatterYAxisMode === 'rank' ? 'Absolute Ranking' : 'Release Year'}
-                  </h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${scatterYAxisMode === 'rank' ? 'active' : ''}`}
-                      onClick={() => setScatterYAxisMode('rank')}
-                    >
-                      Ranking
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${scatterYAxisMode === 'release_year' ? 'active' : ''}`}
-                      onClick={() => setScatterYAxisMode('release_year')}
-                    >
-                      Release year
-                    </button>
-                  </div>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${!pruneScatterOutliers ? 'active' : ''}`}
-                      onClick={() => setPruneScatterOutliers(false)}
-                    >
-                      Outliers on
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${pruneScatterOutliers ? 'active' : ''}`}
-                      onClick={() => setPruneScatterOutliers(true)}
-                    >
-                      Prune outliers
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ScatterChart data={movieScatterData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      dataKey="runtime"
-                      name="Runtime"
-                      unit=" min"
-                      stroke="rgba(255,255,255,0.5)"
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey={scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear'}
-                      name={scatterYAxisMode === 'rank' ? 'Absolute Rank' : 'Release Year'}
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      reversed={scatterYAxisMode === 'rank'}
-                      domain={scatterYAxisMode === 'release_year' ? movieReleaseYearDomain : undefined}
-                    />
-                    <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload as {
-                            title: string;
-                            classLabel: string;
-                            runtime: number;
-                            absoluteRank: string;
-                            releaseYear?: number | null;
-                          };
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{data.title}</p>
-                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
-                              <p className="profile-chart-tooltip-count">Runtime: {data.runtime} min</p>
-                              {scatterYAxisMode === 'rank' ? (
-                                <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
-                              ) : (
-                                <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter data={movieScatterData}>
-                      {movieScatterData.map((point, index) => (
-                        <Cell key={`movie-scatter-point-${point.title}-${index}`} fill={point.color} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">
-                  Show Runtime vs {scatterYAxisMode === 'rank' ? 'Absolute Ranking' : 'Release Year'}
-                </h3>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ScatterChart data={showScatterData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      dataKey="runtime"
-                      name="Runtime"
-                      unit=" min"
-                      stroke="rgba(255,255,255,0.5)"
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey={scatterYAxisMode === 'rank' ? 'rank' : 'releaseYear'}
-                      name={scatterYAxisMode === 'rank' ? 'Absolute Rank' : 'Release Year'}
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      reversed={scatterYAxisMode === 'rank'}
-                      domain={scatterYAxisMode === 'release_year' ? showReleaseYearDomain : undefined}
-                    />
-                    <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload as {
-                            title: string;
-                            classLabel: string;
-                            runtime: number;
-                            absoluteRank: string;
-                            releaseYear?: number | null;
-                          };
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{data.title}</p>
-                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
-                              <p className="profile-chart-tooltip-count">Runtime: {data.runtime} min</p>
-                              {scatterYAxisMode === 'rank' ? (
-                                <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
-                              ) : (
-                                <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter data={showScatterData}>
-                      {showScatterData.map((point, index) => (
-                        <Cell key={`show-scatter-point-${point.title}-${index}`} fill={point.color} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movie Ranking by Release Year</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${!pruneScatterOutliers ? 'active' : ''}`}
-                      onClick={() => setPruneScatterOutliers(false)}
-                    >
-                      Outliers on
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${pruneScatterOutliers ? 'active' : ''}`}
-                      onClick={() => setPruneScatterOutliers(true)}
-                    >
-                      Prune outliers
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ScatterChart data={movieRankByReleaseData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      dataKey="releaseYear"
-                      name="Release Year"
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      domain={movieRankByReleaseYearDomain}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="rank"
-                      name="Absolute Rank"
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      reversed
-                    />
-                    <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload as {
-                            title: string;
-                            classLabel: string;
-                            releaseYear?: number | null;
-                            absoluteRank: string;
-                          };
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{data.title}</p>
-                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
-                              <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
-                              <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter data={movieRankByReleaseData}>
-                      {movieRankByReleaseData.map((point, index) => (
-                        <Cell key={`movie-release-rank-point-${point.title}-${index}`} fill={point.color} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Show Ranking by Release Year</h3>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ScatterChart data={showRankByReleaseData} margin={{ top: 12, right: 20, bottom: 10, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      dataKey="releaseYear"
-                      name="Release Year"
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      domain={showRankByReleaseYearDomain}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="rank"
-                      name="Absolute Rank"
-                      stroke="rgba(255,255,255,0.5)"
-                      allowDecimals={false}
-                      reversed
-                    />
-                    <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload as {
-                            title: string;
-                            classLabel: string;
-                            releaseYear?: number | null;
-                            absoluteRank: string;
-                          };
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{data.title}</p>
-                              <p className="profile-chart-tooltip-count">Class: {data.classLabel}</p>
-                              <p className="profile-chart-tooltip-count">Release Year: {data.releaseYear ?? 'Unknown'}</p>
-                              <p className="profile-chart-tooltip-count">Rank: {data.absoluteRank}</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter data={showRankByReleaseData}>
-                      {showRankByReleaseData.map((point, index) => (
-                        <Cell key={`show-release-rank-point-${point.title}-${index}`} fill={point.color} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-                </>
-              ) : (
-                <div className="profile-chart-section">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Data Scatterplots</h3>
-                    <button
-                      type="button"
-                      className="profile-show-all-toggle profile-tiny-expand-btn"
-                      onClick={() => setShowScatterplots(true)}
-                    >
-                      Show data scatterplots
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {showCopyTools ? (
               <ProfileCopyTopRankedSection

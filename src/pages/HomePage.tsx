@@ -820,11 +820,12 @@ export function HomePage() {
                 <div className="feature-card new">
                   <h3 className="feature-group-title">New</h3>
                   <ul className="feature-list">
-                    <li>Can create custom lists and collections (can add to collections from persons filmography)</li>
-                    <li>Many QOL changes (watchlist buttons in info modal, auto switch to watch type "Single Date" if using preset date picker, can search and filter within collections, etc)</li>
-                    <li>Can leave review for each movie/show watch</li>
-                    <li>Info modal buffed out; can go to other info modals and record watch modal from it</li>
-                    <li>Can edit the main image of given entry/person once saved from watch edit modal</li>
+                    <li>Review page for ease of viewing and editing reviews</li>
+                    <li>Settings page re-org</li>
+                    <li>Home page bug report button</li>
+                    <li>Navbar re-org</li>
+                    <li>"What your friends are watching" on home page</li>
+                    <li>Quote page to allow for submitting quotes to be requrested, and viewing current selection</li>
                   </ul>
                 </div>
               </div>
@@ -833,8 +834,9 @@ export function HomePage() {
                 <div className="feature-card future">
                   <h3 className="feature-group-title">Future</h3>
                   <ul className="feature-list">
-                    <li>quick move button options for moving around entries</li>
-                    <li>The copy list(s) doesnt work on mobile, will fix</li>
+                    <li>Movie/Show/Person superlatives (elected by you)</li>
+                    <li>Commenting on other peoples profiles/rankings</li>
+                    <li>Your 'Watch Philosophy' section in profile where you can explain your ranking/watching philosophy</li>
                     <li>Download profile ad PDF (custom ordering of data, select certain aspects of profile, etc)</li>
                     <li>Reduce dragging lag</li>
                   </ul>

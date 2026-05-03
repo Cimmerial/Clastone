@@ -41,6 +41,7 @@ import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ThemedDropdown, type ThemedDropdownOption } from '../components/ThemedDropdown';
+import { type ProfileFunGraphId, PROFILE_FUN_GRAPH_OPTIONS_FRIEND } from '../lib/profileFunGraphs';
 import {
   buildTopTenByWatchYear,
   buildBottomTenByWatchYear,
@@ -70,6 +71,7 @@ import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
 import './FriendProfilePage.css';
+import './ProfilePage.css';
 import '../components/ProfileSplitLayout.css';
 
 interface FriendProfile {
@@ -603,11 +605,13 @@ export function FriendProfilePage() {
   const [showExpandedStats, setShowExpandedStats] = useState(false);
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [chartMode, setChartMode] = useState<'count' | 'time'>('count');
+  const [chartScope, setChartScope] = useState<'all' | 'this_year'>('all');
+  const [profileFunGraph, setProfileFunGraph] = useState<ProfileFunGraphId>('amount_per_ranked_class');
+  const [profileGraphMedia, setProfileGraphMedia] = useState<'movie' | 'tv'>('movie');
   const [movieViewMode, setMovieViewMode] = useState<ProfileMediaListMode>('top10');
   const [movieWatchYearFilter, setMovieWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showViewMode, setShowViewMode] = useState<ProfileMediaListMode>('top10');
   const [showWatchYearFilter, setShowWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
-  const [showFriendAvgRuntimeCharts, setShowFriendAvgRuntimeCharts] = useState(false);
   const [showFriendCopyTools, setShowFriendCopyTools] = useState(false);
   const [actorsViewMode, setActorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
   const [directorsViewMode, setDirectorsViewMode] = useState<ProfilePeopleListMode>('rank_top');
@@ -1450,11 +1454,34 @@ export function FriendProfilePage() {
         avgWatchtimePerMovie: 0,
         avgWatchtimePerShow: 0,
         movieAvgRuntimeByCategory: [],
-        showAvgRuntimeByCategory: []
+        showAvgRuntimeByCategory: [],
+        movieRankedCategories: [],
+        tvRankedCategories: [],
+        movieReleaseYearData: [],
+        tvReleaseYearData: [],
+        movieGenreData: [],
+        tvGenreData: [],
+        movieWatchPercentSumByCategory: [],
+        showWatchPercentSumByCategory: [],
+        tvAverageWatchPercent: 0,
       };
     }
 
     console.log('✅ All friend data available for stats computation');
+
+    const currentYear = new Date().getFullYear();
+    const inScope = (item: MovieShowItem) => {
+      if (chartScope === 'all') return true;
+      return (item.watchRecords ?? []).some(
+        (r) => r.year === currentYear && (r.type ?? 'DATE') !== 'DNF'
+      );
+    };
+    const percentForWatch = (watch: WatchRecord) => {
+      const watchType = watch.type ?? 'DATE';
+      return watchType === 'DNF' || watchType === 'DNF_LONG_AGO' || watchType === 'CURRENT'
+        ? Math.max(0, Math.min(100, watch.dnfPercent ?? 0))
+        : 100;
+    };
 
     let totalMinutes = 0;
     let moviesMinutes = 0;
@@ -1523,7 +1550,7 @@ export function FriendProfilePage() {
       ?.filter((c: any) => c.isRanked)
       .map((c: any) => {
         const classKey = c.key;
-        const items = friendMoviesData.byClass[classKey] ?? [];
+        const items = (friendMoviesData.byClass[classKey] ?? []).filter(inScope);
         const watchTime = items.reduce((sum: number, item: any) => 
           sum + getTotalMinutesFromRecords(item.watchRecords ?? [], item.runtimeMinutes), 0
         );
@@ -1539,7 +1566,7 @@ export function FriendProfilePage() {
       ?.filter((c: any) => c.isRanked)
       .map((c: any) => {
         const classKey = c.key;
-        const items = friendTvData.byClass[classKey] ?? [];
+        const items = (friendTvData.byClass[classKey] ?? []).filter(inScope);
         const watchTime = items.reduce((sum: number, item: any) => 
           sum + getTotalMinutesFromRecords(item.watchRecords ?? [], item.runtimeMinutes), 0
         );
@@ -1557,7 +1584,7 @@ export function FriendProfilePage() {
     if (friendMoviesData.classes) {
       for (const classDef of friendMoviesData.classes) {
         const classKey = classDef.key;
-        for (const item of friendMoviesData.byClass[classKey] ?? []) {
+        for (const item of (friendMoviesData.byClass[classKey] ?? []).filter(inScope)) {
           if (item.releaseDate) {
             const year = parseInt(item.releaseDate.slice(0, 4), 10);
             if (!Number.isNaN(year)) {
@@ -1578,7 +1605,7 @@ export function FriendProfilePage() {
     if (friendTvData.classes) {
       for (const classDef of friendTvData.classes) {
         const classKey = classDef.key;
-        for (const item of friendTvData.byClass[classKey] ?? []) {
+        for (const item of (friendTvData.byClass[classKey] ?? []).filter(inScope)) {
           if (item.releaseDate) {
             const year = parseInt(item.releaseDate.slice(0, 4), 10);
             if (!Number.isNaN(year)) {
@@ -1603,6 +1630,7 @@ export function FriendProfilePage() {
         for (const item of friendMoviesData.byClass[classKey] ?? []) {
           for (const record of item.watchRecords ?? []) {
             if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+              if (chartScope === 'this_year' && record.year !== currentYear) continue;
               const year = record.year;
               if (!movieYearWatchCounts[year]) {
                 movieYearWatchCounts[year] = { count: 0, watchTime: 0 };
@@ -1628,6 +1656,7 @@ export function FriendProfilePage() {
         for (const item of friendTvData.byClass[classKey] ?? []) {
           for (const record of item.watchRecords ?? []) {
             if (record.year && (record.type ?? 'DATE') !== 'DNF') {
+              if (chartScope === 'this_year' && record.year !== currentYear) continue;
               const year = record.year;
               if (!tvYearWatchCounts[year]) {
                 tvYearWatchCounts[year] = { count: 0, watchTime: 0 };
@@ -1729,7 +1758,7 @@ export function FriendProfilePage() {
       ?.filter((c: any) => c.isRanked)
       .map((c: any) => {
         const classKey = c.key;
-        const items = friendMoviesData.byClass[classKey] ?? [];
+        const items = (friendMoviesData.byClass[classKey] ?? []).filter(inScope);
         const runtimes = items
           .filter((item: any) => item.runtimeMinutes && item.runtimeMinutes > 0)
           .map((item: any) => item.runtimeMinutes!);
@@ -1747,7 +1776,7 @@ export function FriendProfilePage() {
       ?.filter((c: any) => c.isRanked)
       .map((c: any) => {
         const classKey = c.key;
-        const items = friendTvData.byClass[classKey] ?? [];
+        const items = (friendTvData.byClass[classKey] ?? []).filter(inScope);
         const runtimes = items
           .filter((item: any) => item.runtimeMinutes && item.runtimeMinutes > 0)
           .map((item: any) => item.runtimeMinutes!);
@@ -1760,12 +1789,56 @@ export function FriendProfilePage() {
         };
       }) || [];
 
+    const movieWatchPercentSumByCategory = friendMoviesData.classes
+      ?.filter((c: any) => c.isRanked)
+      .map((c: any) => {
+        const classKey = c.key;
+        const items = (friendMoviesData.byClass[classKey] ?? []).filter(inScope);
+        let watchPercentSum = 0;
+        for (const item of items) {
+          for (const watch of item.watchRecords ?? []) {
+            watchPercentSum += percentForWatch(watch);
+          }
+        }
+        const avgWatchPercentPerEntry =
+          items.length > 0 ? Math.round((watchPercentSum / items.length) * 10) / 10 : 0;
+        return {
+          key: classKey,
+          label: c.label || classKey,
+          watchPercentSum,
+          avgWatchPercentPerEntry,
+          count: items.length,
+        };
+      }) || [];
+
+    const showWatchPercentSumByCategory = friendTvData.classes
+      ?.filter((c: any) => c.isRanked)
+      .map((c: any) => {
+        const classKey = c.key;
+        const items = (friendTvData.byClass[classKey] ?? []).filter(inScope);
+        let watchPercentSum = 0;
+        for (const item of items) {
+          for (const watch of item.watchRecords ?? []) {
+            watchPercentSum += percentForWatch(watch);
+          }
+        }
+        const avgWatchPercentPerEntry =
+          items.length > 0 ? Math.round((watchPercentSum / items.length) * 10) / 10 : 0;
+        return {
+          key: classKey,
+          label: c.label || classKey,
+          watchPercentSum,
+          avgWatchPercentPerEntry,
+          count: items.length,
+        };
+      }) || [];
+
     // Calculate genre distribution
     const movieGenreCounts: Record<string, number> = {};
     if (friendMoviesData.classes) {
       for (const classDef of friendMoviesData.classes) {
         const classKey = classDef.key;
-        for (const item of friendMoviesData.byClass[classKey] ?? []) {
+        for (const item of (friendMoviesData.byClass[classKey] ?? []).filter(inScope)) {
           if (item.genres) {
             item.genres.forEach((g: string) => {
               movieGenreCounts[g] = (movieGenreCounts[g] || 0) + 1;
@@ -1782,7 +1855,7 @@ export function FriendProfilePage() {
     if (friendTvData.classes) {
       for (const classDef of friendTvData.classes) {
         const classKey = classDef.key;
-        for (const item of friendTvData.byClass[classKey] ?? []) {
+        for (const item of (friendTvData.byClass[classKey] ?? []).filter(inScope)) {
           if (item.genres) {
             item.genres.forEach((g: string) => {
               tvGenreCounts[g] = (tvGenreCounts[g] || 0) + 1;
@@ -1826,10 +1899,12 @@ export function FriendProfilePage() {
       avgWatchtimePerShow,
       movieAvgRuntimeByCategory,
       showAvgRuntimeByCategory,
+      movieWatchPercentSumByCategory,
+      showWatchPercentSumByCategory,
       movieGenreData,
       tvGenreData
     };
-  }, [friendMoviesData, friendTvData, friendPeopleData, friendDirectorsData, rankedMovies, rankedShows]);
+  }, [friendMoviesData, friendTvData, friendPeopleData, friendDirectorsData, rankedMovies, rankedShows, chartScope]);
 
   const searchableMovies = useMemo(() => rankedMovies.map(m => ({ id: m.id, title: m.title })), [rankedMovies]);
   const searchableShows = useMemo(() => rankedShows.map(s => ({ id: s.id, title: s.title })), [rankedShows]);
@@ -2371,7 +2446,7 @@ export function FriendProfilePage() {
       const data = payload[0].payload;
       return (
         <div className="profile-chart-tooltip">
-          <p className="profile-chart-tooltip-category">{data.key}</p>
+          <p className="profile-chart-tooltip-category">{data.label ?? data.key}</p>
           <p className="profile-chart-tooltip-count">{data.count} items</p>
           <p className="profile-chart-tooltip-watchtime">{formatDuration(data.watchTime)}</p>
         </div>
@@ -2439,6 +2514,24 @@ export function FriendProfilePage() {
 
   const friendMoviesCollectionHref = `/friends/${resolvedProfileUid ?? friendProfile.uid}/collection/movies`;
   const friendShowsCollectionHref = `/friends/${resolvedProfileUid ?? friendProfile.uid}/collection/shows`;
+
+  const funGraphWatchYearData =
+    profileGraphMedia === 'movie' ? stats.movieWatchYearData : stats.tvWatchYearData;
+  const funGraphWatchYearHasData = funGraphWatchYearData.some(
+    (p: { count?: number; watchTime?: number }) => (p.count ?? 0) > 0 || (p.watchTime ?? 0) > 0
+  );
+  const funGraphRankedCategories =
+    profileGraphMedia === 'movie' ? stats.movieRankedCategories : stats.tvRankedCategories;
+  const funGraphGenreData = profileGraphMedia === 'movie' ? stats.movieGenreData : stats.tvGenreData;
+  const funGraphReleaseYearData =
+    profileGraphMedia === 'movie' ? stats.movieReleaseYearData : stats.tvReleaseYearData;
+  const funGraphAvgRuntimeData =
+    profileGraphMedia === 'movie' ? stats.movieAvgRuntimeByCategory : stats.showAvgRuntimeByCategory;
+  const funGraphWatchPercentData =
+    profileGraphMedia === 'movie'
+      ? stats.movieWatchPercentSumByCategory
+      : stats.showWatchPercentSumByCategory;
+  const funGraphGenreMediaLabel = profileGraphMedia === 'movie' ? 'movies' : 'shows';
 
   return (
     <section className={profilePageClass}>
@@ -3016,295 +3109,230 @@ export function FriendProfilePage() {
                   View word cloud
                 </button>
               </div>
+
+              <h4 className="profile-fun-graphs-title">Graphs</h4>
+              <div className="profile-stats-charts profile-stats-charts--single">
+                <div className="profile-chart-section profile-chart-section--full-width profile-fun-graphs-panel">
+                  <div className="profile-fun-graphs-toolbar">
+                    <ThemedDropdown
+                      value={profileFunGraph}
+                      options={PROFILE_FUN_GRAPH_OPTIONS_FRIEND}
+                      onChange={setProfileFunGraph}
+                      aria-label="Choose profile chart"
+                      className="profile-fun-graph-dropdown"
+                    />
+                    <div className="profile-fun-graphs-toggles">
+                      <div className="profile-chart-toggle">
+                        <button
+                          type="button"
+                          className={`profile-chart-toggle-btn ${profileGraphMedia === 'movie' ? 'active' : ''}`}
+                          onClick={() => setProfileGraphMedia('movie')}
+                        >
+                          Movies
+                        </button>
+                        <button
+                          type="button"
+                          className={`profile-chart-toggle-btn ${profileGraphMedia === 'tv' ? 'active' : ''}`}
+                          onClick={() => setProfileGraphMedia('tv')}
+                        >
+                          Shows
+                        </button>
+                      </div>
+                      {(profileFunGraph === 'watchcount_per_year' ||
+                        profileFunGraph === 'amount_per_ranked_class' ||
+                        profileFunGraph === 'genre' ||
+                        profileFunGraph === 'release_year' ||
+                        profileFunGraph === 'avg_runtime_per_ranked_class' ||
+                        profileFunGraph === 'avg_watch_percent_per_ranked_class') && (
+                        <div className="profile-chart-toggle">
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartScope === 'all' ? 'active' : ''}`}
+                            onClick={() => setChartScope('all')}
+                          >
+                            All
+                          </button>
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartScope === 'this_year' ? 'active' : ''}`}
+                            onClick={() => setChartScope('this_year')}
+                          >
+                            This year
+                          </button>
+                        </div>
+                      )}
+                      {(profileFunGraph === 'watchcount_per_year' ||
+                        profileFunGraph === 'amount_per_ranked_class') && (
+                        <div className="profile-chart-toggle">
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
+                            onClick={() => setChartMode('count')}
+                          >
+                            Count
+                          </button>
+                          <button
+                            type="button"
+                            className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
+                            onClick={() => setChartMode('time')}
+                          >
+                            Time
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {profileFunGraph === 'watchcount_per_year' &&
+                    (funGraphWatchYearHasData ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={funGraphWatchYearData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip content={<WatchYearTooltip />} />
+                          <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No watch data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'amount_per_ranked_class' && (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={funGraphRankedCategories}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" />
+                        <Tooltip content={<CategoryTooltip />} />
+                        <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {profileFunGraph === 'genre' &&
+                    (funGraphGenreData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphGenreData} barCategoryGap={2}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis
+                            dataKey="name"
+                            stroke="rgba(255,255,255,0.5)"
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            fontSize={10}
+                          />
+                          <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {payload[0].value} {funGraphGenreMediaLabel}
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="count" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No genre data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'release_year' &&
+                    (funGraphReleaseYearData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={funGraphReleaseYearData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip content={<YearTooltip />} />
+                          <Bar dataKey="count" fill="var(--accent-soft)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No release year data for this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'avg_runtime_per_ranked_class' &&
+                    (funGraphAvgRuntimeData.some((d: { avgRuntime: number }) => d.avgRuntime > 0) ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphAvgRuntimeData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.label ?? data.key}</p>
+                                    <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.count} {profileGraphMedia === 'movie' ? 'movies' : 'shows'}
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="avgRuntime" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No runtime data for ranked titles in this view.</p>
+                    ))}
+
+                  {profileFunGraph === 'avg_watch_percent_per_ranked_class' &&
+                    (funGraphWatchPercentData.some((d: { watchPercentSum: number }) => d.watchPercentSum > 0) ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funGraphWatchPercentData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                          <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as {
+                                  label: string;
+                                  watchPercentSum: number;
+                                  avgWatchPercentPerEntry: number;
+                                  count: number;
+                                };
+                                return (
+                                  <div className="profile-chart-tooltip">
+                                    <p className="profile-chart-tooltip-category">{data.label}</p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.avgWatchPercentPerEntry}% avg (summed watch % ÷ {data.count}{' '}
+                                      {profileGraphMedia === 'movie' ? 'movies' : 'shows'})
+                                    </p>
+                                    <p className="profile-chart-tooltip-count">
+                                      {data.watchPercentSum}% total across all watches
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="avgWatchPercentPerEntry" fill="var(--accent)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="profile-fun-graphs-empty">No watch percent data for this view.</p>
+                    ))}
+                </div>
+              </div>
             </section>
-
-            <div className="profile-stats-charts">
-              {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
-                <div className="profile-chart-section">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Movies Watched by Year</h3>
-                    <div className="profile-chart-toggle">
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                        onClick={() => setChartMode('count')}
-                      >
-                        Count
-                      </button>
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                        onClick={() => setChartMode('time')}
-                      >
-                        Time
-                      </button>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.movieWatchYearData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                      <YAxis stroke="rgba(255,255,255,0.5)" />
-                      <Tooltip content={<WatchYearTooltip />} />
-                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              {stats.tvWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
-                <div className="profile-chart-section">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Shows Watched by Year</h3>
-                    <div className="profile-chart-toggle">
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                        onClick={() => setChartMode('count')}
-                      >
-                        Count
-                      </button>
-                      <button
-                        type="button"
-                        className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                        onClick={() => setChartMode('time')}
-                      >
-                        Time
-                      </button>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.tvWatchYearData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                      <YAxis stroke="rgba(255,255,255,0.5)" />
-                      <Tooltip content={<WatchYearTooltip />} />
-                      <Bar dataKey={chartMode === 'count' ? 'count' : 'watchTime'} fill="var(--accent)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Movies by Ranked Category</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.movieRankedCategories}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <div className="profile-chart-header">
-                  <h3 className="profile-chart-title">Shows by Ranked Category</h3>
-                  <div className="profile-chart-toggle">
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'count' ? 'active' : ''}`}
-                      onClick={() => setChartMode('count')}
-                    >
-                      Count
-                    </button>
-                    <button
-                      type="button"
-                      className={`profile-chart-toggle-btn ${chartMode === 'time' ? 'active' : ''}`}
-                      onClick={() => setChartMode('time')}
-                    >
-                      Time
-                    </button>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.tvRankedCategories}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<CategoryTooltip />} />
-                    <Bar dataKey={chartMode === 'time' ? 'watchTime' : 'count'} fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Movies by Genre</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.movieGenreData} barCategoryGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="rgba(255,255,255,0.5)" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={80} 
-                      fontSize={10}
-                    />
-                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
-                              <p className="profile-chart-tooltip-count">{payload[0].value} movies</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }} 
-                    />
-                    <Bar dataKey="count" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Shows by Genre</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.tvGenreData} barCategoryGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="rgba(255,255,255,0.5)" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={80} 
-                      fontSize={10}
-                    />
-                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={10} />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="profile-chart-tooltip">
-                              <p className="profile-chart-tooltip-category">{payload[0].payload.name}</p>
-                              <p className="profile-chart-tooltip-count">{payload[0].value} shows</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }} 
-                    />
-                    <Bar dataKey="count" fill="var(--accent)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Movies by Release Year</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.movieReleaseYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<YearTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent-soft)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-chart-section">
-                <h3 className="profile-chart-title">Shows by Release Year</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.tvReleaseYearData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
-                    <Tooltip content={<YearTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent-soft)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {showFriendAvgRuntimeCharts ? (
-                <>
-                  <div className="profile-chart-section">
-                    <h3 className="profile-chart-title">Runtime by Movie Category</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={stats.movieAvgRuntimeByCategory}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="profile-chart-tooltip">
-                                <p className="profile-chart-tooltip-category">{data.key}</p>
-                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                                <p className="profile-chart-tooltip-count">{data.count} movies</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="profile-chart-section">
-                    <h3 className="profile-chart-title">Runtime by Show Category</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={stats.showAvgRuntimeByCategory}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                        <XAxis dataKey="label" stroke="rgba(255,255,255,0.5)" angle={-45} textAnchor="end" height={80} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="profile-chart-tooltip">
-                                <p className="profile-chart-tooltip-category">{data.key}</p>
-                                <p className="profile-chart-tooltip-count">{data.avgRuntime} min avg</p>
-                                <p className="profile-chart-tooltip-count">{data.count} shows</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Bar dataKey="avgRuntime" fill="var(--accent)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
-              ) : (
-                <div className="profile-chart-section profile-chart-section--full-width">
-                  <div className="profile-chart-header">
-                    <h3 className="profile-chart-title">Runtime by Category</h3>
-                    <button
-                      type="button"
-                      className="profile-show-all-toggle profile-tiny-expand-btn"
-                      onClick={() => setShowFriendAvgRuntimeCharts(true)}
-                    >
-                      Load
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </div>
 
             {showFriendCopyTools ? (
               <ProfileCopyTopRankedSection
