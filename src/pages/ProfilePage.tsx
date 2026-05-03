@@ -25,6 +25,7 @@ import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSavePar
 import { tmdbImagePath, getMovieImageSrc } from '../lib/tmdb';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter } from 'recharts';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
+import { MovieTitleWordCloudModal } from '../components/MovieTitleWordCloudModal';
 import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { Award, Share2 } from 'lucide-react';
@@ -509,6 +510,7 @@ export function ProfilePage() {
   const [showWatchYearFilter, setShowWatchYearFilter] = useState<ProfileWatchYearFilter>('all');
   const [showAllActorsWithClasses, setShowAllActorsWithClasses] = useState(false);
   const [showAllDirectorsWithClasses, setShowAllDirectorsWithClasses] = useState(false);
+  const [movieWordCloudOpen, setMovieWordCloudOpen] = useState(false);
 
   // On your own profile, include "unranked-but-curated" classes in top lists,
   // but never include the literal UNRANKED bucket.
@@ -554,6 +556,11 @@ export function ProfilePage() {
     return list;
   }, [moviesByClass, movieProfileClassKeys]);
 
+  const movieTitlesForWordCloud = useMemo(
+    () => rankedMovies.map((m) => m.title).filter((t): t is string => Boolean(t && t.trim())),
+    [rankedMovies]
+  );
+
   const rankedShows = useMemo(() => {
     const list: MovieShowItem[] = [];
     for (const k of tvProfileClassKeys) {
@@ -561,6 +568,42 @@ export function ProfilePage() {
     }
     return list;
   }, [tvByClass, tvProfileClassKeys]);
+
+  const tvTitlesForWordCloud = useMemo(
+    () => rankedShows.map((s) => s.title).filter((t): t is string => Boolean(t && t.trim())),
+    [rankedShows]
+  );
+
+  const actorsAndDirectorsForWordCloud = useMemo(() => {
+    const names: string[] = [];
+    const peopleKeys = Array.from(new Set([...peopleClassOrder, ...Object.keys(peopleByClass ?? {})])).filter(
+      (k) => k !== 'UNRANKED'
+    );
+    const directorKeys = Array.from(new Set([...directorsClassOrder, ...Object.keys(directorsByClass ?? {})])).filter(
+      (k) => k !== 'UNRANKED'
+    );
+    for (const k of peopleKeys) {
+      for (const p of peopleByClass[k] ?? []) names.push(p.title);
+    }
+    for (const k of directorKeys) {
+      for (const d of directorsByClass[k] ?? []) names.push(d.title);
+    }
+    return names.filter((t): t is string => Boolean(t?.trim()));
+  }, [peopleClassOrder, peopleByClass, directorsClassOrder, directorsByClass]);
+
+  const profileWordCloudSources = useMemo(
+    () => ({
+      movieTitles: movieTitlesForWordCloud,
+      tvShowTitles: tvTitlesForWordCloud,
+      actorsAndDirectors: actorsAndDirectorsForWordCloud,
+    }),
+    [movieTitlesForWordCloud, tvTitlesForWordCloud, actorsAndDirectorsForWordCloud]
+  );
+
+  const canOpenProfileWordCloud =
+    profileWordCloudSources.movieTitles.length > 0 ||
+    profileWordCloudSources.tvShowTitles.length > 0 ||
+    profileWordCloudSources.actorsAndDirectors.length > 0;
 
   const strictRankedMovies = useMemo(() => {
     const list: MovieShowItem[] = [];
@@ -2096,6 +2139,20 @@ export function ProfilePage() {
                 </div>
               </section>
             )}
+
+            <section className="profile-collection-section">
+              <h3 className="profile-collection-section-title">Fun Stats</h3>
+              <div className="profile-collection-fun-stats-actions">
+                <button
+                  type="button"
+                  className="profile-collection-fun-stats-btn"
+                  disabled={!canOpenProfileWordCloud}
+                  onClick={() => setMovieWordCloudOpen(true)}
+                >
+                  View word cloud
+                </button>
+              </div>
+            </section>
 
             <div className="profile-stats-charts">
               {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
@@ -3888,6 +3945,13 @@ export function ProfilePage() {
           getUserShowStatus={getUserShowStatus}
         />
       </div>
+
+      <MovieTitleWordCloudModal
+        isOpen={movieWordCloudOpen}
+        onClose={() => setMovieWordCloudOpen(false)}
+        sources={profileWordCloudSources}
+        profilePossessive={username ? `${username}'s` : 'your'}
+      />
 
       {rankingTarget && (
         <UniversalEditModal

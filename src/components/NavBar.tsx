@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, List, MessageSquareQuote, type LucideIcon } from 'lucide-react';
+import { Search, Home, Settings, RefreshCw, Users, Film, Tv, UserRound, Video, Bookmark, MoreHorizontal, X, LayoutList, MessageSquareQuote, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tmdbImagePath } from '../lib/tmdb';
@@ -8,13 +8,15 @@ import { loadFeatureFeedback } from '../lib/firestoreFeatureFeedback';
 import { subscribePendingQuoteSubmissionCount } from '../lib/firestoreQuotes';
 import './NavBar.css';
 
-const mainLinks = [
+const MAIN_NAV_BEFORE_COLLECTIONS = 4;
+
+const mainLinks: { to: string; label: string; icon?: LucideIcon }[] = [
   { to: '/movies', label: 'Movies' },
   { to: '/tv', label: 'TV Shows' },
   { to: '/actors', label: 'Actors' },
   { to: '/directors', label: 'Directors' },
-  { to: '/watchlist', label: 'Watchlist' },
-  { to: '/lists', label: 'Lists' }
+  { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
+  { to: '/lists', label: 'Lists', icon: LayoutList },
 ];
 
 const iconLinks: { to: string; label: string; icon: LucideIcon }[] = [
@@ -91,8 +93,12 @@ export function NavBar() {
             </NavLink>
             <div className="nav-logo-dropdown">
               <nav className="nav-menu nav-menu-left">
-                {mainLinks.map((link) => (
+                {mainLinks.slice(0, MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
                   <NavItem key={link.to} to={link.to} label={link.label} />
+                ))}
+                <span className="nav-sep" aria-hidden role="separator" />
+                {mainLinks.slice(MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
+                  <NavItem key={link.to} to={link.to} label={link.label} icon={link.icon} />
                 ))}
               </nav>
               <nav className="nav-menu nav-menu-right">
@@ -106,8 +112,12 @@ export function NavBar() {
         </div>
         <div className="nav-right nav-right-inline">
           <nav className="nav-menu nav-menu-inline">
-            {mainLinks.map((link) => (
+            {mainLinks.slice(0, MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
               <NavItem key={link.to} to={link.to} label={link.label} />
+            ))}
+            <span className="nav-sep" aria-hidden role="separator" />
+            {mainLinks.slice(MAIN_NAV_BEFORE_COLLECTIONS).map((link) => (
+              <NavItem key={link.to} to={link.to} label={link.label} icon={link.icon} />
             ))}
             <span className="nav-sep" aria-hidden role="separator" />
             {desktopIconLinks.map((link) => (
@@ -168,7 +178,7 @@ const mobileTabLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/actors', label: 'Actors', icon: UserRound },
   { to: '/directors', label: 'Direct.', icon: Video },
   { to: '/watchlist', label: 'Watchlist', icon: Bookmark },
-  { to: '/lists', label: 'Lists', icon: List },
+  { to: '/lists', label: 'Lists', icon: LayoutList },
 ];
 
 export function MobileBottomNav() {

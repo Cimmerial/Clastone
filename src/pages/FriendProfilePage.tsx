@@ -36,6 +36,7 @@ import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSavePar
 import { PersonRankingModal, type PersonRankingTarget, type PersonRankingSaveParams } from '../components/PersonRankingModal';
 import { RandomQuote } from '../components/RandomQuote';
 import { ProfileWatchlist } from '../components/ProfileWatchlist';
+import { MovieTitleWordCloudModal } from '../components/MovieTitleWordCloudModal';
 import { PageSearch } from '../components/PageSearch';
 import { ProfileCopyTopRankedSection } from '../components/ProfileCopyTopRankedSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -538,6 +539,7 @@ export function FriendProfilePage() {
   const [isRankingSaving, setIsRankingSaving] = useState(false);
   const [personRankingTarget, setPersonRankingTarget] = useState<PersonRankingTarget | null>(null);
   const [isPersonRankingSaving, setIsPersonRankingSaving] = useState(false);
+  const [movieWordCloudOpen, setMovieWordCloudOpen] = useState(false);
 
   // Current user's stores (to check SEEN vs SAVE status)
   const {
@@ -1150,6 +1152,11 @@ export function FriendProfilePage() {
     return list;
   }, [friendMoviesData]);
 
+  const friendMovieTitlesForWordCloud = useMemo(
+    () => allMoviesExceptUnranked.map((m) => m.title).filter((t): t is string => Boolean(t && t.trim())),
+    [allMoviesExceptUnranked]
+  );
+
   const rankedShows = useMemo(() => {
     if (!friendTvData || !friendTvData.byClass || !friendTvData.classes) return [];
     const list: MovieShowItem[] = [];
@@ -1181,6 +1188,48 @@ export function FriendProfilePage() {
     }
     return list;
   }, [friendTvData]);
+
+  const friendTvTitlesForWordCloud = useMemo(
+    () => allShowsExceptUnranked.map((s) => s.title).filter((t): t is string => Boolean(t && t.trim())),
+    [allShowsExceptUnranked]
+  );
+
+  const friendActorsAndDirectorsForWordCloud = useMemo(() => {
+    const names: string[] = [];
+    if (friendPeopleData?.classes && friendPeopleData.byClass) {
+      for (const classDef of friendPeopleData.classes) {
+        const classKey = classDef.key;
+        if (classKey === 'UNRANKED') continue;
+        for (const item of friendPeopleData.byClass[classKey] ?? []) {
+          if (item.title) names.push(item.title);
+        }
+      }
+    }
+    if (friendDirectorsData?.classes && friendDirectorsData.byClass) {
+      for (const classDef of friendDirectorsData.classes) {
+        const classKey = classDef.key;
+        if (classKey === 'UNRANKED') continue;
+        for (const item of friendDirectorsData.byClass[classKey] ?? []) {
+          if (item.title) names.push(item.title);
+        }
+      }
+    }
+    return names.filter((t): t is string => Boolean(t?.trim()));
+  }, [friendPeopleData, friendDirectorsData]);
+
+  const friendWordCloudSources = useMemo(
+    () => ({
+      movieTitles: friendMovieTitlesForWordCloud,
+      tvShowTitles: friendTvTitlesForWordCloud,
+      actorsAndDirectors: friendActorsAndDirectorsForWordCloud,
+    }),
+    [friendMovieTitlesForWordCloud, friendTvTitlesForWordCloud, friendActorsAndDirectorsForWordCloud]
+  );
+
+  const canOpenFriendWordCloud =
+    friendWordCloudSources.movieTitles.length > 0 ||
+    friendWordCloudSources.tvShowTitles.length > 0 ||
+    friendWordCloudSources.actorsAndDirectors.length > 0;
 
   const profileCopyFriendMovieClassOrder = useMemo(() => {
     if (!friendMoviesData?.classes || !friendMoviesData.byClass) return [];
@@ -2908,6 +2957,20 @@ export function FriendProfilePage() {
               )}
             </section>
 
+            <section className="profile-collection-section">
+              <h3 className="profile-collection-section-title">Fun Stats</h3>
+              <div className="profile-collection-fun-stats-actions">
+                <button
+                  type="button"
+                  className="profile-collection-fun-stats-btn"
+                  disabled={!canOpenFriendWordCloud}
+                  onClick={() => setMovieWordCloudOpen(true)}
+                >
+                  View word cloud
+                </button>
+              </div>
+            </section>
+
             <div className="profile-stats-charts">
               {stats.movieWatchYearData.some((point: { count?: number; watchTime?: number }) => (point.count ?? 0) > 0 || (point.watchTime ?? 0) > 0) && (
                 <div className="profile-chart-section">
@@ -4391,6 +4454,13 @@ export function FriendProfilePage() {
           }}
         />
       </div>
+
+      <MovieTitleWordCloudModal
+        isOpen={movieWordCloudOpen}
+        onClose={() => setMovieWordCloudOpen(false)}
+        sources={friendWordCloudSources}
+        profilePossessive={`${friendProfile.username}'s`}
+      />
 
       {rankingTarget && (
         <UniversalEditModal

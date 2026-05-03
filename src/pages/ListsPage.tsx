@@ -32,7 +32,7 @@ type ListCard = { id: string; title: string; subtitle: string; href: string; col
 type CollectionCard = { id: string; title: string; seen: number; watchlistUnseen: number; total: number; href: string; color?: string };
 type ListDetailItem = RankedItemBase & { source: 'saved' | 'unseen'; mediaType: 'movie' | 'tv' | 'person'; item?: MovieShowItem | any; title: string };
 type CollectionEntryId = `tmdb-tv-${number}` | `tmdb-movie-${number}`;
-type CollectionViewerFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
+type CollectionViewerFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED' | 'UNSEEN_UNWATCHLISTED';
 
 function isCollectionEntryId(value: string): value is CollectionEntryId {
   return /^tmdb-(tv|movie)-\d+$/.test(value);
@@ -1607,7 +1607,10 @@ export function ListDetailPage() {
     if (collectionViewerFilter === 'ALL') return detailItems;
     return detailItems.filter((row) => {
       const item = row.item;
-      if (!item) return collectionViewerFilter !== 'SEEN';
+      if (!item) {
+        if (collectionViewerFilter === 'UNSEEN_UNWATCHLISTED') return false;
+        return collectionViewerFilter !== 'SEEN';
+      }
       const isSavedUnranked = row.source === 'saved' && item.classKey === 'UNRANKED';
       const appearsInOtherClass = row.mediaType === 'movie'
         ? movieIdsInNonUnrankedClasses.has(item.id)
@@ -1618,6 +1621,9 @@ export function ListDetailPage() {
       const isWatchlisted = isUnseen && watchlist.isInWatchlist(item.id);
       if (collectionViewerFilter === 'SEEN') return isSeen;
       if (collectionViewerFilter === 'UNSEEN') return isUnseen;
+      if (collectionViewerFilter === 'UNSEEN_UNWATCHLISTED') {
+        return isUnseen && !watchlist.isInWatchlist(item.id);
+      }
       return isWatchlisted;
     });
   }, [
@@ -1712,14 +1718,22 @@ export function ListDetailPage() {
       {shouldUseCollectionViewerFilters ? (
         <div className="lists-collection-toolbar">
           <div className="lists-collection-filter-row">
-            {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
+            {(
+              [
+                ['ALL', 'ALL'],
+                ['SEEN', 'SEEN'],
+                ['UNSEEN', 'UNSEEN'],
+                ['WATCHLISTED', 'WATCHLISTED'],
+                ['UNSEEN_UNWATCHLISTED', 'Unseen & Unwatchlisted'],
+              ] as const
+            ).map(([option, label]) => (
               <button
                 key={option}
                 type="button"
                 className={`filter-toggle-btn lists-collection-filter-btn ${collectionViewerFilter === option ? 'lists-collection-filter-btn--active' : ''}`}
                 onClick={() => setCollectionViewerFilter(option)}
               >
-                {option}
+                {label}
               </button>
             ))}
           </div>

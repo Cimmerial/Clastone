@@ -1,0 +1,165 @@
+.movie-wordcloud-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+  padding: 16px;
+}
+
+.movie-wordcloud-modal {
+  width: min(1120px, 98vw);
+  max-height: min(94vh, 920px);
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.movie-wordcloud-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 12px;
+}
+
+.movie-wordcloud-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.movie-wordcloud-modal-subtitle {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.movie-wordcloud-modal-close {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(26, 26, 26, 0.35);
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.movie-wordcloud-modal-close:hover {
+  background: rgba(26, 26, 26, 0.75);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.movie-wordcloud-modal-toolbar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.movie-wordcloud-source-radios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+}
+
+.movie-wordcloud-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.movie-wordcloud-radio--disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.movie-wordcloud-radio input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent, #888);
+}
+
+.movie-wordcloud-shuffle-shape {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(26, 26, 26, 0.4);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.movie-wordcloud-shuffle-shape:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(40, 40, 40, 0.6);
+}
+
+.movie-wordcloud-shuffle-shape:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.movie-wordcloud-modal-body {
+  padding: 12px 16px 18px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.movie-wordcloud-empty {
+  margin: 0;
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.movie-wordcloud-canvas-wrap {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: min(440px, 52vh);
+  max-height: min(74vh, 720px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(8, 8, 8, 0.65);
+  box-sizing: border-box;
+  padding: clamp(12px, 2.5vmin, 20px);
+  display: flex;
+  align-items: stretch;
+}
+
+.movie-wordcloud-viewport {
+  flex: 1;
+  min-height: min(380px, 48vh);
+  min-width: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.movie-wordcloud-canvas {
+  display: block;
+  margin: 0 auto;
+}

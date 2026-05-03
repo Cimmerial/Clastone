@@ -34,7 +34,7 @@ type FriendCollectionEntry = {
   viewerWatchlisted: boolean;
 };
 
-type MovieFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
+type MovieFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED' | 'UNSEEN_UNWATCHLISTED';
 type ClassDisplayMode = 'SHOW_CLASSES' | 'NO_CLASSES';
 
 export function FriendMovieCollectionPage() {
@@ -139,6 +139,9 @@ export function FriendMovieCollectionPage() {
     if (filter === 'SEEN') return orderedFriendMovieEntries.filter((entry) => entry.viewerSeen);
     if (filter === 'UNSEEN') return orderedFriendMovieEntries.filter((entry) => !entry.viewerSeen);
     if (filter === 'WATCHLISTED') return orderedFriendMovieEntries.filter((entry) => entry.viewerWatchlisted);
+    if (filter === 'UNSEEN_UNWATCHLISTED') {
+      return orderedFriendMovieEntries.filter((entry) => !entry.viewerSeen && !entry.viewerWatchlisted);
+    }
     return orderedFriendMovieEntries;
   }, [filter, orderedFriendMovieEntries]);
 
@@ -233,14 +236,22 @@ export function FriendMovieCollectionPage() {
             </button>
           </div>
           <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
-          {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
+          {(
+            [
+              ['ALL', 'ALL'],
+              ['SEEN', 'SEEN'],
+              ['UNSEEN', 'UNSEEN'],
+              ['WATCHLISTED', 'WATCHLISTED'],
+              ['UNSEEN_UNWATCHLISTED', 'Unseen & Unwatchlisted'],
+            ] as const
+          ).map(([option, label]) => (
             <button
               key={option}
               type="button"
               className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`}
               onClick={() => setFilter(option)}
             >
-              {option}
+              {label}
             </button>
           ))}
         </div>
@@ -257,7 +268,7 @@ export function FriendMovieCollectionPage() {
         <div className="friend-movie-collection-empty card-surface">
           {orderedFriendMovieEntries.length === 0
             ? `${friendProfile.username} has no movies saved yet.`
-            : `No movies match "${filter}".`}
+            : `No movies match "${filter === 'UNSEEN_UNWATCHLISTED' ? 'Unseen & Unwatchlisted' : filter}".`}
         </div>
       ) : (
         <RankedList<FriendCollectionEntry>

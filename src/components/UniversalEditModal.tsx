@@ -36,7 +36,7 @@ export type MediaType = 'movie' | 'tv';
 export type WatchMatrixType = 'SINGLE_DATE' | 'DATE_RANGE' | 'LONG_AGO';
 export type WatchDetailStatus = 'NONE' | 'WATCHING' | 'DNF';
 const REVIEW_TITLE_MAX = 250;
-const REVIEW_BODY_MAX = 1500;
+const REVIEW_BODY_MAX = 10000;
 
 type WatchReviewDraft = {
   title: string;

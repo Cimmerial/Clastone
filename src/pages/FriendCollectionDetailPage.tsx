@@ -32,7 +32,7 @@ import './FriendMovieCollectionPage.css';
 
 type FriendProfile = { uid: string; username: string };
 type ViewerMode = 'THEIRS' | 'MINE';
-type CollectionFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED';
+type CollectionFilter = 'ALL' | 'SEEN' | 'UNSEEN' | 'WATCHLISTED' | 'UNSEEN_UNWATCHLISTED';
 type CollectionRow = RankedItemBase & {
   id: string;
   classKey: 'LIST';
@@ -404,6 +404,9 @@ export function FriendCollectionDetailPage() {
     if (filter === 'SEEN') return rows.filter((row) => row.seen);
     if (filter === 'UNSEEN') return rows.filter((row) => !row.seen);
     if (filter === 'WATCHLISTED') return rows.filter((row) => row.watchlisted);
+    if (filter === 'UNSEEN_UNWATCHLISTED') {
+      return rows.filter((row) => !row.seen && !row.watchlisted);
+    }
     return rows;
   }, [rows, filter, shouldUseViewerFilters]);
 
@@ -515,8 +518,16 @@ export function FriendCollectionDetailPage() {
             </div>
             <span className="friend-movie-collection-toggle-divider" aria-hidden="true" />
             <div className="lists-collection-filter-row">
-              {(['ALL', 'SEEN', 'UNSEEN', 'WATCHLISTED'] as const).map((option) => (
-                <button key={option} type="button" className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{option}</button>
+              {(
+                [
+                  ['ALL', 'ALL'],
+                  ['SEEN', 'SEEN'],
+                  ['UNSEEN', 'UNSEEN'],
+                  ['WATCHLISTED', 'WATCHLISTED'],
+                  ['UNSEEN_UNWATCHLISTED', 'Unseen & Unwatchlisted'],
+                ] as const
+              ).map(([option, label]) => (
+                <button key={option} type="button" className={`filter-toggle-btn lists-collection-filter-btn ${filter === option ? 'lists-collection-filter-btn--active' : ''}`} onClick={() => setFilter(option)}>{label}</button>
               ))}
             </div>
           </div>
@@ -580,7 +591,7 @@ export function FriendCollectionDetailPage() {
           </div>
         )
       ) : visibleRows.length === 0 ? (
-        <div className="friend-movie-collection-empty card-surface">{shouldUseViewerFilters ? `No entries match "${filter}".` : 'No entries.'}</div>
+        <div className="friend-movie-collection-empty card-surface">{shouldUseViewerFilters ? `No entries match "${filter === 'UNSEEN_UNWATCHLISTED' ? 'Unseen & Unwatchlisted' : filter}".` : 'No entries.'}</div>
       ) : (
         <RankedList<CollectionRow>
           classOrder={['LIST']}
