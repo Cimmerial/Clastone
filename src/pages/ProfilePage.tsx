@@ -459,7 +459,17 @@ function buildUniqueWatchMilestoneData(
 export function ProfilePage() {
   const navigate = useNavigate();
   const { username, user, isAdmin, isBabyDev } = useAuth();
-  const { totalClastoneUsageMs, pendingClastoneUsageMs, lastBatchSentAtMs } = useClastoneUsage();
+  const {
+    totalClastoneUsageMs,
+    pendingClastoneUsageMs,
+    lastBatchSentAtMs,
+    totalInfoShowClicks,
+    pendingInfoShowClicks,
+    totalInfoMovieClicks,
+    pendingInfoMovieClicks,
+    totalInfoPersonClicks,
+    pendingInfoPersonClicks,
+  } = useClastoneUsage();
   const showDevUsageStat = import.meta.env.DEV && (isAdmin || isBabyDev);
 
   const [rankingTarget, setRankingTarget] = useState<UniversalEditTarget | null>(null);
@@ -2297,6 +2307,42 @@ export function ProfilePage() {
                     {formatLastBatchSent(lastBatchSentAtMs)}
                   </span>
                   <span className="profile-stat-label">Last batch sent</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{totalInfoShowClicks}</span>
+                  <span className="profile-stat-label">Show info taps (total)</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{pendingInfoShowClicks}</span>
+                  <span className="profile-stat-label">Show info taps (queued)</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{totalInfoMovieClicks}</span>
+                  <span className="profile-stat-label">Movie info taps (total)</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{pendingInfoMovieClicks}</span>
+                  <span className="profile-stat-label">Movie info taps (queued)</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{totalInfoPersonClicks}</span>
+                  <span className="profile-stat-label">People info taps (total)</span>
+                </div>
+              )}
+              {showDevUsageStat && (
+                <div className="profile-stat">
+                  <span className="profile-stat-value profile-stat-value--sub">{pendingInfoPersonClicks}</span>
+                  <span className="profile-stat-label">People info taps (queued)</span>
                 </div>
               )}
             </div>

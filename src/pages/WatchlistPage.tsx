@@ -30,6 +30,7 @@ import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
 import { formatRecommendersLabel } from '../components/RecommendToFriendModal';
 import { WatchlistFriendOverlapModal } from '../components/WatchlistFriendOverlapModal';
 import { useWatchlistFriendOverlap } from '../hooks/useWatchlistFriendOverlap';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import './WatchlistPage.css';
 
 type WatchlistSectionKey = 'default' | 'rewatch' | 'unreleased';
@@ -917,6 +918,7 @@ function WatchlistRow({
 
 export function WatchlistPage() {
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
   const {
     movies,
     tv,
@@ -1088,7 +1090,8 @@ export function WatchlistPage() {
     const [, media, idStr] = match;
     const tmdbId = parseInt(idStr, 10);
     if (Number.isNaN(tmdbId)) return;
-    
+
+    recordInfoClick(mediaType === 'tv' ? 'tv' : 'movie');
     setInfoModalTarget({
       tmdbId,
       title: entry.title,

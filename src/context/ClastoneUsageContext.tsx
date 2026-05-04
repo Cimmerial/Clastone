@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { doc, increment, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -6,16 +6,35 @@ const IDLE_TIMEOUT_MS = 30_000;
 const FLUSH_INTERVAL_MS = 5 * 60_000;
 const TICK_MS = 1_000;
 
-type ClastoneUsageState = {
+export type UsageInfoClickKind = 'tv' | 'movie' | 'person';
+
+type PendingInfoCounts = { tv: number; movie: number; person: number };
+
+function emptyPendingInfo(): PendingInfoCounts {
+  return { tv: 0, movie: 0, person: 0 };
+}
+
+export type ClastoneUsageState = {
   totalClastoneUsageMs: number;
   pendingClastoneUsageMs: number;
   lastBatchSentAtMs: number | null;
+  totalInfoShowClicks: number;
+  pendingInfoShowClicks: number;
+  totalInfoMovieClicks: number;
+  pendingInfoMovieClicks: number;
+  totalInfoPersonClicks: number;
+  pendingInfoPersonClicks: number;
+  recordInfoClick: (kind: UsageInfoClickKind) => void;
 };
 
 const ClastoneUsageContext = createContext<ClastoneUsageState | null>(null);
 
 function getPendingKey(uid: string): string {
   return `clastone:usage:pending:${uid}`;
+}
+
+function getPendingInfoKey(uid: string): string {
+  return `clastone:usage:pendingInfo:${uid}`;
 }
 
 function readPendingMs(uid: string): number {
@@ -37,28 +56,99 @@ function writePendingMs(uid: string, pendingMs: number): void {
   window.localStorage.setItem(getPendingKey(uid), String(normalized));
 }
 
+function normalizePositiveInt(v: unknown): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n);
+}
+
+function readPendingInfo(uid: string): PendingInfoCounts {
+  if (typeof window === 'undefined') return emptyPendingInfo();
+  const raw = window.localStorage.getItem(getPendingInfoKey(uid));
+  if (!raw) return emptyPendingInfo();
+  try {
+    const parsed = JSON.parse(raw) as Partial<PendingInfoCounts>;
+    return {
+      tv: normalizePositiveInt(parsed.tv),
+      movie: normalizePositiveInt(parsed.movie),
+      person: normalizePositiveInt(parsed.person),
+    };
+  } catch {
+    return emptyPendingInfo();
+  }
+}
+
+function writePendingInfo(uid: string, counts: PendingInfoCounts): void {
+  if (typeof window === 'undefined') return;
+  const tv = Math.max(0, Math.floor(counts.tv));
+  const movie = Math.max(0, Math.floor(counts.movie));
+  const person = Math.max(0, Math.floor(counts.person));
+  if (tv === 0 && movie === 0 && person === 0) {
+    window.localStorage.removeItem(getPendingInfoKey(uid));
+    return;
+  }
+  window.localStorage.setItem(getPendingInfoKey(uid), JSON.stringify({ tv, movie, person }));
+}
+
+function sumPendingInfo(c: PendingInfoCounts): number {
+  return c.tv + c.movie + c.person;
+}
+
 export function ClastoneUsageProvider({
   uid,
   initialTotalMs,
+  initialInfoShowClicks = 0,
+  initialInfoMovieClicks = 0,
+  initialInfoPersonClicks = 0,
   children,
 }: {
   uid: string;
   initialTotalMs: number;
+  initialInfoShowClicks?: number;
+  initialInfoMovieClicks?: number;
+  initialInfoPersonClicks?: number;
   children: React.ReactNode;
 }) {
   const initialFromServer = Number.isFinite(initialTotalMs) ? Math.max(0, Math.floor(initialTotalMs)) : 0;
+  const initialShow = normalizePositiveInt(initialInfoShowClicks);
+  const initialMovie = normalizePositiveInt(initialInfoMovieClicks);
+  const initialPerson = normalizePositiveInt(initialInfoPersonClicks);
+
   const recoveredPending = readPendingMs(uid);
+  const recoveredInfo = readPendingInfo(uid);
+
   const [totalClastoneUsageMs, setTotalClastoneUsageMs] = useState(initialFromServer + recoveredPending);
   const [pendingClastoneUsageMs, setPendingClastoneUsageMs] = useState(recoveredPending);
   const [lastBatchSentAtMs, setLastBatchSentAtMs] = useState<number | null>(null);
 
+  const [totalInfoShowClicks, setTotalInfoShowClicks] = useState(initialShow + recoveredInfo.tv);
+  const [pendingInfoShowClicks, setPendingInfoShowClicks] = useState(recoveredInfo.tv);
+  const [totalInfoMovieClicks, setTotalInfoMovieClicks] = useState(initialMovie + recoveredInfo.movie);
+  const [pendingInfoMovieClicks, setPendingInfoMovieClicks] = useState(recoveredInfo.movie);
+  const [totalInfoPersonClicks, setTotalInfoPersonClicks] = useState(initialPerson + recoveredInfo.person);
+  const [pendingInfoPersonClicks, setPendingInfoPersonClicks] = useState(recoveredInfo.person);
+
   const confirmedServerMsRef = useRef(initialFromServer);
   const pendingMsRef = useRef(recoveredPending);
+  const confirmedInfoRef = useRef({ tv: initialShow, movie: initialMovie, person: initialPerson });
+  const pendingInfoRef = useRef<PendingInfoCounts>({ ...recoveredInfo });
+
   const lastTickAtRef = useRef(Date.now());
   const lastActivityAtRef = useRef(Date.now());
   const activeRef = useRef(true);
   const flushingRef = useRef(false);
   const lastFlushAttemptAtRef = useRef(0);
+
+  const bumpDisplay = useCallback(() => {
+    setTotalClastoneUsageMs(confirmedServerMsRef.current + pendingMsRef.current);
+    setPendingClastoneUsageMs(pendingMsRef.current);
+    setTotalInfoShowClicks(confirmedInfoRef.current.tv + pendingInfoRef.current.tv);
+    setPendingInfoShowClicks(pendingInfoRef.current.tv);
+    setTotalInfoMovieClicks(confirmedInfoRef.current.movie + pendingInfoRef.current.movie);
+    setPendingInfoMovieClicks(pendingInfoRef.current.movie);
+    setTotalInfoPersonClicks(confirmedInfoRef.current.person + pendingInfoRef.current.person);
+    setPendingInfoPersonClicks(pendingInfoRef.current.person);
+  }, []);
 
   useEffect(() => {
     confirmedServerMsRef.current = initialFromServer;
@@ -66,36 +156,84 @@ export function ClastoneUsageProvider({
   }, [initialFromServer]);
 
   useEffect(() => {
-    const bumpDisplay = () => {
-      setTotalClastoneUsageMs(confirmedServerMsRef.current + pendingMsRef.current);
-      setPendingClastoneUsageMs(pendingMsRef.current);
-    };
+    confirmedInfoRef.current.tv = initialShow;
+    confirmedInfoRef.current.movie = initialMovie;
+    confirmedInfoRef.current.person = initialPerson;
+    bumpDisplay();
+  }, [initialShow, initialMovie, initialPerson, bumpDisplay]);
 
+  const recordInfoClick = useCallback(
+    (kind: UsageInfoClickKind) => {
+      if (kind === 'tv') pendingInfoRef.current.tv += 1;
+      else if (kind === 'movie') pendingInfoRef.current.movie += 1;
+      else pendingInfoRef.current.person += 1;
+      writePendingInfo(uid, pendingInfoRef.current);
+      bumpDisplay();
+    },
+    [uid, bumpDisplay]
+  );
+
+  useEffect(() => {
     const flushPending = async () => {
       if (!db || flushingRef.current) return;
       const snapshotPending = pendingMsRef.current;
-      if (snapshotPending <= 0) return;
+      const snapshotInfo: PendingInfoCounts = {
+        tv: pendingInfoRef.current.tv,
+        movie: pendingInfoRef.current.movie,
+        person: pendingInfoRef.current.person,
+      };
+      if (snapshotPending <= 0 && sumPendingInfo(snapshotInfo) <= 0) return;
 
       flushingRef.current = true;
       lastFlushAttemptAtRef.current = Date.now();
       try {
+        const usage: Record<string, unknown> = {
+          lastActiveFlushAt: new Date().toISOString(),
+        };
+        if (snapshotPending > 0) {
+          usage.clastoneActiveMs = increment(snapshotPending);
+        }
+        if (snapshotInfo.tv > 0) {
+          usage.infoShowClicks = increment(snapshotInfo.tv);
+        }
+        if (snapshotInfo.movie > 0) {
+          usage.infoMovieClicks = increment(snapshotInfo.movie);
+        }
+        if (snapshotInfo.person > 0) {
+          usage.infoPersonClicks = increment(snapshotInfo.person);
+        }
+
         await setDoc(
           doc(db, 'users', uid),
           {
-            usage: {
-              clastoneActiveMs: increment(snapshotPending),
-              lastActiveFlushAt: new Date().toISOString(),
-            },
+            usage,
           },
           { merge: true }
         );
-        confirmedServerMsRef.current += snapshotPending;
-        pendingMsRef.current = Math.max(0, pendingMsRef.current - snapshotPending);
+
+        if (snapshotPending > 0) {
+          confirmedServerMsRef.current += snapshotPending;
+          pendingMsRef.current = Math.max(0, pendingMsRef.current - snapshotPending);
+          writePendingMs(uid, pendingMsRef.current);
+        }
+        if (snapshotInfo.tv > 0) {
+          confirmedInfoRef.current.tv += snapshotInfo.tv;
+          pendingInfoRef.current.tv = Math.max(0, pendingInfoRef.current.tv - snapshotInfo.tv);
+        }
+        if (snapshotInfo.movie > 0) {
+          confirmedInfoRef.current.movie += snapshotInfo.movie;
+          pendingInfoRef.current.movie = Math.max(0, pendingInfoRef.current.movie - snapshotInfo.movie);
+        }
+        if (snapshotInfo.person > 0) {
+          confirmedInfoRef.current.person += snapshotInfo.person;
+          pendingInfoRef.current.person = Math.max(0, pendingInfoRef.current.person - snapshotInfo.person);
+        }
+        writePendingInfo(uid, pendingInfoRef.current);
         setLastBatchSentAtMs(Date.now());
-        writePendingMs(uid, pendingMsRef.current);
         bumpDisplay();
       } catch {
         writePendingMs(uid, pendingMsRef.current);
+        writePendingInfo(uid, pendingInfoRef.current);
       } finally {
         flushingRef.current = false;
       }
@@ -112,6 +250,7 @@ export function ClastoneUsageProvider({
 
     const flushSoon = () => {
       writePendingMs(uid, pendingMsRef.current);
+      writePendingInfo(uid, pendingInfoRef.current);
       void flushPending();
     };
 
@@ -125,6 +264,7 @@ export function ClastoneUsageProvider({
 
     const onPageHide = () => {
       writePendingMs(uid, pendingMsRef.current);
+      writePendingInfo(uid, pendingInfoRef.current);
     };
 
     const events: Array<keyof WindowEventMap> = [
@@ -161,8 +301,8 @@ export function ClastoneUsageProvider({
         }
       }
 
-      const shouldHeartbeatFlush =
-        pendingMsRef.current > 0 && now - lastFlushAttemptAtRef.current >= FLUSH_INTERVAL_MS;
+      const hasPendingUsage = pendingMsRef.current > 0 || sumPendingInfo(pendingInfoRef.current) > 0;
+      const shouldHeartbeatFlush = hasPendingUsage && now - lastFlushAttemptAtRef.current >= FLUSH_INTERVAL_MS;
       if (shouldHeartbeatFlush) {
         void flushPending();
       }
@@ -179,17 +319,36 @@ export function ClastoneUsageProvider({
       window.removeEventListener('pagehide', onPageHide);
       window.removeEventListener('beforeunload', onPageHide);
       writePendingMs(uid, pendingMsRef.current);
+      writePendingInfo(uid, pendingInfoRef.current);
       void flushPending();
     };
-  }, [uid]);
+  }, [uid, bumpDisplay]);
 
   const value = useMemo<ClastoneUsageState>(
     () => ({
       totalClastoneUsageMs,
       pendingClastoneUsageMs,
       lastBatchSentAtMs,
+      totalInfoShowClicks,
+      pendingInfoShowClicks,
+      totalInfoMovieClicks,
+      pendingInfoMovieClicks,
+      totalInfoPersonClicks,
+      pendingInfoPersonClicks,
+      recordInfoClick,
     }),
-    [totalClastoneUsageMs, pendingClastoneUsageMs, lastBatchSentAtMs]
+    [
+      totalClastoneUsageMs,
+      pendingClastoneUsageMs,
+      lastBatchSentAtMs,
+      totalInfoShowClicks,
+      pendingInfoShowClicks,
+      totalInfoMovieClicks,
+      pendingInfoMovieClicks,
+      totalInfoPersonClicks,
+      pendingInfoPersonClicks,
+      recordInfoClick,
+    ]
   );
 
   return <ClastoneUsageContext.Provider value={value}>{children}</ClastoneUsageContext.Provider>;

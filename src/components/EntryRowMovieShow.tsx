@@ -14,6 +14,7 @@ import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useNavigate } from 'react-router-dom';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 
 const TMDB_REFRESH_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
 /** Cast faces shown per movie/TV row (formerly a settings slider). */
@@ -170,6 +171,11 @@ export function EntryRowMovieShow({
   const isNonRanked = item.classKey === 'BABY' || item.classKey === 'DELICIOUS_GARBAGE';
   const { settings } = useSettingsStore();
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
+  const handleRowInfoClick = () => {
+    recordInfoClick(listType === 'shows' ? 'tv' : 'movie');
+    onInfo?.(item);
+  };
   const { getPersonById, classes: peopleClasses } = usePeopleStore();
   const { getDirectorById, classes: directorsClasses } = useDirectorsStore();
 
@@ -356,7 +362,7 @@ export function EntryRowMovieShow({
             <Film size={24} />
           )}
           <div className="entry-tile-info-btn">
-            <button type="button" onClick={() => onInfo?.(item)}>
+            <button type="button" onClick={handleRowInfoClick}>
               <Info size={14} />
             </button>
           </div>
@@ -402,7 +408,7 @@ export function EntryRowMovieShow({
             <button
               type="button"
               className="entry-title-info-btn"
-              onClick={() => onInfo?.(item)}
+              onClick={handleRowInfoClick}
               data-tooltip="Info"
             >
               <Info size={14} />

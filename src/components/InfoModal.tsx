@@ -9,6 +9,7 @@ import { useListsStore } from '../state/listsStore';
 import { useWatchlistStore } from '../state/watchlistStore';
 import { PersonInfoModal } from './PersonInfoModal';
 import { PersonRankingModal, type PersonRankingTarget } from './PersonRankingModal';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import './InfoModal.css';
 
 type MediaType = 'movie' | 'tv';
@@ -45,6 +46,7 @@ interface MediaDetails {
 
 export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPath, releaseDate, collectionTags = [], onEditWatches }: InfoModalProps) {
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
   const [details, setDetails] = useState<MediaDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,11 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
   const { getDirectorById, addDirectorFromSearch, moveItemToClass: moveDirectorToClass, removeDirectorEntry, classes: directorsClasses } = useDirectorsStore();
   const entryId = `tmdb-${mediaType}-${tmdbId}`;
   const inWatchlist = isInWatchlist(entryId);
+
+  const openNestedPersonInfo = (p: { tmdbId: number; name: string; profilePath?: string }) => {
+    recordInfoClick('person');
+    setPersonInfoTarget(p);
+  };
 
   useEffect(() => {
     if (!isOpen || !tmdbId) return;
@@ -718,7 +725,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={`View ${person.name} info`}
                                 onClick={() =>
-                                  setPersonInfoTarget({
+                                  openNestedPersonInfo({
                                     tmdbId: person.id,
                                     name: person.name,
                                     profilePath: getSavedPersonProfilePath(person.id, person.profilePath),
@@ -780,7 +787,7 @@ export function InfoModal({ isOpen, onClose, tmdbId, mediaType, title, posterPat
                                 className={`info-modal-person-action-btn ${saved ? 'info-modal-person-action-btn--saved' : ''}`}
                                 title={`View ${person.name} info`}
                                 onClick={() =>
-                                  setPersonInfoTarget({
+                                  openNestedPersonInfo({
                                     tmdbId: person.id,
                                     name: person.name,
                                     profilePath: getSavedPersonProfilePath(person.id, person.profilePath),

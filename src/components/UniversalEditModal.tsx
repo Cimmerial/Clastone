@@ -28,6 +28,7 @@ import { InfoModal } from './InfoModal';
 import { RecommendToFriendModal } from './RecommendToFriendModal';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { useNavigate } from 'react-router-dom';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -589,6 +590,7 @@ export function UniversalEditModal({
   initialReviewEntryId,
 }: Props) {
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
   const { isMobile } = useMobileViewMode();
   const [recommendOpen, setRecommendOpen] = useState(false);
   // Convert WatchRecord[] to WatchMatrixEntry[] for initial state
@@ -1427,7 +1429,11 @@ export function UniversalEditModal({
             <button 
               type="button" 
               className="uem-info-btn" 
-              onClick={() => setShowInfoModal(true)}
+              onClick={() => {
+                if (target.mediaType === 'movie') recordInfoClick('movie');
+                else if (target.mediaType === 'tv') recordInfoClick('tv');
+                setShowInfoModal(true);
+              }}
               title="View detailed information"
             >
               <Info size={16} />

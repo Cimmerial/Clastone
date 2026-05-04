@@ -33,6 +33,9 @@ type AuthState = {
   loginError: string | null;
   username: string | null;
   clastoneUsageMs: number;
+  infoShowClicks: number;
+  infoMovieClicks: number;
+  infoPersonClicks: number;
   needsUsername: boolean;
   adminLogin: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
@@ -55,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [clastoneUsageMs, setClastoneUsageMs] = useState(0);
+  const [infoShowClicks, setInfoShowClicks] = useState(0);
+  const [infoMovieClicks, setInfoMovieClicks] = useState(0);
+  const [infoPersonClicks, setInfoPersonClicks] = useState(0);
   const [needsUsername, setNeedsUsername] = useState(false);
 
   useEffect(() => {
@@ -76,8 +82,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const trackedUsageMs = typeof trackedUsageMsRaw === 'number' && Number.isFinite(trackedUsageMsRaw)
           ? Math.max(0, trackedUsageMsRaw)
           : 0;
+        const parseUsageInt = (v: unknown) =>
+          typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
         setIsBabyDev(!emailAdmin && role === 'babydev');
         setClastoneUsageMs(trackedUsageMs);
+        setInfoShowClicks(parseUsageInt(userData?.usage?.infoShowClicks));
+        setInfoMovieClicks(parseUsageInt(userData?.usage?.infoMovieClicks));
+        setInfoPersonClicks(parseUsageInt(userData?.usage?.infoPersonClicks));
         
         if (userUsername) {
           setUsername(userUsername);
@@ -95,6 +106,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUsername(null);
         setClastoneUsageMs(0);
+        setInfoShowClicks(0);
+        setInfoMovieClicks(0);
+        setInfoPersonClicks(0);
         setNeedsUsername(false);
         setIsBabyDev(false);
         setPfpPosterPath(null);
@@ -329,6 +343,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginError,
     username,
     clastoneUsageMs,
+    infoShowClicks,
+    infoMovieClicks,
+    infoPersonClicks,
     needsUsername,
     adminLogin,
     loginWithEmail,

@@ -16,6 +16,7 @@ import { useWatchlistStore } from '../state/watchlistStore';
 import { formatProfileWatchDateLabel } from '../lib/watchProfileDateLabel';
 import { compareRecentWatchEvents } from '../lib/watchRecordChronology';
 import { useAuth } from '../context/AuthContext';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { UniversalEditModal, type UniversalEditTarget, type UniversalEditSaveParams } from '../components/UniversalEditModal';
 import { InfoModal } from '../components/InfoModal';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
@@ -74,6 +75,7 @@ function ExpandableSection({ title, children, defaultExpanded = false }: Expanda
 export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { recordInfoClick } = useClastoneUsage();
   const { settings, updateSettings } = useSettingsStore();
   const { friends } = useFriends();
   const {
@@ -707,6 +709,7 @@ export function HomePage() {
                               title="Info"
                               onClick={() => {
                                 const tmdbId = entry.item.tmdbId ?? (parseInt(entry.item.id.replace(/\D/g, ''), 10) || 0);
+                                recordInfoClick(entry.isMovie ? 'movie' : 'tv');
                                 setInfoModalTarget({
                                   tmdbId,
                                   title: entry.item.title,

@@ -42,14 +42,26 @@ function TileSizeManager() {
 function LoggedInAppShell({
   uid,
   initialUsageMs,
+  initialInfoShowClicks,
+  initialInfoMovieClicks,
+  initialInfoPersonClicks,
   children,
 }: {
   uid: string;
   initialUsageMs: number;
+  initialInfoShowClicks: number;
+  initialInfoMovieClicks: number;
+  initialInfoPersonClicks: number;
   children: React.ReactNode;
 }) {
   return (
-    <ClastoneUsageProvider uid={uid} initialTotalMs={initialUsageMs}>
+    <ClastoneUsageProvider
+      uid={uid}
+      initialTotalMs={initialUsageMs}
+      initialInfoShowClicks={initialInfoShowClicks}
+      initialInfoMovieClicks={initialInfoMovieClicks}
+      initialInfoPersonClicks={initialInfoPersonClicks}
+    >
       <FriendsProvider>
         <SyncStatusProvider>
           <FirestoreSettingsGate>
@@ -122,7 +134,15 @@ function PublicAppShell() {
 }
 
 function App() {
-  const { user, loading, needsUsername, clastoneUsageMs } = useAuth();
+  const {
+    user,
+    loading,
+    needsUsername,
+    clastoneUsageMs,
+    infoShowClicks,
+    infoMovieClicks,
+    infoPersonClicks,
+  } = useAuth();
 
   if (loading) {
     return <AppLoading message="Loading..." />;
@@ -141,7 +161,13 @@ function App() {
   }
 
   return (
-    <LoggedInAppShell uid={user.uid} initialUsageMs={clastoneUsageMs}>
+    <LoggedInAppShell
+      uid={user.uid}
+      initialUsageMs={clastoneUsageMs}
+      initialInfoShowClicks={infoShowClicks}
+      initialInfoMovieClicks={infoMovieClicks}
+      initialInfoPersonClicks={infoPersonClicks}
+    >
       <AppRoutes />
     </LoggedInAppShell>
   );

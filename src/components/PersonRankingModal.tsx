@@ -7,6 +7,7 @@ import { tmdbImagePath, tmdbPersonProfiles } from '../lib/tmdb';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
 import { useListsStore } from '../state/listsStore';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import './PersonRankingModal.css';
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -70,6 +71,7 @@ export function PersonRankingModal({
   const isRankedItem = currentClassKey && currentClassKey !== 'UNRANKED';
   const hasNeverBeenRanked = !currentClassKey || currentClassKey === 'UNRANKED';
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
 
   const rankedPickable = useMemo(
     () => rankedClasses.filter((c) => c.key !== 'UNRANKED'),
@@ -274,7 +276,10 @@ export function PersonRankingModal({
               <button
                 type="button"
                 className="prm-info-btn"
-                onClick={() => setShowInfoModal(true)}
+                onClick={() => {
+                  recordInfoClick('person');
+                  setShowInfoModal(true);
+                }}
                 aria-label={`View info for ${target.name}`}
                 title={`View info for ${target.name}`}
               >

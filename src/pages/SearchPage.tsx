@@ -32,6 +32,7 @@ import { SearchPersonProjects } from '../components/SearchPersonProjects';
 import { InfoModal } from '../components/InfoModal';
 import { PersonInfoModal } from '../components/PersonInfoModal';
 import { useAuth } from '../context/AuthContext';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { db } from '../lib/firebase';
 import { upsertGlobalCollection } from '../lib/firestoreCollections';
 import './SearchPage.css';
@@ -518,6 +519,7 @@ export function SearchPage() {
   const navigate = useNavigate();
   const { addToWatchlist, isInWatchlist, removeFromWatchlist } = useWatchlistStore();
   const { isAdmin } = useAuth();
+  const { recordInfoClick } = useClastoneUsage();
   const {
     globalCollections,
     upsertGlobalCollection: upsertCollectionInStore,
@@ -1725,13 +1727,16 @@ export function SearchPage() {
                           <button
                             type="button"
                             className="search-card-info-btn"
-                            onClick={() => setInfoModalTarget({
+                            onClick={() => {
+                              recordInfoClick(r.media_type === 'tv' ? 'tv' : 'movie');
+                              setInfoModalTarget({
                               tmdbId: r.id,
                               mediaType: r.media_type as 'movie' | 'tv',
                               title: r.title,
                               posterPath: effectiveImagePath || undefined,
                               releaseDate: r.release_date || undefined
-                            })}
+                            });
+                            }}
                             title="View detailed information"
                           >
                             <Info size={16} />
@@ -1741,11 +1746,14 @@ export function SearchPage() {
                           <button
                             type="button"
                             className="search-card-info-btn"
-                            onClick={() => setPersonInfoModalTarget({
+                            onClick={() => {
+                              recordInfoClick('person');
+                              setPersonInfoModalTarget({
                               tmdbId: r.id,
                               name: r.title,
                               profilePath: effectiveImagePath || undefined
-                            })}
+                            });
+                            }}
                             title="View detailed information"
                           >
                             <Info size={16} />
@@ -2084,13 +2092,16 @@ export function SearchPage() {
                         <button
                           type="button"
                           className="search-card-info-btn"
-                          onClick={() => setInfoModalTarget({
+                          onClick={() => {
+                            recordInfoClick(r.media_type === 'tv' ? 'tv' : 'movie');
+                            setInfoModalTarget({
                             tmdbId: r.id,
                             mediaType: r.media_type as 'movie' | 'tv',
                             title: r.title,
                             posterPath: effectivePosterPath,
                             releaseDate: r.release_date,
-                          })}
+                          });
+                          }}
                           title="Info"
                         >
                           <Info size={13} />
@@ -2269,13 +2280,16 @@ export function SearchPage() {
                         <button
                           type="button"
                           className="search-card-info-btn"
-                          onClick={() => setInfoModalTarget({
-                            tmdbId: r.id,
-                            mediaType: r.media_type as 'movie' | 'tv',
-                            title: r.title,
-                            posterPath: effectivePosterPath,
-                            releaseDate: r.release_date,
-                          })}
+                          onClick={() => {
+                            recordInfoClick(r.media_type === 'tv' ? 'tv' : 'movie');
+                            setInfoModalTarget({
+                              tmdbId: r.id,
+                              mediaType: r.media_type as 'movie' | 'tv',
+                              title: r.title,
+                              posterPath: effectivePosterPath,
+                              releaseDate: r.release_date,
+                            });
+                          }}
                           title="Info"
                         >
                           <Info size={13} />

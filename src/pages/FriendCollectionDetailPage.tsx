@@ -25,6 +25,7 @@ import { useListsStore } from '../state/listsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { usePeopleStore } from '../state/peopleStore';
 import { useDirectorsStore } from '../state/directorsStore';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { PageSearch } from '../components/PageSearch';
 import '../components/RankedList.css';
 import './ListsPage.css';
@@ -87,6 +88,7 @@ function parseSortableDate(value?: string): number {
 
 export function FriendCollectionDetailPage() {
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
   const { friendId, collectionId, listId } = useParams<{ friendId: string; collectionId?: string; listId?: string }>();
   const { globalCollections, lists, entriesByListId, createList, addEntryToListTop } = useListsStore();
   const {
@@ -555,6 +557,7 @@ export function FriendCollectionDetailPage() {
                       e.stopPropagation();
                       const tmdbId = parseInt(person.id.replace(/\D/g, ''), 10) || 0;
                       setPersonRankingTarget(null);
+                      recordInfoClick('person');
                       setPersonInfoTarget({ tmdbId, name: person.title, profilePath: person.profilePath });
                     }}
                     title={`Info for ${person.title}`}

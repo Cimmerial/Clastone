@@ -8,6 +8,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { formatDuration, useMoviesStore } from '../state/moviesStore';
 import { useTvStore } from '../state/tvStore';
 import { useNavigate } from 'react-router-dom';
+import { useClastoneUsage } from '../context/ClastoneUsageContext';
 import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { isActorProjectTitleExcluded } from '../lib/actorProjectTitleFilters';
 
@@ -46,6 +47,11 @@ export function EntryRowPerson({
   const { byClass: moviesByClass, globalRanks: moviesGlobalRanks } = useMoviesStore();
   const { byClass: tvByClass, globalRanks: tvGlobalRanks } = useTvStore();
   const navigate = useNavigate();
+  const { recordInfoClick } = useClastoneUsage();
+  const handlePersonInfoClick = () => {
+    recordInfoClick('person');
+    onInfo?.(item);
+  };
   const rowRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [hoveredRoleId, setHoveredRoleId] = useState<number | null>(null);
@@ -295,7 +301,7 @@ export function EntryRowPerson({
               <span>👤</span>
             )}
             <div className="entry-tile-info-btn">
-              <button type="button" onClick={() => onInfo?.(item)}>
+              <button type="button" onClick={handlePersonInfoClick}>
                 <Info size={14} />
               </button>
             </div>
@@ -321,7 +327,7 @@ export function EntryRowPerson({
               <span>👤</span>
             )}
             <div className="entry-tile-info-btn">
-              <button type="button" onClick={() => onInfo?.(item)}>
+              <button type="button" onClick={handlePersonInfoClick}>
                 <Info size={16} />
               </button>
             </div>
@@ -359,7 +365,7 @@ export function EntryRowPerson({
             <button 
               type="button" 
               className="entry-title-info-btn" 
-              onClick={() => onInfo?.(item)}
+              onClick={handlePersonInfoClick}
               data-tooltip="Info"
             >
               <Info size={14} />
