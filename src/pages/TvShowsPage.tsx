@@ -26,6 +26,7 @@ import { useMobileViewMode } from '../hooks/useMobileViewMode';
 import { InfoModal } from '../components/InfoModal';
 import { useListsStore } from '../state/listsStore';
 import { canChooseOrSwapClassTemplate } from '../lib/classTemplates';
+import { formatMovieShowClassRankSpan } from '../lib/movieShowRankStrings';
 import { ClassTemplatePicker } from '../components/ClassTemplatePicker';
 import { watchMatrixEntriesToWatchRecords } from '../lib/watchMatrixMapping';
 import { prepareWatchRecordsForSave } from '../lib/watchDayOrderUtils';
@@ -283,12 +284,17 @@ export function TvShowsPage() {
         itemsByClass={computedByClass}
         getClassLabel={getClassLabel}
         getClassTagline={getClassTagline}
-        getClassSubtitle={(_, items) => {
+        getClassSubtitle={(classKey, items) => {
           const totalMins = items.reduce(
             (sum, it) => sum + getTotalMinutesFromRecords(it.watchRecords ?? [], it.runtimeMinutes),
             0
           );
-          return totalMins > 0 ? formatDuration(totalMins) : '';
+          const durationPart = totalMins > 0 ? formatDuration(totalMins) : '';
+          const rankPart =
+            isRankedClass(classKey) && items.length > 0
+              ? formatMovieShowClassRankSpan(items)
+              : '';
+          return [durationPart, rankPart].filter(Boolean).join(' | ');
         }}
         onReorderWithinClass={reorderWithinClass}
         onMoveBetweenClasses={moveItemToClass}

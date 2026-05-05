@@ -15,6 +15,7 @@ import { useDirectorsStore } from '../state/directorsStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useNavigate } from 'react-router-dom';
 import { useClastoneUsage } from '../context/ClastoneUsageContext';
+import { parseAbsoluteRankParts, parsePercentileRankString } from '../lib/movieShowRankStrings';
 
 const TMDB_REFRESH_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
 /** Cast faces shown per movie/TV row (formerly a settings slider). */
@@ -117,16 +118,6 @@ type Props = {
   tilePosterClassName?: string;
 };
 
-function parsePercentile(s: string): number | null {
-  const m = s.match(/^(\d+)%$/);
-  return m ? Number(m[1]) : null;
-}
-
-function parseAbsoluteRank(s: string): { rank: number; total: number } | null {
-  const m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
-  return m ? { rank: Number(m[1]), total: Number(m[2]) } : null;
-}
-
 function formatReleaseDate(releaseDate?: string): string | null {
   if (!releaseDate) return null;
   // Prefer year if we have a full date string like "2024-05-10"
@@ -159,8 +150,8 @@ export function EntryRowMovieShow({
   tilePosterClassName = ''
 }: Props) {
   const label = listType === 'movies' ? 'movies' : 'shows';
-  const pct = parsePercentile(item.percentileRank);
-  const abs = parseAbsoluteRank(item.absoluteRank);
+  const pct = parsePercentileRankString(item.percentileRank);
+  const abs = parseAbsoluteRankParts(item.absoluteRank);
   const percentileTooltip =
     pct != null ? `Better than ${pct}% of ${label}` : null;
   const absoluteTooltip =
